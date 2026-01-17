@@ -80,3 +80,6 @@ node_modules/
 home-assistant.log
 *.db-shm
 *.db-wal
+
+# Copilot session logs (local only)
+.copilot/sessions/
