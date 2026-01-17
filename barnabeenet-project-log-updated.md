@@ -43,47 +43,52 @@
 **Status:** ✅ Complete  
 **Date:** January 16, 2026
 
-#### Completed
-- [x] Cleaned up unused VMs/containers (removed 102, 103, 104, 105, 108, 109, 110)
-- [x] Stopped old barnabee container (107) for reference
+- [x] Cleaned up unused VMs/containers
 - [x] Downloaded NixOS 24.11 ISO to Proxmox
 - [x] Created VM 200 (barnabeenet): 6 cores, 8GB RAM, 100GB disk
-- [x] Booted NixOS live installer
-- [x] SSH access to installer working
-- [x] Disk partitioned (GPT, EFI + root)
-- [x] Filesystems created (FAT32 boot, ext4 root)
-- [x] Mounted and generated hardware config
-- [x] Fixed duplicate /boot entry in hardware-configuration.nix
-- [x] Wrote NixOS configuration with SSH key
-- [x] Ran nixos-install
-- [x] Fixed BIOS → UEFI boot (added EFI disk, changed to OVMF)
-- [x] Ran nixos-rebuild switch to apply SSH keys
+- [x] Installed NixOS with UEFI boot (systemd-boot)
 - [x] SSH access as thom@192.168.86.51 verified
-
-#### Final VM Configuration
-- **BIOS:** OVMF (UEFI)
-- **Disks:** scsi0 (100GB root), efidisk0 (4MB EFI vars)
-- **Boot:** systemd-boot
-- **OS:** NixOS 24.11
-- **Nix version:** 2.24.14
-- **Flakes:** Enabled
+- [x] Nix flakes enabled
 
 ---
 
 ### Step 4: Base VM Configuration
-**Status:** 🔄 In Progress  
+**Status:** ✅ Complete  
 **Date:** January 16, 2026
 
-#### TODO
-- [ ] Set up directory structure for BarnabeeNet
-- [ ] Install and configure Docker or Podman
-- [ ] Clone BarnabeeNet repo to VM
-- [ ] Initial service scaffolding
+- [x] NixOS configuration updated with Podman + dev tools
+- [x] Podman rootless with docker-compat enabled
+- [x] SSH key generated for GitHub access from VM
+- [x] BarnabeeNet repo cloned to ~/barnabeenet
+- [x] Data directories created (~/data/redis, ~/data/models/*)
+- [x] Redis 7-alpine container running via podman-compose
+- [x] Systemd user service for auto-start on boot
+- [x] Verified services survive reboot
+
+#### Installed Packages
+- podman, podman-compose
+- python312, pip, virtualenv
+- sqlite, redis-cli
+- age, sops
+- jq, yq, tree, ffmpeg
+
+#### Running Services
+| Service | Image | Port | Status |
+|---------|-------|------|--------|
+| Redis | redis:7-alpine | 6379 | Running (auto-start) |
 
 ---
 
 ## Phase 1: Core Services
-**Status:** Not Started
+**Status:** 🔄 Ready to Start
+
+### TODO
+- [ ] Add Faster-Whisper container (STT)
+- [ ] Add Piper container (TTS)
+- [ ] Create Python virtual environment
+- [ ] Install BarnabeeNet dependencies
+- [ ] Create FastAPI scaffolding for BarnabeeNet core
+- [ ] Basic end-to-end voice test (audio → text → audio)
 
 ---
 
@@ -124,6 +129,8 @@
 | 2026-01-16 | VM ID 200 | Clean numbering, away from existing IDs |
 | 2026-01-16 | 8GB RAM, 6 cores | Conservative given Beelink memory constraints |
 | 2026-01-16 | UEFI boot with OVMF | Required for systemd-boot |
+| 2026-01-16 | Podman rootless over Docker | Security + NixOS compatibility |
+| 2026-01-16 | Separate SSH key per machine | Security best practice |
 
 ---
 
@@ -140,6 +147,7 @@
 | 2026-01-16 | VM stuck at "Booting from Hard Disk" | VM was using BIOS, not UEFI. Added EFI disk and changed to OVMF |
 | 2026-01-16 | SSH key not being accepted | Key was in config but not applied. Ran `nixos-rebuild switch` |
 | 2026-01-16 | SSH host key warnings | Expected after reinstalls. Used `ssh-keygen -R` to clear old keys |
+| 2026-01-16 | Systemd user service couldn't find podman | Added PATH environment variable to service file |
 
 ---
 
@@ -163,7 +171,6 @@
 ## NixOS Configuration (Current)
 
 **Location on VM:** `/etc/nixos/configuration.nix`
-
 ```nix
 { config, pkgs, ... }:
 
@@ -172,30 +179,26 @@
     ./hardware-configuration.nix
   ];
 
-  # Bootloader
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  # Networking
   networking.hostName = "barnabeenet";
   networking.networkmanager.enable = true;
 
-  # Timezone
   time.timeZone = "America/New_York";
 
-  # Users
   users.users.thom = {
     isNormalUser = true;
     extraGroups = [ "wheel" "networkmanager" ];
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOP6MkvsXW5bgQmDoSE6uWdckVgzhVFxh4xOuiiEpsBG thom.fife@gmail.com"
     ];
+    subUidRanges = [{ startUid = 100000; count = 65536; }];
+    subGidRanges = [{ startGid = 100000; count = 65536; }];
   };
 
-  # Allow sudo without password for wheel group
   security.sudo.wheelNeedsPassword = false;
 
-  # Enable SSH
   services.openssh = {
     enable = true;
     settings = {
@@ -204,69 +207,58 @@
     };
   };
 
-  # Enable QEMU guest agent
   services.qemuGuest.enable = true;
 
-  # Basic packages
+  virtualisation.podman = {
+    enable = true;
+    dockerCompat = true;
+    defaultNetwork.settings.dns_enabled = true;
+  };
+
   environment.systemPackages = with pkgs; [
-    vim
-    git
-    curl
-    wget
-    htop
-    tmux
+    vim git curl wget htop tmux
+    podman-compose
+    python312 python312Packages.pip python312Packages.virtualenv
+    sqlite redis
+    age sops
+    jq yq tree unzip ffmpeg
   ];
 
-  # Firewall
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [ 22 ];
   };
 
-  # Enable flakes
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
-  # System version
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 30d";
+  };
+
   system.stateVersion = "24.11";
 }
 ```
 
 ---
 
-## Hardware Configuration (Current)
+## Access Quick Reference
+```bash
+# SSH to BarnabeeNet VM
+ssh thom@192.168.86.51
 
-**Location on VM:** `/etc/nixos/hardware-configuration.nix`
+# SSH to Proxmox host
+ssh root@192.168.86.64
 
-```nix
-{ config, lib, pkgs, modulesPath, ... }:
+# Proxmox Web UI
+https://192.168.86.64:8006
 
-{
-  imports =
-    [ (modulesPath + "/profiles/qemu-guest.nix")
-    ];
+# Check BarnabeeNet services
+ssh thom@192.168.86.51 "podman ps"
 
-  boot.initrd.availableKernelModules = [ "ata_piix" "uhci_hcd" "virtio_pci" "virtio_scsi" "sd_mod" "sr_mod" ];
-  boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ "kvm-intel" ];
-  boot.extraModulePackages = [ ];
-
-  fileSystems."/" =
-    { device = "/dev/disk/by-uuid/3fc1bab7-2ff7-4bb2-bbdf-05cc3cef7ca2";
-      fsType = "ext4";
-    };
-
-  fileSystems."/boot" =
-    { device = "/dev/disk/by-uuid/F3B2-B88D";
-      fsType = "vfat";
-      options = [ "fmask=0022" "dmask=0022" ];
-    };
-
-  swapDevices = [ ];
-
-  networking.useDHCP = lib.mkDefault true;
-
-  nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
-}
+# Redis CLI
+ssh thom@192.168.86.51 "podman exec barnabeenet-redis redis-cli ping"
 ```
 
 ---
@@ -281,29 +273,4 @@
 
 ### Running Total
 - **Development:** ~$20/month + API usage
-- **Runtime:** $0 (not yet running services)
-
----
-
-## Access Quick Reference
-
-```bash
-# SSH to BarnabeeNet VM (from WSL on Man-of-war)
-ssh thom@192.168.86.51
-
-# SSH to Proxmox host
-ssh root@192.168.86.64
-
-# Proxmox Web UI
-https://192.168.86.64:8006
-```
-
----
-
-## Next Session: Step 4 - Base VM Configuration
-
-Ready to continue with:
-1. Directory structure setup
-2. Docker/Podman installation
-3. Clone GitHub repo to VM
-4. Initial service scaffolding
+- **Runtime:** $0 (Redis only, minimal resources)
