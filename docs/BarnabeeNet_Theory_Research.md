@@ -860,11 +860,12 @@ BarnabeeNet's voice pipeline must fit within tight budgets:
 │  Stage                      │ Budget    │ Technique          │
 │  ─────────────────────────────────────────────────────────  │
 │  Audio Capture              │ ~100ms    │ Streaming buffer   │
-│  Speech-to-Text             │ <150ms    │ Distil-Whisper     │
+│  Speech-to-Text (GPU)       │ ~20-40ms │ Parakeet TDT       │
+│  Speech-to-Text (CPU)       │ ~150-300ms│ Distil-Whisper     │
 │  Speaker ID (parallel)      │ ~20ms     │ ECAPA-TDNN         │
 │  Meta Agent Routing         │ <20ms     │ Rule-based first   │
-│  Action Agent Processing    │ <100ms    │ Local Phi-3.5      │
-│  Text-to-Speech             │ <100ms    │ Piper streaming    │
+│  Action Agent Processing    │ <100ms    │ Cloud LLM (OpenRouter)│
+│  Text-to-Speech             │ ~50ms    │ Kokoro             │
 │  Audio Playback             │ ~10ms     │ Direct output      │
 │  ─────────────────────────────────────────────────────────  │
 │  TOTAL (Action Command)     │ <500ms    │                    │
@@ -937,10 +938,10 @@ For LLM-based responses, **first-token latency** is the critical metric:
 
 > "For voice AI agents, first-token latency is the most critical metric. Dependent on the model, this can range from 250ms (for smaller local models) to over one second (for larger third-party models)." — Cresta Engineering, 2025
 
-BarnabeeNet's model selection prioritizes first-token latency:
-- **Local Phi-3.5**: ~150ms first token on Beelink CPU
-- **Cloud Claude Haiku**: ~200ms first token via API
-- **Cloud Claude Sonnet**: ~400ms first token (complex queries only)
+BarnabeeNet's model selection prioritizes first-token latency (all via OpenRouter):
+- **Fast models** (`google/gemini-2.0-flash-001`, `deepseek/deepseek-v3`): ~150-200ms first token
+- **Quality models** (`anthropic/claude-3-haiku`): ~200ms first token
+- **Premium models** (`anthropic/claude-3.5-sonnet`, `openai/gpt-4o`): ~400ms first token (complex queries only)
 
 ### Perceived vs. Actual Latency
 

@@ -98,8 +98,8 @@ This architecture provides:
 │  │  │  └─ 450-650W typical power draw                            │  │   │
 │  │  │                                                              │  │   │
 │  │  │  RUNS:                                                       │  │   │
-│  │  │  ├─ Local LLM Inference (Llama, Mistral)                   │  │   │
-│  │  │  ├─ Speaker Embedding Training                              │  │   │
+│  │  │  ├─ GPU STT (Parakeet TDT) - Primary                        │  │   │
+│  │  │  ├─ Speaker Embedding Training (future)                      │  │   │
 │  │  │  ├─ Memory Consolidation Jobs                              │  │   │
 │  │  │  ├─ Model Fine-Tuning                                       │  │   │
 │  │  │  ├─ Vibe Coding / Development                              │  │   │
@@ -324,16 +324,9 @@ The Gaming PC serves as BarnabeeNet's heavy compute tier, activated on-demand fo
 
 **LLM Inference Performance** (based on benchmarks):
 
-| Model | Quantization | Tokens/sec | VRAM Usage |
-|-------|-------------|------------|------------|
-| Llama 3 8B | Q4_K_M | ~82 tok/s | ~5 GB |
-| Llama 3 8B | FP16 | OOM | >12 GB |
-| Mistral 7B | Q4_K_M | ~85 tok/s | ~4.5 GB |
-| Phi-3.5 3.8B | Q8 | ~120 tok/s | ~4 GB |
-| Llama 2 13B | Q4_K_M | ~45 tok/s | ~8 GB |
-| Llama 2 22B | Q3 | ~25 tok/s | ~11 GB |
+**Note:** Local LLM inference is not currently implemented. The RTX 4070 Ti is used for GPU-accelerated STT (Parakeet TDT) which provides ~20-40ms latency vs ~150-300ms on CPU. All LLM reasoning is handled via OpenRouter cloud providers.
 
-**Key Insight**: The RTX 4070 Ti's 12GB VRAM is the primary constraint. Models must be quantized (typically Q4) to fit. For larger models (70B+), consider upgrading to RTX 4090 (24GB) or using cloud offload.
+**Future Enhancement:** If local LLM support is added, the RTX 4070 Ti's 12GB VRAM would constrain model selection. Quantized models (Q4) would be required for most 7B-13B models.
 
 #### Memory
 
@@ -863,7 +856,8 @@ smbios1: uuid=xxxxx
 
 | Stage | Model | Time | Notes |
 |-------|-------|------|-------|
-| STT | Faster-Whisper distil-small | ~150ms | 2-second audio |
+| STT (GPU) | Parakeet TDT 0.6B v2 | ~20-40ms | 2-second audio (primary) |
+| STT (CPU) | Distil-Whisper small.en | ~150-300ms | 2-second audio (fallback) |
 | Speaker ID | ECAPA-TDNN | ~20ms | Cosine similarity |
 | Meta Agent | Rule-based | <5ms | Pattern matching |
 | Meta Agent | Cloud LLM fallback | ~200ms | Ambiguous queries (Azure/OpenRouter) |
@@ -884,12 +878,7 @@ smbios1: uuid=xxxxx
 
 ### LLM Inference Benchmarks (Gaming PC)
 
-| Model | Quantization | Prompt Eval | Generation |
-|-------|-------------|-------------|------------|
-| Phi-3.5 3.8B | Q8 | 3,600 tok/s | 120 tok/s |
-| Mistral 7B | Q4_K_M | 3,200 tok/s | 85 tok/s |
-| Llama 3 8B | Q4_K_M | 3,650 tok/s | 82 tok/s |
-| Llama 2 13B | Q4_K_M | 2,100 tok/s | 45 tok/s |
+**Note:** Local LLM benchmarks not applicable - all LLM inference via OpenRouter cloud.
 
 ---
 

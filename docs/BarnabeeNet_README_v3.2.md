@@ -3,13 +3,13 @@
 **Version:** 3.2  
 **Last Updated:** January 17, 2026  
 **Author:** Thom Fife  
-**Status:** Architecture & Planning (Pre-Implementation)
+**Status:** 🔄 Phase 1 In Progress (Foundation Setup)
 
 ---
 
 ## Executive Summary
 
-BarnabeeNet is a **privacy-first smart home AI assistant** designed to feel genuinely "alive" while keeping personal data under your control. Unlike commercial alternatives (Alexa, Google Home, Siri), BarnabeeNet processes **voice capture, STT, TTS, and speaker recognition locally** on your own hardware, while leveraging **cloud LLMs (Azure/OpenRouter)** for intelligent responses—combining the privacy of local processing with the power of state-of-the-art language models.
+BarnabeeNet is a **privacy-first smart home AI assistant** designed to feel genuinely "alive" while keeping personal data under your control. Unlike commercial alternatives (Alexa, Google Home, Siri), BarnabeeNet processes **voice capture, STT, TTS, and speaker recognition locally** on your own hardware, while leveraging **cloud LLMs via OpenRouter** (Claude, GPT-4, Gemini, etc.) for intelligent responses—combining the privacy of local processing with the power of state-of-the-art language models. Azure ML is used only for Evolver Agent benchmarking and evaluations.
 
 ### What Makes BarnabeeNet Different
 
@@ -25,7 +25,7 @@ BarnabeeNet is a **privacy-first smart home AI assistant** designed to feel genu
 ### Architecture Highlights
 
 - **Multi-Agent System**: Specialized agents (Meta, Instant, Action, Interaction, Memory, Proactive, Evolver) handle different request types with appropriate cost/latency tradeoffs
-- **Hybrid Architecture**: STT, TTS, and speaker recognition run locally; LLM reasoning via Azure/OpenRouter for speed and capability
+- **Hybrid Architecture**: STT, TTS, and speaker recognition run locally; LLM reasoning via OpenRouter (primary) for speed and capability; Azure ML for Evolver Agent benchmarking only
 - **Privacy Zones**: Architectural enforcement of no-audio/no-memory zones for children's rooms and bathrooms
 - **Self-Improvement**: Evolver Agent proposes optimizations via vibe coding and benchmarking
 - **Multi-Modal Input**: Voice, AR glasses (Even Realities G1), wearable (Amazfit Cheetah Pro), touch dashboards (ThinkSmart View)
@@ -46,7 +46,7 @@ BarnabeeNet is a **privacy-first smart home AI assistant** designed to feel genu
 ### Key Design Decisions
 
 - **Home Assistant Core**: Leverage mature ecosystem rather than reinvent device integration
-- **OpenRouter for LLMs**: Flexible model switching without vendor lock-in (Sonnet for quality, Flash for speed)
+- **OpenRouter for LLMs**: Primary LLM gateway providing flexible model switching without vendor lock-in (Claude Sonnet for quality, Haiku/Flash for speed). Azure ML used only for Evolver Agent benchmarking/evaluations.
 - **Redis + SQLite**: Working memory (ephemeral) + Long-term memory (persistent)
 - **ECAPA-TDNN for Speaker ID**: State-of-art speaker verification without cloud
 - **Self-Improvement Path**: Gaming PC handles vibe coding, pushing updates to Beelink via Git/Proxmox.
@@ -102,8 +102,8 @@ BarnabeeNet implements a hierarchical multi-agent system where specialized agent
 | Attribute | Value |
 |-----------|-------|
 | Latency Target | <20ms |
-| Model (Cloud) | Gemini Flash / Claude Haiku via OpenRouter |
-| Model (Local) | Rule-based first, Phi-3.5 fallback |
+| Model (Cloud) | DeepSeek V3 / Claude Haiku via OpenRouter |
+| Model (Local) | Rule-based first (no local LLM fallback - cloud only) |
 | Cost per call | ~$0.0001 (cloud) / $0 (local) |
 
 **Implementation Strategy:**
@@ -161,8 +161,8 @@ INSTANT_PATTERNS = {
 | Attribute | Value |
 |-----------|-------|
 | Latency Target | <100ms (including HA call) |
-| Model (Cloud) | Gemini Flash / Claude Haiku |
-| Model (Local) | Phi-3.5 / Llama 3.2 3B |
+| Model (Cloud) | `google/gemini-2.0-flash-001` / `anthropic/claude-3-haiku` via OpenRouter |
+| Model (Local) | None (cloud-only) |
 | Cost per call | ~$0.0002 |
 
 **Input Processing:**
@@ -195,7 +195,7 @@ INSTANT_PATTERNS = {
 |-----------|-------|
 | Latency Target | <3s (acceptable for complex queries) |
 | Model (Cloud) | Claude Sonnet / GPT-4o via OpenRouter |
-| Model (Local) | Llama 3.1 8B / Mistral 7B |
+| Model (Local) | None (cloud-only for quality) |
 | Cost per call | ~$0.003-0.01 |
 
 **Capabilities:**
@@ -709,7 +709,7 @@ privacy_zones:
 │                                                   ▼         │
 │                                          ┌──────────────┐   │
 │                                          │  OpenRouter  │   │
-│                                          │  (optional)  │   │
+│                                          │  (primary)   │   │
 │                                          └──────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -828,9 +828,9 @@ users:
 
 **Cost Control:**
 - Rule-based Meta Agent by default
-- LLM only for genuinely ambiguous cases
-- Local Phi-3.5 for most Action/Query routing
-- Cloud Sonnet only for complex conversations
+- LLM only for genuinely ambiguous cases (via OpenRouter)
+- Fast cloud models (`google/gemini-2.0-flash-001`, `anthropic/claude-3-haiku`) for Action/Query routing
+- Quality cloud models (`anthropic/claude-3.5-sonnet`, `openai/gpt-4o`) only for complex conversations
 
 **Self-Improvement:**
 - Evolver logs all proposals; require user approval for changes.

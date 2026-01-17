@@ -268,7 +268,7 @@ Always include usage tracking in API calls:
 
 ```python
 response = openrouter.chat.completions.create(
-    model="anthropic/claude-sonnet-4-20250514",
+    model="anthropic/claude-3.5-sonnet",
     messages=[...],
     extra_body={
         "usage": {"include": True}
@@ -307,7 +307,7 @@ cost_controls:
       daily_budget: 0.30
       
     - tier: cloud_powerful
-      models: ["claude-sonnet", "gpt-4o"]
+      models: ["anthropic/claude-3.5-sonnet", "openai/gpt-4o"]
       daily_budget: 0.50
       
   degradation_policy:
@@ -339,7 +339,7 @@ client = openai.OpenAI(
 
 # All calls automatically traced
 response = client.chat.completions.create(
-    model="anthropic/claude-sonnet-4-20250514",
+    model="anthropic/claude-3.5-sonnet",
     messages=[{"role": "user", "content": query}]
 )
 ```

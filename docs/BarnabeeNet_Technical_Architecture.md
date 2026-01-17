@@ -1,8 +1,9 @@
 # BarnabeeNet Technical Architecture
 
 **Document Version:** 1.0  
-**Last Updated:** January 16, 2026  
+**Last Updated:** January 17, 2026  
 **Author:** Thom Fife  
+**Status:** 📋 Planning / Reference  
 **Purpose:** Comprehensive technical specification for BarnabeeNet implementation
 
 ---
@@ -87,7 +88,7 @@
 │  │                       OUTPUT LAYER                                     │  │
 │  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐         │  │
 │  │  │   TTS   │ │   AR    │ │ Home    │ │ Watch   │ │Dashboard│         │  │
-│  │  │ (Piper) │ │ Overlay │ │Assistant│ │ Haptic  │ │  Panel  │         │  │
+│  │  │(Kokoro) │ │ Overlay │ │Assistant│ │ Haptic  │ │  Panel  │         │  │
 │  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘         │  │
 │  └────────────────────────────────────────────────────────────────────────┘  │
 │                                                                              │
@@ -287,11 +288,11 @@ barnabeenet/
   "after_dependencies": ["zha", "zwave_js", "mqtt"],
   "codeowners": ["@thomfife"],
   "requirements": [
-    "faster-whisper>=0.10.0",
+    "faster-whisper>=1.0.0",
     "speechbrain>=1.0.0",
     "redis>=5.0.0",
     "sentence-transformers>=2.2.0",
-    "piper-tts>=1.2.0",
+    "kokoro>=0.3.0",
     "openai>=1.0.0",
     "anthropic>=0.20.0",
     "aiohttp>=3.9.0"
@@ -4270,8 +4271,10 @@ DEFAULT_CONFIG = {
     "stt_compute_type": "int8",
     
     # TTS
-    "tts_voice": "en_US-lessac-medium",
-    "piper_path": "piper",
+    "tts_engine": "kokoro",
+    "tts_voice": "af_bella",
+    "tts_speed": 1.0,
+    "tts_sample_rate": 24000,
     
     # Speaker recognition
     "speaker_threshold": 0.75,

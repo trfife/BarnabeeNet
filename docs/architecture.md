@@ -76,8 +76,9 @@
 |-------|--------|----------------|
 | Wake word | 0ms | OpenWakeWord (always listening) |
 | Audio capture | ~100ms | Streaming buffer |
-| Speech-to-Text | <150ms | Faster-Whisper distil-small |
-| Speaker ID | ~20ms | Pyannote embeddings |
+| Speech-to-Text (GPU) | ~20-40ms | Parakeet TDT 0.6B v2 (primary) |
+| Speech-to-Text (CPU) | ~150-300ms | Distil-Whisper small.en (fallback) |
+| Speaker ID | ~20ms | ECAPA-TDNN embeddings |
 | Meta Agent routing | <20ms | Rule-based + LLM fallback |
 | Specialized agent | <200ms | Varies by type |
 | Text-to-Speech | <100ms | Piper |

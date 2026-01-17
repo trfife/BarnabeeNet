@@ -3,6 +3,7 @@
 **Document Version:** 1.1  
 **Last Updated:** January 17, 2026  
 **Author:** Thom Fife  
+**Status:** 📚 Reference (Feature Catalog)  
 **Purpose:** Comprehensive catalog of BarnabeeNet capabilities, features, and practical use cases
 
 ---
@@ -94,7 +95,7 @@ BarnabeeNet transforms home automation from reactive device control into proacti
 | Feature | Description | Latency Target |
 |---------|-------------|----------------|
 | **Wake Word Detection** | "Hey Barnabee" or custom phrase | 0ms (always listening) |
-| **Speech-to-Text** | Local transcription via Faster-Whisper | <150ms |
+| **Speech-to-Text** | Dual-path: Parakeet TDT (GPU, ~20-40ms) or Distil-Whisper (CPU, ~150-300ms) | ~20-40ms (GPU) / ~150-300ms (CPU) |
 | **Intent Classification** | Understand command purpose | <20ms |
 | **Multi-Turn Dialogue** | Maintain conversation context | N/A |
 | **Clarification** | Ask follow-up questions | N/A |

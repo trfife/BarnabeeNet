@@ -1,5 +1,7 @@
 # BarnabeeNet Implementation Guide
 
+**Status:** 📋 Planning / Reference
+
 **Version:** 1.0  
 **Last Updated:** January 16, 2026  
 **Author:** Thom Fife  
@@ -366,7 +368,7 @@ CONF_GAMING_PC_HOST: Final = "gaming_pc_host"
 DEFAULT_REDIS_HOST: Final = "localhost"
 DEFAULT_REDIS_PORT: Final = 6379
 DEFAULT_STT_MODEL: Final = "distil-whisper/distil-small.en"
-DEFAULT_TTS_VOICE: Final = "en_US-lessac-medium"
+DEFAULT_TTS_VOICE: Final = "af_bella"  # Kokoro voice
 
 # Latency targets (milliseconds)
 LATENCY_INSTANT: Final = 5
@@ -652,7 +654,7 @@ class BarnabeeNetCoordinator(DataUpdateCoordinator):
         await self.stt.async_initialize()
 
         self.tts = TextToSpeech(
-            voice=self.config.get("tts_voice", "en_US-lessac-medium"),
+            voice=self.config.get("tts_voice", "af_bella"),
         )
         await self.tts.async_initialize()
 
@@ -1512,7 +1514,7 @@ class MetaAgent(BaseAgent):
 
         try:
             # Use fast/cheap model for classification
-            # Via OpenRouter or local Phi-3.5
+            # Via OpenRouter (cloud-only, no local LLM)
             response = await self._call_classifier_llm(prompt)
 
             # Parse structured response
@@ -2066,7 +2068,7 @@ barnabeenet:
     meta:
       rule_based_first: true
       llm_fallback_threshold: 0.7
-      fallback_model: "gemini-flash"
+      fallback_model: "google/gemini-2.0-flash-001"
 
     action:
       confirmation_required:
@@ -2076,8 +2078,8 @@ barnabeenet:
       timeout_seconds: 30
 
     interaction:
-      primary_model: "claude-3-haiku"
-      fallback_model: "phi-3.5"
+      primary_model: "anthropic/claude-3-haiku"
+      fallback_model: "google/gemini-2.0-flash-001"  # Fast fallback (no local LLM)
       max_tokens: 500
       temperature: 0.7
 
@@ -2087,16 +2089,17 @@ barnabeenet:
       api_key: !secret openrouter_api_key
       default_model: "anthropic/claude-3-haiku"
       fallback_models:
-        - "google/gemini-flash-1.5"
-        - "microsoft/phi-3.5-mini"
+        - "google/gemini-2.0-flash-001"
+        - "deepseek/deepseek-v3"
 
-    local:
-      enabled: true
-      host: "192.168.1.20"  # Gaming PC
-      port: 8080
-      models:
-        - "phi-3.5"
-        - "llama-3.1-8b"
+    # Local LLM support (future enhancement - not currently implemented)
+    # local:
+    #   enabled: false
+    #   host: "192.168.1.20"  # Gaming PC
+    #   port: 8080
+    #   models:
+    #     - "phi-3.5"
+    #     - "llama-3.1-8b"
 
   # Privacy configuration
   privacy:
