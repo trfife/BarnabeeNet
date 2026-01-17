@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-17 (after STT Router implementation)
+2026-01-17 (after WSL port forwarding configured)
 
 ## Current Phase
-**Phase 1: Core Services** - Steps 1-6 Complete, STT Router implemented
+**Phase 1: Core Services** - Steps 1-7 Complete, VM→GPU connectivity working
 
 ## Development Workflow
 
@@ -34,9 +34,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] Copilot agent configuration validated
 - [x] **GPU Worker (Parakeet TDT 0.6B v2)** - Working locally, **45ms latency!**
 - [x] **STT Router** - GPU primary, CPU fallback, with tests
+- [x] **WSL port forwarding** - VM can reach GPU worker at `192.168.86.61:8001`
 
 ### In Progress
-- [ ] **WSL port forwarding for VM→GPU Worker access** - NEXT
+- [ ] **Deployment scripts** - NEXT
 
 ### Not Started
 - [ ] Message bus (Redis Streams)
@@ -55,23 +56,23 @@ To continue: Read this file → Check next steps → Create/execute session plan
 | VM runtime | `thom@192.168.86.51:~/barnabeenet` |
 | Redis (VM) | `192.168.86.51:6379` |
 | Redis (local) | `localhost:6379` (Docker on Man-of-war) |
-| GPU Worker | `localhost:8001` (Man-of-war WSL, Parakeet TDT) |
+| GPU Worker | `localhost:8001` (WSL) / `192.168.86.61:8001` (from VM) |
 | GPU venv | `.venv-gpu/` (separate from main `.venv/`) |
+| Windows Host (LAN) | `192.168.86.61` |
 
 ---
 
 ## Next Steps (Ordered)
 
-1. **Configure WSL2 port forwarding for VM access** ← NEXT
-   - Run in PowerShell (Admin): `netsh interface portproxy add v4tov4 ...`
-   - Add Windows Firewall rule for port 8001
-   - Test: VM should reach `http://192.168.86.100:8001/health`
+1. **Deployment scripts** ← NEXT
+   - Script to start GPU worker in background
+   - Script to deploy to VM
 
-2. Deployment scripts
+2. Tests for STT/TTS services
 
-3. Tests for STT/TTS services
+3. Message bus implementation (Redis Streams)
 
-4. Message bus implementation (Redis Streams)
+4. Voice pipeline integration
 
 ---
 
@@ -106,12 +107,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Blocking Issues
 
-**WSL2 Network Access**: GPU worker runs on WSL NAT network (172.31.x.x). VM cannot reach it directly. Requires Windows port forwarding:
-```powershell
-# In PowerShell (Admin):
-netsh interface portproxy add v4tov4 listenport=8001 listenaddress=0.0.0.0 connectport=8001 connectaddress=$(wsl hostname -I | cut -d' ' -f1)
-New-NetFirewallRule -DisplayName "WSL GPU Worker" -Direction Inbound -LocalPort 8001 -Protocol TCP -Action Allow
-```
+None currently.
+
+### Resolved
+- **WSL2 Network Access** (2026-01-17): Configured Windows port forwarding. VM reaches GPU worker at `192.168.86.61:8001`
 
 ---
 
