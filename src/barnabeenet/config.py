@@ -58,7 +58,7 @@ class TTSSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="TTS_")
 
     engine: Literal["kokoro"] = "kokoro"
-    voice: str = "af_bella"
+    voice: str = "bm_fable"
     speed: float = 1.0
     sample_rate: int = 24000
 

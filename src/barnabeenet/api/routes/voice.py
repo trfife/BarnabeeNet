@@ -19,9 +19,44 @@ from barnabeenet.models.schemas import (
     VoicePipelineRequest,
     VoicePipelineResponse,
 )
+from barnabeenet.services.stt import DistilWhisperSTT
+from barnabeenet.services.tts import KokoroTTS
 
 router = APIRouter()
 logger = structlog.get_logger()
+
+# Service instances (initialized lazily)
+_stt_service: DistilWhisperSTT | None = None
+_tts_service: KokoroTTS | None = None
+
+
+async def get_stt_service() -> DistilWhisperSTT:
+    """Get or create the STT service instance."""
+    global _stt_service
+    if _stt_service is None:
+        settings = get_settings()
+        _stt_service = DistilWhisperSTT(
+            model_size=settings.stt.model,
+            device=settings.stt.device,
+            compute_type=settings.stt.compute_type,
+        )
+    if not _stt_service.is_available():
+        await _stt_service.initialize()
+    return _stt_service
+
+
+async def get_tts_service() -> KokoroTTS:
+    """Get or create the TTS service instance."""
+    global _tts_service
+    if _tts_service is None:
+        settings = get_settings()
+        _tts_service = KokoroTTS(
+            voice=settings.tts.voice,
+            speed=settings.tts.speed,
+        )
+    if not _tts_service.is_available():
+        await _tts_service.initialize()
+    return _tts_service
 
 
 # =============================================================================
@@ -32,13 +67,12 @@ logger = structlog.get_logger()
 @router.post("/transcribe", response_model=TranscribeResponse)
 async def transcribe(request: TranscribeRequest) -> TranscribeResponse:
     """Transcribe audio to text.
-    
+
     Automatically routes to GPU worker (Parakeet) if available,
     falls back to CPU (Distil-Whisper) otherwise.
     """
     from barnabeenet.main import app_state
 
-    settings = get_settings()
     start_time = time.perf_counter()
 
     # Decode audio
@@ -59,7 +93,6 @@ async def transcribe(request: TranscribeRequest) -> TranscribeResponse:
     is_fallback = False
 
     if request.engine == STTEngine.PARAKEET and not app_state.gpu_worker_available:
-        # Requested GPU but not available - fallback
         use_gpu = False
         is_fallback = True
         logger.warning("GPU worker requested but unavailable, using CPU fallback")
@@ -70,7 +103,6 @@ async def transcribe(request: TranscribeRequest) -> TranscribeResponse:
             text, confidence = await _transcribe_gpu(audio_bytes, request.language)
             engine_used = STTEngine.PARAKEET
         except Exception as e:
-            # GPU failed, try CPU fallback
             logger.warning("GPU transcription failed, falling back to CPU", error=str(e))
             text, confidence = await _transcribe_cpu(audio_bytes, request.language)
             engine_used = STTEngine.DISTIL_WHISPER
@@ -121,14 +153,10 @@ async def _transcribe_gpu(audio_bytes: bytes, language: str) -> tuple[str, float
 
 
 async def _transcribe_cpu(audio_bytes: bytes, language: str) -> tuple[str, float]:
-    """Transcribe using CPU (Distil-Whisper).
-    
-    TODO: Implement in Step 3 (STT Services)
-    For now, returns a placeholder.
-    """
-    # Placeholder for Phase 1 Step 3
-    logger.warning("CPU STT not yet implemented, returning placeholder")
-    return "[CPU STT placeholder - implement in Step 3]", 0.0
+    """Transcribe using CPU (Distil-Whisper)."""
+    stt = await get_stt_service()
+    result = await stt.transcribe(audio_bytes, language=language)
+    return result["text"], result["confidence"]
 
 
 # =============================================================================
@@ -164,7 +192,7 @@ async def synthesize(request: SynthesizeRequest) -> SynthesizeResponse:
         duration_ms=duration_ms,
         format=request.output_format,
         latency_ms=latency_ms,
-        cached=False,  # TODO: implement caching
+        cached=False,
     )
 
 
@@ -174,55 +202,16 @@ async def _synthesize_kokoro(
     speed: float,
     output_format: AudioFormat,
 ) -> tuple[bytes, int, float]:
-    """Synthesize using Kokoro TTS.
+    """Synthesize using Kokoro TTS."""
+    tts = await get_tts_service()
     
-    TODO: Implement in Step 4 (TTS Service)
-    For now, returns a placeholder.
-    """
-    settings = get_settings()
-    voice = voice or settings.tts.voice
-
-    # Placeholder for Phase 1 Step 4
-    logger.warning("Kokoro TTS not yet implemented, returning placeholder")
-    
-    # Return minimal valid WAV header as placeholder
-    placeholder_wav = _generate_placeholder_wav()
-    
-    return placeholder_wav, settings.tts.sample_rate, 0.0
-
-
-def _generate_placeholder_wav() -> bytes:
-    """Generate a minimal placeholder WAV file."""
-    # Minimal WAV header for empty audio
-    import struct
-
-    sample_rate = 24000
-    num_channels = 1
-    bits_per_sample = 16
-    
-    # WAV header
-    data_size = 0
-    byte_rate = sample_rate * num_channels * bits_per_sample // 8
-    block_align = num_channels * bits_per_sample // 8
-    
-    header = struct.pack(
-        '<4sI4s4sIHHIIHH4sI',
-        b'RIFF',
-        36 + data_size,
-        b'WAVE',
-        b'fmt ',
-        16,  # fmt chunk size
-        1,   # audio format (PCM)
-        num_channels,
-        sample_rate,
-        byte_rate,
-        block_align,
-        bits_per_sample,
-        b'data',
-        data_size,
+    result = await tts.synthesize(
+        text=text,
+        voice=voice,
+        speed=speed,
     )
     
-    return header
+    return result["audio_bytes"], result["sample_rate"], result["duration_ms"]
 
 
 # =============================================================================
@@ -233,7 +222,7 @@ def _generate_placeholder_wav() -> bytes:
 @router.post("/voice/pipeline", response_model=VoicePipelineResponse)
 async def voice_pipeline(request: VoicePipelineRequest) -> VoicePipelineResponse:
     """Full voice pipeline: audio in → transcribe → process → synthesize → audio out.
-    
+
     For Phase 1, this echoes back what was said.
     Later phases will add agent routing and processing.
     """
@@ -248,7 +237,6 @@ async def voice_pipeline(request: VoicePipelineRequest) -> VoicePipelineResponse
     transcribe_response = await transcribe(transcribe_request)
 
     # Step 2: Process (Phase 1: just echo)
-    # TODO: In Phase 3, this routes to agents
     response_text = f"You said: {transcribe_response.text}"
 
     # Step 3: Synthesize (TTS)
