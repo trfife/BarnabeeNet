@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-17 (after GPU Worker setup - Parakeet TDT 0.6B v2)
+2026-01-17 (after STT Router implementation)
 
 ## Current Phase
-**Phase 1: Core Services** - Steps 1-5 Complete, GPU Worker operational
+**Phase 1: Core Services** - Steps 1-6 Complete, STT Router implemented
 
 ## Development Workflow
 
@@ -33,10 +33,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] Pronunciation fixes (Viola→Vyola, Xander→Zander)
 - [x] Copilot agent configuration validated
 - [x] **GPU Worker (Parakeet TDT 0.6B v2)** - Working locally, **45ms latency!**
+- [x] **STT Router** - GPU primary, CPU fallback, with tests
 
 ### In Progress
-- [ ] **STT Router (GPU primary, CPU fallback)** - NEXT
-- [ ] WSL port forwarding for VM→GPU Worker access
+- [ ] **WSL port forwarding for VM→GPU Worker access** - NEXT
 
 ### Not Started
 - [ ] Message bus (Redis Streams)
@@ -67,15 +67,11 @@ To continue: Read this file → Check next steps → Create/execute session plan
    - Add Windows Firewall rule for port 8001
    - Test: VM should reach `http://192.168.86.100:8001/health`
 
-2. **Implement STT Router (GPU primary, CPU fallback)**
-   - Create `src/barnabeenet/services/stt/router.py`
-   - Health-check GPU worker, fallback to Distil-Whisper
+2. Deployment scripts
 
-3. Deployment scripts
+3. Tests for STT/TTS services
 
-4. Tests for STT/TTS services
-
-5. Message bus implementation (Redis Streams)
+4. Message bus implementation (Redis Streams)
 
 ---
 
