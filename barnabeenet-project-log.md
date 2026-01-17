@@ -1,6 +1,6 @@
 # BarnabeeNet Project Log
 
-**Started:** January 16, 2026  
+**Started:** January 16, 2026
 **Goal:** Build a privacy-first, multi-agent AI smart home assistant
 
 ---
@@ -16,11 +16,11 @@
 ---
 
 ## Phase 0: Foundation Setup
-**Status:** ✅ Complete  
+**Status:** ✅ Complete
 **Date:** January 16, 2026
 
 ### Step 1: Development Environment Setup
-**Status:** ✅ Complete  
+**Status:** ✅ Complete
 **Date:** January 16, 2026
 
 - [x] Cursor installed on Windows 11
@@ -32,7 +32,7 @@
 ---
 
 ### Step 2: Repository Initialization
-**Status:** ✅ Complete  
+**Status:** ✅ Complete
 **Date:** January 16, 2026
 
 - [x] GitHub repository created: https://github.com/trfife/BarnabeeNet
@@ -42,7 +42,7 @@
 ---
 
 ### Step 3: Create BarnabeeNet VM on Proxmox
-**Status:** ✅ Complete  
+**Status:** ✅ Complete
 **Date:** January 16, 2026
 
 - [x] Cleaned up unused VMs/containers
@@ -55,7 +55,7 @@
 ---
 
 ### Step 4: Base VM Configuration
-**Status:** ✅ Complete  
+**Status:** ✅ Complete
 **Date:** January 16, 2026
 
 - [x] NixOS configuration updated with Podman + dev tools
@@ -85,7 +85,7 @@
 **Status:** 🔄 In Progress
 
 ### Step 1: Project Structure + Configuration
-**Status:** ✅ Complete  
+**Status:** ✅ Complete
 **Date:** January 17, 2026
 
 - [x] Created `pyproject.toml` with modern Python packaging
@@ -96,7 +96,7 @@
 - [x] Created package `__init__.py` files
 
 ### Step 2: Core Application
-**Status:** ✅ Complete  
+**Status:** ✅ Complete
 **Date:** January 17, 2026
 
 - [x] Created `config.py` - Pydantic Settings with nested config classes
@@ -275,7 +275,7 @@
 ---
 
 ## Documentation Updates
-**Status:** ✅ Complete  
+**Status:** ✅ Complete
 **Date:** January 17, 2026
 
 - [x] Created `docs/PATCH_Phase1_Updates.md` with surgical doc patches
@@ -535,6 +535,101 @@ ssh thom@192.168.86.51 "cd ~/barnabeenet && git pull"
 ### Running Total
 - **Development:** ~$25/month
 - **Runtime:** $0 (not yet deployed)
+
+
+---
+
+## Session: January 17, 2026 - Copilot Workflow Setup
+**Status:** ✅ Complete
+
+### What Was Done
+- [x] Evaluated GitHub Copilot agent capabilities vs Claude
+- [x] Designed hybrid workflow (Claude for planning, Copilot for execution)
+- [x] Created `.vscode/settings.json`, `tasks.json`, `extensions.json`
+- [x] Created `.github/copilot-instructions.md` (agent behavior rules)
+- [x] Created `.github/AGENTS.md` (capability reference)
+- [x] Created `CONTEXT.md` (Copilot's persistent memory)
+- [x] Created `scripts/validate.sh` (pre-commit validation)
+- [x] Created `scripts/pre-commit.sh` (git hook)
+- [x] Created `Makefile` (common commands)
+- [x] Created `.copilot/templates/session-plan.md`
+- [x] Validated Copilot can: read docs, run WSL commands, SSH to VM, create files
+- [x] Validated Copilot understands full project architecture (comprehension test)
+- [x] Added `docs/future/TOON_Optimization.md` (backlog item)
+
+### Validation Results
+- **test-001**: WSL commands ✅, SSH commands ✅, file creation ✅
+- **test-002**: Deep comprehension test passed - agent understands multi-agent architecture, memory system, infrastructure, voice pipeline, privacy zones
+
+### Files Created
+```
+.vscode/
+├── settings.json
+├── tasks.json
+└── extensions.json
+.github/
+├── copilot-instructions.md
+└── AGENTS.md
+.copilot/
+├── templates/session-plan.md
+└── sessions/
+    ├── test-001-validation.md
+    ├── test-001-results.md
+    ├── test-002-comprehension.md
+    └── test-002-results.md
+scripts/
+├── validate.sh
+└── pre-commit.sh
+docs/future/
+└── TOON_Optimization.md
+CONTEXT.md
+Makefile
+```
+
+### Next Session
+Copilot can now continue autonomously. User says "continue the project" → Copilot reads CONTEXT.md → Creates session for MessageBus implementation.
+
+---
+---
+
+## Session: January 17, 2026 - STT/TTS Testing + Copilot Setup
+**Status:** ✅ Complete
+
+### Part 1: STT/TTS Validation
+
+#### STT (Distil-Whisper) Test Results
+- **Input:** 504KB WAV file (~15.75 seconds)
+- **Output:** "Good morning everyone. Tom, Elizabeth, Penelope, Viola, Sanda and Zachary. Breakfast is ready. Oh, and I see Bagheera and Shea Khan are waiting by their food bowls too."
+- **Latency:** 30,689ms (first request, includes model load)
+- **Warm latency:** ~2,400ms
+- **Engine:** distil-whisper
+
+#### TTS (Kokoro) Test Results
+- **Voice:** bm_fable (British male)
+- **Latency:** 232-537ms
+- **Pronunciation fixes:** Viola→Vyola, Xander→Zander
+
+### Part 2: Infrastructure Setup
+
+- [x] Docker installed on Man-of-war WSL (`sudo apt install docker.io`)
+- [x] Redis container running locally (`docker run -d --name redis -p 6379:6379 redis:7-alpine`)
+- [x] BarnabeeNet connecting to local Redis confirmed
+
+### Part 3: Copilot Workflow Setup
+
+- [x] Created `.vscode/settings.json`, `tasks.json`, `extensions.json`
+- [x] Created `.github/copilot-instructions.md`
+- [x] Created `CONTEXT.md`
+- [x] Created `scripts/validate.sh`, `pre-commit.sh`
+- [x] Created `Makefile`
+- [x] Validated Copilot agent can read docs, run commands, SSH to VM
+- [x] Validated Copilot understands project architecture (comprehension test)
+- [x] Created `docs/future/TOON_Optimization.md`
+
+### Next Session
+**GPU Worker (Parakeet TDT) setup on Man-of-war** - This is the critical path to achieving <100ms STT latency.
+
+---
 
 ---
 

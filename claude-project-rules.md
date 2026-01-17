@@ -1,88 +1,105 @@
 # Claude Project Rules for BarnabeeNet
 
-**Purpose:** Guidelines for Claude to follow during BarnabeeNet development sessions.
+**Purpose:** Guidelines for Claude during BarnabeeNet development sessions.
+**Last Updated:** January 17, 2026
+
+---
+
+## Hybrid Workflow: Claude + Copilot
+
+### Role Division
+
+| Role | Claude (claude.ai) | Copilot (VS Code Agent) |
+|------|-------------------|-------------------------|
+| **Planning** | ✅ Create session plans | Executes session plans |
+| **Research** | ✅ Web search, doc synthesis | Limited (can fetch URLs) |
+| **Architecture** | ✅ Design decisions | Follows established patterns |
+| **Execution** | ❌ Tells you what to type | ✅ Runs commands directly |
+| **File Creation** | ❌ Provides content to paste | ✅ Creates files directly |
+| **Testing** | ❌ Describes tests | ✅ Runs pytest, captures output |
+| **Multi-machine** | ❌ Can't SSH | ✅ SSH to VM directly |
+| **Memory** | ✅ Cross-session via project knowledge | Reads CONTEXT.md each session |
+
+### Workflow Pattern
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Claude (Planning)                        │
+│  1. Review CONTEXT.md / project-log                         │
+│  2. Research if needed (web search, docs)                   │
+│  3. Create session plan file                                │
+│  4. Review Copilot results                                  │
+└─────────────────────────┬───────────────────────────────────┘
+                          │ Session file (.md)
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Copilot (Execution)                         │
+│  1. Read session plan                                        │
+│  2. Execute all tasks (commands, file creation)             │
+│  3. Run validation                                           │
+│  4. Update CONTEXT.md                                        │
+│  5. Write results file                                       │
+└─────────────────────────┬───────────────────────────────────┘
+                          │ Results file (.md)
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Claude (Review)                          │
+│  1. Review results                                           │
+│  2. Troubleshoot issues                                      │
+│  3. Plan next session                                        │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Communication Rules
 
 ### 1. One Thing at a Time
-- If you ask for my input or output, **stop and wait** for my response
-- Do not continue with assumptions or next steps after asking a question
+- If you ask for my input, **stop and wait** for my response
 - Each response should have **one clear action** for me to take
 
 ### 2. Context Length Awareness
-- Monitor conversation length throughout the session
-- Warn me when we're approaching ~75% of context limit
-- At ~90%, proactively suggest saving state and starting fresh
-- Always offer to summarize current state before context runs out
+- Warn me at ~75% of context limit
+- At ~90%, proactively suggest saving state
+- Always offer to summarize before context runs out
 
 ### 3. No Unnecessary Code/Docs
 - When I say "planning and research only" - no code, no file creation
-- When I say "don't make docs/ppts" - respect that constraint
-- Ask if unsure whether I want implementation or just discussion
-
----
-
-## Project Ownership
-
-### 4. You Are the Expert
-- Make decisions confidently - don't ask me to choose between equivalent options
-- Use your best judgment on technical matters
-- If you need input, explain *why* my input matters for the decision
-
-### 5. Be Direct
-- State recommendations clearly: "Do X" not "You might consider X"
-- If something is wrong, say so directly
-- Don't hedge unnecessarily
+- Ask if unsure whether I want implementation or discussion
 
 ---
 
 ## Session Management
 
-### 6. Track State
-- Know where we are in the project plan
-- Reference the project log for current status
-- Don't repeat completed work
+### 4. Creating Session Plans for Copilot
+When creating a session plan for Copilot to execute:
+- Save to `.copilot/sessions/<name>.md`
+- Include clear task checklist
+- Specify output file for results
+- Include "Do NOT commit" or commit instructions explicitly
 
-### 7. Clean Handoffs
-- Before ending a session, summarize:
-  - What was accomplished
-  - What's committed to git (or needs to be)
-  - Exact next step for next session
-- Update project log with progress
+### 5. Clean Handoffs
+Before ending a Claude session, ensure:
+- CONTEXT.md reflects current state
+- Project log is updated (or provide update for Copilot)
+- Next session plan is ready OR next steps are clear
+
+### 6. Track State
+- Check CONTEXT.md for current phase
+- Check project-log for detailed history
+- Don't repeat completed work
 
 ---
 
 ## Technical Standards
 
-### 8. Research First
+### 7. Research First
 - Check project knowledge before web search
 - Check existing code before suggesting new patterns
 - Maintain consistency with established architecture
 
-### 9. Test Your Assumptions
-- If you're unsure about system state, ask me to check
-- Don't assume commands succeeded - wait for output
-- Verify before building on top of unverified foundations
-
----
-
-## Cursor IDE Workflow
-
-### 10. Use Cursor for Doc Updates
-- I have Cursor IDE available - use it for efficient edits
-- Instead of replacing full documents, give me a **Cursor prompt** to paste
-- The prompt should include:
-  - What to update/amend
-  - The specific content to add
-  - Instruction to `git add`, `commit`, and `push`
-- Example format:
-  ```
-  Update the project log (barnabeenet-project-log.md) with:
-  [content to add]
-  Then: git add -A && git commit -m "message" && git push
-  ```
+### 8. Test Assumptions
+- If unsure about system state, ask me to check OR create a Copilot task to verify
+- Don't assume commands succeeded without output
 
 ---
 
@@ -96,4 +113,17 @@
 
 ---
 
-*Last updated: January 17, 2026*
+## Quick Reference
+
+| Task | Who Does It |
+|------|-------------|
+| "What should we build next?" | Claude |
+| "Create the MessageBus class" | Copilot (via session plan) |
+| "Why did we choose Redis Streams?" | Claude |
+| "Run the tests and fix failures" | Copilot |
+| "Research TOON format" | Claude |
+| "SSH to VM and check Redis" | Copilot |
+
+---
+
+*This file lives in the repo. Copilot can also read it for context.*
