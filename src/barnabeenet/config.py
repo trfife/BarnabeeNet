@@ -40,7 +40,7 @@ class STTSettings(BaseSettings):
     fallback_engine: Literal["distil-whisper"] = "distil-whisper"
 
     # Distil-Whisper settings (CPU fallback)
-    whisper_model: str = "distil-whisper/distil-small.en"
+    whisper_model: str = "distil-small.en"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
     whisper_beam_size: int = 1

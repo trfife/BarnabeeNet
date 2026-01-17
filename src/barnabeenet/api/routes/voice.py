@@ -36,9 +36,9 @@ async def get_stt_service() -> DistilWhisperSTT:
     if _stt_service is None:
         settings = get_settings()
         _stt_service = DistilWhisperSTT(
-            model_size=settings.stt.model,
-            device=settings.stt.device,
-            compute_type=settings.stt.compute_type,
+            model_size=settings.stt.whisper_model,
+            device=settings.stt.whisper_device,
+            compute_type=settings.stt.whisper_compute_type,
         )
     if not _stt_service.is_available():
         await _stt_service.initialize()

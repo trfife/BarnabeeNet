@@ -428,33 +428,71 @@ barnabeenet/
 
 ---
 
-## Next Session TODO
+## Session: January 17, 2026 (Evening)
 
-1. **Complete Python setup on Man-of-war WSL:**
-   ```bash
-   sudo apt update
-   sudo apt install python3-pip python3-venv -y
-   cd ~/projects/barnabeenet
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -e .
-   ```
+### Completed: Phase 1 Steps 3-4
 
-2. **Test the server locally:**
-   ```bash
-   barnabeenet
-   # or: uvicorn barnabeenet.main:app --reload
-   ```
-   Then check: http://localhost:8000/health
+#### Step 3: STT Service (Distil-Whisper) ✅
+- Installed `faster-whisper` package
+- Created `src/barnabeenet/services/stt/distil_whisper.py`
+- Fixed model name: use `distil-small.en` (not `distil-whisper/distil-small.en`)
+- Fixed float32 casting issue in `np.interp` for VAD compatibility
+- Fixed config field names: `whisper_model`, `whisper_device`, `whisper_compute_type`
+- **Performance:** 2347ms for 10.5s audio on CPU
 
-3. **Continue Phase 1:**
-   - Step 3: STT Services (Distil-Whisper implementation)
-   - Step 4: TTS Service (Kokoro implementation)
-   - Step 5: GPU Worker
-   - Step 6: Deployment scripts
-   - Step 7: Tests
+#### Step 4: TTS Service (Kokoro) ✅
+- Installed `kokoro`, `soundfile`, `espeak-ng`
+- Created `src/barnabeenet/services/tts/kokoro_tts.py`
+- Created `src/barnabeenet/services/tts/pronunciation.py`
+- **Voice selected:** `bm_fable` (British male) - closest to Australian accent
+- **Pronunciation corrections:** Viola→Vyola, Xander→Zander
+- Updated config default voice from `af_bella` to `bm_fable`
+- **Performance:** 232-537ms latency for typical responses
 
-4. **Deploy to BarnabeeNet VM** after local testing works
+#### API Routes Wired ✅
+- Updated `src/barnabeenet/api/routes/voice.py` to use real STT/TTS services
+- TTS endpoint tested and working
+- STT endpoint needs API test (server restart issue)
+
+### Files Modified
+- `src/barnabeenet/services/stt/distil_whisper.py` (new)
+- `src/barnabeenet/services/stt/__init__.py`
+- `src/barnabeenet/services/tts/kokoro_tts.py` (new)
+- `src/barnabeenet/services/tts/pronunciation.py` (new)
+- `src/barnabeenet/services/tts/__init__.py`
+- `src/barnabeenet/api/routes/voice.py`
+- `src/barnabeenet/config.py` (voice default, model name fix)
+
+### Next Session TODO
+1. Kill stuck uvicorn: `kill -9 18609` then restart
+2. Test STT API endpoint
+3. Step 5: GPU Worker (Parakeet on Man-of-war)
+4. Step 6: Deployment scripts
+5. Step 7: Tests
+6. Commit all changes to GitHub
+
+### Test Commands for Next Session
+```bash
+# Start server
+uvicorn barnabeenet.main:app --reload
+
+# Test TTS
+curl -X POST http://localhost:8000/api/v1/synthesize \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello Viola and Xander!"}'
+
+# Test STT (use test_family.wav generated this session)
+python -c "
+import asyncio, base64, httpx
+async def test():
+    with open('test_family.wav', 'rb') as f:
+        audio = base64.b64encode(f.read()).decode()
+    async with httpx.AsyncClient(timeout=120) as c:
+        r = await c.post('http://localhost:8000/api/v1/transcribe', json={'audio_base64': audio})
+        print(r.json())
+asyncio.run(test())
+"
+```
 
 ---
 
@@ -500,4 +538,4 @@ ssh thom@192.168.86.51 "cd ~/barnabeenet && git pull"
 
 ---
 
-*Last Updated: January 17, 2026*
+*Last Updated: January 17, 2026 (Evening)*

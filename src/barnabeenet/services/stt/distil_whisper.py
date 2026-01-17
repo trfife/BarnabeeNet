@@ -100,7 +100,7 @@ class DistilWhisperSTT:
         audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32)
         
         # Normalize to [-1, 1] range (faster-whisper expects this)
-        audio_array = audio_array / 32768.0
+        audio_array = (audio_array / 32768.0).astype(np.float32)
 
         # Resample if needed (faster-whisper expects 16kHz)
         if sample_rate != 16000:
@@ -108,7 +108,7 @@ class DistilWhisperSTT:
             ratio = 16000 / sample_rate
             new_length = int(len(audio_array) * ratio)
             indices = np.linspace(0, len(audio_array) - 1, new_length)
-            audio_array = np.interp(indices, np.arange(len(audio_array)), audio_array)
+            audio_array = np.interp(indices, np.arange(len(audio_array)), audio_array).astype(np.float32)
 
         # Transcribe with optimized settings for speed
         segments, info = self._model.transcribe(
