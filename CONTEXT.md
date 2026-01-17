@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-17 (after deployment scripts created)
+2026-01-17 (after STT/TTS tests added)
 
 ## Current Phase
-**Phase 1: Core Services** - Steps 1-8 Complete, deployment scripts ready
+**Phase 1: Core Services** - Steps 1-9 Complete, comprehensive test suite
 
 ## Development Workflow
 
@@ -36,9 +36,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **STT Router** - GPU primary, CPU fallback, with tests
 - [x] **WSL port forwarding** - VM can reach GPU worker at `192.168.86.61:8001`
 - [x] **Deployment scripts** - start/stop GPU worker, deploy to VM, status check
+- [x] **Tests for STT/TTS services** - 54 tests covering all services
 
 ### In Progress
-- [ ] **Tests for STT/TTS services** - NEXT
+- [ ] **Message bus (Redis Streams)** - NEXT
 
 ### Not Started
 - [ ] Message bus (Redis Streams)
@@ -65,13 +66,13 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. **Tests for STT/TTS services** ← NEXT
+1. **Message bus implementation (Redis Streams)** ← NEXT
 
-2. Message bus implementation (Redis Streams)
+2. Voice pipeline integration
 
-3. Voice pipeline integration
+3. Agent implementations
 
-4. Agent implementations
+4. Memory system
 
 ---
 
