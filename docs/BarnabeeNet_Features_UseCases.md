@@ -1,7 +1,7 @@
 # BarnabeeNet Features & Use Cases
 
-**Document Version:** 1.0  
-**Last Updated:** January 16, 2026  
+**Document Version:** 1.1  
+**Last Updated:** January 17, 2026  
 **Author:** Thom Fife  
 **Purpose:** Comprehensive catalog of BarnabeeNet capabilities, features, and practical use cases
 
@@ -11,19 +11,21 @@
 
 1. [Executive Summary](#executive-summary)
 2. [Core Feature Categories](#core-feature-categories)
-3. [Interaction Modes](#interaction-modes)
-4. [Agent Capabilities](#agent-capabilities)
-5. [Privacy & Security Features](#privacy--security-features)
-6. [Use Case Categories](#use-case-categories)
-7. [Family & Household Use Cases](#family--household-use-cases)
-8. [Personal Productivity Use Cases](#personal-productivity-use-cases)
-9. [Wellness & Health Use Cases](#wellness--health-use-cases)
-10. [Proactive Intelligence Use Cases](#proactive-intelligence-use-cases)
-11. [Proxy Mode Use Cases](#proxy-mode-use-cases)
-12. [Guest & Hospitality Use Cases](#guest--hospitality-use-cases)
-13. [Advanced "Superhuman" Use Cases](#advanced-superhuman-use-cases)
-14. [Example Interaction Flows](#example-interaction-flows)
-15. [Feature Comparison Matrix](#feature-comparison-matrix)
+3. [Spatial Awareness System](#spatial-awareness-system)
+4. [Interaction Modes](#interaction-modes)
+5. [Agent Capabilities](#agent-capabilities)
+6. [Privacy & Security Features](#privacy--security-features)
+7. [Per-Listener Response Adaptation](#per-listener-response-adaptation)
+8. [Use Case Categories](#use-case-categories)
+9. [Family & Household Use Cases](#family--household-use-cases)
+10. [Personal Productivity Use Cases](#personal-productivity-use-cases)
+11. [Wellness & Health Use Cases](#wellness--health-use-cases)
+12. [Proactive Intelligence Use Cases](#proactive-intelligence-use-cases)
+13. [Proxy Mode Use Cases](#proxy-mode-use-cases)
+14. [Guest & Hospitality Use Cases](#guest--hospitality-use-cases)
+15. [Advanced "Superhuman" Use Cases](#advanced-superhuman-use-cases)
+16. [Example Interaction Flows](#example-interaction-flows)
+17. [Feature Comparison Matrix](#feature-comparison-matrix)
 
 ---
 
@@ -40,6 +42,8 @@ BarnabeeNet transforms home automation from reactive device control into proacti
 | **Modality** | Voice + screen | Voice + AR + wearable + gesture |
 | **Intelligence** | Command-response | Multi-turn conversation + reasoning |
 | **Evolution** | Vendor-controlled | Self-improving via Evolver Agent |
+| **Spatial Awareness** | Room-agnostic | Room graph with context routing |
+| **Response Adaptation** | One-size-fits-all | Per-listener vocabulary and tone |
 
 ### Feature Highlights
 
@@ -71,6 +75,12 @@ BarnabeeNet transforms home automation from reactive device control into proacti
 │  ├─ Guest mode              ├─ Voice presence                   │
 │  ├─ Conflict resolution     ├─ Summarization                    │
 │  └─ Shared calendars        └─ Action items                     │
+│                                                                  │
+│  📍 SPATIAL AWARENESS        🎚️ ADAPTIVE RESPONSES               │
+│  ├─ Room graph model        ├─ Age-appropriate vocabulary       │
+│  ├─ Context-aware routing   ├─ Expertise-level matching         │
+│  ├─ Multi-room continuity   ├─ Guest mode simplification        │
+│  └─ Privacy zone respect    └─ Multi-listener detection         │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -136,6 +146,133 @@ BarnabeeNet transforms home automation from reactive device control into proacti
 
 ---
 
+## Spatial Awareness System
+
+BarnabeeNet maintains a real-time **Room Graph**—a spatial model of your home that tracks occupancy, adjacency relationships, acoustic reach, and privacy boundaries. This enables context-aware decisions about where and when to interact.
+
+### Room Graph Model
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                       ROOM GRAPH TOPOLOGY                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐      │
+│  │ GARAGE  │────│ KITCHEN │────│ LIVING  │────│ OFFICE  │      │
+│  │ (common)│    │ (common)│    │ (common)│    │ (common)│      │
+│  └────┬────┘    └────┬────┘    └────┬────┘    └─────────┘      │
+│       │              │              │                           │
+│       │         ┌────┴────┐        │                           │
+│       │         │ HALLWAY │────────┘                           │
+│       │         └────┬────┘                                    │
+│       │              │                                          │
+│  ┌────┴────┐    ┌────┴────────────────────────┐                │
+│  │ MASTER  │    │     KIDS' HALLWAY           │                │
+│  │ BEDROOM │    └──┬─────┬─────┬─────┬───────┘                │
+│  │ (private)│      │     │     │     │                         │
+│  └─────────┘    ┌──┴──┐┌─┴──┐┌─┴──┐┌─┴──┐                     │
+│                 │PENNY││XAND││ZACH││VIOL│  (privacy zones)     │
+│                 └─────┘└────┘└────┘└────┘                      │
+│                                                                  │
+│  Legend: ─── = adjacent, (zone) = privacy level                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| **Adjacency** | Physical proximity relationships | Kitchen → Living Room → Office |
+| **Acoustic Reach** | Whether audio output in one room is audible in another | Office speaker audible in hallway |
+| **Occupancy State** | Who is currently in each room (via presence sensors) | Thom in office, kids in living room |
+| **Activity Context** | Inferred current activity | "Working" (office, weekday, 9am-5pm) |
+| **Privacy Level** | Zone classification | Common area vs. private room |
+
+### Room-Aware Notification Routing
+
+BarnabeeNet evaluates multiple factors before delivering any proactive notification:
+
+| Factor | Weight | Description |
+|--------|--------|-------------|
+| **Relevance Distance** | High | Is the notification relevant to the room where the target user is located? |
+| **Acoustic Isolation** | Medium | Will the notification disturb others in adjacent rooms? |
+| **Activity Disruption** | High | Is the user in a focus-sensitive context (work, sleep, conversation)? |
+| **Urgency Override** | Critical | Safety alerts bypass all filters |
+
+**Routing Decision Tree:**
+
+1. **Safety/Security alerts**: Always deliver immediately to nearest speaker + wearables
+2. **User-relevant convenience**: Deliver to user's current room only
+3. **Household-wide info**: Deliver to common areas when occupied
+4. **Low-priority reminders**: Queue for opportunistic delivery or wearable-only
+
+### Privacy-Aware Context Behavior
+
+| Context | Location Inference | Barnabee Behavior |
+|---------|-------------------|-------------------|
+| **Work Hours (9-5) + Office** | User is working | No non-urgent proactive audio; route to watch/AR only |
+| **Evening + Living Room** | Family time | Household-relevant notifications OK |
+| **Bedroom + Late Night** | Sleeping/winding down | Quiet hours enforced; emergencies only |
+| **Bathroom** | Private moment | No audio output ever; presence-only tracking |
+| **Kitchen + Mealtime** | Cooking/eating | Timer and cooking-related notifications only |
+
+**Example: Work Hour Privacy**
+- When Thom is in the office during calendar-marked work hours:
+  - Kitchen reminders ("Oven preheated") → Queued until he leaves office OR sent to watch only
+  - Package delivery → Watch haptic + AR notification (no audio)
+  - Calendar meeting in 5 min → Audio announcement allowed (work-relevant)
+
+### Multi-Room Conversation Continuity
+
+BarnabeeNet tracks conversation state across rooms, enabling seamless transitions:
+
+**Handoff Triggers:**
+- Motion detected in new room + no motion in previous room for 30s
+- Explicit: "Hey Barnabee, I'm moving to the kitchen"
+- Wearable location inference (if enabled)
+
+**State Preserved:**
+- Conversation context (last 5 turns)
+- Pending actions/confirmations
+- Active timers and reminders
+- Temporary session preferences
+
+**Example Flow:**
+```
+[Office]
+Thom: "Hey Barnabee, what's for dinner?"
+Barnabee: "You have chicken thawing. Want me to suggest recipes?"
+Thom: "Yes"
+
+[Thom walks to kitchen - motion detected]
+
+[Kitchen - 30 seconds later]
+Barnabee: "Welcome to the kitchen. I found three recipes for your 
+          chicken—lemon herb, stir fry, or parmesan. Which sounds good?"
+```
+
+**Privacy Boundary:** Conversation does NOT follow into privacy zones (bathrooms, children's rooms)
+
+### Spatial Awareness Scenarios
+
+**Scenario 1: Kitchen Timer, Office Worker**
+- Elizabeth sets a 20-minute oven timer from the kitchen
+- Elizabeth goes to the office to work
+- At 5 minutes remaining: Watch haptic only (no office audio disruption)
+- At 1 minute remaining: Watch haptic + brief office announcement if not in a meeting
+
+**Scenario 2: Kid's Bedtime, Parent in Living Room**
+- 8:00 PM bedtime routine triggers
+- Announcement plays in kids' hallway and common areas
+- NO announcement in Thom's office (working) or master bedroom
+- Parents receive watch notification: "Bedtime routine started"
+
+**Scenario 3: Guest Arrives, Family Distributed**
+- Doorbell rings, guest detected
+- Thom (office): Watch notification + AR popup
+- Elizabeth (kitchen): Audio announcement "Someone's at the door"
+- Kids (bedrooms): No notification (privacy zone)
+
+---
+
 ## Interaction Modes
 
 ### Voice Interaction
@@ -153,7 +290,7 @@ BarnabeeNet transforms home automation from reactive device control into proacti
 │  [Wake Word Detection] ──► [Audio Capture] ──► [STT]            │
 │                                                   │              │
 │                                                   ▼              │
-│  [Speaker ID] ◄───────────────────────────── [Transcription]    │
+│  [Speaker ID] ◄───────────────────────────────── [Transcription]│
 │       │                                           │              │
 │       ▼                                           ▼              │
 │  [User Context]                              [Meta Agent]        │
@@ -474,6 +611,125 @@ Every interaction logged with:
 
 ---
 
+## Per-Listener Response Adaptation
+
+BarnabeeNet tailors every response based on who is listening. This goes beyond permissions to include vocabulary, complexity, emotional tone, and content filtering.
+
+### Listener Profile Attributes
+
+| Attribute | Values | Effect on Response |
+|-----------|--------|-------------------|
+| **Age Category** | Adult, Teen, Child (5-12), Young Child (<5) | Vocabulary complexity, content filtering |
+| **Expertise Level** | Technical, Standard, Simplified | Explanation depth for home automation |
+| **Communication Style** | Direct, Conversational, Playful | Tone and personality expression |
+| **Notification Preference** | Audio, Visual, Haptic, Combined | Delivery method selection |
+| **Content Restrictions** | None, Moderate, Strict | Filtering of news, media recommendations |
+
+### Response Differentiation Examples
+
+**Query: "What's the weather like today?"**
+
+| Listener | Response |
+|----------|----------|
+| **Thom (Adult/Technical)** | "Currently 42°F with 60% humidity. High of 55°F, low of 38°F. 30% chance of rain after 3 PM. Winds from the northwest at 12 mph." |
+| **Elizabeth (Adult/Conversational)** | "It's a bit chilly this morning at 42 degrees. It should warm up to the mid-fifties later. You might want a light jacket, and there's a small chance of rain this afternoon." |
+| **Penelope (Teen)** | "It's 42 degrees now, getting up to 55. Might rain later—maybe grab a jacket?" |
+| **Xander (Child, 8)** | "It's cold outside! You'll need a warm coat. It might rain after school." |
+| **Viola (Young Child, 5)** | "Brrr, it's chilly! Wear your warm coat today, sweetie!" |
+
+**Query: "Turn on the living room lights"**
+
+| Listener | Response |
+|----------|----------|
+| **Adult** | "Done." (minimal confirmation) |
+| **Child** | "I turned on the lights for you!" (encouraging tone) |
+| **Guest** | "The living room lights are now on." (polite, clear) |
+
+**Query: "Why is it so hot in here?"**
+
+| Listener | Response |
+|----------|----------|
+| **Thom (Technical)** | "The thermostat is set to 74°F, and the HVAC has been running in heat mode for 20 minutes. Current temperature is 73°F. Would you like me to lower the setpoint?" |
+| **Elizabeth (Conversational)** | "It does feel warm! The heat's been running and it's up to 73. Want me to turn it down a bit?" |
+| **Child** | "It is pretty warm! Do you want me to make it cooler?" |
+
+### Guest Mode Behavior
+
+Guests receive a simplified, privacy-respecting experience:
+
+| Capability | Guest Access | Reason |
+|------------|--------------|--------|
+| **Basic device control** | ✅ Guest room + common areas | Hospitality convenience |
+| **Information queries** | ✅ General only | No access to family data |
+| **Memory storage** | ❌ | Privacy protection |
+| **Personal preferences** | ❌ | Session-only, no persistence |
+| **Security commands** | ❌ | Safety restriction |
+| **Family calendar** | ❌ | Privacy protection |
+| **Proactive suggestions** | ❌ | Minimal interruption |
+
+**Guest Response Style:**
+- Always polite and slightly formal
+- Never assumes familiarity or prior context
+- Offers help proactively upon arrival
+- No family-specific information disclosed
+
+**Example:**
+```
+[Unknown speaker detected]
+Barnabee: "Hello! I'm Barnabee, the home assistant. I can help with 
+          lights, temperature, and entertainment in common areas. 
+          Just say 'Hey Barnabee' if you need anything."
+```
+
+**Temporary Guest Registration:**
+- Household admin can say: "Hey Barnabee, we have a guest named Marcus staying for the weekend"
+- Guest receives temporary profile with limited permissions
+- Automatic expiration after specified duration
+
+### Age-Appropriate Content Filtering
+
+| Content Type | Adult | Teen | Child | Young Child |
+|--------------|-------|------|-------|-------------|
+| News headlines | Full | Filtered for violence | Weather/sports only | None |
+| Music recommendations | All | Age-appropriate | Kid-friendly | Children's music |
+| Movie suggestions | All | PG-13 and below | G/PG only | G only |
+| Definitions/explanations | Full | Full | Simplified | Very simple |
+| Health information | Detailed | General | Redirect to parent | Redirect to parent |
+
+**Dynamic Filtering:**
+- When multiple listeners present, apply most restrictive profile
+- "Hey Barnabee, what's on the news?" with child present → "There's some weather news and sports scores. Would you like to hear those?"
+
+### Multi-Listener Detection
+
+When multiple people are in the same room, BarnabeeNet:
+1. Identifies the primary speaker (who asked the question)
+2. Detects other occupants via presence sensors
+3. Applies the most appropriate content restrictions
+4. Maintains age-appropriate vocabulary for youngest present
+
+**Example:**
+```
+[Living Room - Xander (8) and Viola (5) present]
+
+Xander: "Hey Barnabee, how do volcanoes work?"
+
+LISTENER ANALYSIS:
+├─ Primary Speaker: Xander (speaker ID match)
+├─ Age Category: Child (8)
+├─ Others Present: Viola (5), via room occupancy
+├─ Content Level: YOUNGEST_PRESENT = 5 years old
+└─ Response Style: Very simple, engaging
+
+Barnabee: "Great question! A volcano is like a big mountain with 
+          a hole in the top. Deep underground, it's super hot—so hot 
+          that rocks melt into gooey stuff called lava. Sometimes the 
+          lava pushes up and comes out the top like a soda bottle that 
+          got shaken up! Whoosh!"
+```
+
+---
+
 ## Use Case Categories
 
 BarnabeeNet supports use cases across multiple life domains:
@@ -637,6 +893,73 @@ BarnabeeNet supports use cases across multiple life domains:
      68°F, which Thom set earlier. Should I raise it to 70°F as a compromise?"
 ```
 
+### UC-F07: Work-From-Home Boundary Management
+
+**Scenario**: Thom works from home and needs protection from household interruptions
+
+**Spatial Awareness Features Used**:
+- Office presence detection
+- Calendar work hour integration
+- Kitchen/laundry event suppression
+
+**Flow**:
+1. Thom enters office during calendar work block
+2. BarnabeeNet sets office to "focus mode" automatically
+3. Kitchen events (oven timer, dishwasher done) → Watch only, no audio
+4. Kids' requests for non-urgent help → "Dad's working, try again later or ask Mom"
+5. Urgent events (safety, security, family emergency) → Always delivered
+
+**Voice Commands**:
+```
+"Hey Barnabee, I need to focus for the next 2 hours"
+  → Extends focus mode beyond calendar, suppresses all non-urgent notifications
+
+"Hey Barnabee, I'm available now"
+  → Ends focus mode, delivers queued notifications: "While you were working: 
+     dishwasher finished, you got a package, and Elizabeth asked about dinner plans"
+```
+
+**Spatial Awareness Example**:
+- Oven timer set in kitchen goes off
+- System checks: Who set the timer? Elizabeth. Where is Elizabeth? Living room.
+- Announcement plays in living room, NOT in Thom's office
+- If Elizabeth had gone to the office, announcement would play on her watch only
+
+### UC-F08: Kid-Friendly Homework Helper
+
+**Scenario**: Children ask BarnabeeNet for homework help
+
+**Per-Listener Adaptation**:
+- Age-appropriate vocabulary
+- Encouraging tone
+- Step-by-step explanations
+- Parental content boundaries
+
+**Flow Examples**:
+
+**Xander (8 years old) - Math Help:**
+```
+Xander: "Hey Barnabee, what's 7 times 8?"
+Barnabee: "7 times 8 is 56! Great question. Here's a trick: 
+          7 times 8 is like counting 7 groups of 8 things. 
+          Want me to help with more math?"
+```
+
+**Penelope (Teen) - Research Help:**
+```
+Penelope: "Hey Barnabee, when was the French Revolution?"
+Barnabee: "The French Revolution began in 1789 and lasted until 
+          1799. It started with the storming of the Bastille on 
+          July 14, 1789. Would you like more details about specific 
+          events or causes?"
+```
+
+**Same Question, Different Listener:**
+
+| Question | Xander (8) | Penelope (14) | Thom (Adult) |
+|----------|------------|---------------|--------------|
+| "What's DNA?" | "DNA is like a recipe book inside your body that tells it how to grow!" | "DNA is a molecule that contains genetic instructions for development. It's shaped like a twisted ladder called a double helix." | "Deoxyribonucleic acid—the molecular structure encoding genetic information. Do you want the technical explanation or general overview?" |
+
 ---
 
 ## Personal Productivity Use Cases
@@ -653,497 +976,398 @@ BarnabeeNet supports use cases across multiple life domains:
 3. Suppress non-urgent notifications
 4. Play focus music (optional)
 5. Block entertainment commands
-6. Set timer with break reminders
+6. Track focus time for productivity insights
 
 **Voice Commands**:
 ```
-"Hey Barnabee, activate deep work for 2 hours"
-"No interruptions unless it's urgent"
-"Play brown noise"
-"How much focus time do I have left?"
+"Hey Barnabee, I need to focus for 2 hours"
+"Start a Pomodoro"
+"How long have I been in deep work?"
 "I'm done focusing" (restores normal mode)
 ```
 
-### UC-P02: Meeting Preparation
+### UC-P02: Meeting Management
 
-**Scenario**: Prepare environment for video calls
-
-**Trigger**: 5 minutes before calendar meeting
-
-**Flow**:
-1. Proactive notification: "Your meeting with [name] starts in 5 minutes"
-2. Adjust lighting for video (front-lit, reduced background)
-3. Close blinds if backlit
-4. Silence household audio
-5. Display meeting agenda on AR glasses or dashboard
-
-**Voice Commands**:
-```
-"Hey Barnabee, I have a meeting in 5 minutes"
-"Set up for video call"
-"What's this meeting about?" (retrieves calendar details)
-"Mute the house"
-```
-
-### UC-P03: Task Capture & Management
-
-**Scenario**: Capture ideas and tasks hands-free
+**Scenario**: Managing work meetings from home office
 
 **Features**:
-- Voice-to-task capture
-- Integration with task management systems
-- Context tagging (project, priority, due date)
-- Review and summary
+- Calendar integration for meeting reminders
+- "Meeting mode" scene (lighting, DND, camera-ready)
+- Automatic transcript capture (optional)
+- Post-meeting summary generation
 
 **Voice Commands**:
 ```
-"Hey Barnabee, remind me to review the proposal tomorrow at 10 AM"
-"Add 'buy birthday gift for Mom' to my shopping list"
-"What tasks do I have for today?"
-"What did I ask you to remind me about this week?"
+"Hey Barnabee, when's my next meeting?"
+"Set up for my video call"
+"I'm going into a meeting" (activates meeting mode)
+"Meeting's over" (restores normal, asks for notes)
 ```
 
-### UC-P04: Daily Review & Planning
+### UC-P03: Task Capture
 
-**Scenario**: Morning and evening reflection routines
+**Scenario**: Quick capture of ideas and tasks during the day
 
-**Trigger**: Voice command or schedule
-
-**Morning Review**:
-```
-"Hey Barnabee, what's my day look like?"
-  → Weather, calendar summary, priority tasks, overnight notifications
-```
-
-**Evening Review**:
-```
-"Hey Barnabee, let's review today"
-  → Completed tasks, open items, tomorrow preview
-  → "Anything you want to capture before tomorrow?"
-```
-
-### UC-P05: Context Switching
-
-**Scenario**: Transition between work modes efficiently
+**Features**:
+- Voice-to-task conversion
+- Integration with task managers (Todoist, Things, etc.)
+- Context tagging (work, personal, home)
+- Reminder setting
 
 **Voice Commands**:
 ```
-"Hey Barnabee, I'm switching to emails"
-  → Pause focus music, restore notifications, adjust lighting
-  
-"Hey Barnabee, lunch break"
-  → Warm lighting, entertainment available, break reminder in 30 min
-  
-"Hey Barnabee, back to work"
-  → Restore work mode settings
+"Hey Barnabee, remind me to call the dentist tomorrow at 10"
+"Add 'buy birthday present for Mom' to my shopping list"
+"Note to self: research standing desks"
+"What's on my task list for today?"
 ```
+
+### UC-P04: Email/Communication Triage
+
+**Scenario**: Voice-based email management
+
+**Features**:
+- Read email summaries aloud
+- Quick reply via voice
+- Priority filtering
+- Snooze and scheduling
+
+**Voice Commands**:
+```
+"Hey Barnabee, do I have any important emails?"
+"Read the email from Sarah"
+"Reply: Sounds good, let's meet at 3"
+"Snooze that until tomorrow morning"
+```
+
+### UC-P05: Woodworking Project Memory
+
+**Scenario**: Thom has an ongoing woodworking project; BarnabeeNet maintains context
+
+**Profile-Based Features**:
+- Project memory per user
+- Material tracking
+- Progress state
+- Contextual suggestions
+
+**Example Interactions**:
+```
+[Week 1]
+Thom: "Hey Barnabee, I'm starting a new bookshelf project"
+Barnabee: "I'll remember that. What kind of wood are you using?"
+Thom: "Red oak, and I ordered pocket screws from Amazon"
+Barnabee: "Got it—red oak bookshelf with pocket screws. 
+          I'll let you know when the screws arrive."
+
+[3 days later - package notification]
+Barnabee: "Your pocket screws arrived. Ready for the bookshelf?"
+
+[Week 2]
+Thom: "Hey Barnabee, how's my project going?"
+Barnabee: "Your red oak bookshelf project: you have the pocket screws.
+          Last week you mentioned cutting the shelves. 
+          Have you finished that step?"
+Thom: "Yes, I'm ready for assembly"
+Barnabee: "Nice progress! For pocket screw assembly, remember to 
+          pre-drill and use clamps for alignment. Want me to play 
+          your workshop playlist?"
+
+[Context awareness]
+Thom: [In garage] "What glue should I use?"
+Barnabee: "For your red oak bookshelf, Titebond III is great for 
+          furniture—it's waterproof and sands well. You might have 
+          some in the cabinet from the table project last year."
+```
+
+**Profile Data Stored**:
+- Active projects with status
+- Preferred materials/brands
+- Past project history
+- Skill level (intermediate woodworker)
 
 ---
 
 ## Wellness & Health Use Cases
 
-### UC-W01: Habit Tracking
+### UC-W01: Hydration Reminders
 
-**Scenario**: Build and maintain healthy habits
-
-**Features**:
-- Voice-logged habit completion
-- Streak tracking with encouragement
-- Gentle reminders without nagging
-- Weekly progress summaries
-
-**Voice Commands**:
-```
-"Hey Barnabee, I did my meditation"
-"How many days in a row have I exercised?"
-"Remind me to take vitamins at 9 AM"
-"How am I doing on my habits this week?"
-```
-
-### UC-W02: Hydration & Movement Reminders
-
-**Scenario**: Encourage healthy behaviors during work
-
-**Trigger**: Polling-based (configurable intervals)
-
-**Flow**:
-1. Every 90 minutes during work hours, gentle reminder
-2. Watch haptic notification: "Time to stretch!"
-3. Voice optional: "You've been at your desk for a while. How about a quick stretch?"
-4. Track compliance patterns, adjust timing
-
-**Configuration**:
-```yaml
-wellness_reminders:
-  hydration:
-    interval: 60  # minutes
-    delivery: [watch_haptic, voice_optional]
-  movement:
-    interval: 90  # minutes
-    delivery: [watch_haptic, ar_glasses]
-  eye_break:
-    interval: 20  # 20-20-20 rule
-    delivery: [ar_glasses]
-```
-
-### UC-W03: Sleep Support
-
-**Scenario**: Improve sleep quality through environment
-
-**Trigger**: "Hey Barnabee, I'm going to bed" or schedule
-
-**Flow**:
-1. Dim all lights to 10%
-2. Set bedroom to sleep temperature (67°F)
-3. Activate white noise or sleep sounds
-4. Enable "Do Not Disturb" except emergencies
-5. Morning: Gradual sunrise lighting 30 min before alarm
-
-**Voice Commands**:
-```
-"Hey Barnabee, set sleep sounds for 30 minutes"
-"Wake me up at 6:30 with gentle sunrise"
-"How did I sleep last night?" (integrates with wearable data)
-```
-
-### UC-W04: Mood & Energy Check-ins
-
-**Scenario**: Track emotional wellbeing over time
+**Scenario**: Gentle reminders to drink water throughout the day
 
 **Features**:
-- Optional periodic check-ins
-- Voice sentiment detection
-- Pattern identification
-- Supportive responses (not therapy replacement)
+- Personalized timing based on activity
+- Non-intrusive delivery (watch haptic)
+- Tracking of consumption (optional)
+- Weather-aware adjustment
 
 **Voice Commands**:
 ```
-"Hey Barnabee, I'm feeling stressed"
-  → "I hear you. Would you like me to dim the lights and play
-     calming music? Or would you prefer some quiet time?"
-     
-"Log my mood as 7 out of 10"
-"How has my energy been this week?"
+"Hey Barnabee, I just had a glass of water"
+"How much water have I had today?"
+"Pause water reminders for an hour"
 ```
 
-### UC-W05: Mindfulness & Breathing
+### UC-W02: Movement Breaks
 
-**Scenario**: Guided micro-meditation during busy day
+**Scenario**: Encourage regular movement during sedentary work
 
-**Trigger**: Voice command or stress detection
+**Features**:
+- Sitting duration tracking via presence sensors
+- Stretch suggestions
+- Standing desk reminders
+- Walk prompts
+
+**Flow Example**:
+```
+[After 90 minutes seated in office]
+Barnabee: [Watch haptic] "You've been sitting for a while. 
+          Time for a quick stretch?"
+          
+[Options: Yes / Later / Skip]
+```
+
+### UC-W03: Sleep Optimization
+
+**Scenario**: Support healthy sleep habits
+
+**Features**:
+- Wind-down routine automation
+- Blue light reduction scheduling
+- Sleep environment optimization
+- Wake-up time suggestions based on sleep cycles
 
 **Voice Commands**:
 ```
-"Hey Barnabee, I need a minute"
-  → Dims lights, offers: "Would you like a 2-minute breathing exercise?"
-  
-"Guide me through box breathing"
-  → Step-by-step audio guidance with timing
+"Hey Barnabee, I'm going to bed"
+  → Triggers wind-down: lights dim, temperature drops, locks confirmed
+
+"What time should I wake up to feel rested?"
+"Track my sleep" (if wearable integrated)
+```
+
+### UC-W04: Medication Reminders
+
+**Scenario**: Ensure medications are taken on schedule
+
+**Features**:
+- Customizable schedule per medication
+- Confirmation tracking
+- Refill reminders
+- Interaction with pharmacy APIs (future)
+
+**Voice Commands**:
+```
+"Hey Barnabee, I took my morning vitamins"
+"When is my next medication due?"
+"Remind me to refill my prescription"
+```
+
+### UC-W05: Stress Detection & Support
+
+**Scenario**: Recognize stress patterns and offer support
+
+**Features**:
+- Voice pattern analysis for stress indicators
+- Proactive calming suggestions
+- Environment adjustments (lighting, music)
+- Breathing exercise guidance
+
+**Flow Example**:
+```
+[Voice analysis detects elevated stress]
+Barnabee: "You sound a bit stressed. Would you like me to 
+          dim the lights and play some calm music? Or I could 
+          guide you through a quick breathing exercise."
 ```
 
 ---
 
 ## Proactive Intelligence Use Cases
 
-### UC-PR01: Safety Alerts
+### UC-PI01: Safety Monitoring
 
-**Scenario**: Detect and alert on safety concerns
+**Scenario**: Continuous monitoring for safety issues
 
-| Trigger | Alert | Action Options |
-|---------|-------|----------------|
-| Door open > 10 min at night | "Front door has been open for 10 minutes" | Close/Lock, Ignore, Check camera |
-| Smoke detector activation | Urgent alarm + "Smoke detected in kitchen" | Call 911, Silence (if false) |
-| Water leak sensor | "Water detected in basement" | Show camera, Call plumber |
-| Unusual motion at night | "Motion detected in backyard at 2 AM" | Show camera, Arm alarm |
+**Triggers**:
+- Door open at night
+- Smoke/CO detection
+- Water leak sensors
+- Unusual temperature
 
-### UC-PR02: Convenience Notifications
+**Response Pattern**:
+1. Immediate alert via all available channels
+2. Contextual information provided
+3. Suggested actions offered
+4. Escalation if no response
 
-**Scenario**: Helpful unprompted information
+### UC-PI02: Energy Optimization
 
-| Trigger | Notification | Delivery |
-|---------|-------------|----------|
-| Package detected (camera AI) | "Package delivered at front door" | Watch, AR, voice |
-| Weather change | "Rain expected in 2 hours. Windows are open." | Voice (if home) |
-| Calendar approaching | "Your 3 PM meeting starts in 10 minutes" | Watch, voice |
-| Appliance complete | "Washing machine cycle complete" | Watch haptic |
+**Scenario**: Reduce energy waste automatically
 
-### UC-PR03: Energy Optimization
+**Features**:
+- Occupancy-based light/HVAC control
+- Solar production optimization
+- Time-of-use rate awareness
+- Energy usage insights
 
-**Scenario**: Detect and reduce energy waste
-
-| Pattern | Notification | Suggestion |
-|---------|-------------|------------|
-| Lights on in empty room | "Living room lights on, no motion for 30 min" | Turn off? |
-| HVAC running, windows open | "AC running but office window is open" | Close window? |
-| High energy during peak | "Peak rate period starting in 30 min" | Delay dishwasher? |
-| Unused device drawing power | "Guest room TV in standby for 48 hours" | Cut power? |
-
-### UC-PR04: Automation Suggestions
-
-**Scenario**: Learn patterns and propose automations
-
-**Detection**:
-- "You turn on the office lights at 6:30 AM every weekday"
-- "You lower the thermostat when leaving for work"
-- "Kids' hallway light always goes on at 7 PM"
-
-**Proposal**:
+**Voice Commands**:
 ```
-Barnabee: "I've noticed you turn on the office lights around 6:30 AM
-           on weekdays. Would you like me to do this automatically?"
-           
-User: "Yes, but only if I'm home"
-
-Barnabee: "Got it. I'll turn on office lights at 6:30 AM on weekdays
-           when you're detected at home. You can say 'undo automation'
-           if this doesn't work out."
+"Hey Barnabee, what's our energy usage today?"
+"How can I reduce our carbon footprint?"
+"When is the best time to run the dishwasher?"
 ```
+
+### UC-PI03: Pattern Learning
+
+**Scenario**: Discover and suggest automations
+
+**Features**:
+- Behavioral pattern detection
+- Automation suggestions
+- A/B testing of suggestions
+- Feedback loop for improvement
+
+**Example**:
+```
+Barnabee: "I've noticed you turn on the porch light every evening 
+          around sunset. Would you like me to do this automatically?"
+```
+
+### UC-PI04: Predictive Maintenance
+
+**Scenario**: Anticipate home maintenance needs
+
+**Features**:
+- Filter replacement reminders
+- Unusual device behavior detection
+- Seasonal maintenance prompts
+- Integration with service providers (future)
 
 ---
 
 ## Proxy Mode Use Cases
 
-### UC-PX01: Meeting Attendance
+### UC-PM01: Meeting Attendance
 
-**Scenario**: Barnabee joins Teams call when user is unavailable
-
-**Trigger**: Calendar meeting + user opt-in
-
-**Capabilities**:
-- Join as bot participant
-- Real-time transcription
-- Key topic extraction
-- Action item identification
-- Post-meeting summary
-
-**Flow**:
-```
-User: "Hey Barnabee, cover my 2 PM standup"
-
-Barnabee: "I'll join the 2 PM Engineering Standup and take notes.
-           Should I mention you're unavailable, or stay silent?"
-           
-User: "Mention I had a conflict but I'll review the notes"
-
-[After meeting]
-
-Barnabee: "Your standup ended. Key points:
-           - Sprint demo moved to Friday
-           - You have an action item: Review PR #234
-           - Sarah asked about your timeline on the API project
-           Would you like me to send a follow-up message?"
-```
-
-### UC-PX02: Voice Presence (Advanced)
-
-**Scenario**: Barnabee responds in user's cloned voice for simple queries
-
-**Safety Constraints**:
-- Explicit opt-in required each session
-- Only answers from verified semantic memory
-- Never improvises or speculates
-- Identifies as proxy when uncertain
-
-**Example**:
-```
-[In Teams meeting, user is driving]
-
-Colleague: "Thom, do we have budget approval for the Beelink upgrade?"
-
-Barnabee (in Thom's voice): "Yes, that was approved last week.
-           I can send you the details after this call."
-           
-[Question Barnabee can't answer]
-
-Colleague: "What do you think about the new API design?"
-
-Barnabee (in Thom's voice): "I'd want to review the details before
-           commenting. Can you send that to me for follow-up?"
-```
-
-### UC-PX03: Call Summarization
-
-**Scenario**: Summarize missed portions of calls
-
-**Trigger**: "Hey Barnabee, catch me up on the last 10 minutes"
+**Scenario**: Barnabee attends a meeting on your behalf
 
 **Features**:
-- Real-time transcription buffer
-- Key point extraction
-- Speaker attribution
-- Sentiment analysis
+- Voice synthesis matching your voice (with consent)
+- Real-time transcription and summarization
+- Intelligent question answering based on your knowledge
+- Action item extraction
 
-**Output**:
+**Voice Commands**:
 ```
-Barnabee: "In the last 10 minutes:
-           
-           1. Budget discussion concluded - Q2 approved as proposed
-           2. Sarah raised concerns about timeline on Project X
-           3. Decision: Move demo to Friday
-           4. You were mentioned: John asked if you'll lead the
-              architecture review
-              
-           Want me to provide more detail on any of these?"
+"Hey Barnabee, attend my 2 PM meeting for me"
+"Brief me on what happened in the team meeting"
+"What action items do I have from today's meetings?"
+```
+
+### UC-PM02: Phone Call Handling
+
+**Scenario**: Screen and handle phone calls
+
+**Features**:
+- Caller identification
+- Contextual call screening
+- Message taking
+- Urgent call escalation
+
+**Flow Example**:
+```
+[Incoming call from unknown number]
+Barnabee: [To caller] "Hello, you've reached Thom's phone. 
+          He's currently unavailable. May I take a message?"
+
+[After call]
+Barnabee: [To Thom] "You had a call from a solar panel company. 
+          They wanted to schedule an estimate. I told them you'd 
+          call back if interested. The callback number is saved."
 ```
 
 ---
 
 ## Guest & Hospitality Use Cases
 
-### UC-G01: Guest Mode Activation
+### UC-G01: Guest Arrival
 
-**Scenario**: Visitors coming over, simplify smart home
-
-**Trigger**: Voice command or calendar event
-
-**Flow**:
-1. Disable complex automations (motion lights, auto-shades)
-2. Enable simple switch control
-3. Create guest WiFi credentials
-4. Set up simplified dashboard on tablet
-5. Relax permission restrictions for common areas
-
-**Voice Commands**:
-```
-"Hey Barnabee, we have guests coming"
-  → "Guest mode activated. Complex automations paused.
-     Guest WiFi password is 'Welcome2024'.
-     Should I set any specific rooms for guest access?"
-     
-"Guests are leaving"
-  → "Restoring normal automations. Rotating guest WiFi password."
-```
-
-### UC-G02: Overnight Guest Setup
-
-**Scenario**: Preparing guest room for overnight visitors
-
-**Trigger**: Voice command
-
-**Flow**:
-1. Set guest room temperature to comfortable (70°F)
-2. Turn on guest room lights to welcoming level
-3. Enable bedside lamp control
-4. Place tablet with simplified controls
-5. Brief guest on basic commands
-
-**Voice Commands**:
-```
-"Hey Barnabee, prepare the guest room for Mom"
-"Set guest room to her preferred temperature" (retrieves from memory)
-"What commands can guests use?"
-```
-
-### UC-G03: Guest Temporary Access
-
-**Scenario**: Babysitter, contractor, or service worker access
+**Scenario**: Welcoming guests to your home
 
 **Features**:
-- Time-limited door codes
-- Restricted device access
-- Activity logging
-- Automatic expiration
-
-**Voice Commands**:
-```
-"Hey Barnabee, the babysitter is coming at 5 PM"
-  → Creates 4-hour door code, enables limited controls
-  
-"Give the plumber a door code for tomorrow 9 AM to 12 PM"
-  → Creates temporary code, logs all activity
-```
-
-### UC-G04: Party Mode
-
-**Scenario**: Hosting a gathering with optimal ambiance
-
-**Trigger**: Voice command
+- Simplified interface activation
+- Guest WiFi auto-share
+- House tour guidance
+- Temporary permissions
 
 **Flow**:
-1. Set lighting to party preset (colorful, dynamic)
-2. Enable multi-room audio
-3. Simplify controls for guests
-4. Disable motion-triggered lights
-5. Set temperature slightly cooler (accounting for body heat)
+```
+[Guest detected at front door]
+Barnabee: [To owners] "Your guest has arrived."
+          [After door opens, to guest] "Welcome! I'm Barnabee. 
+          I can help with lights, temperature, and entertainment. 
+          The WiFi password has been sent to your phone."
+```
+
+### UC-G02: Guest Room Setup
+
+**Scenario**: Preparing for overnight guests
+
+**Features**:
+- Climate preferences for guest room
+- Wake-up routine customization
+- Privacy mode for guest areas
+- Check-out reminders
 
 **Voice Commands**:
 ```
-"Hey Barnabee, party mode"
-"Play upbeat music in the living room and kitchen"
-"End party mode" → Gradually returns to normal settings
+"Hey Barnabee, set up the guest room for Mom's visit"
+"Guest prefers it warmer—set guest room to 72"
+"Remind our guest about checkout at 11 AM"
 ```
 
 ---
 
 ## Advanced "Superhuman" Use Cases
 
-### UC-A01: Idea Incubation
+### UC-A01: Idea Incubator
 
 **Scenario**: Capture and develop ideas over time
 
 **Features**:
-- Voice capture of raw ideas
-- Periodic prompts to develop further
-- Connection to related ideas
-- Synthesis suggestions
+- Voice journaling of ideas
+- Semantic linking between related ideas
+- Periodic "what about this idea?" prompts
+- Connection suggestions
 
-**Voice Commands**:
-```
-"Hey Barnabee, new idea: What if we used solar to power the garden lights?"
+### UC-A02: Relationship Maintenance
 
-[Two days later, Barnabee proactively:]
-"I've been thinking about your solar garden lights idea.
- Would you like me to research compatible solar controllers?"
- 
-"Show me all my home improvement ideas"
-"Connect this to my energy efficiency project"
-```
-
-### UC-A02: Relationship Nurturing
-
-**Scenario**: Maintain connections with loved ones
+**Scenario**: Stay connected with important people
 
 **Features**:
-- Birthday and anniversary reminders
-- "Haven't called in a while" nudges
-- Gift suggestion based on interests
-- Relationship health tracking
+- Contact frequency tracking
+- Birthday/anniversary reminders
+- Conversation starters based on shared interests
+- Gift suggestions
 
-**Voice Commands**:
-```
-"Hey Barnabee, when is Dad's birthday?"
-"Remind me to call Sarah next week"
-"What might Mom like for her birthday?" → Suggests based on memory
-"Who haven't I talked to in a while?"
-```
+### UC-A03: Personal Knowledge Management
 
-### UC-A03: Memory Replay
-
-**Scenario**: Recall and relive past moments
+**Scenario**: Build a personal knowledge base
 
 **Features**:
-- Search conversations by topic/time
-- Surface "this day last year" moments
-- Fact verification against memory
-- Nostalgic recalls
+- Automatic fact extraction from conversations
+- Semantic search across all interactions
+- "What do I know about X?" queries
+- Knowledge gap identification
 
-**Voice Commands**:
-```
-"Hey Barnabee, what did we talk about last Christmas?"
-"When did I mention wanting to visit Japan?"
-"What was that restaurant Elizabeth recommended?"
-"What happened this day last year?"
-```
+### UC-A04: Environmental Sustainability
 
-### UC-A04: Eco-Advising
-
-**Scenario**: Optimize home for environmental impact
+**Scenario**: Minimize household environmental impact
 
 **Features**:
-- Real-time energy monitoring
 - Carbon footprint tracking
-- Optimization suggestions
-- Solar/battery integration
+- Sustainable alternatives suggestions
+- Energy/water usage optimization
+- Waste reduction reminders
 
 **Voice Commands**:
 ```
@@ -1191,6 +1415,51 @@ Barnabee: "In the last 10 minutes:
 "What patterns have you noticed in my dreams?"
 "Do any of my dreams connect to what I've been stressed about?"
 ```
+
+### UC-A07: Multi-Room Conversation Continuity
+
+**Scenario**: Complex conversation continues across multiple rooms
+
+**Spatial Awareness Features**:
+- Conversation state persistence (30-minute timeout)
+- Seamless room-to-room handoff
+- Privacy boundary respect
+
+**Flow**:
+```
+[Living Room]
+Thom: "Hey Barnabee, help me plan this weekend"
+Barnabee: "Sure! You have Penelope's soccer game Saturday at 10 AM 
+          and a dinner reservation Sunday at 6. What else?"
+Thom: "I need to finish the garage organization project"
+Barnabee: "I'll block out time. Saturday afternoon after soccer?"
+
+[Thom walks to kitchen]
+[Motion detected, conversation context transfers]
+
+[Kitchen - 30 seconds later]
+Thom: "What about Sunday morning?"
+Barnabee: [Continues without re-explaining context] 
+          "Sunday morning is free until 4 PM when you'd want to 
+          start getting ready for dinner. That's about 5 hours—
+          enough for significant garage progress."
+Thom: "Perfect. Remind me about both"
+Barnabee: "Done. I'll remind you Saturday at 1 PM and Sunday at 9 AM.
+          Also, you mentioned needing storage bins—should I add that 
+          to the shopping list?"
+
+[Later - Thom in office]
+Thom: "Hey Barnabee, what did we decide about this weekend?"
+Barnabee: "Here's your weekend plan: Soccer Saturday 10 AM, garage 
+          Saturday afternoon and Sunday morning, dinner Sunday 6 PM.
+          You have reminders set for the garage sessions."
+```
+
+**Technical Behavior**:
+- Conversation context persists for 30 minutes of inactivity
+- Room transitions detected via presence sensors
+- Context is NOT transferred to privacy zones
+- Explicit close: "Hey Barnabee, we're done planning"
 
 ---
 
@@ -1310,6 +1579,168 @@ Barnabee: "I hear you're frustrated. Let me help search.
            to dim the lights a bit? Sometimes that helps."
 ```
 
+### Flow 5: Deferred Proactive Notification
+
+This flow demonstrates how BarnabeeNet evaluates and defers non-urgent notifications based on spatial and activity context.
+
+```
+[2:30 PM - Dishwasher cycle completes]
+Proactive Agent: Evaluates notification
+
+EVALUATION:
+├─ Event: dishwasher.complete
+├─ Urgency: LOW (convenience)
+├─ Relevant Users: Elizabeth (started cycle)
+├─ Elizabeth Location: OFFICE (presence sensor)
+├─ Elizabeth Activity: WORK_HOURS (calendar integration)
+└─ Decision: DEFER (user in focus context)
+
+[Notification queued with 30-minute expiry]
+
+[2:35 PM - Elizabeth leaves office for kitchen]
+Room Graph: MOVEMENT_DETECTED
+├─ From: office
+├─ To: kitchen
+├─ User: Elizabeth (speaker ID on "hey barnabee" at 2:34)
+└─ Trigger: DELIVER_QUEUED_NOTIFICATIONS
+
+Barnabee: "By the way, the dishwasher finished about 5 minutes ago."
+Elizabeth: "Thanks!"
+
+[Alternative: If 30 minutes pass without good delivery opportunity]
+Barnabee: [Watch haptic only - subtle reminder that dishwasher is done]
+```
+
+### Flow 6: Room Graph Event Propagation
+
+Shows how events propagate through the spatial model to reach appropriate listeners.
+
+```
+[7:00 PM - Front door opens, Thom enters]
+Event: PRESENCE.ARRIVED
+├─ User: Thom (geofence + door sensor correlation)
+├─ Entry Point: front_door
+└─ Propagate: YES
+
+ROOM GRAPH STATE:
+┌─────────────────────────────────────────────────────┐
+│ Kitchen: Elizabeth (cooking)                         │
+│ Living Room: Xander, Viola (playing)                │
+│ Office: EMPTY                                        │
+│ Master Bedroom: EMPTY                                │
+│ Penelope's Room: Penelope (privacy zone - no notify)│
+└─────────────────────────────────────────────────────┘
+
+PROPAGATION DECISION:
+├─ Announcement Type: "Thom is home"
+├─ Kitchen (Elizabeth): ANNOUNCE (relevant, cooking dinner)
+├─ Living Room (kids): ANNOUNCE (dad's home = relevant)
+├─ Penelope's Room: SUPPRESS (privacy zone)
+└─ Output Devices: kitchen_speaker, living_room_speaker
+
+Barnabee: [Kitchen] "Thom just got home."
+Barnabee: [Living Room] "Hey kids, Dad's home!"
+
+[Personalized greeting in entryway]
+Barnabee: [Entryway] "Welcome home, Thom. Dinner's almost ready, 
+          and the kids have been waiting to show you something."
+```
+
+### Flow 7: Conflict Resolution with Overrides
+
+Demonstrates how BarnabeeNet handles conflicting preferences and explicit overrides.
+
+```
+[Scenario: Thermostat conflict during family gathering]
+
+STATE:
+├─ Living Room Occupants: Thom, Elizabeth, 3 kids
+├─ Stored Preferences:
+│   ├─ Thom: 68°F
+│   ├─ Elizabeth: 72°F  
+│   ├─ Kids: No strong preference
+│   └─ Current Setting: 70°F (auto-compromised)
+└─ System Suggestion: MAINTAIN 70°F (majority comfortable)
+
+Elizabeth: "Hey Barnabee, I'm cold. Turn up the heat."
+
+OVERRIDE EVALUATION:
+├─ Requester: Elizabeth (adult, full permissions)
+├─ Current Setting: 70°F
+├─ Requested Change: Warmer (implicit)
+├─ Conflict Detection: Thom prefers cooler
+└─ Resolution: CONFIRM_WITH_CONTEXT
+
+Barnabee: "I can raise it to 72. That's warmer than Thom usually 
+          prefers—should I go ahead?"
+
+Elizabeth: "Yes, just for tonight"
+
+Barnabee: "Done, raising to 72. I'll return to the usual 70 
+          tomorrow morning."
+
+[System records temporary override with expiry]
+OVERRIDE_RECORD:
+├─ User: Elizabeth
+├─ Action: thermostat → 72
+├─ Scope: TEMPORARY (tonight)
+├─ Expires: 6:00 AM tomorrow
+└─ Previous Setting: Restore to 70
+
+[Next morning at 6:00 AM]
+Barnabee: [Silent action - restores to 70°F]
+[Log entry for audit trail]
+```
+
+### Flow 8: Multi-Listener Response Selection
+
+Shows real-time response adaptation based on detected listeners.
+
+```
+[Living Room - Xander (8) and Viola (5) present]
+
+Xander: "Hey Barnabee, how do volcanoes work?"
+
+LISTENER ANALYSIS:
+├─ Primary Speaker: Xander (speaker ID match)
+├─ Age Category: Child (8)
+├─ Others Present: Viola (5), via room occupancy
+├─ Content Level: YOUNGEST_PRESENT = 5 years old
+└─ Response Style: Very simple, engaging
+
+Barnabee: "Great question! A volcano is like a big mountain with 
+          a hole in the top. Deep underground, it's super hot—so hot 
+          that rocks melt into gooey stuff called lava. Sometimes the 
+          lava pushes up and comes out the top like a soda bottle that 
+          got shaken up! Whoosh!"
+
+[If Thom enters mid-response]
+LISTENER_CHANGE: Adult joined
+[No response modification - already delivered]
+[Future responses will account for adult presence but maintain 
+ child-appropriate content when children are primary audience]
+
+[Later - Thom alone in office]
+
+Thom: "Hey Barnabee, explain how volcanoes work"
+
+LISTENER ANALYSIS:
+├─ Primary Speaker: Thom (speaker ID match)
+├─ Age Category: Adult
+├─ Others Present: None
+├─ Content Level: ADULT
+├─ Expertise: Standard (Thom's profile)
+└─ Response Style: Technical but accessible
+
+Barnabee: "Volcanoes form at tectonic plate boundaries or hotspots 
+          where magma from the mantle reaches the surface. The eruption 
+          style depends on magma viscosity and gas content—low-viscosity 
+          basaltic magma produces effusive eruptions like Hawaii, while 
+          high-viscosity rhyolitic magma causes explosive eruptions like 
+          Mount St. Helens. Want me to go deeper into plate tectonics 
+          or eruption mechanics?"
+```
+
 ---
 
 ## Feature Comparison Matrix
@@ -1328,15 +1759,18 @@ Barnabee: "I hear you're frustrated. Let me help search.
 | Per-user permissions | ✅ Granular | Basic | Basic | Basic |
 | Long-term memory | ✅ | ❌ | Limited | ❌ |
 | Preference learning | ✅ | Limited | Limited | Limited |
+| Per-listener response adaptation | ✅ | ❌ | ❌ | ❌ |
 | **Interaction** | | | | |
 | Voice | ✅ | ✅ | ✅ | ✅ |
 | AR glasses | ✅ | ❌ | ❌ | Vision Pro |
 | Wearable gestures | ✅ | ❌ | ❌ | Apple Watch |
 | Multi-turn dialogue | ✅ | Limited | ✅ | Limited |
+| Multi-room continuity | ✅ | ❌ | ❌ | ❌ |
 | **Intelligence** | | | | |
 | Proactive suggestions | ✅ | Basic | ✅ | Basic |
 | Automation proposals | ✅ | ❌ | ✅ | ❌ |
 | Context awareness | ✅ | Basic | ✅ | Basic |
+| Spatial awareness | ✅ | ❌ | ❌ | ❌ |
 | Emotional detection | ✅ | ❌ | ❌ | ❌ |
 | **Advanced** | | | | |
 | Proxy Mode | ✅ | ❌ | ❌ | ❌ |
@@ -1352,11 +1786,14 @@ Barnabee: "I hear you're frustrated. Let me help search.
 | Device actions | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Speaker recognition | | ✅ | ✅ | ✅ | ✅ |
 | Per-user permissions | | ✅ | ✅ | ✅ | ✅ |
+| Per-listener adaptation | | ✅ | ✅ | ✅ | ✅ |
 | Episodic memory | | | ✅ | ✅ | ✅ |
 | Semantic memory | | | ✅ | ✅ | ✅ |
+| Spatial awareness | | | ✅ | ✅ | ✅ |
 | Proactive alerts | | | | ✅ | ✅ |
 | AR glasses | | | ✅ | ✅ | ✅ |
 | Wearable gestures | | | | ✅ | ✅ |
+| Multi-room continuity | | | | ✅ | ✅ |
 | Proxy Mode | | | | ✅ | ✅ |
 | Evolver Agent | | | | ✅ | ✅ |
 | All optimizations | | | | | ✅ |
@@ -1412,6 +1849,14 @@ Barnabee: "I hear you're frustrated. Let me help search.
 "That was helpful, keep doing it"
 ```
 
+### Spatial Awareness
+```
+"I'm moving to the [room]"
+"Follow me" (continue conversation across rooms)
+"Don't disturb me in the office"
+"I'm available now" (end focus mode, deliver queued notifications)
+```
+
 ---
 
 ## Appendix B: Trigger Phrases by Mode
@@ -1439,6 +1884,8 @@ Barnabee: "I hear you're frustrated. Let me help search.
 | AR glasses worn | Adds visual notifications |
 | Guest mode active | Simplified responses |
 | Deep work active | Only urgent interrupts |
+| User in privacy zone | No proactive audio |
+| Multiple listeners | Age-appropriate filtering |
 
 ---
 
@@ -1447,7 +1894,8 @@ Barnabee: "I hear you're frustrated. Let me help search.
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-01-16 | Initial features and use cases document |
+| 1.1 | 2026-01-17 | Added Spatial Awareness System section with room graph model, notification routing, multi-room conversation continuity. Added Per-Listener Response Adaptation section with age-appropriate responses, guest mode behavior, content filtering. Added new use cases: UC-F07 (Work-From-Home Boundaries), UC-F08 (Kid-Friendly Homework Helper), UC-P05 (Woodworking Project Memory), UC-A07 (Multi-Room Conversation Continuity). Added interaction flows: Deferred Proactive Notification, Room Graph Event Propagation, Conflict Resolution with Overrides, Multi-Listener Response Selection. Updated Feature Comparison Matrix with spatial awareness and per-listener adaptation rows. |
 
 ---
 
-*This document catalogs BarnabeeNet features and use cases. For theoretical foundations, see BarnabeeNet_Theory_Research.md. For hardware specifications, see BarnabeeNet_Hardware_Specifications.md.*
+*This document catalogs BarnabeeNet features and use cases. For theoretical foundations, see BarnabeeNet_Theory_Research.md. For hardware specifications, see BarnabeeNet_Hardware_Specifications.md. For technical architecture details including Room Graph implementation, see BarnabeeNet_Technical_Architecture.md.*
