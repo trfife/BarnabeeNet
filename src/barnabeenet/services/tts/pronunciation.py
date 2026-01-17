@@ -14,7 +14,6 @@ PRONUNCIATION_MAP = {
     "Xander": "Zander",
     "xander": "Zander",
     "XANDER": "Zander",
-    
     # Add more as needed:
     # "WiFi": "Why-Fy",
     # "HVAC": "H-V-A-C",
@@ -23,10 +22,10 @@ PRONUNCIATION_MAP = {
 
 def preprocess_text(text: str) -> str:
     """Apply pronunciation corrections to text before TTS.
-    
+
     Args:
         text: Original text to speak
-        
+
     Returns:
         Text with pronunciation corrections applied
     """

@@ -1,4 +1,5 @@
 """Kokoro TTS service for fast, high-quality speech synthesis."""
+
 from __future__ import annotations
 
 import base64
@@ -20,7 +21,7 @@ logger = structlog.get_logger()
 
 class KokoroTTS:
     """Text-to-speech using Kokoro-82M.
-    
+
     Fast, high-quality local TTS with multiple voice options.
     Default voice: bm_fable (British male)
     """
@@ -43,7 +44,7 @@ class KokoroTTS:
         lang_code: str = "b",  # 'b' = British English
     ) -> None:
         """Initialize the TTS service.
-        
+
         Args:
             voice: Voice ID (default bm_fable for Barnabee)
             speed: Speech speed multiplier (0.5-2.0)
@@ -88,12 +89,12 @@ class KokoroTTS:
         speed: float | None = None,
     ) -> dict:
         """Synthesize text to speech audio.
-        
+
         Args:
             text: Text to synthesize
             voice: Override voice (or use default)
             speed: Override speed (or use default)
-            
+
         Returns:
             dict with keys: audio_bytes, audio_base64, sample_rate, duration_ms, latency_ms
         """
@@ -107,7 +108,7 @@ class KokoroTTS:
 
         # Apply pronunciation corrections
         processed_text = preprocess_text(text)
-        
+
         if processed_text != text:
             logger.debug(
                 "Applied pronunciation corrections",

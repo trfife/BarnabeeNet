@@ -1,4 +1,5 @@
 """Pydantic models for BarnabeeNet API requests and responses."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -6,7 +7,6 @@ from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
-
 
 # =============================================================================
 # Enums
@@ -120,15 +120,11 @@ class TranscribeResponse(BaseModel):
     """Response from transcription request."""
 
     text: str = Field(..., description="Transcribed text")
-    confidence: float = Field(
-        default=1.0, ge=0.0, le=1.0, description="Transcription confidence"
-    )
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Transcription confidence")
     language: str = Field(..., description="Detected or specified language")
     engine_used: STTEngine = Field(..., description="Which STT engine was used")
     latency_ms: float = Field(..., description="Processing time in milliseconds")
-    is_fallback: bool = Field(
-        default=False, description="Whether fallback engine was used"
-    )
+    is_fallback: bool = Field(default=False, description="Whether fallback engine was used")
 
     class Config:
         json_schema_extra = {
@@ -271,11 +267,11 @@ class PipelineMetrics(BaseModel):
     total_requests: int = 0
     successful_requests: int = 0
     failed_requests: int = 0
-    
+
     stt_metrics: LatencyMetrics = Field(default_factory=LatencyMetrics)
     tts_metrics: LatencyMetrics = Field(default_factory=LatencyMetrics)
     total_metrics: LatencyMetrics = Field(default_factory=LatencyMetrics)
-    
+
     gpu_worker_requests: int = 0
     cpu_fallback_requests: int = 0
     gpu_availability_percent: float = 100.0

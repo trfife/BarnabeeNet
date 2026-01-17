@@ -1,4 +1,5 @@
 """Voice API routes - STT, TTS, and full pipeline."""
+
 from __future__ import annotations
 
 import base64
@@ -86,7 +87,7 @@ async def transcribe(request: TranscribeRequest) -> TranscribeResponse:
                 message="Failed to decode base64 audio",
                 details={"error": str(e)},
             ).model_dump(),
-        )
+        ) from e
 
     # Determine which engine to use
     use_gpu = app_state.gpu_worker_available and request.engine != STTEngine.DISTIL_WHISPER
@@ -204,13 +205,13 @@ async def _synthesize_kokoro(
 ) -> tuple[bytes, int, float]:
     """Synthesize using Kokoro TTS."""
     tts = await get_tts_service()
-    
+
     result = await tts.synthesize(
         text=text,
         voice=voice,
         speed=speed,
     )
-    
+
     return result["audio_bytes"], result["sample_rate"], result["duration_ms"]
 
 

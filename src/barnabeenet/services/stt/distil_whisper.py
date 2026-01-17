@@ -1,4 +1,5 @@
 """Distil-Whisper STT service for CPU-based speech recognition."""
+
 from __future__ import annotations
 
 import base64
@@ -16,7 +17,7 @@ logger = structlog.get_logger()
 
 class DistilWhisperSTT:
     """Speech-to-text using Distil-Whisper via faster-whisper.
-    
+
     Optimized for CPU inference on resource-constrained devices.
     Used as fallback when GPU worker is unavailable.
     """
@@ -29,7 +30,7 @@ class DistilWhisperSTT:
         cpu_threads: int = 4,
     ) -> None:
         """Initialize the STT service.
-        
+
         Args:
             model_size: Model identifier (distil-small.en recommended)
             device: Device to run on ("cpu" or "cuda")
@@ -56,7 +57,7 @@ class DistilWhisperSTT:
         )
 
         start = time.perf_counter()
-        
+
         # Import here to avoid slow startup if not used
         from faster_whisper import WhisperModel
 
@@ -82,12 +83,12 @@ class DistilWhisperSTT:
         language: str = "en",
     ) -> dict:
         """Transcribe audio to text.
-        
+
         Args:
             audio_data: Raw audio bytes (PCM 16-bit signed integers)
             sample_rate: Audio sample rate in Hz (default 16000)
             language: Language code (default "en")
-            
+
         Returns:
             dict with keys: text, confidence, language, latency_ms
         """
@@ -98,7 +99,7 @@ class DistilWhisperSTT:
 
         # Convert bytes to numpy array
         audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32)
-        
+
         # Normalize to [-1, 1] range (faster-whisper expects this)
         audio_array = (audio_array / 32768.0).astype(np.float32)
 
@@ -108,7 +109,9 @@ class DistilWhisperSTT:
             ratio = 16000 / sample_rate
             new_length = int(len(audio_array) * ratio)
             indices = np.linspace(0, len(audio_array) - 1, new_length)
-            audio_array = np.interp(indices, np.arange(len(audio_array)), audio_array).astype(np.float32)
+            audio_array = np.interp(indices, np.arange(len(audio_array)), audio_array).astype(
+                np.float32
+            )
 
         # Transcribe with optimized settings for speed
         segments, info = self._model.transcribe(
@@ -152,7 +155,7 @@ class DistilWhisperSTT:
         language: str = "en",
     ) -> dict:
         """Transcribe base64-encoded audio.
-        
+
         Convenience method for API endpoints.
         """
         audio_data = base64.b64decode(audio_base64)

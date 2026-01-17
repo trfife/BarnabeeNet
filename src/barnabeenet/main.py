@@ -2,6 +2,7 @@
 
 FastAPI application entry point.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -90,7 +91,7 @@ app_state = AppState()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager.
-    
+
     Handles startup and shutdown of services.
     """
     logger = structlog.get_logger()
@@ -119,9 +120,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Continue without Redis for now - not critical for Phase 1
 
     # Start GPU worker health check task
-    app_state._health_check_task = asyncio.create_task(
-        _gpu_worker_health_check_loop()
-    )
+    app_state._health_check_task = asyncio.create_task(_gpu_worker_health_check_loop())
 
     logger.info(
         "BarnabeeNet started",

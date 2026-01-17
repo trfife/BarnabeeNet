@@ -2,6 +2,7 @@
 
 Uses Pydantic Settings for type-safe configuration with environment variable support.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -147,7 +148,7 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance.
-    
+
     Uses lru_cache to ensure settings are loaded once and reused.
     """
     settings = Settings()

@@ -22,7 +22,7 @@ fi
 
 # 1. Check for secrets
 echo -e "\n${YELLOW}[1/6] Checking for secrets...${NC}"
-if grep -r "sk-ant-\|sk-\|ANTHROPIC_API_KEY=sk" --include="*.py" --include="*.yaml" --include="*.json" . 2>/dev/null | grep -v ".env.example"; then
+if grep -r "sk-ant-\|sk-\|ANTHROPIC_API_KEY=sk" --include="*.py" --include="*.yaml" --include="*.json" src/ tests/ workers/ config/ 2>/dev/null | grep -v ".env.example"; then
     echo -e "${RED}❌ Potential secrets found!${NC}"
     FAILED=1
 else

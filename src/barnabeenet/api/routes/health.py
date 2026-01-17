@@ -1,4 +1,5 @@
 """Health check API routes."""
+
 from __future__ import annotations
 
 import time
@@ -8,7 +9,6 @@ import structlog
 from fastapi import APIRouter
 
 from barnabeenet import __version__
-from barnabeenet.config import get_settings
 from barnabeenet.models.schemas import (
     GPUWorkerStatus,
     HealthResponse,
@@ -22,12 +22,9 @@ logger = structlog.get_logger()
 @router.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     """Basic health check endpoint.
-    
+
     Returns overall system health and individual service status.
     """
-    from barnabeenet.main import app_state
-
-    settings = get_settings()
     services: list[ServiceHealth] = []
     overall_status = "healthy"
 
@@ -71,7 +68,7 @@ async def health_check() -> HealthResponse:
 @router.get("/health/live")
 async def liveness() -> dict:
     """Kubernetes liveness probe.
-    
+
     Returns 200 if the service is running.
     """
     return {"status": "alive"}
@@ -80,7 +77,7 @@ async def liveness() -> dict:
 @router.get("/health/ready")
 async def readiness() -> dict:
     """Kubernetes readiness probe.
-    
+
     Returns 200 if the service is ready to accept traffic.
     """
     from barnabeenet.main import app_state
