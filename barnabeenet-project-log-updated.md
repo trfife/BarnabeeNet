@@ -9,7 +9,7 @@
 
 | Name | Hardware | Role | IP |
 |------|----------|------|-----|
-| Man-of-war | Gaming PC (i9-14900KF, RTX 4070 Ti, 128GB) | Development + heavy compute | - |
+| Man-of-war | Gaming PC (i9-14900KF, RTX 4070 Ti, 128GB) | Development + GPU worker (Parakeet STT) | 192.168.86.100 |
 | Battlestation | Beelink EQi12 (i5-1220P, 24GB, 500GB) | Proxmox host | 192.168.86.64 |
 | BarnabeeNet VM | VM 200 on Battlestation (6 cores, 8GB RAM, 100GB) | BarnabeeNet runtime | 192.168.86.51 |
 
@@ -80,11 +80,14 @@
 ---
 
 ## Phase 1: Core Services
-**Status:** 🔄 Ready to Start
+**Status:** 🔄 In Progress
 
 ### TODO
-- [ ] Add Faster-Whisper container (STT)
-- [ ] Add Piper container (TTS)
+- [ ] Add Distil-Whisper STT (CPU fallback)
+- [ ] Add Parakeet TDT STT (GPU primary on Man-of-war)
+- [ ] Add Kokoro TTS
+- [ ] Setup GPU worker on Man-of-war (WSL2 + CUDA)
+- [ ] Implement health check routing
 - [ ] Create Python virtual environment
 - [ ] Install BarnabeeNet dependencies
 - [ ] Create FastAPI scaffolding for BarnabeeNet core
@@ -131,6 +134,10 @@
 | 2026-01-16 | UEFI boot with OVMF | Required for systemd-boot |
 | 2026-01-16 | Podman rootless over Docker | Security + NixOS compatibility |
 | 2026-01-16 | Separate SSH key per machine | Security best practice |
+| 2026-01-17 | Kokoro over Piper for TTS | Research shows Kokoro is faster (<0.3s) and better quality |
+| 2026-01-17 | Dual-path STT (Parakeet + Distil-Whisper) | GPU primary for speed, CPU fallback for reliability |
+| 2026-01-17 | Man-of-war as GPU worker | RTX 4070 Ti provides 10x faster STT than CPU |
+| 2026-01-17 | WSL2 for GPU worker | No dual-boot needed, can game while worker runs |
 
 ---
 

@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-BarnabeeNet is a **privacy-first, locally-hosted AI assistant** for smart home control, designed to feel genuinely "alive" while keeping all personal data under your control. Unlike commercial alternatives (Alexa, Google Home, Siri), BarnabeeNet processes everything locally on your own hardware, with cloud LLM calls only when needed for complex conversations.
+BarnabeeNet is a **privacy-first smart home AI assistant** designed to feel genuinely "alive" while keeping personal data under your control. Unlike commercial alternatives (Alexa, Google Home, Siri), BarnabeeNet processes **voice capture, STT, TTS, and speaker recognition locally** on your own hardware, while leveraging **cloud LLMs (Azure/OpenRouter)** for intelligent responses—combining the privacy of local processing with the power of state-of-the-art language models.
 
 ### What Makes BarnabeeNet Different
 
@@ -25,7 +25,7 @@ BarnabeeNet is a **privacy-first, locally-hosted AI assistant** for smart home c
 ### Architecture Highlights
 
 - **Multi-Agent System**: Specialized agents (Meta, Instant, Action, Interaction, Memory, Proactive, Evolver) handle different request types with appropriate cost/latency tradeoffs
-- **Local-First Processing**: STT, TTS, and speaker recognition run locally; cloud only for complex reasoning
+- **Hybrid Architecture**: STT, TTS, and speaker recognition run locally; LLM reasoning via Azure/OpenRouter for speed and capability
 - **Privacy Zones**: Architectural enforcement of no-audio/no-memory zones for children's rooms and bathrooms
 - **Self-Improvement**: Evolver Agent proposes optimizations via vibe coding and benchmarking
 - **Multi-Modal Input**: Voice, AR glasses (Even Realities G1), wearable (Amazfit Cheetah Pro), touch dashboards (ThinkSmart View)
@@ -592,17 +592,55 @@ speaker_recognition:
 
 ### Text-to-Speech
 
-**Primary:** Piper (local, fast, good quality)
+**Primary:** Kokoro-82M (local, fastest, good quality)
+
+Kokoro replaced Piper based on 2025 research showing:
+- Faster processing (<0.3s on CPU vs Piper's ~0.5s)
+- Better voice quality for comparable model size
+- Apache 2.0 license (commercial-friendly)
 
 ```yaml
 tts:
-  engine: piper
-  voice: en_US-lessac-medium  # Natural, good prosody
-  sample_rate: 22050
+  engine: kokoro
+  voice: af_bella  # Natural female voice
+  speed: 1.0
+  sample_rate: 24000  # Kokoro native rate
 
-  # Alternative voices available:
-  # - en_US-amy-medium (female, clear)
-  # - en_GB-alan-medium (British male)
+  # Available voices:
+  # - af_bella (female, default)
+  # - af_nicole (female, warm)
+  # - am_adam (male, clear)
+  # - am_michael (male, deep)
+```
+
+### Speech-to-Text
+
+**Architecture:** Dual-path with automatic failover
+
+| Path | Model | Hardware | Latency | When Used |
+|------|-------|----------|---------|-----------|
+| **Primary** | Parakeet TDT 0.6B v2 | Man-of-war GPU | ~20-40ms | GPU available |
+| **Fallback** | Distil-Whisper small.en | Beelink CPU | ~150-300ms | GPU unavailable |
+
+```yaml
+stt:
+  primary:
+    engine: parakeet
+    model: nvidia/parakeet-tdt-0.6b-v2
+    device: cuda
+    host: 192.168.86.100  # Man-of-war
+    port: 8001
+  
+  fallback:
+    engine: distil-whisper
+    model: distil-whisper/distil-small.en
+    device: cpu
+    compute_type: int8
+    beam_size: 1
+
+  routing:
+    health_check_interval_sec: 3
+    failover_timeout_ms: 100
 ```
 
 ### Multi-Modal Extensions
@@ -728,7 +766,10 @@ users:
 - [x] Home Assistant installation and basic setup
 - [x] BarnabeeNet VM created (NixOS on Proxmox)
 - [ ] Redis + SQLite infrastructure
-- [ ] Basic voice pipeline (Whisper + Piper)
+- [ ] Basic STT pipeline (Distil-Whisper CPU + Parakeet GPU)
+- [ ] Basic TTS pipeline (Kokoro)
+- [ ] GPU worker on Man-of-war (WSL2 + CUDA)
+- [ ] Health check routing system
 - [ ] Simple pattern-matching Meta Agent
 
 ### Phase 2: Core Agents (Weeks 3-4)
@@ -765,7 +806,7 @@ users:
 | Speaker ID confusion | Medium | Medium | 0.75 threshold, prompt for name, re-enrollment |
 | Memory retrieval latency | Low | Medium | Index optimization, caching |
 | HA integration complexity | Medium | High | Start simple, iterate |
-| Cloud API costs exceed budget | Low | Low | Aggressive local-first routing |
+| Cloud API costs exceed budget | Low | Low | Smart routing, caching, model tiering (Haiku for simple, Sonnet for complex) |
 | Vibe Coding Overreach | Medium | Medium | Scoped boundaries, manual approvals |
 | Device Flashing Issues (ThinkSmart) | Medium | Low | Follow XDA/LineageOS guides; fallback to stock if needed |
 | Gesture Misinterpretation (Amazfit) | Medium | Medium | Calibrate in dashboard; fallback to phone confirmations |
@@ -864,7 +905,7 @@ POST /api/barnabeenet/process_gesture
 - **Home Assistant Assist** — Native HA voice assistant
 - **Wyoming Protocol** — HA voice satellite protocol
 - **OpenWakeWord** — Local wake word detection
-- **Piper** — Fast local TTS
+- **Kokoro** — Fast local TTS (replaced Piper)
 - **LineageOS for ThinkSmart** — Custom Android flashing (XDA/GitHub guides)
 - **Even Realities SDK** — AR glasses integration
 - **Gadgetbridge** — Open-source bridge for Amazfit inputs

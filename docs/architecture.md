@@ -11,8 +11,9 @@
 | Containers | Podman (rootless) | BarnabeeNet VM |
 | Home Automation | Home Assistant Core | Container |
 | LLM Gateway | LiteLLM Proxy | Container |
-| STT | Faster-Whisper | Container |
-| TTS | Piper | Container |
+| STT (CPU) | Distil-Whisper | BarnabeeNet Core |
+| STT (GPU) | Parakeet TDT 0.6B v2 | Man-of-war Worker |
+| TTS | Kokoro | BarnabeeNet Core |
 | Speaker ID | Pyannote 3.x | Container |
 | Agent Framework | PydanticAI | BarnabeeNet Core |
 | Database | SQLite + sqlite-vec | Local |

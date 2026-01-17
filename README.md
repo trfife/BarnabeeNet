@@ -1,10 +1,10 @@
 # BarnabeeNet
 
-A privacy-first, multi-agent AI smart home assistant built on Home Assistant.
+A privacy-first, multi-agent AI smart home assistant built on Home Assistant. Local STT/TTS/Speaker ID with cloud LLM intelligence via Azure/OpenRouter.
 
 ## Overview
 
-BarnabeeNet provides Alexa/Google-level responsiveness (<500ms) while maintaining complete data sovereignty. All voice and gesture data is processed locally unless explicitly requested otherwise.
+BarnabeeNet provides Alexa/Google-level responsiveness (<500ms) while maintaining data sovereignty for sensitive audio. Voice capture, speech recognition, and speaker identification happen locally. LLM reasoning is powered by cloud providers (Azure/OpenRouter) for state-of-the-art capability and speed.
 
 ## Architecture
 
@@ -14,7 +14,7 @@ BarnabeeNet provides Alexa/Google-level responsiveness (<500ms) while maintainin
 
 ## Core Principles
 
-1. **Privacy by Architecture** — Voice data never leaves the local network unless explicitly requested
+1. **Privacy by Architecture** — Raw audio never leaves the local network; only text transcripts sent to LLM providers
 2. **Latency-Obsessed** — Target <500ms end-to-end for common commands
 3. **Family-Aware** — Speaker recognition enables permission-based control
 4. **Graceful Degradation** — System remains functional when cloud services are unavailable
@@ -23,7 +23,7 @@ BarnabeeNet provides Alexa/Google-level responsiveness (<500ms) while maintainin
 
 ## Project Status
 
-🚧 **Phase 0: Foundation Setup** - In Progress
+🔄 **Phase 1: Core Services** - In Progress
 
 See [docs/project-log.md](docs/project-log.md) for detailed progress.
 

@@ -76,8 +76,8 @@ This architecture provides:
 │  │  │  ├─ Proxmox VE (hypervisor)                                │  │   │
 │  │  │  ├─ Home Assistant VM                                       │  │   │
 │  │  │  ├─ BarnabeeNet Integration                                │  │   │
-│  │  │  ├─ Faster-Whisper STT                                     │  │   │
-│  │  │  ├─ Piper TTS                                              │  │   │
+│  │  │  ├─ Distil-Whisper STT (CPU fallback)                      │  │   │
+│  │  │  ├─ Kokoro TTS                                             │  │   │
 │  │  │  ├─ ECAPA-TDNN Speaker ID                                  │  │   │
 │  │  │  ├─ Redis (working memory)                                 │  │   │
 │  │  │  └─ SQLite (persistent storage)                            │  │   │
@@ -165,8 +165,8 @@ The Beelink EQi12 serves as BarnabeeNet's always-on edge processing unit. Select
 │  Home Assistant VM     │  8 GB                      │
 │  ├─ HA Core           │  2 GB                      │
 │  ├─ BarnabeeNet       │  2 GB                      │
-│  ├─ Faster-Whisper    │  1.5 GB (distil-small)    │
-│  ├─ Piper TTS         │  0.5 GB                    │
+│  ├─ Distil-Whisper    │  1.5 GB (distil-small)    │
+│  ├─ Kokoro TTS        │  0.3 GB                    │
 │  ├─ ECAPA-TDNN        │  1 GB                      │
 │  └─ Redis             │  1 GB                      │
 │  Reserved/Buffer      │  14 GB                     │
@@ -866,10 +866,10 @@ smbios1: uuid=xxxxx
 | STT | Faster-Whisper distil-small | ~150ms | 2-second audio |
 | Speaker ID | ECAPA-TDNN | ~20ms | Cosine similarity |
 | Meta Agent | Rule-based | <5ms | Pattern matching |
-| Meta Agent | Phi-3.5 fallback | ~200ms | Ambiguous queries |
-| TTS | Piper medium | ~80ms | Short response |
-| **Total (fast path)** | | **~255ms** | |
-| **Total (with LLM)** | | **~450ms** | |
+| Meta Agent | Cloud LLM fallback | ~200ms | Ambiguous queries (Azure/OpenRouter) |
+| TTS | Kokoro | ~50ms | Short response |
+| **Total (fast path)** | | **~225ms** | |
+| **Total (with LLM)** | | **~420ms** | |
 
 ### Concurrent User Capacity
 

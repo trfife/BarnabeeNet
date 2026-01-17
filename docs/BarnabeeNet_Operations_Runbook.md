@@ -613,7 +613,7 @@ PRAGMA integrity_check;
 |------------|-------|------------|
 | 2026.1.0 | OpenAI schema error for HassStartTimer | Wait for patch or disable timer intents |
 | 2025.11.3 | Orphaned voice pipeline state | Delete and recreate assistant |
-| 2025.8.0 | TTS hangs | Restart Piper container |
+| 2025.8.0 | TTS hangs | Restart BarnabeeNet service (Kokoro runs in-process) |
 
 **Debug Procedure:**
 
@@ -1028,7 +1028,7 @@ qm list
 ```bash
 # Emergency restart sequence
 ha core stop
-docker restart faster-whisper piper
+docker restart distil-whisper redis  # Kokoro runs in-process with BarnabeeNet
 ha core start
 ```
 
@@ -1048,8 +1048,8 @@ ha core logs > ha_core.log
 grep -i barnabeenet /config/home-assistant.log > barnabeenet.log
 
 # Docker container logs
-docker logs faster-whisper > stt.log 2>&1
-docker logs piper > tts.log 2>&1
+docker logs distil-whisper > stt.log 2>&1
+# Kokoro TTS logs are in BarnabeeNet logs (runs in-process)
 docker logs redis > redis.log 2>&1
 
 # System logs
@@ -1067,7 +1067,7 @@ dmesg | grep -i "out of memory"
 df -h
 
 # Check process states
-ps aux | grep -E "(python|whisper|piper)"
+ps aux | grep -E "(python|whisper|kokoro)"
 
 # Check network connectivity
 ping -c 3 api.openrouter.ai
@@ -1156,11 +1156,11 @@ TRIGGER: Voice commands return no response for > 2 minutes
 IMMEDIATE ACTIONS:
 1. Check HA status: ha core info
 2. Check STT container: docker ps | grep whisper
-3. Check TTS container: docker ps | grep piper
+3. Check TTS (in-process): Check BarnabeeNet logs for Kokoro errors
 
 RESTART SEQUENCE:
-docker restart faster-whisper
-docker restart piper
+docker restart distil-whisper
+# Kokoro restarts with BarnabeeNet
 ha core restart
 
 VERIFICATION:
@@ -1305,7 +1305,7 @@ fi
 
 # Check Docker containers
 echo -e "\n[Docker Containers]"
-for container in faster-whisper piper redis; do
+for container in distil-whisper redis; do
     if docker ps | grep -q $container; then
         echo "  ✓ $container: Running"
     else
@@ -1346,12 +1346,13 @@ echo "Health check complete"
 case "$1" in
     all)
         echo "Restarting all BarnabeeNet services..."
-        docker restart faster-whisper piper redis
-        ha core restart
+        docker restart distil-whisper redis
+        ha core restart  # This also restarts Kokoro TTS (in-process)
         ;;
     voice)
         echo "Restarting voice pipeline..."
-        docker restart faster-whisper piper
+        docker restart distil-whisper
+        ha core restart  # Kokoro TTS runs in-process
         ;;
     memory)
         echo "Restarting memory services..."
@@ -1384,7 +1385,7 @@ echo "Running health check..."
 ║  CRITICAL COMMANDS                                           ║
 ║  ─────────────────────────────────────────────────────────  ║
 ║  Restart HA:        ha core restart                         ║
-║  Restart Voice:     docker restart faster-whisper piper     ║
+║  Restart Voice:     docker restart distil-whisper && ha core restart  ║
 ║  Restart All:       ./restart_services.sh all               ║
 ║  Health Check:      ./barnabeenet_health_check.sh           ║
 ║                                                              ║

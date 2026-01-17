@@ -160,7 +160,7 @@ pip install \
     redis \
     aioredis \
     sentence-transformers \
-    piper-tts \
+    kokoro \
     httpx \
     aiofiles \
     voluptuous \
@@ -338,7 +338,7 @@ barnabeenet/
         "redis>=5.0.0",
         "aioredis>=2.0.0",
         "sentence-transformers>=2.2.0",
-        "piper-tts>=1.2.0",
+        "kokoro>=0.3.0",
         "httpx>=0.24.0"
     ],
     "iot_class": "local_push",
@@ -1060,7 +1060,14 @@ class StreamingSTT:
 #### voice/tts.py
 
 ```python
-"""Text-to-Speech using Piper."""
+"""Text-to-Speech using Kokoro.
+
+Kokoro-82M was selected over Piper based on 2025 benchmarks:
+- Speed: <0.3s processing (faster than Piper)
+- Quality: Comparable to larger models
+- License: Apache 2.0 (commercial-friendly)
+- Size: 82M parameters (runs efficiently on CPU)
+"""
 from __future__ import annotations
 
 import asyncio
@@ -1075,54 +1082,46 @@ _executor = ThreadPoolExecutor(max_workers=2)
 
 
 class TextToSpeech:
-    """Piper TTS wrapper for fast local synthesis."""
+    """Kokoro TTS wrapper for fast, high-quality local synthesis.
+    
+    Kokoro-82M was selected over Piper based on 2025 benchmarks:
+    - Speed: <0.3s processing (faster than Piper)
+    - Quality: Comparable to larger models
+    - License: Apache 2.0 (commercial-friendly)
+    - Size: 82M parameters (runs efficiently on CPU)
+    """
 
     def __init__(
         self,
-        voice: str = "en_US-lessac-medium",
-        voices_dir: str | None = None,
-        sample_rate: int = 22050,
+        voice: str = "af_bella",
+        speed: float = 1.0,
+        sample_rate: int = 24000,
     ) -> None:
-        """Initialize TTS with specified voice."""
+        """Initialize TTS with specified voice.
+        
+        Available voices:
+        - af_bella (female, default)
+        - af_nicole (female, warm)
+        - am_adam (male, clear)
+        - am_michael (male, deep)
+        """
         self.voice = voice
-        self.voices_dir = voices_dir or Path.home() / ".local/share/piper/voices"
+        self.speed = speed
         self.sample_rate = sample_rate
-        self.piper_path: str | None = None
+        self._pipeline = None
+        self._cache: dict[str, bytes] = {}
+        self._cache_max_size = 100
 
     async def async_initialize(self) -> None:
-        """Verify Piper installation and voice availability."""
+        """Initialize Kokoro TTS pipeline."""
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(_executor, self._verify_setup)
-        _LOGGER.info("Piper TTS initialized with voice: %s", self.voice)
+        await loop.run_in_executor(_executor, self._load_pipeline)
+        _LOGGER.info("Kokoro TTS initialized with voice: %s", self.voice)
 
-    def _verify_setup(self) -> None:
-        """Verify Piper is available."""
-        # Check for piper binary
-        result = subprocess.run(
-            ["which", "piper"],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            # Try pip-installed piper
-            result = subprocess.run(
-                ["python", "-m", "piper", "--help"],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise RuntimeError("Piper TTS not found")
-            self.piper_path = "python -m piper"
-        else:
-            self.piper_path = result.stdout.strip()
-
-        # Verify voice model exists
-        voice_path = Path(self.voices_dir) / f"{self.voice}.onnx"
-        if not voice_path.exists():
-            _LOGGER.warning(
-                "Voice model not found at %s, will download on first use",
-                voice_path,
-            )
+    def _load_pipeline(self) -> None:
+        """Load Kokoro pipeline (blocking)."""
+        from kokoro import KPipeline
+        self._pipeline = KPipeline(self.voice)
 
     async def synthesize(
         self,
@@ -1130,47 +1129,38 @@ class TextToSpeech:
         output_format: str = "wav",
     ) -> bytes:
         """Synthesize text to audio."""
+        # Check cache
+        cache_key = f"{self.voice}:{text}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             _executor,
             self._synthesize_sync,
             text,
-            output_format,
         )
+        
+        # Cache result
+        if len(self._cache) >= self._cache_max_size:
+            oldest_key = next(iter(self._cache))
+            del self._cache[oldest_key]
+        self._cache[cache_key] = result
+        
         return result
 
-    def _synthesize_sync(
-        self,
-        text: str,
-        output_format: str,
-    ) -> bytes:
-        """Synchronous TTS synthesis."""
-        import tempfile
-
-        with tempfile.NamedTemporaryFile(suffix=f".{output_format}") as tmp:
-            # Build piper command
-            cmd = [
-                "piper",
-                "--model", str(Path(self.voices_dir) / f"{self.voice}.onnx"),
-                "--output_file", tmp.name,
-            ]
-
-            # Run piper with text input
-            process = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            stdout, stderr = process.communicate(input=text.encode())
-
-            if process.returncode != 0:
-                _LOGGER.error("Piper TTS error: %s", stderr.decode())
-                raise RuntimeError(f"TTS synthesis failed: {stderr.decode()}")
-
-            # Read generated audio
-            with open(tmp.name, "rb") as f:
-                return f.read()
+    def _synthesize_sync(self, text: str) -> bytes:
+        """Synchronous TTS synthesis using Kokoro."""
+        import soundfile as sf
+        import io
+        
+        # Generate audio with Kokoro
+        audio = self._pipeline(text, voice=self.voice, speed=self.speed)
+        
+        # Convert to WAV bytes
+        buffer = io.BytesIO()
+        sf.write(buffer, audio, self.sample_rate, format='WAV')
+        return buffer.getvalue()
 
     async def synthesize_streaming(
         self,
@@ -1199,10 +1189,10 @@ class AdaptiveTTS:
     def __init__(self, base_tts: TextToSpeech) -> None:
         self.tts = base_tts
         self.prosody_settings = {
-            "calm": {"rate": 0.9, "pitch": -2},
-            "urgent": {"rate": 1.2, "pitch": 2},
-            "friendly": {"rate": 1.0, "pitch": 0},
-            "informative": {"rate": 1.1, "pitch": 0},
+            "calm": {"speed": 0.9},
+            "urgent": {"speed": 1.2},
+            "friendly": {"speed": 1.0},
+            "informative": {"speed": 1.1},
         }
 
     async def synthesize_adaptive(
@@ -1217,12 +1207,15 @@ class AdaptiveTTS:
             mood = "calm"
 
         settings = self.prosody_settings.get(mood, self.prosody_settings["friendly"])
-
-        # Apply prosody via SSML or voice settings
-        # Piper doesn't natively support SSML, so we use voice selection
-        # For full prosody control, consider using a voice with variations
-
-        return await self.tts.synthesize(text)
+        
+        # Temporarily adjust speed for this synthesis
+        original_speed = self.tts.speed
+        self.tts.speed = settings.get("speed", 1.0)
+        
+        try:
+            return await self.tts.synthesize(text)
+        finally:
+            self.tts.speed = original_speed
 ```
 
 ### 2.4 Meta Agent Implementation
@@ -2057,9 +2050,10 @@ barnabeenet:
 
   # Text-to-Speech configuration
   tts:
-    engine: "piper"
-    voice: "en_US-lessac-medium"
-    sample_rate: 22050
+    engine: "kokoro"
+    voice: "af_bella"  # Options: af_bella, af_nicole, am_adam, am_michael
+    speed: 1.0
+    sample_rate: 24000
 
   # Speaker recognition
   speaker_recognition:
@@ -3481,8 +3475,9 @@ class TestLatencyBenchmarks:
 - [ ] Database initialized (schema applied)
 
 ### Voice Pipeline
-- [ ] Faster-Whisper model downloaded
-- [ ] Piper voice model downloaded
+- [ ] Distil-Whisper model downloaded (CPU fallback)
+- [ ] Parakeet TDT model downloaded (GPU primary on Man-of-war)
+- [ ] Kokoro TTS model downloaded
 - [ ] ECAPA-TDNN model downloaded
 - [ ] Audio devices configured
 
@@ -3517,7 +3512,7 @@ echo "Installing BarnabeeNet v${BARNABEENET_VERSION}..."
 # Create directories
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$MODELS_DIR/whisper"
-mkdir -p "$MODELS_DIR/piper"
+mkdir -p "$MODELS_DIR/kokoro"
 mkdir -p "$MODELS_DIR/speechbrain"
 
 # Download component (from release or git)
@@ -3544,10 +3539,10 @@ model = WhisperModel('distil-whisper/distil-small.en', device='cpu')
 print('Whisper model downloaded')
 "
 
-echo "Downloading Piper voice..."
-curl -sL \
-    "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx" \
-    -o "$MODELS_DIR/piper/en_US-lessac-medium.onnx"
+echo "Downloading Kokoro TTS model..."
+# Kokoro models are downloaded automatically on first use via pip
+# Pre-download by running: python -c "from kokoro import KPipeline; KPipeline('af_bella')"
+python -c "from kokoro import KPipeline; KPipeline('af_bella')" 2>/dev/null || echo "Kokoro will download on first use"
 
 echo "Downloading speaker recognition model..."
 python3 -c "

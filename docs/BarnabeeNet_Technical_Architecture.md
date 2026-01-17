@@ -104,8 +104,9 @@
 | **Message Bus** | Redis Streams | 7.0+ | Inter-agent communication |
 | **Database** | SQLite | 3.45+ | Persistent storage |
 | **Vector Search** | sqlite-vec | 0.1+ | Semantic memory |
-| **STT** | Faster-Whisper | 0.10+ | Speech recognition |
-| **TTS** | Piper | 1.2+ | Voice synthesis |
+| **STT (CPU)** | Distil-Whisper | 1.0+ | Speech recognition (Beelink fallback) |
+| **STT (GPU)** | Parakeet TDT 0.6B v2 | 1.22+ | Speech recognition (Man-of-war primary) |
+| **TTS** | Kokoro | 0.3+ | Voice synthesis (replaced Piper - faster, better quality) |
 | **Speaker ID** | SpeechBrain | 1.0+ | ECAPA-TDNN embeddings |
 | **Embeddings** | sentence-transformers | 2.2+ | Text embeddings |
 | **LLM Routing** | OpenRouter | 1.0+ | Multi-model orchestration |
@@ -117,6 +118,40 @@
 2. **Event-Driven**: Agents communicate via message bus, not direct calls
 3. **Fail-Safe**: Graceful degradation when services unavailable
 4. **Observable**: All operations traced and logged
+
+### GPU Worker Architecture
+
+BarnabeeNet employs a two-tier compute architecture for voice processing:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     STT ROUTING (Zero-Latency Decision)             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   Background Health Check (every 3s):                               │
+│   → Ping Man-of-war GPU worker                                      │
+│   → Update cached availability state                                │
+│                                                                     │
+│   Request Path (instant):                                           │
+│   → Read cached state (no waiting)                                  │
+│   → Route to available backend                                      │
+│                                                                     │
+│   ┌─────────────────────┐         ┌─────────────────────┐          │
+│   │  Man-of-war (GPU)   │         │   Beelink (CPU)     │          │
+│   │  Parakeet TDT       │         │   Distil-Whisper    │          │
+│   │  ~20-40ms total     │         │   ~150-300ms        │          │
+│   │  PRIMARY            │         │   FALLBACK          │          │
+│   └─────────────────────┘         └─────────────────────┘          │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+| Tier | Hardware | STT Model | Latency | Availability |
+|------|----------|-----------|---------|--------------|
+| Primary | Man-of-war (RTX 4070 Ti) | Parakeet TDT 0.6B v2 | ~20-40ms | When awake |
+| Fallback | Beelink VM (CPU) | Distil-Whisper small.en | ~150-300ms | Always |
+
+The health check runs out-of-band, so routing decisions add zero latency to the request path.
 5. **Testable**: Dependency injection for all external services
 
 ---
@@ -2121,52 +2156,44 @@ class SpeechToText:
 
 ```python
 # voice/tts.py
-"""Text-to-Speech using Piper."""
+"""Text-to-Speech using Kokoro."""
 from __future__ import annotations
 
 import asyncio
 import logging
-import subprocess
-import tempfile
-from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
+_executor = ThreadPoolExecutor(max_workers=2)
 
 
 class TextToSpeech:
-    """Text-to-speech using Piper."""
+    """Kokoro TTS wrapper - fast, high-quality local synthesis."""
 
     def __init__(self, hass: HomeAssistant, config: dict) -> None:
         """Initialize TTS."""
         self.hass = hass
         self.config = config
-        self._voice = config.get("tts_voice", "en_US-lessac-medium")
-        self._piper_path = config.get("piper_path", "piper")
-        self._models_dir = Path(config.get("piper_models_dir", "/models/piper"))
-        self._sample_rate = 22050
+        self._voice = config.get("tts_voice", "af_bella")
+        self._speed = config.get("tts_speed", 1.0)
+        self._sample_rate = 24000  # Kokoro native rate
+        self._pipeline = None
         self._cache: dict[str, bytes] = {}
         self._cache_max_size = 100
 
     async def async_initialize(self) -> None:
-        """Initialize TTS."""
-        # Verify piper is available
-        try:
-            result = await self.hass.async_add_executor_job(
-                subprocess.run,
-                [self._piper_path, "--help"],
-                {"capture_output": True, "timeout": 5},
-            )
-            if result.returncode != 0:
-                raise RuntimeError("Piper not available")
-        except Exception as e:
-            _LOGGER.error(f"Piper initialization failed: {e}")
-            raise
+        """Initialize Kokoro TTS pipeline."""
+        from kokoro import KPipeline
         
-        _LOGGER.info(f"Piper TTS initialized with voice: {self._voice}")
+        self._pipeline = await self.hass.async_add_executor_job(
+            KPipeline,
+            self._voice,
+        )
+        _LOGGER.info(f"Kokoro TTS initialized with voice: {self._voice}")
 
     async def async_synthesize(
         self,
@@ -2188,7 +2215,6 @@ class TextToSpeech:
         
         # Cache result
         if len(self._cache) >= self._cache_max_size:
-            # Remove oldest entry
             oldest_key = next(iter(self._cache))
             del self._cache[oldest_key]
         self._cache[cache_key] = audio_data
@@ -2197,72 +2223,21 @@ class TextToSpeech:
 
     def _synthesize(self, text: str, voice: str) -> bytes:
         """Synthesize audio (blocking)."""
-        model_path = self._models_dir / f"{voice}.onnx"
+        import soundfile as sf
+        import io
         
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-            output_path = f.name
+        # Generate audio with Kokoro
+        audio = self._pipeline(text, voice=voice, speed=self._speed)
         
-        try:
-            # Run piper
-            result = subprocess.run(
-                [
-                    self._piper_path,
-                    "--model", str(model_path),
-                    "--output_file", output_path,
-                ],
-                input=text,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            
-            if result.returncode != 0:
-                raise RuntimeError(f"Piper failed: {result.stderr}")
-            
-            # Read audio file
-            with open(output_path, "rb") as f:
-                audio_data = f.read()
-            
-            return audio_data
-            
-        finally:
-            # Clean up temp file
-            Path(output_path).unlink(missing_ok=True)
-
-    async def async_synthesize_streaming(
-        self,
-        text_generator,
-        voice: str | None = None,
-    ):
-        """Synthesize streaming text (for LLM responses)."""
-        voice = voice or self._voice
-        
-        buffer = ""
-        sentence_endings = ".!?"
-        
-        async for chunk in text_generator:
-            buffer += chunk
-            
-            # Check for complete sentences
-            for ending in sentence_endings:
-                if ending in buffer:
-                    # Split at sentence boundary
-                    parts = buffer.split(ending, 1)
-                    sentence = parts[0] + ending
-                    buffer = parts[1] if len(parts) > 1 else ""
-                    
-                    # Synthesize sentence
-                    audio = await self.async_synthesize(sentence.strip(), voice)
-                    yield audio
-        
-        # Synthesize remaining buffer
-        if buffer.strip():
-            audio = await self.async_synthesize(buffer.strip(), voice)
-            yield audio
+        # Convert to WAV bytes
+        buffer = io.BytesIO()
+        sf.write(buffer, audio, self._sample_rate, format='WAV')
+        return buffer.getvalue()
 
     async def async_shutdown(self) -> None:
         """Shutdown TTS."""
         self._cache.clear()
+        self._pipeline = None
 ```
 
 ---

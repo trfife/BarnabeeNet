@@ -259,6 +259,70 @@ Plan Generated:
   3. Deploy and measure
 ```
 
+### SkyrimNet Deep Dive: Applicable Patterns
+
+Based on detailed analysis of SkyrimNet's architecture (see `SkyrimNet_Deep_Research_For_BarnabeeNet.md`), these patterns directly apply to BarnabeeNet:
+
+#### 1. Multi-Tier Model Strategy
+SkyrimNet uses different models for different cognitive tasks:
+
+| Task | SkyrimNet Model | BarnabeeNet Equivalent |
+|------|-----------------|------------------------|
+| Quick classification | DeepSeek (fast) | Local classifier / Haiku |
+| Dialogue generation | Claude Sonnet | Claude Sonnet via OpenRouter |
+| Complex reasoning | Claude Opus | Claude Opus for planning |
+| Memory operations | MiniLM embeddings | MiniLM-L6-v2 |
+
+#### 2. First-Person Memory Perspective
+SkyrimNet stores NPC memories from the NPC's perspective, not third-person:
+
+```
+# Bad (third-person):
+"The player asked Lydia about her past."
+
+# Good (first-person, SkyrimNet style):
+"My Thane asked about my childhood in Whiterun. I shared memories of training with the guards."
+```
+
+BarnabeeNet should store memories from Barnabee's perspective about family members.
+
+#### 3. Context Decorators
+SkyrimNet injects live state into prompts via "decorators":
+
+```python
+# SkyrimNet pattern
+@decorator("current_time")
+@decorator("nearby_npcs")  
+@decorator("recent_events")
+def build_prompt(base_prompt):
+    # Decorators automatically inject context
+    pass
+```
+
+BarnabeeNet equivalent:
+```python
+@decorator("home_state")      # Current device states
+@decorator("family_presence") # Who's home
+@decorator("time_context")    # Morning routine vs evening
+@decorator("recent_commands") # What was just asked
+```
+
+#### 4. Hot-Reload Configuration
+SkyrimNet reloads prompts and config without restart. BarnabeeNet should support:
+- Prompt template changes
+- Model routing rules
+- Voice settings
+- Privacy zone definitions
+
+#### 5. Comprehensive Observability
+SkyrimNet's dashboard shows exactly what the AI is "thinking":
+- Full prompt sent to each model
+- Token counts and costs
+- Latency breakdown
+- Memory retrievals
+
+BarnabeeNet needs equivalent visibility for debugging and optimization.
+
 ---
 
 ## Privacy-First Architecture Philosophy
