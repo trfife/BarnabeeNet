@@ -1,0 +1,9 @@
+# SOPS configuration
+# See: https://github.com/getsops/sops
+
+creation_rules:
+  # Encrypt all yaml files in secrets/ directory
+  - path_regex: infrastructure/secrets/.*\.yaml$
+    age: >-
+      # Add your age public key here after running: age-keygen
+      # Example: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
