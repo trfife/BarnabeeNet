@@ -1,0 +1,19 @@
+# BarnabeeNet Core Services
+# Phase 1: Foundation services only
+version: "3.8"
+
+services:
+  redis:
+    image: docker.io/redis:7-alpine
+    container_name: barnabeenet-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - /home/thom/data/redis:/data:Z
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
