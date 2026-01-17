@@ -6,6 +6,7 @@ import time
 import httpx
 import structlog
 
+from barnabeenet.agents.manager import get_global_agent_manager
 from barnabeenet.config import get_settings
 from barnabeenet.main import app_state
 from barnabeenet.models.schemas import (
@@ -66,8 +67,18 @@ class VoicePipelineService:
 
         stt_latency_ms = 0.0  # left for later observability
 
-        # Process (Phase 1: echo)
-        response_text = f"You said: {input_text}"
+        # Process: dispatch to AgentManager (defaults to echo agent)
+        manager = get_global_agent_manager()
+        # Ensure default agents are registered
+        await manager.register_default_agents()
+        agent_resp = await manager.handle(
+            input_text,
+            context={
+                "language": request.language,
+            },
+        )
+
+        response_text = agent_resp.get("response", f"You said: {input_text}")
 
         # TTS
         tts = KokoroTTS(voice=request.response_voice or get_settings().tts.voice)
