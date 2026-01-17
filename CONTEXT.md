@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-17 (after STT/TTS tests added)
+2026-01-17 (after voice pipeline integration)
 
 ## Current Phase
 **Phase 1: Core Services** - Steps 1-9 Complete, comprehensive test suite
@@ -39,11 +39,11 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Tests for STT/TTS services** - 54 tests covering all services
 
 - [x] Message bus (Redis Streams)
+- [x] Voice pipeline integration
 
 ### In Progress
 
 ### Not Started
-- [ ] Voice pipeline integration
 - [ ] Agent implementations
 - [ ] Memory system
 - [ ] Home Assistant integration
@@ -66,11 +66,11 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Voice pipeline integration ← NEXT
+1. Agent implementations ← NEXT
 
-2. Agent implementations
+2. Memory system
 
-3. Memory system
+3. Home Assistant integration
 
 ---
 

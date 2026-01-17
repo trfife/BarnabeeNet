@@ -22,6 +22,7 @@ from barnabeenet.models.schemas import (
 )
 from barnabeenet.services.stt import DistilWhisperSTT
 from barnabeenet.services.tts import KokoroTTS
+from barnabeenet.services.voice_pipeline import VoicePipelineService
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -222,49 +223,8 @@ async def _synthesize_kokoro(
 
 @router.post("/voice/pipeline", response_model=VoicePipelineResponse)
 async def voice_pipeline(request: VoicePipelineRequest) -> VoicePipelineResponse:
-    """Full voice pipeline: audio in → transcribe → process → synthesize → audio out.
+    """Full voice pipeline: delegate to `VoicePipelineService`.
 
-    For Phase 1, this echoes back what was said.
-    Later phases will add agent routing and processing.
+    Keeps the router thin and moves pipeline logic into services for reuse.
     """
-    total_start = time.perf_counter()
-
-    # Step 1: Transcribe (STT)
-    transcribe_request = TranscribeRequest(
-        audio_base64=request.audio_base64,
-        sample_rate=request.sample_rate,
-        language=request.language,
-    )
-    transcribe_response = await transcribe(transcribe_request)
-
-    # Step 2: Process (Phase 1: just echo)
-    response_text = f"You said: {transcribe_response.text}"
-
-    # Step 3: Synthesize (TTS)
-    synthesize_request = SynthesizeRequest(
-        text=response_text,
-        voice=request.response_voice,
-        output_format=request.output_format,
-    )
-    synthesize_response = await synthesize(synthesize_request)
-
-    total_latency_ms = (time.perf_counter() - total_start) * 1000
-
-    logger.info(
-        "Voice pipeline complete",
-        stt_ms=f"{transcribe_response.latency_ms:.2f}",
-        tts_ms=f"{synthesize_response.latency_ms:.2f}",
-        total_ms=f"{total_latency_ms:.2f}",
-    )
-
-    return VoicePipelineResponse(
-        input_text=transcribe_response.text,
-        stt_engine=transcribe_response.engine_used,
-        stt_latency_ms=transcribe_response.latency_ms,
-        response_text=response_text,
-        audio_base64=synthesize_response.audio_base64,
-        tts_latency_ms=synthesize_response.latency_ms,
-        total_latency_ms=total_latency_ms,
-        sample_rate=synthesize_response.sample_rate,
-        format=synthesize_response.format,
-    )
+    return await VoicePipelineService.run(request)
