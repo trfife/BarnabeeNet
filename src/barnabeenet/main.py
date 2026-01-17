@@ -1,0 +1,285 @@
+"""BarnabeeNet - Privacy-first, multi-agent AI smart home assistant.
+
+FastAPI application entry point.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
+
+import structlog
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from barnabeenet import __version__
+from barnabeenet.config import get_settings
+from barnabeenet.models.schemas import ErrorDetail, ErrorResponse
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+# =============================================================================
+# Logging Setup
+# =============================================================================
+
+
+def setup_logging() -> None:
+    """Configure structured logging."""
+    settings = get_settings()
+
+    # Configure structlog
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.dev.ConsoleRenderer()
+            if settings.env == "development"
+            else structlog.processors.JSONRenderer(),
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(
+            logging.getLevelName(settings.log_level)
+        ),
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+    # Also configure standard logging for third-party libs
+    logging.basicConfig(
+        level=logging.getLevelName(settings.log_level),
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+
+# =============================================================================
+# Application State
+# =============================================================================
+
+
+class AppState:
+    """Application state container."""
+
+    def __init__(self) -> None:
+        self.start_time = time.time()
+        self.redis_client = None
+        self.stt_service = None
+        self.tts_service = None
+        self.gpu_worker_available = False
+        self.gpu_worker_last_check = 0.0
+        self._health_check_task: asyncio.Task | None = None
+
+    @property
+    def uptime_seconds(self) -> float:
+        """Get application uptime in seconds."""
+        return time.time() - self.start_time
+
+
+app_state = AppState()
+
+
+# =============================================================================
+# Lifespan Management
+# =============================================================================
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Application lifespan manager.
+    
+    Handles startup and shutdown of services.
+    """
+    logger = structlog.get_logger()
+    settings = get_settings()
+
+    # --- Startup ---
+    logger.info(
+        "Starting BarnabeeNet",
+        version=__version__,
+        env=settings.env,
+    )
+
+    # Initialize Redis connection
+    try:
+        import redis.asyncio as redis
+
+        app_state.redis_client = redis.from_url(
+            settings.redis.url,
+            encoding="utf-8",
+            decode_responses=True,
+        )
+        await app_state.redis_client.ping()
+        logger.info("Redis connected", url=settings.redis.url)
+    except Exception as e:
+        logger.error("Redis connection failed", error=str(e))
+        # Continue without Redis for now - not critical for Phase 1
+
+    # Start GPU worker health check task
+    app_state._health_check_task = asyncio.create_task(
+        _gpu_worker_health_check_loop()
+    )
+
+    logger.info(
+        "BarnabeeNet started",
+        host=settings.host,
+        port=settings.port,
+    )
+
+    yield
+
+    # --- Shutdown ---
+    logger.info("Shutting down BarnabeeNet")
+
+    # Cancel health check task
+    if app_state._health_check_task:
+        app_state._health_check_task.cancel()
+        try:
+            await app_state._health_check_task
+        except asyncio.CancelledError:
+            pass
+
+    # Close Redis connection
+    if app_state.redis_client:
+        await app_state.redis_client.close()
+
+    logger.info("BarnabeeNet stopped")
+
+
+async def _gpu_worker_health_check_loop() -> None:
+    """Background task to check GPU worker availability."""
+    logger = structlog.get_logger()
+    settings = get_settings()
+
+    while True:
+        try:
+            await _check_gpu_worker()
+        except Exception as e:
+            logger.warning("GPU health check error", error=str(e))
+            app_state.gpu_worker_available = False
+
+        await asyncio.sleep(settings.stt.gpu_worker_health_interval_sec)
+
+
+async def _check_gpu_worker() -> None:
+    """Check if GPU worker is available."""
+    import httpx
+
+    settings = get_settings()
+    url = f"http://{settings.stt.gpu_worker_host}:{settings.stt.gpu_worker_port}/health"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                url,
+                timeout=settings.stt.gpu_worker_timeout_ms / 1000,
+            )
+            app_state.gpu_worker_available = response.status_code == 200
+            app_state.gpu_worker_last_check = time.time()
+    except Exception:
+        app_state.gpu_worker_available = False
+        app_state.gpu_worker_last_check = time.time()
+
+
+# =============================================================================
+# FastAPI Application
+# =============================================================================
+
+
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application."""
+    setup_logging()
+    settings = get_settings()
+
+    app = FastAPI(
+        title="BarnabeeNet",
+        description="Privacy-first, multi-agent AI smart home assistant",
+        version=__version__,
+        lifespan=lifespan,
+        docs_url="/docs" if settings.env == "development" else None,
+        redoc_url="/redoc" if settings.env == "development" else None,
+    )
+
+    # CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"] if settings.env == "development" else [],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Request timing middleware
+    @app.middleware("http")
+    async def add_timing_header(request: Request, call_next):
+        start = time.perf_counter()
+        response = await call_next(request)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.2f}"
+        return response
+
+    # Global exception handler
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        logger = structlog.get_logger()
+        logger.error(
+            "Unhandled exception",
+            path=request.url.path,
+            method=request.method,
+            error=str(exc),
+            exc_info=exc,
+        )
+        return JSONResponse(
+            status_code=500,
+            content=ErrorResponse(
+                error=ErrorDetail(
+                    code="INTERNAL_ERROR",
+                    message="An unexpected error occurred",
+                    details={"error": str(exc)} if settings.debug else None,
+                )
+            ).model_dump(mode="json"),
+        )
+
+    # Register routes
+    _register_routes(app)
+
+    return app
+
+
+def _register_routes(app: FastAPI) -> None:
+    """Register API routes."""
+    from barnabeenet.api.routes import health, voice
+
+    app.include_router(health.router, tags=["Health"])
+    app.include_router(voice.router, prefix="/api/v1", tags=["Voice"])
+
+
+# Create app instance
+app = create_app()
+
+
+# =============================================================================
+# CLI Entry Point
+# =============================================================================
+
+
+def main() -> None:
+    """Run the application via CLI."""
+    import uvicorn
+
+    settings = get_settings()
+
+    uvicorn.run(
+        "barnabeenet.main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=settings.env == "development",
+        log_level=settings.log_level.lower(),
+    )
+
+
+if __name__ == "__main__":
+    main()
