@@ -38,11 +38,11 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Deployment scripts** - start/stop GPU worker, deploy to VM, status check
 - [x] **Tests for STT/TTS services** - 54 tests covering all services
 
+- [x] Message bus (Redis Streams)
+
 ### In Progress
-- [ ] **Message bus (Redis Streams)** - NEXT
 
 ### Not Started
-- [ ] Message bus (Redis Streams)
 - [ ] Voice pipeline integration
 - [ ] Agent implementations
 - [ ] Memory system
@@ -66,13 +66,11 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. **Message bus implementation (Redis Streams)** ← NEXT
+1. Voice pipeline integration ← NEXT
 
-2. Voice pipeline integration
+2. Agent implementations
 
-3. Agent implementations
-
-4. Memory system
+3. Memory system
 
 ---
 
