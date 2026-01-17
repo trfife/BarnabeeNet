@@ -83,3 +83,6 @@ home-assistant.log
 
 # Copilot session logs (local only)
 .copilot/sessions/.venv-gpu/
+
+# Logs
+logs/*.log

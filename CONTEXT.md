@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-17 (after WSL port forwarding configured)
+2026-01-17 (after deployment scripts created)
 
 ## Current Phase
-**Phase 1: Core Services** - Steps 1-7 Complete, VM→GPU connectivity working
+**Phase 1: Core Services** - Steps 1-8 Complete, deployment scripts ready
 
 ## Development Workflow
 
@@ -35,9 +35,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **GPU Worker (Parakeet TDT 0.6B v2)** - Working locally, **45ms latency!**
 - [x] **STT Router** - GPU primary, CPU fallback, with tests
 - [x] **WSL port forwarding** - VM can reach GPU worker at `192.168.86.61:8001`
+- [x] **Deployment scripts** - start/stop GPU worker, deploy to VM, status check
 
 ### In Progress
-- [ ] **Deployment scripts** - NEXT
+- [ ] **Tests for STT/TTS services** - NEXT
 
 ### Not Started
 - [ ] Message bus (Redis Streams)
@@ -64,15 +65,13 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. **Deployment scripts** ← NEXT
-   - Script to start GPU worker in background
-   - Script to deploy to VM
+1. **Tests for STT/TTS services** ← NEXT
 
-2. Tests for STT/TTS services
+2. Message bus implementation (Redis Streams)
 
-3. Message bus implementation (Redis Streams)
+3. Voice pipeline integration
 
-4. Voice pipeline integration
+4. Agent implementations
 
 ---
 
