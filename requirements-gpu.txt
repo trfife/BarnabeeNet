@@ -1,0 +1,22 @@
+# BarnabeeNet GPU Worker Requirements (Man-of-war - CUDA)
+# Install with: pip install -r requirements-gpu.txt
+
+# PyTorch with CUDA support
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch>=2.1.0
+
+# NVIDIA NeMo for Parakeet TDT
+nemo-toolkit[asr]>=1.22.0
+
+# API server for GPU worker
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# Audio processing
+numpy>=1.26.0
+soundfile>=0.12.1
+
+# Utilities
+python-dotenv>=1.0.0
+structlog>=24.1.0
+httpx>=0.26.0

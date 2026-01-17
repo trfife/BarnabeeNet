@@ -1,0 +1,37 @@
+# BarnabeeNet Core Requirements (Beelink - CPU)
+# Install with: pip install -r requirements.txt
+
+# Core framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Async support
+httpx>=0.26.0
+aiofiles>=23.2.0
+websockets>=12.0
+
+# Audio processing
+numpy>=1.26.0
+soundfile>=0.12.1
+webrtcvad>=2.0.10
+
+# STT - Distil-Whisper via faster-whisper (CPU optimized)
+faster-whisper>=1.0.0
+ctranslate2>=4.0.0
+
+# TTS - Kokoro (CPU optimized, fast)
+kokoro>=0.3.0
+onnxruntime>=1.16.0
+
+# Data/State
+redis>=5.0.0
+aiosqlite>=0.19.0
+
+# Utilities
+python-dotenv>=1.0.0
+structlog>=24.1.0
+
+# Health checks / metrics
+prometheus-client>=0.19.0
