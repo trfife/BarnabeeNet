@@ -247,14 +247,35 @@ class OpenRouterClient:
             config_freq_penalty = activity_config.frequency_penalty
             config_pres_penalty = activity_config.presence_penalty
         else:
-            # Legacy agent-type based config
-            config = self._get_model_config(agent_type)
-            actual_model = model or config.model
-            actual_temp = temperature if temperature is not None else config.temperature
-            actual_max_tokens = max_tokens or config.max_tokens
-            config_top_p = config.top_p
-            config_freq_penalty = config.frequency_penalty
-            config_pres_penalty = config.presence_penalty
+            # Map agent_type to default activity for backward compatibility
+            # This ensures dashboard config applies even if agent doesn't pass activity
+            from barnabeenet.services.llm.activities import get_activity_config
+
+            agent_to_activity = {
+                "meta": "meta.classify_intent",
+                "instant": "instant.fallback",
+                "action": "action.parse_intent",
+                "interaction": "interaction.respond",
+                "memory": "memory.generate",
+            }
+            mapped_activity = agent_to_activity.get(agent_type)
+            if mapped_activity:
+                activity_config = get_activity_config(mapped_activity)
+                actual_model = model or activity_config.model
+                actual_temp = temperature if temperature is not None else activity_config.temperature
+                actual_max_tokens = max_tokens or activity_config.max_tokens
+                config_top_p = activity_config.top_p
+                config_freq_penalty = activity_config.frequency_penalty
+                config_pres_penalty = activity_config.presence_penalty
+            else:
+                # Unknown agent type - use legacy config
+                config = self._get_model_config(agent_type)
+                actual_model = model or config.model
+                actual_temp = temperature if temperature is not None else config.temperature
+                actual_max_tokens = max_tokens or config.max_tokens
+                config_top_p = config.top_p
+                config_freq_penalty = config.frequency_penalty
+                config_pres_penalty = config.presence_penalty
 
         # Normalize messages to dicts
         msg_dicts = []
