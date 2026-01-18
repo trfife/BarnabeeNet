@@ -397,6 +397,31 @@ class SmartEntityResolver:
                 # Also add space version
                 name_search_terms.append(area_id.replace("_", " "))  # e.g., "living room"
 
+        # Helper to check if entity matches device type (used for alternative domains)
+        def entity_matches_device_type(entity: Entity, device_type: str, target_domain: str) -> bool:
+            """Check if entity likely represents the requested device type.
+
+            For primary domains (light, cover, etc.), we trust the domain.
+            For alternative domains (switch instead of light), we require
+            the device type word to appear in the entity name.
+            """
+            if target_domain == domain:
+                # Primary domain - always match
+                return True
+            # Alternative domain - check if device type appears in name
+            # e.g., "switch.office_switch_light" contains "light"
+            name_lower = entity.friendly_name.lower()
+            id_lower = entity.entity_id.lower()
+            type_lower = device_type.lower()
+            # Also check singular form
+            singular = type_lower.rstrip("s")
+            return (
+                type_lower in name_lower
+                or type_lower in id_lower
+                or singular in name_lower
+                or singular in id_lower
+            )
+
         for dom in all_domains:
             if target_area_ids:
                 # First try: Get entities by area_id
@@ -404,13 +429,18 @@ class SmartEntityResolver:
                     entities = self._ha.entities.get_by_area(area_id)
                     for entity in entities:
                         if entity.domain == dom:
-                            result.entities.append(entity)
+                            if entity_matches_device_type(entity, device_type, dom):
+                                if entity not in result.entities:
+                                    result.entities.append(entity)
 
                 # If no entities found by area_id, fall back to name matching
                 # Many entities have area in their name but area_id not set
                 if not result.entities and name_search_terms:
                     entities = self._ha.entities.get_by_domain(dom)
                     for entity in entities:
+                        # Skip if doesn't match device type (for alternative domains)
+                        if not entity_matches_device_type(entity, device_type, dom):
+                            continue
                         name_lower = entity.friendly_name.lower()
                         id_lower = entity.entity_id.lower()
                         # Check if any area name appears in name or id
@@ -433,6 +463,9 @@ class SmartEntityResolver:
                         or location_lower in e.entity_id.lower()
                     ]
                 for entity in entities:
+                    # For alternative domains, check device type match
+                    if not entity_matches_device_type(entity, device_type, dom):
+                        continue
                     if entity not in result.entities:
                         result.entities.append(entity)
 
