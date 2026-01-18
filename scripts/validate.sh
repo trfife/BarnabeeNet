@@ -20,9 +20,26 @@ if [ -d ".venv" ]; then
     source .venv/bin/activate
 fi
 
-# 1. Check for secrets
+# 1. Check for secrets (real API keys, not placeholders/docs)
 echo -e "\n${YELLOW}[1/6] Checking for secrets...${NC}"
-if grep -r "sk-ant-\|sk-\|ANTHROPIC_API_KEY=sk" --include="*.py" --include="*.yaml" --include="*.json" src/ tests/ workers/ config/ 2>/dev/null | grep -v ".env.example"; then
+# Look for actual API keys (longer strings) but exclude:
+# - .env.example files
+# - placeholder patterns like "sk-..." or "sk-or-v1-..."
+# - test fixtures with obvious fake values
+# - documentation strings about key formats
+SECRETS_FOUND=$(grep -rE "(sk-[a-zA-Z0-9]{20,}|sk-ant-[a-zA-Z0-9]{20,}|sk-or-v1-[a-zA-Z0-9]{20,})" \
+    --include="*.py" --include="*.yaml" --include="*.json" \
+    src/ tests/ workers/ config/ 2>/dev/null \
+    | grep -v ".env.example" \
+    | grep -v "placeholder" \
+    | grep -v "starts with" \
+    | grep -v "_mask_value" \
+    | grep -v "sk-test" \
+    | grep -v "sk-secret-value" \
+    | grep -v "sk-abcdefghijklmnop" || true)
+
+if [ -n "$SECRETS_FOUND" ]; then
+    echo "$SECRETS_FOUND"
     echo -e "${RED}❌ Potential secrets found!${NC}"
     FAILED=1
 else

@@ -432,15 +432,15 @@
             <div id="page-config" class="page">
                 <div class="page-header">
                     <h1>⚙️ Configuration</h1>
-                    <p>Manage system configurations</p>
+                    <p>Manage LLM providers and system configuration</p>
                 </div>
 
                 <div class="config-layout">
                     <div class="config-sidebar">
                         <h4>Categories</h4>
                         <ul class="config-nav">
-                            <li class="active" data-config="general">🔧 General Settings</li>
-                            <li data-config="ai">🧠 AI Model</li>
+                            <li class="active" data-config="providers">🤖 LLM Providers</li>
+                            <li data-config="general">🔧 General Settings</li>
                             <li data-config="voice">🎤 Voice Settings</li>
                             <li data-config="homeassistant">🏠 Home Assistant</li>
                             <li data-config="memory">💾 Memory</li>
@@ -448,7 +448,68 @@
                         </ul>
                     </div>
                     <div class="config-content">
-                        <div id="config-general" class="config-section active">
+                        <!-- LLM Providers Section -->
+                        <div id="config-providers" class="config-section active">
+                            <h3>🤖 LLM Provider Configuration</h3>
+                            <p class="section-desc">Configure API keys for LLM providers. Keys are encrypted and stored securely.</p>
+                            
+                            <div class="provider-status-bar">
+                                <span id="providers-configured">0</span> configured &nbsp;|&nbsp;
+                                <span id="providers-enabled">0</span> enabled
+                                <button class="btn btn-small" id="refresh-providers" style="margin-left: 16px;">🔄 Refresh</button>
+                            </div>
+
+                            <div class="providers-grid" id="providers-list">
+                                <!-- Populated dynamically -->
+                                <div class="loading-spinner">Loading providers...</div>
+                            </div>
+                        </div>
+
+                        <!-- Provider Setup Modal -->
+                        <div id="provider-modal" class="modal" style="display: none;">
+                            <div class="modal-content modal-large">
+                                <div class="modal-header">
+                                    <h3 id="provider-modal-title">Configure Provider</h3>
+                                    <button class="btn btn-small" id="close-provider-modal">✕</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="provider-setup-grid">
+                                        <div class="provider-instructions">
+                                            <h4>📋 Setup Instructions</h4>
+                                            <ol id="provider-setup-steps">
+                                                <!-- Populated dynamically -->
+                                            </ol>
+                                            <div class="provider-links">
+                                                <a id="provider-docs-link" href="#" target="_blank" class="btn btn-small">📖 Documentation</a>
+                                                <a id="provider-key-link" href="#" target="_blank" class="btn btn-small btn-primary">🔑 Get API Key</a>
+                                            </div>
+                                        </div>
+                                        <div class="provider-form">
+                                            <h4>🔐 Credentials</h4>
+                                            <form id="provider-setup-form">
+                                                <input type="hidden" id="provider-type">
+                                                <div id="provider-secret-fields">
+                                                    <!-- Secret fields populated dynamically -->
+                                                </div>
+                                                <div id="provider-config-fields">
+                                                    <!-- Config fields populated dynamically -->
+                                                </div>
+                                                <div class="form-actions">
+                                                    <button type="button" class="btn" id="test-provider-btn">🧪 Test Connection</button>
+                                                    <button type="submit" class="btn btn-primary">💾 Save & Enable</button>
+                                                </div>
+                                            </form>
+                                            <div id="provider-test-result" class="test-result" style="display: none;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="provider-pricing" id="provider-pricing">
+                                        <!-- Pricing notes -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="config-general" class="config-section">
                             <h3>General Settings</h3>
                             <div class="form-group">
                                 <label>Assistant Name</label>
@@ -464,26 +525,6 @@
                                     <option value="development">Development</option>
                                     <option value="production">Production</option>
                                 </select>
-                            </div>
-                            <button class="btn btn-primary">💾 Save Settings</button>
-                        </div>
-                        <div id="config-ai" class="config-section">
-                            <h3>AI Model Settings</h3>
-                            <div class="form-group">
-                                <label>Default Provider</label>
-                                <select class="form-control">
-                                    <option value="openrouter">OpenRouter</option>
-                                    <option value="anthropic">Anthropic</option>
-                                    <option value="openai">OpenAI</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Conversation Model</label>
-                                <input type="text" class="form-control" value="anthropic/claude-3.5-sonnet">
-                            </div>
-                            <div class="form-group">
-                                <label>Fast Model (Intent)</label>
-                                <input type="text" class="form-control" value="anthropic/claude-3-haiku">
                             </div>
                             <button class="btn btn-primary">💾 Save Settings</button>
                         </div>

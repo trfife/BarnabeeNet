@@ -862,3 +862,348 @@ function displayE2EResults(data) {
     loadTraces();
 }
 
+
+// =============================================================================
+// LLM Provider Configuration
+// =============================================================================
+
+let providersData = [];
+let currentProvider = null;
+
+async function loadProviders() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/config/providers`);
+        const data = await response.json();
+        
+        providersData = data.providers || [];
+        document.getElementById('providers-configured').textContent = data.configured_count || 0;
+        document.getElementById('providers-enabled').textContent = data.enabled_count || 0;
+        
+        renderProvidersList();
+    } catch (e) {
+        console.error('Failed to load providers:', e);
+        document.getElementById('providers-list').innerHTML = `
+            <div class="error-message">Failed to load providers: ${e.message}</div>
+        `;
+    }
+}
+
+async function loadProviderStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/config/providers/status`);
+        return await response.json();
+    } catch (e) {
+        console.error('Failed to load provider status:', e);
+        return { statuses: [] };
+    }
+}
+
+function renderProvidersList() {
+    const container = document.getElementById('providers-list');
+    
+    if (!providersData.length) {
+        container.innerHTML = '<p class="text-muted">No providers available</p>';
+        return;
+    }
+    
+    // First load status to show which are configured
+    loadProviderStatus().then(statusData => {
+        const statusMap = new Map(
+            statusData.statuses?.map(s => [s.provider_type, s]) || []
+        );
+        
+        container.innerHTML = providersData.map(provider => {
+            const status = statusMap.get(provider.provider_type) || {};
+            const isConfigured = status.configured;
+            const isEnabled = status.enabled;
+            
+            const statusClass = isEnabled ? 'enabled' : isConfigured ? 'configured' : 'not-configured';
+            const statusText = isEnabled ? '✓ Enabled' : isConfigured ? '⏸ Configured' : 'Not configured';
+            const statusIcon = getProviderIcon(provider.provider_type);
+            
+            return `
+                <div class="provider-card ${statusClass}" data-provider="${provider.provider_type}">
+                    <div class="provider-icon">${statusIcon}</div>
+                    <div class="provider-info">
+                        <h4>${provider.display_name}</h4>
+                        <p class="provider-desc">${provider.description}</p>
+                        <span class="provider-status">${statusText}</span>
+                    </div>
+                    <div class="provider-actions">
+                        <button class="btn btn-small" onclick="openProviderSetup('${provider.provider_type}')">
+                            ${isConfigured ? '⚙️ Configure' : '➕ Setup'}
+                        </button>
+                        ${isConfigured ? `
+                            <button class="btn btn-small ${isEnabled ? 'btn-warning' : 'btn-primary'}" 
+                                    onclick="toggleProvider('${provider.provider_type}', ${!isEnabled})">
+                                ${isEnabled ? '⏸ Disable' : '▶️ Enable'}
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    });
+}
+
+function getProviderIcon(providerType) {
+    const icons = {
+        'openrouter': '🔀',
+        'openai': '🧠',
+        'anthropic': '🤖',
+        'azure': '☁️',
+        'google': '🌐',
+        'xai': '🚀',
+        'deepseek': '🔍',
+        'huggingface': '🤗',
+        'bedrock': '🏔️',
+        'together': '🤝',
+        'mistral': '🌊',
+        'groq': '⚡'
+    };
+    return icons[providerType] || '🤖';
+}
+
+function openProviderSetup(providerType) {
+    const provider = providersData.find(p => p.provider_type === providerType);
+    if (!provider) return;
+    
+    currentProvider = provider;
+    
+    // Update modal content
+    document.getElementById('provider-modal-title').textContent = `Configure ${provider.display_name}`;
+    document.getElementById('provider-type').value = providerType;
+    
+    // Setup instructions
+    const stepsEl = document.getElementById('provider-setup-steps');
+    stepsEl.innerHTML = provider.setup_instructions.map(step => `<li>${step}</li>`).join('');
+    
+    // Links
+    document.getElementById('provider-docs-link').href = provider.docs_url;
+    document.getElementById('provider-key-link').href = provider.api_key_url;
+    
+    // Secret fields
+    const secretFieldsEl = document.getElementById('provider-secret-fields');
+    secretFieldsEl.innerHTML = provider.secret_fields.map(field => `
+        <div class="form-group">
+            <label>${field.display_name} ${field.required ? '<span class="required">*</span>' : ''}</label>
+            <input type="password" 
+                   class="form-control" 
+                   id="secret-${field.name}"
+                   placeholder="${field.placeholder}"
+                   ${field.required ? 'required' : ''}>
+            <small class="form-help">${field.description}</small>
+        </div>
+    `).join('');
+    
+    // Config fields
+    const configFieldsEl = document.getElementById('provider-config-fields');
+    if (provider.config_fields && provider.config_fields.length) {
+        configFieldsEl.innerHTML = '<h5 style="margin-top: 16px;">Additional Settings</h5>' +
+            provider.config_fields.map(field => {
+                if (field.field_type === 'select') {
+                    return `
+                        <div class="form-group">
+                            <label>${field.display_name}</label>
+                            <select class="form-control" id="config-${field.name}">
+                                ${field.options.map(opt => 
+                                    `<option value="${opt}" ${opt === field.default ? 'selected' : ''}>${opt}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                    `;
+                }
+                return `
+                    <div class="form-group">
+                        <label>${field.display_name}</label>
+                        <input type="${field.field_type === 'number' ? 'number' : 'text'}" 
+                               class="form-control" 
+                               id="config-${field.name}"
+                               value="${field.default || ''}"
+                               placeholder="${field.placeholder || ''}">
+                        <small class="form-help">${field.description}</small>
+                    </div>
+                `;
+            }).join('');
+    } else {
+        configFieldsEl.innerHTML = '';
+    }
+    
+    // Pricing notes
+    document.getElementById('provider-pricing').innerHTML = provider.pricing_notes ? 
+        `<p class="pricing-note">💰 ${provider.pricing_notes}</p>` : '';
+    
+    // Clear test result
+    document.getElementById('provider-test-result').style.display = 'none';
+    
+    // Show modal
+    document.getElementById('provider-modal').style.display = 'flex';
+}
+
+async function testProviderConnection() {
+    if (!currentProvider) return;
+    
+    const resultEl = document.getElementById('provider-test-result');
+    resultEl.style.display = 'block';
+    resultEl.className = 'test-result testing';
+    resultEl.innerHTML = '🔄 Testing connection...';
+    
+    // First save the credentials temporarily for the test
+    const secrets = {};
+    currentProvider.secret_fields.forEach(field => {
+        const value = document.getElementById(`secret-${field.name}`)?.value;
+        if (value) secrets[field.name] = value;
+    });
+    
+    if (Object.keys(secrets).length === 0) {
+        resultEl.className = 'test-result error';
+        resultEl.innerHTML = '❌ Please enter at least one credential to test';
+        return;
+    }
+    
+    // Save first, then test
+    try {
+        // Save credentials
+        const config = {};
+        currentProvider.config_fields?.forEach(field => {
+            const value = document.getElementById(`config-${field.name}`)?.value;
+            if (value) config[field.name] = value;
+        });
+        
+        await fetch(`${API_BASE}/api/v1/config/providers/setup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                provider_type: currentProvider.provider_type,
+                secrets: secrets,
+                config: config
+            })
+        });
+        
+        // Now test
+        const testResponse = await fetch(`${API_BASE}/api/v1/config/providers/test`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                provider_type: currentProvider.provider_type
+            })
+        });
+        
+        const testResult = await testResponse.json();
+        
+        if (testResult.success) {
+            resultEl.className = 'test-result success';
+            resultEl.innerHTML = `✅ ${testResult.message}` + 
+                (testResult.latency_ms ? ` (${testResult.latency_ms.toFixed(0)}ms)` : '');
+        } else {
+            resultEl.className = 'test-result error';
+            resultEl.innerHTML = `❌ ${testResult.message}`;
+        }
+    } catch (e) {
+        resultEl.className = 'test-result error';
+        resultEl.innerHTML = `❌ Test failed: ${e.message}`;
+    }
+}
+
+async function saveProvider(e) {
+    e.preventDefault();
+    
+    if (!currentProvider) return;
+    
+    const secrets = {};
+    currentProvider.secret_fields.forEach(field => {
+        const value = document.getElementById(`secret-${field.name}`)?.value;
+        if (value) secrets[field.name] = value;
+    });
+    
+    const config = {};
+    currentProvider.config_fields?.forEach(field => {
+        const value = document.getElementById(`config-${field.name}`)?.value;
+        if (value) config[field.name] = value;
+    });
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/config/providers/setup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                provider_type: currentProvider.provider_type,
+                secrets: secrets,
+                config: config
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            closeProviderModal();
+            loadProviders(); // Refresh the list
+            
+            // Show success message
+            addActivityItem({
+                type: 'system',
+                message: `Provider ${currentProvider.display_name} configured successfully`,
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            alert(`Failed to save: ${result.detail || 'Unknown error'}`);
+        }
+    } catch (e) {
+        alert(`Error saving provider: ${e.message}`);
+    }
+}
+
+async function toggleProvider(providerType, enable) {
+    try {
+        await fetch(`${API_BASE}/api/v1/config/providers/enable`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                provider_type: providerType,
+                enabled: enable
+            })
+        });
+        loadProviders(); // Refresh
+    } catch (e) {
+        console.error('Failed to toggle provider:', e);
+    }
+}
+
+function closeProviderModal() {
+    document.getElementById('provider-modal').style.display = 'none';
+    currentProvider = null;
+}
+
+// Initialize provider config UI
+function initProviderConfig() {
+    document.getElementById('refresh-providers')?.addEventListener('click', loadProviders);
+    document.getElementById('close-provider-modal')?.addEventListener('click', closeProviderModal);
+    document.getElementById('test-provider-btn')?.addEventListener('click', testProviderConnection);
+    document.getElementById('provider-setup-form')?.addEventListener('submit', saveProvider);
+    
+    // Close modal on background click
+    document.getElementById('provider-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'provider-modal') {
+            closeProviderModal();
+        }
+    });
+    
+    // Load providers when config page is shown
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', () => {
+            if (link.dataset.page === 'config') {
+                loadProviders();
+            }
+        });
+    });
+    
+    // Also load if we're starting on config page
+    if (window.location.hash === '#config') {
+        loadProviders();
+    }
+}
+
+// Add to initialization
+document.addEventListener('DOMContentLoaded', () => {
+    initProviderConfig();
+});
