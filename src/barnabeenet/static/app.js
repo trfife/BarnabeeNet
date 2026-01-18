@@ -2367,3 +2367,326 @@ async function loadHAConfigStatus() {
         console.error('Failed to load HA config:', e);
     }
 }
+
+// =============================================================================
+// Logs Page - Performance Metrics & Log Stream
+// =============================================================================
+
+// Chart.js instances
+let sttChart = null;
+let ttsChart = null;
+let llmChart = null;
+let pipelineChart = null;
+
+// Log stream state
+let logAutoScroll = true;
+let logs = [];
+const MAX_LOGS = 1000;
+
+// Dashboard WebSocket for logs
+let dashboardWs = null;
+
+function initLogsPage() {
+    // Initialize charts
+    initPerformanceCharts();
+
+    // Set up filters
+    document.getElementById('log-component-filter')?.addEventListener('change', filterLogs);
+    document.getElementById('log-level-filter')?.addEventListener('change', filterLogs);
+    document.getElementById('log-search')?.addEventListener('input', debounce(filterLogs, 300));
+
+    // Auto-scroll toggle
+    document.getElementById('log-auto-scroll')?.addEventListener('change', (e) => {
+        logAutoScroll = e.target.checked;
+    });
+
+    // Buttons
+    document.getElementById('export-logs')?.addEventListener('click', exportLogs);
+    document.getElementById('clear-logs')?.addEventListener('click', clearLogs);
+    document.getElementById('refresh-metrics')?.addEventListener('click', loadMetricsData);
+
+    // Time range change
+    document.getElementById('metrics-time-range')?.addEventListener('change', loadMetricsData);
+
+    // Connect to dashboard WebSocket for real-time logs
+    connectDashboardWebSocket();
+
+    // Initial data load
+    loadMetricsData();
+}
+
+function initPerformanceCharts() {
+    const chartConfig = (label, color) => ({
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: label,
+                data: [],
+                borderColor: color,
+                backgroundColor: color + '20',
+                tension: 0.3,
+                fill: true,
+                pointRadius: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    grid: { color: '#333' },
+                    ticks: { color: '#888', maxTicksLimit: 6 }
+                },
+                y: {
+                    display: true,
+                    grid: { color: '#333' },
+                    ticks: { color: '#888' },
+                    title: { display: true, text: 'ms', color: '#888' }
+                }
+            }
+        }
+    });
+
+    const sttCtx = document.getElementById('stt-latency-chart')?.getContext('2d');
+    const ttsCtx = document.getElementById('tts-latency-chart')?.getContext('2d');
+    const llmCtx = document.getElementById('llm-latency-chart')?.getContext('2d');
+    const pipelineCtx = document.getElementById('pipeline-latency-chart')?.getContext('2d');
+
+    if (sttCtx) sttChart = new Chart(sttCtx, chartConfig('STT Latency', '#60a5fa'));
+    if (ttsCtx) ttsChart = new Chart(ttsCtx, chartConfig('TTS Latency', '#34d399'));
+    if (llmCtx) llmChart = new Chart(llmCtx, chartConfig('LLM Latency', '#f472b6'));
+    if (pipelineCtx) pipelineChart = new Chart(pipelineCtx, chartConfig('Pipeline Total', '#fbbf24'));
+}
+
+async function loadMetricsData() {
+    const minutes = parseInt(document.getElementById('metrics-time-range')?.value || '60');
+
+    try {
+        // Load latency history for each component
+        await Promise.all([
+            loadComponentMetrics('stt', sttChart, 'stt-stats', minutes),
+            loadComponentMetrics('tts', ttsChart, 'tts-stats', minutes),
+            loadComponentMetrics('llm', llmChart, 'llm-stats', minutes),
+            loadComponentMetrics('pipeline', pipelineChart, 'pipeline-stats', minutes),
+        ]);
+    } catch (e) {
+        console.error('Failed to load metrics:', e);
+    }
+}
+
+async function loadComponentMetrics(component, chart, statsId, minutes) {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/dashboard/metrics/${component}?minutes=${minutes}`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        if (chart && data.history) {
+            // Update chart
+            chart.data.labels = data.history.map(h => {
+                const d = new Date(h.timestamp);
+                return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            });
+            chart.data.datasets[0].data = data.history.map(h => h.avg_ms);
+            chart.update('none');
+        }
+
+        // Update stats display
+        const statsEl = document.getElementById(statsId);
+        if (statsEl && data.stats) {
+            statsEl.innerHTML = `
+                <span class="stat">P50: <strong>${data.stats.p50_ms?.toFixed(0) || '--'}</strong>ms</span>
+                <span class="stat">P95: <strong>${data.stats.p95_ms?.toFixed(0) || '--'}</strong>ms</span>
+                <span class="stat">Avg: <strong>${data.stats.avg_ms?.toFixed(0) || '--'}</strong>ms</span>
+            `;
+        }
+    } catch (e) {
+        console.error(`Failed to load ${component} metrics:`, e);
+    }
+}
+
+function connectDashboardWebSocket() {
+    const dashboardWsUrl = `ws://${window.location.host}/api/v1/ws/dashboard`;
+
+    try {
+        dashboardWs = new WebSocket(dashboardWsUrl);
+
+        dashboardWs.onopen = () => {
+            console.log('Dashboard WebSocket connected');
+            addLogEntry({
+                timestamp: new Date().toISOString(),
+                level: 'info',
+                component: 'system',
+                message: 'Connected to log stream'
+            });
+        };
+
+        dashboardWs.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+
+                if (msg.type === 'activity') {
+                    addLogEntry(msg.data);
+                } else if (msg.type === 'metrics') {
+                    // Update metrics on the fly
+                    updateMetricsFromWs(msg.data);
+                }
+            } catch (e) {
+                console.error('Failed to parse dashboard message:', e);
+            }
+        };
+
+        dashboardWs.onclose = () => {
+            console.log('Dashboard WebSocket disconnected');
+            // Reconnect after delay
+            setTimeout(connectDashboardWebSocket, 5000);
+        };
+
+        dashboardWs.onerror = (e) => {
+            console.error('Dashboard WebSocket error:', e);
+        };
+    } catch (e) {
+        console.error('Failed to connect dashboard WebSocket:', e);
+    }
+}
+
+function addLogEntry(entry) {
+    logs.unshift(entry);
+    if (logs.length > MAX_LOGS) {
+        logs.pop();
+    }
+
+    renderLogEntry(entry, true);
+}
+
+function renderLogEntry(entry, prepend = false) {
+    const logStream = document.getElementById('log-stream');
+    if (!logStream) return;
+
+    // Apply filters
+    const componentFilter = document.getElementById('log-component-filter')?.value;
+    const levelFilter = document.getElementById('log-level-filter')?.value;
+    const searchFilter = document.getElementById('log-search')?.value?.toLowerCase();
+
+    if (componentFilter && entry.component !== componentFilter) return;
+    if (levelFilter && entry.level !== levelFilter) return;
+    if (searchFilter && !entry.message?.toLowerCase().includes(searchFilter)) return;
+
+    const time = new Date(entry.timestamp);
+    const timeStr = time.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+
+    const levelClass = entry.level || 'info';
+    const levelText = (entry.level || 'info').toUpperCase();
+
+    const el = document.createElement('div');
+    el.className = `log-entry ${levelClass}`;
+    el.innerHTML = `
+        <span class="log-time">${timeStr}</span>
+        <span class="log-level ${levelClass}">${levelText}</span>
+        <span class="log-component">${entry.component || 'system'}</span>
+        <span class="log-message">${escapeHtml(entry.message || '')}</span>
+        ${entry.trace_id ? `<span class="log-trace" data-trace="${entry.trace_id}">🔗</span>` : ''}
+    `;
+
+    if (prepend) {
+        logStream.insertBefore(el, logStream.firstChild);
+    } else {
+        logStream.appendChild(el);
+    }
+
+    // Auto-scroll
+    if (logAutoScroll) {
+        logStream.scrollTop = 0;
+    }
+
+    // Limit displayed entries
+    while (logStream.children.length > 500) {
+        logStream.removeChild(logStream.lastChild);
+    }
+}
+
+function filterLogs() {
+    const logStream = document.getElementById('log-stream');
+    if (!logStream) return;
+
+    // Clear and re-render
+    logStream.innerHTML = '';
+    logs.forEach(entry => renderLogEntry(entry, false));
+}
+
+function clearLogs() {
+    logs = [];
+    const logStream = document.getElementById('log-stream');
+    if (logStream) {
+        logStream.innerHTML = `
+            <div class="log-entry info">
+                <span class="log-time">--:--:--</span>
+                <span class="log-level info">INFO</span>
+                <span class="log-component">system</span>
+                <span class="log-message">Logs cleared</span>
+            </div>
+        `;
+    }
+}
+
+function exportLogs() {
+    const data = JSON.stringify(logs, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `barnabeenet-logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function updateMetricsFromWs(data) {
+    // Called when metrics update comes via WebSocket
+    // Could update charts in real-time here
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// Initialize logs page when navigating to it
+document.addEventListener('DOMContentLoaded', () => {
+    // Watch for navigation to logs page
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', () => {
+            if (link.dataset.page === 'logs') {
+                // Initialize on first visit
+                if (!sttChart) {
+                    initLogsPage();
+                }
+            }
+        });
+    });
+});
+

@@ -528,3 +528,152 @@ async def get_pipeline_signals(
         }
         for sig in signals
     ]
+
+
+# =============================================================================
+# Metrics Endpoints
+# =============================================================================
+
+
+class LatencyHistoryPoint(BaseModel):
+    """Single point in latency history."""
+
+    timestamp: str
+    unix_ts: int
+    avg_ms: float
+    p95_ms: float
+    min_ms: float
+    max_ms: float
+    count: int
+
+
+class LatencyStats(BaseModel):
+    """Latency statistics."""
+
+    component: str
+    p50_ms: float
+    p95_ms: float
+    p99_ms: float
+    avg_ms: float
+    min_ms: float
+    max_ms: float
+    sample_count: int
+
+
+class MetricsResponse(BaseModel):
+    """Response with metrics data."""
+
+    component: str
+    history: list[LatencyHistoryPoint]
+    stats: LatencyStats | None = None
+
+
+class SystemHealthResponse(BaseModel):
+    """System health response."""
+
+    status: str
+    services: list[dict[str, Any]]
+    uptime_seconds: float
+    memory_mb: float | None = None
+    cpu_percent: float | None = None
+    active_connections: int = 0
+
+
+@router.get("/metrics/{component}", response_model=MetricsResponse)
+async def get_component_metrics(
+    component: str,
+    minutes: int = Query(default=60, ge=1, le=1440),
+) -> MetricsResponse:
+    """Get latency metrics for a component.
+
+    Args:
+        component: Component name (stt, tts, llm, pipeline, memory, action)
+        minutes: Time window in minutes (default 60, max 1440)
+
+    Returns:
+        Latency history and statistics
+    """
+    import logging
+
+    from barnabeenet.services.metrics_store import get_metrics_store
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        store = await get_metrics_store()
+        history = await store.get_latency_history(component, minutes)
+        stats = await store.get_latency_stats(component, minutes * 60)
+
+        return MetricsResponse(
+            component=component,
+            history=[LatencyHistoryPoint(**h) for h in history],
+            stats=LatencyStats(
+                component=stats.component,
+                p50_ms=stats.p50_ms,
+                p95_ms=stats.p95_ms,
+                p99_ms=stats.p99_ms,
+                avg_ms=stats.avg_ms,
+                min_ms=stats.min_ms,
+                max_ms=stats.max_ms,
+                sample_count=stats.sample_count,
+            )
+            if stats
+            else None,
+        )
+    except Exception as e:
+        logger.error("Failed to get metrics for %s: %s", component, e)
+        return MetricsResponse(
+            component=component,
+            history=[],
+            stats=None,
+        )
+
+
+@router.get("/health", response_model=SystemHealthResponse)
+async def get_health() -> SystemHealthResponse:
+    """Get detailed system health status."""
+    import logging
+
+    from barnabeenet.services.dashboard_service import get_dashboard_service
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        service = await get_dashboard_service()
+        health = await service.get_system_health()
+        return SystemHealthResponse(
+            status=health.status,
+            services=[s.model_dump() for s in health.services],
+            uptime_seconds=health.uptime_seconds,
+            memory_mb=health.memory_mb,
+            cpu_percent=health.cpu_percent,
+            active_connections=health.active_connections,
+        )
+    except Exception as e:
+        logger.error("Failed to get health: %s", e)
+        return SystemHealthResponse(
+            status="error",
+            services=[],
+            uptime_seconds=0,
+        )
+
+
+@router.post("/metrics/{component}/record")
+async def record_metric(
+    component: str,
+    latency_ms: float = Query(..., gt=0),
+) -> dict[str, str]:
+    """Record a latency measurement (for testing/debugging)."""
+    import logging
+
+    from barnabeenet.services.metrics_store import get_metrics_store
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        store = await get_metrics_store()
+        await store.record_latency(component, latency_ms, None)
+        return {"status": "recorded", "component": component, "latency_ms": str(latency_ms)}
+    except Exception as e:
+        logger.error("Failed to record metric: %s", e)
+        return {"status": "error", "message": str(e)}

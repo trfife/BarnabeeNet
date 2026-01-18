@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/static/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -18,6 +19,7 @@
         </div>
         <div class="nav-links">
             <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
+            <a href="#" class="nav-link" data-page="logs">Logs</a>
             <a href="#" class="nav-link" data-page="setup">Setup & Test</a>
             <a href="#" class="nav-link" data-page="family">Family</a>
             <a href="#" class="nav-link" data-page="entities">Entities</a>
@@ -159,6 +161,124 @@
                     </div>
                     <div class="modal-body" id="trace-detail">
                         <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Page -->
+        <div id="page-logs" class="page">
+            <div class="page-header">
+                <h1>📋 System Logs</h1>
+                <p>Real-time log stream with filtering and performance graphs</p>
+            </div>
+
+            <!-- Performance Graphs -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <h3>📊 Performance Metrics</h3>
+                    <div class="card-actions">
+                        <select id="metrics-time-range" class="filter-select">
+                            <option value="15">Last 15 minutes</option>
+                            <option value="60" selected>Last hour</option>
+                            <option value="360">Last 6 hours</option>
+                            <option value="1440">Last 24 hours</option>
+                        </select>
+                        <button class="btn btn-small" id="refresh-metrics">🔄 Refresh</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="metrics-grid">
+                        <!-- STT Latency Chart -->
+                        <div class="metric-chart">
+                            <h4>🎤 STT Latency</h4>
+                            <div class="chart-container">
+                                <canvas id="stt-latency-chart"></canvas>
+                            </div>
+                            <div class="metric-stats" id="stt-stats">
+                                <span class="stat">P50: <strong>--</strong>ms</span>
+                                <span class="stat">P95: <strong>--</strong>ms</span>
+                                <span class="stat">Avg: <strong>--</strong>ms</span>
+                            </div>
+                        </div>
+                        <!-- TTS Latency Chart -->
+                        <div class="metric-chart">
+                            <h4>🔊 TTS Latency</h4>
+                            <div class="chart-container">
+                                <canvas id="tts-latency-chart"></canvas>
+                            </div>
+                            <div class="metric-stats" id="tts-stats">
+                                <span class="stat">P50: <strong>--</strong>ms</span>
+                                <span class="stat">P95: <strong>--</strong>ms</span>
+                                <span class="stat">Avg: <strong>--</strong>ms</span>
+                            </div>
+                        </div>
+                        <!-- LLM Latency Chart -->
+                        <div class="metric-chart">
+                            <h4>🧠 LLM Latency</h4>
+                            <div class="chart-container">
+                                <canvas id="llm-latency-chart"></canvas>
+                            </div>
+                            <div class="metric-stats" id="llm-stats">
+                                <span class="stat">P50: <strong>--</strong>ms</span>
+                                <span class="stat">P95: <strong>--</strong>ms</span>
+                                <span class="stat">Avg: <strong>--</strong>ms</span>
+                            </div>
+                        </div>
+                        <!-- Pipeline Latency Chart -->
+                        <div class="metric-chart">
+                            <h4>⚡ Pipeline Total</h4>
+                            <div class="chart-container">
+                                <canvas id="pipeline-latency-chart"></canvas>
+                            </div>
+                            <div class="metric-stats" id="pipeline-stats">
+                                <span class="stat">P50: <strong>--</strong>ms</span>
+                                <span class="stat">P95: <strong>--</strong>ms</span>
+                                <span class="stat">Avg: <strong>--</strong>ms</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Log Stream -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <h3>📜 Log Stream</h3>
+                    <div class="card-actions">
+                        <select id="log-component-filter" class="filter-select">
+                            <option value="">All Components</option>
+                            <option value="stt">STT</option>
+                            <option value="tts">TTS</option>
+                            <option value="llm">LLM</option>
+                            <option value="memory">Memory</option>
+                            <option value="action">Action</option>
+                            <option value="ha">Home Assistant</option>
+                            <option value="system">System</option>
+                        </select>
+                        <select id="log-level-filter" class="filter-select">
+                            <option value="">All Levels</option>
+                            <option value="debug">Debug</option>
+                            <option value="info">Info</option>
+                            <option value="warn">Warning</option>
+                            <option value="error">Error</option>
+                        </select>
+                        <input type="text" id="log-search" class="filter-search" placeholder="🔍 Search logs...">
+                        <button class="btn btn-small" id="export-logs">📤 Export</button>
+                        <button class="btn btn-small" id="clear-logs">🗑️ Clear</button>
+                        <label class="toggle-label">
+                            <input type="checkbox" id="log-auto-scroll" checked> Auto-scroll
+                        </label>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="log-stream" id="log-stream">
+                        <div class="log-entry info">
+                            <span class="log-time">--:--:--</span>
+                            <span class="log-level info">INFO</span>
+                            <span class="log-component">system</span>
+                            <span class="log-message">Connecting to log stream...</span>
+                        </div>
                     </div>
                 </div>
             </div>
