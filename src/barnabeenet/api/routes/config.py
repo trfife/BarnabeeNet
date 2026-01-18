@@ -1375,15 +1375,16 @@ Select the best model for EACH activity. Return ONLY the JSON mapping."""
         )
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=90.0) as client:
             # Use a verified working model for the selection
-            # Priority: deepseek-r1 (good reasoning), llama-3.3-70b, mistral devstral, then any working
+            # Priority: llama-3.3-70b (reliable JSON), mistral devstral, gemma-3, deepseek-r1
+            # Note: DeepSeek R1 sometimes returns empty responses, so it's lower priority
             preferred_selectors = [
-                "deepseek/deepseek-r1-0528:free",
                 "meta-llama/llama-3.3-70b-instruct:free",
                 "mistralai/devstral-2512:free",
                 "google/gemma-3-27b-it:free",
                 "nvidia/nemotron-nano-9b-v2:free",
+                "deepseek/deepseek-r1-0528:free",
             ]
 
             selector_model = None
@@ -1429,9 +1430,37 @@ Select the best model for EACH activity. Return ONLY the JSON mapping."""
                 )
 
             data = response.json()
-            content = data["choices"][0]["message"]["content"]
+
+            # Log full response structure for debugging
+            logger.debug(f"Auto-select API response: {data}")
+
+            # Check for refusal or empty response
+            message = data.get("choices", [{}])[0].get("message", {})
+            if message.get("refusal"):
+                logger.error(f"Model refused: {message.get('refusal')}")
+                return AutoSelectResponse(
+                    success=False,
+                    recommendations={},
+                    reasoning={},
+                    error=f"Model refused: {message.get('refusal')}",
+                )
+
+            content = message.get("content", "") or ""
+
+            # If content is None or empty, check for reasoning field (some models)
+            if not content and "reasoning" in message:
+                logger.warning("Response has only reasoning, no content")
 
             logger.info(f"Auto-select raw response length: {len(content)}")
+
+            if not content:
+                logger.error(f"Empty response from model. Full message: {message}")
+                return AutoSelectResponse(
+                    success=False,
+                    recommendations={},
+                    reasoning={},
+                    error="Model returned empty response - may be rate limited or overloaded",
+                )
 
             # Parse JSON from response
             # Handle DeepSeek R1's <think> reasoning tokens
@@ -1480,7 +1509,9 @@ Select the best model for EACH activity. Return ONLY the JSON mapping."""
                         # Model not in working list, use a fallback
                         fallback = working_models[0].id
                         valid_recs[activity] = fallback
-                        reasoning[activity] = f"Fallback (requested {model_id} failed health check or unavailable)"
+                        reasoning[activity] = (
+                            f"Fallback (requested {model_id} failed health check or unavailable)"
+                        )
 
             # Fill any missing activities
             for activity in DEFAULT_ACTIVITY_CONFIGS:
