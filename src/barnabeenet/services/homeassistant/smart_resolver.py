@@ -387,6 +387,16 @@ class SmartEntityResolver:
         # Get entities
         all_domains = [domain] + self.get_alternative_domains(domain)
 
+        # Build list of search terms for entity name matching
+        # When searching by floor, we need the actual area names, not "downstairs"
+        name_search_terms: list[str] = []
+        if target_area_ids:
+            # Get actual area names for searching entity names/IDs
+            for area_id in target_area_ids:
+                name_search_terms.append(area_id)  # e.g., "living_room"
+                # Also add space version
+                name_search_terms.append(area_id.replace("_", " "))  # e.g., "living room"
+
         for dom in all_domains:
             if target_area_ids:
                 # First try: Get entities by area_id
@@ -398,19 +408,17 @@ class SmartEntityResolver:
 
                 # If no entities found by area_id, fall back to name matching
                 # Many entities have area in their name but area_id not set
-                if not result.entities and location:
-                    location_lower = location.lower()
+                if not result.entities and name_search_terms:
                     entities = self._ha.entities.get_by_domain(dom)
                     for entity in entities:
                         name_lower = entity.friendly_name.lower()
                         id_lower = entity.entity_id.lower()
-                        # Check if location appears in name or id
-                        if (
-                            location_lower in name_lower
-                            or location_lower.replace(" ", "_") in id_lower
-                        ):
-                            if entity not in result.entities:
-                                result.entities.append(entity)
+                        # Check if any area name appears in name or id
+                        for term in name_search_terms:
+                            if term.lower() in name_lower or term.lower() in id_lower:
+                                if entity not in result.entities:
+                                    result.entities.append(entity)
+                                break  # Found a match, no need to check other terms
             else:
                 # No specific area - get all entities of domain
                 # But check if location appears in entity name
