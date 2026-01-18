@@ -128,6 +128,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Make redis available on app.state for dependency injection
         app.state.redis = app_state.redis_client
         logger.info("Redis connected", url=settings.redis.url)
+
+        # Load activity config overrides from Redis
+        from barnabeenet.services.llm.activities import get_activity_config_manager
+
+        manager = get_activity_config_manager()
+        await manager.load_redis_overrides(app_state.redis_client)
     except Exception as e:
         logger.error("Redis connection failed", error=str(e))
         # Continue without Redis for now - not critical for Phase 1

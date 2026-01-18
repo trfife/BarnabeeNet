@@ -396,6 +396,47 @@ class ActivityConfigManager:
         """List all configured activities."""
         return list(self._configs.keys())
 
+    async def load_redis_overrides(self, redis_client: Any) -> None:
+        """Load activity config overrides from Redis.
+
+        Should be called during app startup after Redis is initialized.
+
+        Args:
+            redis_client: Async Redis client
+        """
+        import json
+
+        ACTIVITY_CONFIGS_KEY = "barnabeenet:activity_configs"
+
+        try:
+            overrides = await redis_client.hgetall(ACTIVITY_CONFIGS_KEY)
+            if not overrides:
+                logger.debug("No activity config overrides in Redis")
+                return
+
+            count = 0
+            for activity_name, override_json in overrides.items():
+                if activity_name not in self._configs:
+                    logger.warning(f"Unknown activity in Redis override: {activity_name}")
+                    continue
+
+                override = json.loads(override_json)
+                config = self._configs[activity_name]
+
+                if "model" in override:
+                    config.model = override["model"]
+                if "temperature" in override:
+                    config.temperature = override["temperature"]
+                if "max_tokens" in override:
+                    config.max_tokens = override["max_tokens"]
+
+                count += 1
+                logger.debug(f"Redis override: {activity_name} -> {override.get('model')}")
+
+            logger.info(f"Loaded {count} activity config overrides from Redis")
+        except Exception as e:
+            logger.error(f"Failed to load activity configs from Redis: {e}")
+
 
 # Global instance
 _activity_config_manager: ActivityConfigManager | None = None
