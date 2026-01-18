@@ -3519,6 +3519,7 @@ body {
         opacity: 0;
         transform: translateX(-50%) translateY(20px);
     }
+
     to {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
@@ -3684,4 +3685,3 @@ body {
     border-top: 1px solid var(--border-color);
     margin-top: 8px;
 }
-

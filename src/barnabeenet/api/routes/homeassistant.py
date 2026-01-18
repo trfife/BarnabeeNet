@@ -24,6 +24,13 @@ from barnabeenet.services.secrets import SecretsService, get_secrets_service
 
 logger = logging.getLogger(__name__)
 
+
+async def get_secrets(request: Request) -> SecretsService:
+    """Get secrets service with Redis from app state."""
+    redis = request.app.state.redis
+    return await get_secrets_service(redis)
+
+
 router = APIRouter(prefix="/homeassistant", tags=["Home Assistant"])
 
 # Redis keys for HA config
@@ -215,7 +222,8 @@ async def get_ha_config_from_redis(request: Request) -> dict[str, str]:
             if config_json:
                 config = json.loads(config_json)
                 # Decrypt token if we have secrets service
-                secrets_service = await get_secrets_service(request)
+                redis_client = request.app.state.redis
+                secrets_service = await get_secrets_service(redis_client)
                 if secrets_service and "token_encrypted" in config:
                     try:
                         config["token"] = await secrets_service.get_secret("ha_token")
@@ -854,7 +862,7 @@ async def get_ha_config(request: Request) -> dict[str, Any]:
 async def save_ha_config(
     request: Request,
     config: HAConfigRequest,
-    secrets_service: SecretsService = Depends(get_secrets_service),
+    secrets_service: SecretsService = Depends(get_secrets),
 ) -> HAConfigResponse:
     """Save Home Assistant configuration.
 

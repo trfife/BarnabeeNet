@@ -1839,18 +1839,18 @@ async function loadHAOverviewTab() {
             fetch(`${API_BASE}/api/v1/homeassistant/status`),
             fetch(`${API_BASE}/api/v1/homeassistant/overview`)
         ]);
-        
+
         const status = await statusRes.json();
         const overview = await overviewRes.json();
-        
+
         // Update discovery stats
-        document.getElementById('ha-last-sync').textContent = status.connected 
-            ? new Date().toLocaleTimeString() 
+        document.getElementById('ha-last-sync').textContent = status.connected
+            ? new Date().toLocaleTimeString()
             : 'Not connected';
         document.getElementById('ha-entity-count').textContent = overview.total_entities || 0;
         document.getElementById('ha-area-count').textContent = overview.total_areas || 0;
         document.getElementById('ha-device-count').textContent = overview.total_devices || 0;
-        
+
         // Update domain counts
         const domainCountsEl = document.getElementById('ha-domain-counts');
         if (overview.domains && Object.keys(overview.domains).length > 0) {
@@ -1864,10 +1864,10 @@ async function loadHAOverviewTab() {
                     </div>
                 `).join('');
         }
-        
+
         // Load recent HA activity from the main activity feed (filter for HA actions)
         loadRecentHAActivity();
-        
+
     } catch (e) {
         console.error('Failed to load HA overview:', e);
     }
@@ -1877,33 +1877,33 @@ async function loadHAOverviewTab() {
 async function loadRecentHAActivity() {
     const container = document.getElementById('ha-recent-activity');
     if (!container) return;
-    
+
     try {
         // Get activity from dashboard activity feed filtered for HA
         const response = await fetch(`${API_BASE}/api/v1/dashboard/activity?limit=10`);
         const data = await response.json();
-        
+
         // Filter for HA-related activity
-        const haActivity = (data.items || []).filter(item => 
-            item.type?.includes('ha_') || 
+        const haActivity = (data.items || []).filter(item =>
+            item.type?.includes('ha_') ||
             item.type?.includes('homeassistant') ||
             item.message?.toLowerCase().includes('home assistant') ||
             item.message?.toLowerCase().includes('light') ||
             item.message?.toLowerCase().includes('switch')
         );
-        
+
         if (haActivity.length === 0) {
             container.innerHTML = '<p class="text-muted">No recent Home Assistant activity. Talk to Barnabee to control your home!</p>';
             return;
         }
-        
+
         container.innerHTML = haActivity.map(item => `
             <div class="ha-activity-item">
                 <span class="activity-time">${formatActivityTime(item.timestamp)}</span>
                 <span class="activity-message">${escapeHtml(item.message || item.type)}</span>
             </div>
         `).join('');
-        
+
     } catch (e) {
         console.error('Failed to load HA activity:', e);
         container.innerHTML = '<p class="text-muted">Failed to load activity</p>';
@@ -1914,17 +1914,17 @@ async function loadRecentHAActivity() {
 async function loadHAActivityTab() {
     const container = document.getElementById('ha-activity-log');
     if (!container) return;
-    
+
     container.innerHTML = '<div class="loading-spinner">Loading activity...</div>';
-    
+
     try {
         // Get activity from dashboard
         const response = await fetch(`${API_BASE}/api/v1/dashboard/activity?limit=50`);
         const data = await response.json();
-        
+
         // Filter for HA-related activity
-        const haActivity = (data.items || []).filter(item => 
-            item.type?.includes('ha_') || 
+        const haActivity = (data.items || []).filter(item =>
+            item.type?.includes('ha_') ||
             item.type?.includes('homeassistant') ||
             item.type?.includes('action') ||
             item.message?.toLowerCase().includes('home assistant') ||
@@ -1932,7 +1932,7 @@ async function loadHAActivityTab() {
             item.message?.toLowerCase().includes('switch') ||
             item.message?.toLowerCase().includes('turn')
         );
-        
+
         if (haActivity.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
@@ -1942,7 +1942,7 @@ async function loadHAActivityTab() {
             `;
             return;
         }
-        
+
         container.innerHTML = haActivity.map(item => `
             <div class="ha-activity-log-item ${item.type?.includes('error') ? 'error' : ''}">
                 <div class="activity-log-header">
@@ -1953,7 +1953,7 @@ async function loadHAActivityTab() {
                 ${item.data ? `<div class="activity-log-data">${JSON.stringify(item.data, null, 2)}</div>` : ''}
             </div>
         `).join('');
-        
+
     } catch (e) {
         console.error('Failed to load HA activity log:', e);
         container.innerHTML = '<div class="empty-state"><p class="text-muted">Failed to load activity</p></div>';
@@ -1979,7 +1979,7 @@ document.getElementById('ha-sync-now')?.addEventListener('click', async () => {
     const btn = document.getElementById('ha-sync-now');
     btn.disabled = true;
     btn.textContent = '⏳ Syncing...';
-    
+
     try {
         await fetch(`${API_BASE}/api/v1/homeassistant/refresh`, { method: 'POST' });
         await loadHAOverviewTab();
@@ -2200,18 +2200,18 @@ function renderEntityCard(entity) {
 
     // Build info section based on domain (read-only display)
     let extraInfo = '';
-    
+
     if (entity.domain === 'light' && entity.is_on && attrs.brightness) {
         const percent = Math.round((attrs.brightness / 255) * 100);
         extraInfo = `<div class="entity-extra">Brightness: ${percent}%</div>`;
     }
-    
+
     if (entity.domain === 'climate') {
         const currentTemp = attrs.current_temperature || '--';
         const targetTemp = attrs.temperature || '--';
         extraInfo = `<div class="entity-extra">Current: ${currentTemp}° | Target: ${targetTemp}°</div>`;
     }
-    
+
     if (entity.domain === 'sensor') {
         const unit = attrs.unit_of_measurement || '';
         extraInfo = `<div class="entity-extra">${entity.state}${unit}</div>`;
@@ -2396,7 +2396,7 @@ async function callService(service, entityId, data = {}) {
 async function setBrightness(entityId, percent) {
     const brightness = Math.round((parseInt(percent) / 100) * 255);
     await callService('light.turn_on', entityId, { brightness: brightness });
-    
+
     // Update display immediately
     const slider = document.querySelector(`[data-entity="${entityId}"].brightness-slider`);
     if (slider) {
@@ -2408,7 +2408,7 @@ async function setBrightness(entityId, percent) {
 // Color temperature control
 async function setColorTemp(entityId, kelvin) {
     await callService('light.turn_on', entityId, { color_temp_kelvin: parseInt(kelvin) });
-    
+
     // Update display
     const slider = document.querySelector(`[data-entity="${entityId}"].color-temp-slider`);
     if (slider) {
@@ -2423,10 +2423,10 @@ async function adjustClimate(entityId, delta) {
         // First get current temperature
         const response = await fetch(`${API_BASE}/api/v1/homeassistant/entities/${entityId}`);
         const entity = await response.json();
-        
+
         const currentTarget = entity.attributes?.temperature || 20;
         const newTarget = currentTarget + delta;
-        
+
         await callService('climate.set_temperature', entityId, { temperature: newTarget });
     } catch (e) {
         console.error('Climate adjustment failed:', e);
@@ -2452,10 +2452,10 @@ async function setVolume(entityId, percent) {
 // Show entity context menu
 function showEntityMenu(entityId, event) {
     event.stopPropagation();
-    
+
     // Remove any existing menu
     document.querySelectorAll('.entity-context-menu').forEach(m => m.remove());
-    
+
     const menu = document.createElement('div');
     menu.className = 'entity-context-menu';
     menu.innerHTML = `
@@ -2463,15 +2463,15 @@ function showEntityMenu(entityId, event) {
         <button onclick="showServiceCallDialog('${entityId}')">⚙️ Call Service</button>
         <button onclick="copyEntityId('${entityId}')">📋 Copy ID</button>
     `;
-    
+
     // Position near the button
     const rect = event.target.getBoundingClientRect();
     menu.style.position = 'fixed';
     menu.style.top = `${rect.bottom + 5}px`;
     menu.style.right = `${window.innerWidth - rect.right}px`;
-    
+
     document.body.appendChild(menu);
-    
+
     // Close on click outside
     setTimeout(() => {
         document.addEventListener('click', function closeMenu() {
@@ -2498,7 +2498,7 @@ async function showEntityDetails(entityId) {
     try {
         const response = await fetch(`${API_BASE}/api/v1/homeassistant/entities/${entityId}`);
         const entity = await response.json();
-        
+
         const modal = document.createElement('div');
         modal.className = 'modal';
         modal.style.display = 'flex';
@@ -2540,9 +2540,9 @@ async function showEntityDetails(entityId) {
                 </div>
             </div>
         `;
-        
+
         document.body.appendChild(modal);
-        
+
         modal.querySelector('.close-modal').addEventListener('click', () => modal.remove());
         modal.addEventListener('click', (e) => {
             if (e.target === modal) modal.remove();
@@ -2590,9 +2590,9 @@ function showServiceCallDialog(entityId) {
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(modal);
-    
+
     modal.querySelector('.close-modal').addEventListener('click', () => modal.remove());
     modal.addEventListener('click', (e) => {
         if (e.target === modal) modal.remove();
@@ -2605,12 +2605,12 @@ async function executeServiceCall() {
     const service = document.getElementById('service-name').value;
     const dataStr = document.getElementById('service-data').value;
     const resultDiv = document.getElementById('service-call-result');
-    
+
     if (!service) {
         resultDiv.innerHTML = '<div class="test-result error">Please enter a service name</div>';
         return;
     }
-    
+
     let data = {};
     try {
         data = JSON.parse(dataStr);
@@ -2618,11 +2618,11 @@ async function executeServiceCall() {
         resultDiv.innerHTML = '<div class="test-result error">Invalid JSON data</div>';
         return;
     }
-    
+
     resultDiv.innerHTML = '<div class="test-result">Calling service...</div>';
-    
+
     const result = await callService(service, entityId, data);
-    
+
     if (result.success) {
         resultDiv.innerHTML = `<div class="test-result success">✓ ${result.message || 'Service called successfully'}</div>`;
     } else {
@@ -2639,20 +2639,20 @@ async function areaLightsOn(areaId) {
     const btn = event.target;
     btn.disabled = true;
     btn.textContent = '⏳';
-    
+
     try {
         // Get all entities in this area
         const response = await fetch(`${API_BASE}/api/v1/homeassistant/entities?area=${areaId}`);
         const data = await response.json();
-        
+
         // Filter for lights
         const lights = data.entities.filter(e => e.domain === 'light');
-        
+
         // Turn them all on
         for (const light of lights) {
             await callService('light.turn_on', light.entity_id);
         }
-        
+
         // Show success toast
         showToast(`💡 Turned on ${lights.length} lights`);
     } catch (e) {
@@ -2669,20 +2669,20 @@ async function areaLightsOff(areaId) {
     const btn = event.target;
     btn.disabled = true;
     btn.textContent = '⏳';
-    
+
     try {
         // Get all entities in this area
         const response = await fetch(`${API_BASE}/api/v1/homeassistant/entities?area=${areaId}`);
         const data = await response.json();
-        
+
         // Filter for lights
         const lights = data.entities.filter(e => e.domain === 'light');
-        
+
         // Turn them all off
         for (const light of lights) {
             await callService('light.turn_off', light.entity_id);
         }
-        
+
         // Show success toast
         showToast(`🌙 Turned off ${lights.length} lights`);
     } catch (e) {
@@ -2699,11 +2699,11 @@ async function showAreaEntities(areaId, areaName) {
     try {
         const response = await fetch(`${API_BASE}/api/v1/homeassistant/entities?area=${areaId}`);
         const data = await response.json();
-        
+
         const modal = document.createElement('div');
         modal.className = 'modal';
         modal.style.display = 'flex';
-        
+
         let entitiesHtml = '';
         if (data.entities.length === 0) {
             entitiesHtml = '<p class="text-muted">No entities in this area</p>';
@@ -2714,7 +2714,7 @@ async function showAreaEntities(areaId, areaName) {
                 if (!byDomain[e.domain]) byDomain[e.domain] = [];
                 byDomain[e.domain].push(e);
             });
-            
+
             for (const [domain, entities] of Object.entries(byDomain)) {
                 entitiesHtml += `
                     <div class="area-domain-group">
@@ -2736,7 +2736,7 @@ async function showAreaEntities(areaId, areaName) {
                 `;
             }
         }
-        
+
         modal.innerHTML = `
             <div class="modal-content modal-large">
                 <div class="modal-header">
@@ -2754,9 +2754,9 @@ async function showAreaEntities(areaId, areaName) {
                 </div>
             </div>
         `;
-        
+
         document.body.appendChild(modal);
-        
+
         modal.querySelector('.close-modal').addEventListener('click', () => modal.remove());
         modal.addEventListener('click', (e) => {
             if (e.target === modal) modal.remove();
