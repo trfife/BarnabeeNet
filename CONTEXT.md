@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (Model Health Check + AI Auto-Selection features!)
+2026-01-18 (Model Health Check + AI Auto-Selection + Multi-Provider Support!)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + DASHBOARD ENHANCEMENT
@@ -84,6 +84,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Smart Entity Resolution** - SmartEntityResolver class for intelligent batch operations. Features: (1) Area/room aliases ("living room" → living_room), (2) Floor-based commands ("lights downstairs" → all first floor lights), (3) Area groups ("kids rooms" → boys_room + girls_room + playroom), (4) Device type synonyms (blinds → cover, lights → light), (5) Cross-domain matching (searches switch domain for light commands since many lights are controlled by switches), (6) Word boundary matching to prevent false positives. Supports commands like "turn off all the lights downstairs", "close all the blinds in the living room", "open blinds in the girls room".
 - [x] **Model Health Check** - API endpoint `/api/v1/config/models/health-check/{model_id}` tests if a model actually works (makes minimal test call). Batch endpoint `/api/v1/config/models/health-check-free` checks top free models. Results cached for 10 minutes. Health status endpoint `/api/v1/config/models/health-status` returns all cached results. Dashboard button "🩺 Health Check" shows working vs failed models with latency. Helps identify broken models in OpenRouter's list.
 - [x] **AI Model Auto-Selection** - AI-powered optimal model selection for all activities. Endpoint `/api/v1/config/activities/auto-select` uses AI to analyze each activity's priority (speed/accuracy/quality/balanced) and description, then recommends best available free model. `/api/v1/config/activities/auto-select/apply` applies recommendations to Redis. Dashboard button "🤖 Auto-Select" triggers AI selection with confirmation. Uses qwen/qwen3-coder:free for free-only mode.
+- [x] **Enhanced Model Health & Multi-Provider** - Models failing health check are hidden from dropdowns by default. Model list fetches from ALL configured providers (not just OpenRouter). Provider badge shows which system each model comes from (OpenRouter, OpenAI, Anthropic, etc.). Hourly background health check runs automatically. Health status API shows next scheduled check time. Working models sorted to top of dropdown. Verified working count shown in model summary.
 
 ### In Progress
 - [ ] Dashboard Phase 6: Voice input in Chat tab (microphone)
