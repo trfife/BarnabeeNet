@@ -1,0 +1,14 @@
+# Grafana dashboard provisioning for BarnabeeNet
+apiVersion: 1
+
+providers:
+  - name: "BarnabeeNet"
+    orgId: 1
+    folder: "BarnabeeNet"
+    folderUid: "barnabeenet"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

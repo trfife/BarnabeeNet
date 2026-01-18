@@ -105,6 +105,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         env=settings.env,
     )
 
+    # Initialize Prometheus metrics
+    from barnabeenet.services.metrics import init_metrics
+
+    init_metrics(version=__version__, env=settings.env)
+
     # Initialize Redis connection
     try:
         import redis.asyncio as redis
@@ -266,10 +271,12 @@ def create_app() -> FastAPI:
 
 def _register_routes(app: FastAPI) -> None:
     """Register API routes."""
-    from barnabeenet.api.routes import health, voice
+    from barnabeenet.api.routes import dashboard, health, metrics, voice
 
     app.include_router(health.router, tags=["Health"])
     app.include_router(voice.router, prefix="/api/v1", tags=["Voice"])
+    app.include_router(dashboard.router, prefix="/api/v1", tags=["Dashboard"])
+    app.include_router(metrics.router, tags=["Metrics"])
 
 
 # Create app instance
