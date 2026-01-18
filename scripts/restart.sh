@@ -15,6 +15,12 @@ NC='\033[0m'
 
 cd "$PROJECT_DIR"
 
+# NixOS dynamic linking fix - find libstdc++ from gcc package
+# This is needed for Python packages with native extensions
+if [ -f /etc/NIXOS ]; then
+    export LD_LIBRARY_PATH="$(nix-build '<nixpkgs>' -A stdenv.cc.cc.lib --no-out-link 2>/dev/null)/lib:${LD_LIBRARY_PATH:-}"
+fi
+
 echo -e "${YELLOW}🔄 Restarting BarnabeeNet services${NC}"
 echo "================================"
 
@@ -65,17 +71,26 @@ if [ -d ".venv" ]; then
         sleep 2
     fi
     
+    # Ensure logs directory exists
+    mkdir -p logs
+    
+    # Build the startup command with proper env for NixOS
+    START_CMD="cd $PROJECT_DIR && source .venv/bin/activate"
+    if [ -n "$LD_LIBRARY_PATH" ]; then
+        START_CMD="export LD_LIBRARY_PATH='$LD_LIBRARY_PATH' && $START_CMD"
+    fi
+    START_CMD="$START_CMD && python -m uvicorn barnabeenet.main:app --host 0.0.0.0 --port 8000 2>&1 | tee logs/barnabeenet.log"
+    
     # Start with tmux or nohup (tmux preferred, nohup as fallback)
     echo "Starting BarnabeeNet in background..."
     if command -v tmux &> /dev/null; then
         # Kill existing tmux session if exists
         tmux kill-session -t barnabeenet 2>/dev/null || true
-        tmux new-session -d -s barnabeenet "cd $PROJECT_DIR && source .venv/bin/activate && python -m uvicorn barnabeenet.main:app --host 0.0.0.0 --port 8000 2>&1 | tee logs/barnabeenet.log"
+        tmux new-session -d -s barnabeenet "$START_CMD"
         ATTACH_CMD="tmux attach -t barnabeenet"
     else
         # Fallback to nohup
-        mkdir -p logs
-        nohup bash -c "cd $PROJECT_DIR && source .venv/bin/activate && python -m uvicorn barnabeenet.main:app --host 0.0.0.0 --port 8000" > logs/barnabeenet.log 2>&1 &
+        nohup bash -c "$START_CMD" &
         ATTACH_CMD="tail -f logs/barnabeenet.log"
     fi
     
