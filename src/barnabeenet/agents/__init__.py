@@ -1,6 +1,6 @@
 """Agent package for BarnabeeNet.
 
-Contains agent interfaces, simple local agents, and manager.
+Contains agent interfaces, simple local agents, manager, and orchestrator.
 """
 
 from .action import ActionAgent, ActionSpec, ActionType, DeviceDomain
@@ -31,6 +31,13 @@ from .meta import (
     MetaAgentConfig,
     UrgencyLevel,
 )
+from .orchestrator import (
+    AgentOrchestrator,
+    OrchestratorConfig,
+    RequestContext,
+    get_orchestrator,
+    process_request,
+)
 
 __all__ = [
     "ActionAgent",
@@ -57,5 +64,10 @@ __all__ = [
     "MemoryType",
     "MetaAgent",
     "MetaAgentConfig",
+    "OrchestratorConfig",
+    "AgentOrchestrator",
+    "RequestContext",
     "UrgencyLevel",
+    "get_orchestrator",
+    "process_request",
 ]
