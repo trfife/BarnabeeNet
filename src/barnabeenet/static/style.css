@@ -4367,3 +4367,96 @@ body {
     overflow-y: auto;
     margin: 0;
 }
+
+/* LLM Details Section */
+.llm-model {
+    color: var(--accent-primary);
+    font-weight: 600;
+}
+
+.llm-messages-section,
+.llm-response-section {
+    margin-top: 16px;
+}
+
+.llm-messages-section h5,
+.llm-response-section h5 {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0 0 8px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.llm-messages-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.llm-message {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 12px;
+    border-left: 3px solid var(--border-color);
+}
+
+.llm-message.msg-system {
+    border-left-color: var(--accent-secondary);
+}
+
+.llm-message.msg-user {
+    border-left-color: var(--accent-primary);
+}
+
+.llm-message.msg-assistant {
+    border-left-color: var(--accent-success);
+}
+
+.llm-message-role {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.llm-message.msg-system .llm-message-role {
+    color: var(--accent-secondary);
+}
+
+.llm-message.msg-user .llm-message-role {
+    color: var(--accent-primary);
+}
+
+.llm-message.msg-assistant .llm-message-role {
+    color: var(--accent-success);
+}
+
+.llm-message-content {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.llm-response-content {
+    background: var(--bg-primary);
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+}

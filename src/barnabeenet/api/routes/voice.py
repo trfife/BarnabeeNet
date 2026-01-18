@@ -12,6 +12,7 @@ from barnabeenet.config import get_settings
 from barnabeenet.models.schemas import (
     AudioFormat,
     ErrorDetail,
+    LLMDetails,
     STTEngine,
     SynthesizeRequest,
     SynthesizeResponse,
@@ -299,6 +300,20 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
             success=True,
         )
 
+        # Build LLM details if available
+        llm_details_raw = orchestrator_resp.get("llm_details")
+        llm_details = None
+        if llm_details_raw:
+            llm_details = LLMDetails(
+                model=llm_details_raw.get("model"),
+                input_tokens=llm_details_raw.get("input_tokens"),
+                output_tokens=llm_details_raw.get("output_tokens"),
+                cost_usd=llm_details_raw.get("cost_usd"),
+                llm_latency_ms=llm_details_raw.get("llm_latency_ms"),
+                messages_sent=llm_details_raw.get("messages_sent"),
+                response_text=llm_details_raw.get("response_text"),
+            )
+
         return TextProcessResponse(
             text=request.text,
             response=response_text,
@@ -311,6 +326,7 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
             memories_retrieved=orchestrator_resp.get("memories_retrieved", 0),
             memories_stored=orchestrator_resp.get("memories_stored", 0),
             actions=orchestrator_resp.get("actions", []),
+            llm_details=llm_details,
         )
 
     except Exception as e:

@@ -397,7 +397,9 @@ class SmartEntityResolver:
                 name_search_terms.append(area_id.replace("_", " "))  # e.g., "living room"
 
         # Helper to check if entity matches device type (used for alternative domains)
-        def entity_matches_device_type(entity: Entity, device_type: str, target_domain: str) -> bool:
+        def entity_matches_device_type(
+            entity: Entity, device_type: str, target_domain: str
+        ) -> bool:
             """Check if entity likely represents the requested device type.
 
             For primary domains (light, cover, etc.), we trust the domain.

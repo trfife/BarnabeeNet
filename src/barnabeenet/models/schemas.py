@@ -237,6 +237,20 @@ class TextProcessRequest(BaseModel):
         }
 
 
+class LLMDetails(BaseModel):
+    """Details about the LLM call made during processing."""
+
+    model: str | None = Field(default=None, description="Model used for LLM call")
+    input_tokens: int | None = Field(default=None, description="Input token count")
+    output_tokens: int | None = Field(default=None, description="Output token count")
+    cost_usd: float | None = Field(default=None, description="Estimated cost in USD")
+    llm_latency_ms: float | None = Field(default=None, description="LLM call latency in ms")
+    messages_sent: list[dict] | None = Field(
+        default=None, description="Messages sent to LLM (system, user, etc.)"
+    )
+    response_text: str | None = Field(default=None, description="Raw response from LLM")
+
+
 class TextProcessResponse(BaseModel):
     """Response from text-only processing."""
 
@@ -253,6 +267,9 @@ class TextProcessResponse(BaseModel):
     actions: list[dict] = Field(
         default_factory=list, description="Actions taken (for action intents)"
     )
+    llm_details: LLMDetails | None = Field(
+        default=None, description="Details about LLM call made during processing"
+    )
 
     class Config:
         json_schema_extra = {
@@ -264,6 +281,12 @@ class TextProcessResponse(BaseModel):
                 "trace_id": "abc123",
                 "latency_ms": 850.5,
                 "total_latency_ms": 852.1,
+                "llm_details": {
+                    "model": "anthropic/claude-3.5-sonnet",
+                    "input_tokens": 150,
+                    "output_tokens": 50,
+                    "cost_usd": 0.0012,
+                },
             }
         }
 

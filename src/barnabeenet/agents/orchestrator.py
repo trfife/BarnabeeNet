@@ -969,6 +969,7 @@ class AgentOrchestrator:
             "actions": ctx.actions_taken,
             "memories_used": len(ctx.retrieved_memories),
             "timings": ctx.stage_timings,
+            "llm_details": ctx.agent_response.get("llm_details") if ctx.agent_response else None,
         }
 
     # Convenience methods for direct agent access

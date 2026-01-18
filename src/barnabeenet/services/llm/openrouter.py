@@ -262,7 +262,9 @@ class OpenRouterClient:
             if mapped_activity:
                 activity_config = get_activity_config(mapped_activity)
                 actual_model = model or activity_config.model
-                actual_temp = temperature if temperature is not None else activity_config.temperature
+                actual_temp = (
+                    temperature if temperature is not None else activity_config.temperature
+                )
                 actual_max_tokens = max_tokens or activity_config.max_tokens
                 config_top_p = activity_config.top_p
                 config_freq_penalty = activity_config.frequency_penalty

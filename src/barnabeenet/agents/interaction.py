@@ -206,8 +206,11 @@ class InteractionAgent(Agent):
         conv_ctx.children_present = children_present
 
         # Generate response
+        llm_details = None
         if self._llm_client:
-            response_text = await self._generate_llm_response(text, conv_ctx, ctx)
+            llm_result = await self._generate_llm_response(text, conv_ctx, ctx)
+            response_text = llm_result["text"]
+            llm_details = llm_result.get("llm_details")
         else:
             response_text = self._generate_fallback_response(text, conv_ctx)
 
@@ -230,6 +233,7 @@ class InteractionAgent(Agent):
             "used_llm": self._llm_client is not None,
             "child_mode": children_present,
             "latency_ms": latency_ms,
+            "llm_details": llm_details,
         }
 
     def _get_or_create_context(self, ctx: dict[str, Any]) -> ConversationContext:
@@ -338,8 +342,16 @@ class InteractionAgent(Agent):
         text: str,
         conv_ctx: ConversationContext,
         user_ctx: dict[str, Any],
-    ) -> str:
-        """Generate response using LLM."""
+    ) -> dict[str, Any]:
+        """Generate response using LLM.
+
+        Returns:
+            Dict with:
+                - text: Response text
+                - llm_details: Dict with model, tokens, cost, messages, response
+        """
+        assert self._llm_client is not None  # Caller checks this
+
         system_prompt = self._build_system_prompt(conv_ctx, user_ctx)
         messages = self._build_messages(text, conv_ctx, system_prompt)
 
@@ -365,11 +377,28 @@ class InteractionAgent(Agent):
             if conv_ctx.children_present:
                 response_text = self._truncate_for_children(response_text)
 
-            return response_text
+            # Build LLM details for debugging
+            llm_details = {
+                "model": response.model,
+                "input_tokens": response.input_tokens,
+                "output_tokens": response.output_tokens,
+                "cost_usd": response.cost_usd,
+                "llm_latency_ms": response.latency_ms,
+                "messages_sent": [
+                    {
+                        "role": m.role,
+                        "content": m.content[:500] + "..." if len(m.content) > 500 else m.content,
+                    }
+                    for m in messages
+                ],
+                "response_text": response.text,
+            }
+
+            return {"text": response_text, "llm_details": llm_details}
 
         except Exception as e:
             logger.error(f"LLM request failed: {e}")
-            return self._generate_fallback_response(text, conv_ctx)
+            return {"text": self._generate_fallback_response(text, conv_ctx), "llm_details": None}
 
     def _truncate_for_children(self, text: str) -> str:
         """Truncate response for child-appropriate length."""

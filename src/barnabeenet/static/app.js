@@ -3903,6 +3903,7 @@ function showChatResponseDetails(data) {
     const latency = data.latency_ms?.toFixed(1) || data.total_latency_ms?.toFixed(1) || '?';
     const traceId = data.trace_id || 'N/A';
     const actions = data.actions || [];
+    const llmDetails = data.llm_details || null;
     
     let actionsHtml = '';
     if (actions.length > 0) {
@@ -3957,6 +3958,68 @@ function showChatResponseDetails(data) {
         `;
     }
     
+    // Build LLM details section
+    let llmHtml = '';
+    if (llmDetails) {
+        const model = llmDetails.model || 'Unknown';
+        const inputTokens = llmDetails.input_tokens ?? 'N/A';
+        const outputTokens = llmDetails.output_tokens ?? 'N/A';
+        const cost = llmDetails.cost_usd ? `$${llmDetails.cost_usd.toFixed(6)}` : 'N/A';
+        const llmLatency = llmDetails.llm_latency_ms ? `${llmDetails.llm_latency_ms.toFixed(1)}ms` : 'N/A';
+        const messages = llmDetails.messages_sent || [];
+        const responseText = llmDetails.response_text || '';
+        
+        let messagesHtml = messages.map(msg => {
+            const role = msg.role || 'unknown';
+            const content = msg.content || '';
+            const roleClass = role === 'system' ? 'msg-system' : role === 'user' ? 'msg-user' : 'msg-assistant';
+            return `
+                <div class="llm-message ${roleClass}">
+                    <div class="llm-message-role">${role}</div>
+                    <pre class="llm-message-content">${escapeHtml(content)}</pre>
+                </div>
+            `;
+        }).join('');
+        
+        llmHtml = `
+            <div class="detail-section">
+                <h4>🤖 LLM Details</h4>
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <span class="detail-label">Model</span>
+                        <span class="detail-value llm-model">${model}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Input Tokens</span>
+                        <span class="detail-value">${inputTokens}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Output Tokens</span>
+                        <span class="detail-value">${outputTokens}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Cost</span>
+                        <span class="detail-value">${cost}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">LLM Latency</span>
+                        <span class="detail-value">${llmLatency}</span>
+                    </div>
+                </div>
+                <div class="llm-messages-section">
+                    <h5>📤 Messages Sent</h5>
+                    <div class="llm-messages-container">
+                        ${messagesHtml}
+                    </div>
+                </div>
+                <div class="llm-response-section">
+                    <h5>📥 LLM Response</h5>
+                    <pre class="llm-response-content">${escapeHtml(responseText)}</pre>
+                </div>
+            </div>
+        `;
+    }
+    
     modal.innerHTML = `
         <div class="chat-details-content">
             <div class="chat-details-header">
@@ -3986,6 +4049,7 @@ function showChatResponseDetails(data) {
                     </div>
                 </div>
                 ${actionsHtml}
+                ${llmHtml}
                 <div class="detail-section">
                     <h4>📄 Full Response</h4>
                     <pre class="json-response">${JSON.stringify(data, null, 2)}</pre>
@@ -3995,4 +4059,10 @@ function showChatResponseDetails(data) {
     `;
     
     document.body.appendChild(modal);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
