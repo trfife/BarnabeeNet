@@ -54,7 +54,7 @@ class InstantAgent(Agent):
         ],
         "afternoon": [
             "Good afternoon{name}! How can I help?",
-            "Hello{name}! What can I do for you?",
+            "Good afternoon{name}! What can I do for you?",
             "Afternoon{name}! How may I assist?",
         ],
         "evening": [

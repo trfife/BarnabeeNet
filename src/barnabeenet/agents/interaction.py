@@ -1,0 +1,438 @@
+"""Interaction Agent - Complex multi-turn conversations.
+
+The Interaction Agent handles complex conversations that require:
+- Multi-turn dialogue with context retention
+- LLM-powered responses with the Barnabee persona
+- Memory retrieval for personalization
+- Family-aware and child-appropriate responses
+
+This is the "personality" agent - it uses the highest quality model
+for engaging, helpful, and contextually appropriate responses.
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
+
+from barnabeenet.agents.base import Agent
+from barnabeenet.services.llm.openrouter import ChatMessage, OpenRouterClient
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ConversationTurn:
+    """A single turn in a conversation."""
+
+    role: str  # "user" or "assistant"
+    content: str
+    timestamp: datetime = field(default_factory=datetime.now)
+    speaker: str | None = None  # Family member ID if known
+
+
+@dataclass
+class ConversationContext:
+    """Context for a conversation."""
+
+    conversation_id: str | None = None
+    speaker: str | None = None  # Family member ID
+    room: str | None = None  # Room location
+    history: list[ConversationTurn] = field(default_factory=list)
+    retrieved_memories: list[str] = field(default_factory=list)
+    meta_context: dict[str, Any] | None = None  # From MetaAgent
+    time_of_day: str = "day"  # morning, afternoon, evening, night
+    children_present: bool = False  # For child-appropriate responses
+
+
+@dataclass
+class InteractionConfig:
+    """Configuration for the Interaction Agent."""
+
+    # Conversation settings
+    max_history_turns: int = 10  # Keep last N turns in context
+    max_memories: int = 5  # Max retrieved memories to include
+
+    # Persona settings
+    persona_name: str = "Barnabee"
+    persona_style: str = "friendly British butler"
+
+    # Response settings
+    max_response_length: int = 300  # Characters, for speech appropriateness
+    child_mode_max_words: int = 50  # Shorter responses for children
+
+    # Child family members (for age-appropriate filtering)
+    child_members: frozenset[str] = frozenset({"penelope", "xander", "zachary", "viola"})
+
+
+# Barnabee's core persona - injected into system prompt
+BARNABEE_PERSONA = """You are Barnabee, the AI assistant for the Fife family household.
+
+## Your Personality
+- A friendly, warm British butler with a gentle wit
+- Patient and helpful, especially with children
+- Occasionally uses bee-themed wordplay, but subtly
+- Professional yet approachable
+- Knowledgeable about the home's systems and family routines
+
+## Communication Style
+- Keep responses concise for voice interaction (2-3 sentences typically)
+- Be conversational, not robotic
+- Use the speaker's name occasionally for warmth
+- Match energy: if they're excited, share it; if tired, be calm
+- For children, use simpler language and shorter sentences
+
+## Guidelines
+- Never reveal you're an AI unless directly asked
+- Don't over-explain or be verbose - this is for speech
+- If unsure, ask for clarification rather than guessing
+- Remember family context when relevant
+- Be helpful but respect privacy boundaries"""
+
+# Time-of-day greetings for natural conversation
+TIME_GREETINGS = {
+    "morning": "this fine morning",
+    "afternoon": "this afternoon",
+    "evening": "this evening",
+    "night": "at this late hour",
+}
+
+
+class InteractionAgent(Agent):
+    """Agent for complex multi-turn conversations.
+
+    Uses LLM (Claude/GPT-4) for high-quality conversational responses.
+    Integrates with memory retrieval for personalization.
+    """
+
+    name = "interaction"
+
+    def __init__(
+        self,
+        llm_client: OpenRouterClient | None = None,
+        config: InteractionConfig | None = None,
+    ) -> None:
+        """Initialize the Interaction Agent.
+
+        Args:
+            llm_client: Optional OpenRouter client. If not provided,
+                will attempt to create from environment.
+            config: Optional configuration overrides.
+        """
+        self._llm_client = llm_client
+        self._owns_client = llm_client is None
+        self.config = config or InteractionConfig()
+        self._conversations: dict[str, ConversationContext] = {}
+        self._initialized = False
+
+    async def init(self) -> None:
+        """Initialize the agent."""
+        if self._initialized:
+            return
+
+        if self._llm_client is None:
+            import os
+
+            api_key = os.environ.get("LLM_OPENROUTER_API_KEY")
+            if api_key:
+                self._llm_client = OpenRouterClient(api_key=api_key)
+                await self._llm_client.init()
+                logger.info("InteractionAgent created LLM client from environment")
+            else:
+                logger.warning(
+                    "No LLM client provided and LLM_OPENROUTER_API_KEY not set. "
+                    "Agent will return fallback responses."
+                )
+
+        self._initialized = True
+        logger.info("InteractionAgent initialized")
+
+    async def shutdown(self) -> None:
+        """Clean up resources."""
+        if self._owns_client and self._llm_client:
+            await self._llm_client.shutdown()
+        self._conversations.clear()
+        self._initialized = False
+        logger.info("InteractionAgent shutdown")
+
+    async def handle_input(
+        self, text: str, context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Handle a conversation message.
+
+        Args:
+            text: User's message
+            context: Additional context including:
+                - conversation_id: ID for conversation tracking
+                - speaker: Family member ID
+                - room: Room location
+                - retrieved_memories: Pre-retrieved memories
+                - meta_context: Context from MetaAgent
+                - emotional_tone: Detected emotional tone
+                - children_present: Whether children are in the room
+
+        Returns:
+            Dict with response and metadata
+        """
+        start_time = time.perf_counter()
+        ctx = context or {}
+
+        # Build conversation context
+        conv_ctx = self._get_or_create_context(ctx)
+
+        # Add the user's message to history
+        conv_ctx.history.append(
+            ConversationTurn(
+                role="user",
+                content=text,
+                speaker=conv_ctx.speaker,
+            )
+        )
+
+        # Check for child-appropriate mode
+        is_child = conv_ctx.speaker in self.config.child_members
+        children_present = ctx.get("children_present", False) or is_child
+        conv_ctx.children_present = children_present
+
+        # Generate response
+        if self._llm_client:
+            response_text = await self._generate_llm_response(text, conv_ctx, ctx)
+        else:
+            response_text = self._generate_fallback_response(text, conv_ctx)
+
+        # Add assistant response to history
+        conv_ctx.history.append(ConversationTurn(role="assistant", content=response_text))
+
+        # Trim history if needed (after both user and assistant turns added)
+        max_len = self.config.max_history_turns * 2
+        if len(conv_ctx.history) > max_len:
+            conv_ctx.history = conv_ctx.history[-max_len:]
+
+        latency_ms = (time.perf_counter() - start_time) * 1000
+
+        return {
+            "response": response_text,
+            "agent": self.name,
+            "conversation_id": conv_ctx.conversation_id,
+            "speaker": conv_ctx.speaker,
+            "turn_count": len([t for t in conv_ctx.history if t.role == "user"]),
+            "used_llm": self._llm_client is not None,
+            "child_mode": children_present,
+            "latency_ms": latency_ms,
+        }
+
+    def _get_or_create_context(self, ctx: dict[str, Any]) -> ConversationContext:
+        """Get existing conversation or create new one."""
+        conv_id = ctx.get("conversation_id") or f"conv_{id(ctx)}"
+
+        if conv_id in self._conversations:
+            conv_ctx = self._conversations[conv_id]
+            # Update with any new context
+            if ctx.get("retrieved_memories"):
+                conv_ctx.retrieved_memories = ctx["retrieved_memories"]
+            if ctx.get("meta_context"):
+                conv_ctx.meta_context = ctx["meta_context"]
+        else:
+            conv_ctx = ConversationContext(
+                conversation_id=conv_id,
+                speaker=ctx.get("speaker"),
+                room=ctx.get("room"),
+                retrieved_memories=ctx.get("retrieved_memories", []),
+                meta_context=ctx.get("meta_context"),
+                time_of_day=ctx.get("time_of_day", "day"),
+            )
+            self._conversations[conv_id] = conv_ctx
+
+        return conv_ctx
+
+    def _build_system_prompt(self, conv_ctx: ConversationContext, user_ctx: dict[str, Any]) -> str:
+        """Build the system prompt with context."""
+        parts = [BARNABEE_PERSONA]
+
+        # Add current context
+        parts.append("\n## Current Situation")
+
+        # Time context
+        time_phrase = TIME_GREETINGS.get(conv_ctx.time_of_day, "today")
+        parts.append(f"- Time: It's {time_phrase}")
+
+        # Speaker context
+        if conv_ctx.speaker:
+            speaker_name = self._format_speaker_name(conv_ctx.speaker)
+            parts.append(f"- Speaking with: {speaker_name}")
+
+        # Room context
+        if conv_ctx.room:
+            parts.append(f"- Location: {conv_ctx.room}")
+
+        # Child mode
+        if conv_ctx.children_present:
+            parts.append(
+                "\n## IMPORTANT: Child Present"
+                "\n- Use simple, age-appropriate language"
+                "\n- Keep responses shorter (1-2 sentences)"
+                "\n- Be extra friendly and encouraging"
+                "\n- Avoid complex topics or scary content"
+            )
+
+        # Emotional tone from MetaAgent
+        if conv_ctx.meta_context:
+            tone = conv_ctx.meta_context.get("emotional_tone")
+            if tone and tone != "neutral":
+                parts.append(f"\n- User appears: {tone}")
+                if tone in ("stressed", "negative", "urgent"):
+                    parts.append("- Respond with extra patience and empathy")
+
+        # Retrieved memories
+        if conv_ctx.retrieved_memories:
+            parts.append("\n## Relevant History")
+            for memory in conv_ctx.retrieved_memories[: self.config.max_memories]:
+                parts.append(f"- {memory}")
+
+        return "\n".join(parts)
+
+    def _format_speaker_name(self, speaker_id: str) -> str:
+        """Format speaker ID into display name."""
+        # Map of known family members
+        family_names = {
+            "thom": "Thom (Dad)",
+            "sarah": "Sarah (Mom)",
+            "penelope": "Penelope",
+            "xander": "Xander",
+            "zachary": "Zachary",
+            "viola": "Viola",
+        }
+        return family_names.get(speaker_id, speaker_id.title())
+
+    def _build_messages(
+        self,
+        current_text: str,
+        conv_ctx: ConversationContext,
+        system_prompt: str,
+    ) -> list[ChatMessage]:
+        """Build the message list for the LLM."""
+        messages = [ChatMessage(role="system", content=system_prompt)]
+
+        # Add conversation history (excluding the just-added user message)
+        for turn in conv_ctx.history[:-1]:
+            messages.append(ChatMessage(role=turn.role, content=turn.content))
+
+        # Add current user message
+        messages.append(ChatMessage(role="user", content=current_text))
+
+        return messages
+
+    async def _generate_llm_response(
+        self,
+        text: str,
+        conv_ctx: ConversationContext,
+        user_ctx: dict[str, Any],
+    ) -> str:
+        """Generate response using LLM."""
+        system_prompt = self._build_system_prompt(conv_ctx, user_ctx)
+        messages = self._build_messages(text, conv_ctx, system_prompt)
+
+        try:
+            response = await self._llm_client.chat(
+                messages=messages,
+                agent_type="interaction",
+                conversation_id=conv_ctx.conversation_id,
+                user_input=text,
+                speaker=conv_ctx.speaker,
+                room=conv_ctx.room,
+                injected_context={
+                    "time_of_day": conv_ctx.time_of_day,
+                    "child_mode": conv_ctx.children_present,
+                    "memory_count": len(conv_ctx.retrieved_memories),
+                    "turn_count": len(conv_ctx.history),
+                },
+            )
+
+            response_text = response.text.strip()
+
+            # Post-process for length if needed
+            if conv_ctx.children_present:
+                response_text = self._truncate_for_children(response_text)
+
+            return response_text
+
+        except Exception as e:
+            logger.error(f"LLM request failed: {e}")
+            return self._generate_fallback_response(text, conv_ctx)
+
+    def _truncate_for_children(self, text: str) -> str:
+        """Truncate response for child-appropriate length."""
+        words = text.split()
+        if len(words) <= self.config.child_mode_max_words:
+            return text
+
+        # Find a sentence boundary near the word limit
+        truncated = " ".join(words[: self.config.child_mode_max_words])
+
+        # Try to end at a sentence boundary
+        for punct in [".", "!", "?"]:
+            if punct in truncated:
+                last_idx = truncated.rfind(punct)
+                if last_idx > len(truncated) // 2:
+                    return truncated[: last_idx + 1]
+
+        return truncated + "..."
+
+    def _generate_fallback_response(self, text: str, conv_ctx: ConversationContext) -> str:
+        """Generate a fallback response when LLM is unavailable."""
+        speaker = conv_ctx.speaker or "there"
+        speaker_name = self._format_speaker_name(speaker) if speaker != "there" else "there"
+
+        # Simple pattern-based fallbacks
+        text_lower = text.lower()
+
+        if any(word in text_lower for word in ["hello", "hi", "hey"]):
+            return f"Hello {speaker_name}! How can I help you?"
+
+        if any(word in text_lower for word in ["thanks", "thank you"]):
+            return "You're most welcome! Is there anything else you need?"
+
+        if "how are you" in text_lower:
+            return "I'm doing quite well, thank you for asking! How can I assist you?"
+
+        if any(word in text_lower for word in ["bye", "goodbye", "see you"]):
+            return f"Goodbye {speaker_name}! Have a wonderful day."
+
+        if "?" in text:
+            return (
+                "I apologize, but I'm having trouble connecting to my thinking cap "
+                "at the moment. Could you ask again in a bit?"
+            )
+
+        # Generic fallback
+        return (
+            f"I heard you, {speaker_name}. I'm having some technical difficulties, "
+            "but I'm still here to help once they're resolved."
+        )
+
+    def get_conversation(self, conversation_id: str) -> ConversationContext | None:
+        """Get a conversation by ID."""
+        return self._conversations.get(conversation_id)
+
+    def clear_conversation(self, conversation_id: str) -> bool:
+        """Clear a conversation's history."""
+        if conversation_id in self._conversations:
+            del self._conversations[conversation_id]
+            return True
+        return False
+
+    def get_active_conversations(self) -> list[str]:
+        """Get list of active conversation IDs."""
+        return list(self._conversations.keys())
+
+
+__all__ = [
+    "InteractionAgent",
+    "InteractionConfig",
+    "ConversationContext",
+    "ConversationTurn",
+    "BARNABEE_PERSONA",
+]
