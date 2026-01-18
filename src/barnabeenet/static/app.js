@@ -1847,7 +1847,7 @@ async function loadHAOverviewTab() {
         document.getElementById('ha-last-sync').textContent = status.connected
             ? new Date().toLocaleTimeString()
             : 'Not connected';
-        
+
         // Get counts from snapshot
         const snapshot = overview.snapshot || {};
         document.getElementById('ha-entity-count').textContent = snapshot.entities_count || 0;
@@ -3666,15 +3666,15 @@ let chatMessages = [];
 
 function initChatPage() {
     chatInitialized = true;
-    
+
     // Set up event listeners
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('chat-send-btn');
     const clearBtn = document.getElementById('chat-clear-btn');
-    
+
     // Send on button click
     sendBtn?.addEventListener('click', sendChatMessage);
-    
+
     // Send on Enter key
     chatInput?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -3682,10 +3682,10 @@ function initChatPage() {
             sendChatMessage();
         }
     });
-    
+
     // Clear conversation
     clearBtn?.addEventListener('click', clearChat);
-    
+
     // Suggestion chips
     document.querySelectorAll('.suggestion-chip').forEach(chip => {
         chip.addEventListener('click', () => {
@@ -3696,7 +3696,7 @@ function initChatPage() {
             }
         });
     });
-    
+
     console.log('Chat page initialized');
 }
 
@@ -3704,29 +3704,29 @@ async function sendChatMessage() {
     const input = document.getElementById('chat-input');
     const messagesContainer = document.getElementById('chat-messages');
     const sendBtn = document.getElementById('chat-send-btn');
-    
+
     const message = input.value.trim();
     if (!message) return;
-    
+
     // Clear input
     input.value = '';
-    
+
     // Remove welcome screen if present
     const welcome = messagesContainer.querySelector('.chat-welcome');
     if (welcome) {
         welcome.remove();
     }
-    
+
     // Add user message
     addChatMessage('user', message);
-    
+
     // Show thinking indicator
     const thinkingId = showThinkingIndicator();
-    
+
     // Update status
     updateChatStatus('Thinking...', true);
     sendBtn.disabled = true;
-    
+
     try {
         // Call the text process endpoint
         const response = await fetch(`${API_BASE}/api/v1/voice/process`, {
@@ -3740,18 +3740,18 @@ async function sendChatMessage() {
                 room: 'Dashboard'
             }),
         });
-        
+
         const data = await response.json();
-        
+
         // Remove thinking indicator
         removeThinkingIndicator(thinkingId);
-        
+
         if (response.ok) {
             // Add assistant response
             const assistantMessage = data.response || data.text || 'I received your message but have no response.';
             const agent = data.agent_used || data.agent || null;
             const intent = data.intent || null;
-            
+
             addChatMessage('assistant', assistantMessage, { agent, intent, fullResponse: data });
             updateChatStatus('Ready to chat');
         } else {
@@ -3773,13 +3773,13 @@ async function sendChatMessage() {
 
 function addChatMessage(role, content, meta = {}) {
     const messagesContainer = document.getElementById('chat-messages');
-    
+
     const messageEl = document.createElement('div');
     messageEl.className = `chat-message ${role}`;
-    
+
     const avatar = role === 'user' ? '👤' : '🐝';
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
+
     let metaHtml = `<span class="message-time">${time}</span>`;
     if (meta.agent) {
         metaHtml += ` <span class="agent-badge">${meta.agent}</span>`;
@@ -3787,10 +3787,10 @@ function addChatMessage(role, content, meta = {}) {
     if (meta.intent) {
         metaHtml += ` <span class="agent-badge">${meta.intent}</span>`;
     }
-    
+
     const bubbleClass = meta.error ? 'message-bubble message-error' : 'message-bubble';
     const clickable = role === 'assistant' && meta.fullResponse ? 'clickable' : '';
-    
+
     messageEl.innerHTML = `
         <div class="message-avatar">${avatar}</div>
         <div class="message-content">
@@ -3798,7 +3798,7 @@ function addChatMessage(role, content, meta = {}) {
             <div class="message-meta">${metaHtml}</div>
         </div>
     `;
-    
+
     // Add click handler for assistant messages with response data
     if (role === 'assistant' && meta.fullResponse) {
         const bubble = messageEl.querySelector('.message-bubble');
@@ -3806,12 +3806,12 @@ function addChatMessage(role, content, meta = {}) {
         bubble.title = 'Click to see details';
         bubble.addEventListener('click', () => showChatResponseDetails(meta.fullResponse));
     }
-    
+
     messagesContainer.appendChild(messageEl);
-    
+
     // Scroll to bottom
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    
+
     // Store in history
     chatMessages.push({ role, content, time, meta });
 }
@@ -3819,7 +3819,7 @@ function addChatMessage(role, content, meta = {}) {
 function showThinkingIndicator() {
     const messagesContainer = document.getElementById('chat-messages');
     const id = 'thinking-' + Date.now();
-    
+
     const thinkingEl = document.createElement('div');
     thinkingEl.id = id;
     thinkingEl.className = 'chat-message assistant';
@@ -3833,10 +3833,10 @@ function showThinkingIndicator() {
             </div>
         </div>
     `;
-    
+
     messagesContainer.appendChild(thinkingEl);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    
+
     return id;
 }
 
@@ -3858,7 +3858,7 @@ function updateChatStatus(status, thinking = false) {
 function clearChat() {
     const messagesContainer = document.getElementById('chat-messages');
     chatMessages = [];
-    
+
     // Restore welcome screen
     messagesContainer.innerHTML = `
         <div class="chat-welcome">
@@ -3874,7 +3874,7 @@ function clearChat() {
             </div>
         </div>
     `;
-    
+
     // Re-attach suggestion chip listeners
     document.querySelectorAll('.suggestion-chip').forEach(chip => {
         chip.addEventListener('click', () => {
@@ -3885,7 +3885,7 @@ function clearChat() {
             }
         });
     });
-    
+
     updateChatStatus('Ready to chat');
     showToast('Conversation cleared');
 }
@@ -3896,7 +3896,7 @@ function showChatResponseDetails(data) {
     modal.onclick = (e) => {
         if (e.target === modal) modal.remove();
     };
-    
+
     // Build details content
     const intent = data.intent || 'unknown';
     const agent = data.agent_used || data.agent || 'unknown';
@@ -3904,30 +3904,30 @@ function showChatResponseDetails(data) {
     const traceId = data.trace_id || 'N/A';
     const actions = data.actions || [];
     const llmDetails = data.llm_details || null;
-    
+
     let actionsHtml = '';
     if (actions.length > 0) {
         actionsHtml = `
             <div class="detail-section">
                 <h4>🎯 Actions</h4>
                 ${actions.map(action => {
-                    const executed = action.executed !== undefined ? action.executed : 'Not tracked';
-                    const executionMsg = action.execution_message || '';
-                    const entityName = action.entity_name || 'Unknown';
-                    const entityId = action.entity_id || 'Not resolved';
-                    const service = action.service || 'Unknown';
-                    const domain = action.domain || 'Unknown';
-                    
-                    const statusClass = action.executed === true ? 'success' : 
-                                        action.executed === false ? 'error' : 'pending';
-                    
-                    return `
+            const executed = action.executed !== undefined ? action.executed : 'Not tracked';
+            const executionMsg = action.execution_message || '';
+            const entityName = action.entity_name || 'Unknown';
+            const entityId = action.entity_id || 'Not resolved';
+            const service = action.service || 'Unknown';
+            const domain = action.domain || 'Unknown';
+
+            const statusClass = action.executed === true ? 'success' :
+                action.executed === false ? 'error' : 'pending';
+
+            return `
                         <div class="action-detail ${statusClass}">
                             <div class="action-header">
                                 <span class="action-service">${service}</span>
                                 <span class="action-status ${statusClass}">
-                                    ${action.executed === true ? '✅ Executed' : 
-                                      action.executed === false ? '❌ Failed' : '⏳ Not executed'}
+                                    ${action.executed === true ? '✅ Executed' :
+                    action.executed === false ? '❌ Failed' : '⏳ Not executed'}
                                 </span>
                             </div>
                             <div class="action-info">
@@ -3938,7 +3938,7 @@ function showChatResponseDetails(data) {
                             </div>
                         </div>
                     `;
-                }).join('')}
+        }).join('')}
             </div>
         `;
     } else if (intent === 'action') {
@@ -3950,14 +3950,14 @@ function showChatResponseDetails(data) {
                         <span class="action-status pending">⚠️ No action data captured</span>
                     </div>
                     <div class="action-info">
-                        The action may not have been executed. Check if Home Assistant is connected 
+                        The action may not have been executed. Check if Home Assistant is connected
                         and the entity exists.
                     </div>
                 </div>
             </div>
         `;
     }
-    
+
     // Build LLM details section
     let llmHtml = '';
     if (llmDetails) {
@@ -3968,7 +3968,7 @@ function showChatResponseDetails(data) {
         const llmLatency = llmDetails.llm_latency_ms ? `${llmDetails.llm_latency_ms.toFixed(1)}ms` : 'N/A';
         const messages = llmDetails.messages_sent || [];
         const responseText = llmDetails.response_text || '';
-        
+
         let messagesHtml = messages.map(msg => {
             const role = msg.role || 'unknown';
             const content = msg.content || '';
@@ -3980,7 +3980,7 @@ function showChatResponseDetails(data) {
                 </div>
             `;
         }).join('');
-        
+
         llmHtml = `
             <div class="detail-section">
                 <h4>🤖 LLM Details</h4>
@@ -4019,7 +4019,7 @@ function showChatResponseDetails(data) {
             </div>
         `;
     }
-    
+
     modal.innerHTML = `
         <div class="chat-details-content">
             <div class="chat-details-header">
@@ -4057,7 +4057,7 @@ function showChatResponseDetails(data) {
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(modal);
 }
 
