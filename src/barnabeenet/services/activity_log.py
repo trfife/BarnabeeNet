@@ -198,6 +198,7 @@ class ActivityLogger:
                 self._activities = self._activities[-self._max_activities :]
 
         # Broadcast to subscribers
+        logger.debug(f"Broadcasting activity to {len(self._subscribers)} subscribers")
         for callback in self._subscribers:
             try:
                 if asyncio.iscoroutinefunction(callback):

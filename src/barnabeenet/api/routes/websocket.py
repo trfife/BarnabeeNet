@@ -389,7 +389,7 @@ class DashboardConnectionManager:
             activity_logger = get_activity_logger()
             activity_logger.subscribe(self._on_activity)
             self._subscribed = True
-            logger.info("DashboardManager subscribed to activity logger")
+            logger.info(f"DashboardManager subscribed to activity logger (id={id(activity_logger)}, subs={len(activity_logger._subscribers)})")
         except Exception as e:
             logger.warning(f"Failed to subscribe to activity logger: {e}")
 
