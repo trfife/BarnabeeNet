@@ -98,22 +98,23 @@ class ActionResult:
 
 # Patterns for rule-based action parsing
 # NOTE: Order matters! More specific patterns should come before generic ones.
+# TYPO HANDLING: Common typos for "turn" (trun, tunr) and "switch" (swtich, swich) are supported
 ACTION_PATTERNS: list[tuple[str, ActionType, DeviceDomain | None]] = [
     # Batch on/off patterns - MUST come before single entity patterns
     # "turn off all the lights downstairs", "turn on lights in living room"
     (
-        r"^turn (on|off) all (?:the |of the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))?$",
+        r"^(?:turn|trun|tunr) (on|of+) all (?:the |of the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))?$",
         ActionType.TURN_ON,
         None,
     ),
     (
-        r"^turn (on|off) (?:the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))$",
+        r"^(?:turn|trun|tunr) (on|of+) (?:the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))$",
         ActionType.TURN_ON,
         None,
     ),
     # Standard on/off patterns
-    (r"^turn (on|off) (?:the )?(.+)$", ActionType.TURN_ON, None),
-    (r"^switch (on|off) (?:the )?(.+)$", ActionType.TURN_ON, None),
+    (r"^(?:turn|trun|tunr) (on|of+) (?:the )?(.+)$", ActionType.TURN_ON, None),
+    (r"^(?:switch|swtich|swich) (on|of+) (?:the )?(.+)$", ActionType.TURN_ON, None),
     (r"^(enable|disable) (?:the )?(.+)$", ActionType.TURN_ON, None),
     # Light patterns
     (r"^(dim|brighten) (?:the )?(.+?)(?: to (\d+)%?)?$", ActionType.SET_VALUE, DeviceDomain.LIGHT),
