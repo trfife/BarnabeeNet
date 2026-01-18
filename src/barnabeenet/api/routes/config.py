@@ -1422,6 +1422,8 @@ Select the best model for EACH activity. Return ONLY the JSON mapping."""
             )
 
             if response.status_code != 200:
+                error_text = response.text[:500]
+                logger.error(f"AI call failed: HTTP {response.status_code} - {error_text}")
                 return AutoSelectResponse(
                     success=False,
                     recommendations={},
@@ -1432,7 +1434,20 @@ Select the best model for EACH activity. Return ONLY the JSON mapping."""
             data = response.json()
 
             # Log full response structure for debugging
-            logger.debug(f"Auto-select API response: {data}")
+            logger.info(f"Auto-select API response keys: {list(data.keys())}")
+            if "error" in data:
+                logger.error(f"API returned error: {data['error']}")
+                return AutoSelectResponse(
+                    success=False,
+                    recommendations={},
+                    reasoning={},
+                    error=f"API error: {data.get('error', {}).get('message', str(data['error']))}",
+                )
+
+            choices = data.get("choices", [])
+            logger.info(f"Auto-select choices count: {len(choices)}")
+            if choices:
+                logger.info(f"First choice: {choices[0]}")
 
             # Check for refusal or empty response
             message = data.get("choices", [{}])[0].get("message", {})
