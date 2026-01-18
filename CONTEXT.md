@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-17 (after Dashboard Phase 2)
+2026-01-18 (after VM Deployment)
 
 ## Current Phase
-**Phase 1: Core Services** - DASHBOARD PHASE 2 COMPLETE
+**Phase 1: Core Services** - VM DEPLOYMENT COMPLETE
 
 ## Development Workflow
 
@@ -53,9 +53,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Home Assistant Integration** - HomeAssistantClient with REST API, EntityRegistry with fuzzy name matching, service call execution
 - [x] **Dashboard Phase 1** - Dashboard API endpoints (activity feed, signal details, stats), Prometheus metrics, Grafana + Prometheus compose config
 - [x] **Dashboard Phase 2** - WebSocket endpoint (/ws/activity) for real-time signal streaming, ConnectionManager with filtering, SignalStreamer background task reading from Redis Streams
+- [x] **VM Deployment** - BarnabeeNet running on VM (192.168.86.51:8000), NixOS firewall configured, all services healthy
 
 ### In Progress
-- [ ] VM Deployment
+- [ ] End-to-end voice testing
 
 ### Not Started
 - [ ] End-to-end voice testing
@@ -95,8 +96,9 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. VM Deployment ← NEXT (set up venv on VM, first deploy)
-2. End-to-end voice testing
+1. End-to-end voice testing ← NEXT (test full voice pipeline from VM)
+2. Home Assistant entity discovery
+3. Family profile system
 
 ---
 
