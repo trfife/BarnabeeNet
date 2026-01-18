@@ -1477,3 +1477,318 @@ body {
     border-radius: 8px;
     color: var(--accent-error);
 }
+
+/* =============================================================================
+   Model Selection Styles
+   ============================================================================= */
+
+.models-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+}
+
+.models-filter {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.models-filter label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.models-filter input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent-primary);
+}
+
+.models-count {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.activities-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.activity-group {
+    margin-bottom: 24px;
+}
+
+.activity-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-hover);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+
+.activity-group-header:hover {
+    background: var(--border-color);
+}
+
+.activity-group-header h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    flex: 1;
+}
+
+.activity-group-icon {
+    font-size: 16px;
+}
+
+.activity-group-toggle {
+    color: var(--text-muted);
+    transition: transform 0.2s;
+}
+
+.activity-group.collapsed .activity-group-toggle {
+    transform: rotate(-90deg);
+}
+
+.activity-group.collapsed .activity-group-items {
+    display: none;
+}
+
+.activity-group-items {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-left: 8px;
+}
+
+.activity-item {
+    display: grid;
+    grid-template-columns: 200px 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.activity-item:hover {
+    border-color: var(--accent-primary);
+    background: var(--bg-hover);
+}
+
+.activity-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.activity-name {
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Consolas', monospace;
+    color: var(--accent-secondary);
+}
+
+.activity-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.activity-model-select {
+    position: relative;
+    min-width: 300px;
+}
+
+.model-search-container {
+    position: relative;
+}
+
+.model-search-input {
+    width: 100%;
+    padding: 10px 12px;
+    padding-right: 80px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: 'Consolas', monospace;
+}
+
+.model-search-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.model-search-input::placeholder {
+    color: var(--text-muted);
+}
+
+.model-price-badge {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+}
+
+.model-price-badge.free {
+    background: rgba(0, 255, 157, 0.15);
+    color: var(--accent-primary);
+}
+
+.model-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin-top: 4px;
+    z-index: 1000;
+    box-shadow: var(--shadow);
+    display: none;
+}
+
+.model-dropdown.visible {
+    display: block;
+}
+
+.model-option {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    transition: background 0.15s;
+}
+
+.model-option:last-child {
+    border-bottom: none;
+}
+
+.model-option:hover,
+.model-option.selected {
+    background: var(--bg-hover);
+}
+
+.model-option.highlighted {
+    background: var(--accent-primary);
+    color: var(--bg-primary);
+}
+
+.model-option-name {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.model-option-details {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.model-option.highlighted .model-option-details {
+    color: var(--bg-secondary);
+}
+
+.model-option-price {
+    font-weight: 500;
+}
+
+.model-option-price.free {
+    color: var(--accent-primary);
+}
+
+.model-option.highlighted .model-option-price.free {
+    color: var(--bg-primary);
+}
+
+.model-option-context {
+    color: var(--text-muted);
+}
+
+.activity-priority {
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.activity-priority.speed {
+    background: rgba(0, 180, 216, 0.15);
+    color: var(--accent-info);
+}
+
+.activity-priority.quality {
+    background: rgba(0, 255, 157, 0.15);
+    color: var(--accent-primary);
+}
+
+.activity-priority.accuracy {
+    background: rgba(255, 165, 0, 0.15);
+    color: var(--accent-warning);
+}
+
+.activity-priority.cost {
+    background: rgba(139, 148, 158, 0.15);
+    color: var(--text-secondary);
+}
+
+.activity-priority.balanced {
+    background: rgba(230, 237, 243, 0.1);
+    color: var(--text-primary);
+}
+
+.activity-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.no-models-message {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+/* Scrollbar for model dropdown */
+.model-dropdown::-webkit-scrollbar {
+    width: 8px;
+}
+
+.model-dropdown::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+
+.model-dropdown::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.model-dropdown::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}

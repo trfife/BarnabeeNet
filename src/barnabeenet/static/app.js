@@ -1206,7 +1206,309 @@ function initProviderConfig() {
     }
 }
 
+
+// =============================================================================
+// Model Selection Configuration
+// =============================================================================
+
+let availableModels = [];
+let activitiesData = [];
+let showFreeOnly = false;
+
+async function loadModels() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/config/models`);
+        const data = await response.json();
+        availableModels = data.models || [];
+
+        const countDisplay = document.getElementById('models-count-display');
+        if (countDisplay) {
+            countDisplay.textContent = `${data.total_count} models available (${data.free_count} free)`;
+        }
+
+        return availableModels;
+    } catch (e) {
+        console.error('Failed to load models:', e);
+        return [];
+    }
+}
+
+async function loadActivities() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/config/activities`);
+        const data = await response.json();
+        activitiesData = data.activities || [];
+        renderActivities(data.groups || {});
+    } catch (e) {
+        console.error('Failed to load activities:', e);
+        document.getElementById('activities-list').innerHTML = `
+            <div class="error-message">Failed to load activities: ${e.message}</div>
+        `;
+    }
+}
+
+function renderActivities(groups) {
+    const container = document.getElementById('activities-list');
+    if (!container) return;
+
+    const agentIcons = {
+        'meta': '🎯',
+        'action': '🏠',
+        'interaction': '💬',
+        'memory': '🧠',
+        'instant': '⚡'
+    };
+
+    const agentDescriptions = {
+        'meta': 'Intent Classification (runs on every request)',
+        'action': 'Device Control & Home Automation',
+        'interaction': 'Conversations & Personality',
+        'memory': 'Memory Generation & Retrieval',
+        'instant': 'Quick Responses (time, date, etc.)'
+    };
+
+    let html = '';
+
+    for (const [agent, activityNames] of Object.entries(groups)) {
+        const activities = activityNames
+            .map(name => activitiesData.find(a => a.activity === name))
+            .filter(Boolean);
+
+        if (activities.length === 0) continue;
+
+        html += `
+            <div class="activity-group" data-agent="${agent}">
+                <div class="activity-group-header" onclick="toggleActivityGroup('${agent}')">
+                    <span class="activity-group-icon">${agentIcons[agent] || '🤖'}</span>
+                    <h4>${agent.charAt(0).toUpperCase() + agent.slice(1)}Agent</h4>
+                    <span class="activity-group-desc">${agentDescriptions[agent] || ''}</span>
+                    <span class="activity-group-toggle">▼</span>
+                </div>
+                <div class="activity-group-items">
+                    ${activities.map(activity => renderActivityItem(activity)).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html || '<p class="no-models-message">No activities configured</p>';
+
+    // Initialize all model dropdowns
+    initModelDropdowns();
+}
+
+function renderActivityItem(activity) {
+    return `
+        <div class="activity-item" data-activity="${activity.activity}">
+            <div class="activity-info">
+                <span class="activity-name">${activity.activity}</span>
+                <span class="activity-desc">${activity.description}</span>
+            </div>
+            <div class="activity-model-select">
+                <div class="model-search-container">
+                    <input type="text"
+                           class="model-search-input"
+                           data-activity="${activity.activity}"
+                           value="${activity.model}"
+                           placeholder="Search models..."
+                           autocomplete="off">
+                    <span class="model-price-badge" data-activity="${activity.activity}">
+                        ${getModelPriceBadge(activity.model)}
+                    </span>
+                    <div class="model-dropdown" data-activity="${activity.activity}"></div>
+                </div>
+            </div>
+            <span class="activity-priority ${activity.priority}">${activity.priority}</span>
+        </div>
+    `;
+}
+
+function getModelPriceBadge(modelId) {
+    const model = availableModels.find(m => m.id === modelId);
+    if (!model) return '';
+    if (model.is_free) return '<span class="free">FREE</span>';
+    const totalPrice = model.pricing_prompt + model.pricing_completion;
+    return `$${totalPrice.toFixed(2)}/M`;
+}
+
+function initModelDropdowns() {
+    document.querySelectorAll('.model-search-input').forEach(input => {
+        const activityName = input.dataset.activity;
+        const dropdown = document.querySelector(`.model-dropdown[data-activity="${activityName}"]`);
+
+        // Focus - show dropdown
+        input.addEventListener('focus', () => {
+            renderModelDropdown(dropdown, input.value, activityName);
+            dropdown.classList.add('visible');
+        });
+
+        // Blur - hide dropdown (with delay for click)
+        input.addEventListener('blur', () => {
+            setTimeout(() => dropdown.classList.remove('visible'), 200);
+        });
+
+        // Input - filter models
+        input.addEventListener('input', () => {
+            renderModelDropdown(dropdown, input.value, activityName);
+        });
+
+        // Keyboard navigation
+        input.addEventListener('keydown', (e) => {
+            handleDropdownKeyboard(e, dropdown, input, activityName);
+        });
+    });
+}
+
+function renderModelDropdown(dropdown, searchTerm, activityName) {
+    let filteredModels = availableModels;
+
+    // Filter by search term
+    if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        filteredModels = filteredModels.filter(m =>
+            m.id.toLowerCase().includes(term) ||
+            m.name.toLowerCase().includes(term)
+        );
+    }
+
+    // Filter by free if checkbox is checked
+    if (showFreeOnly) {
+        filteredModels = filteredModels.filter(m => m.is_free);
+    }
+
+    // Limit to 50 results
+    filteredModels = filteredModels.slice(0, 50);
+
+    if (filteredModels.length === 0) {
+        dropdown.innerHTML = '<div class="model-option">No models found</div>';
+        return;
+    }
+
+    dropdown.innerHTML = filteredModels.map((model, index) => `
+        <div class="model-option ${index === 0 ? 'highlighted' : ''}"
+             data-model-id="${model.id}"
+             data-activity="${activityName}"
+             onclick="selectModel('${model.id}', '${activityName}')">
+            <div class="model-option-name">${model.name}</div>
+            <div class="model-option-details">
+                <span class="model-option-price ${model.is_free ? 'free' : ''}">
+                    ${model.is_free ? 'FREE' : `$${(model.pricing_prompt + model.pricing_completion).toFixed(2)}/M tokens`}
+                </span>
+                <span class="model-option-context">${(model.context_length / 1000).toFixed(0)}K context</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function handleDropdownKeyboard(e, dropdown, input, activityName) {
+    const options = dropdown.querySelectorAll('.model-option[data-model-id]');
+    const highlighted = dropdown.querySelector('.model-option.highlighted');
+    let currentIndex = Array.from(options).indexOf(highlighted);
+
+    switch (e.key) {
+        case 'ArrowDown':
+            e.preventDefault();
+            if (currentIndex < options.length - 1) {
+                options[currentIndex]?.classList.remove('highlighted');
+                options[currentIndex + 1]?.classList.add('highlighted');
+                options[currentIndex + 1]?.scrollIntoView({ block: 'nearest' });
+            }
+            break;
+        case 'ArrowUp':
+            e.preventDefault();
+            if (currentIndex > 0) {
+                options[currentIndex]?.classList.remove('highlighted');
+                options[currentIndex - 1]?.classList.add('highlighted');
+                options[currentIndex - 1]?.scrollIntoView({ block: 'nearest' });
+            }
+            break;
+        case 'Enter':
+            e.preventDefault();
+            if (highlighted) {
+                const modelId = highlighted.dataset.modelId;
+                selectModel(modelId, activityName);
+            }
+            break;
+        case 'Escape':
+            dropdown.classList.remove('visible');
+            input.blur();
+            break;
+    }
+}
+
+async function selectModel(modelId, activityName) {
+    // Update UI immediately
+    const input = document.querySelector(`.model-search-input[data-activity="${activityName}"]`);
+    const priceBadge = document.querySelector(`.model-price-badge[data-activity="${activityName}"]`);
+
+    if (input) input.value = modelId;
+    if (priceBadge) priceBadge.innerHTML = getModelPriceBadge(modelId);
+
+    // Close dropdown
+    const dropdown = document.querySelector(`.model-dropdown[data-activity="${activityName}"]`);
+    if (dropdown) dropdown.classList.remove('visible');
+
+    // Save to backend
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/config/activities/${activityName}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: modelId })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to save');
+        }
+
+        console.log(`Updated ${activityName} to use ${modelId}`);
+    } catch (e) {
+        console.error('Failed to update activity:', e);
+        alert(`Failed to save model selection: ${e.message}`);
+    }
+}
+
+function toggleActivityGroup(agent) {
+    const group = document.querySelector(`.activity-group[data-agent="${agent}"]`);
+    if (group) {
+        group.classList.toggle('collapsed');
+    }
+}
+
+function initModelSelection() {
+    // Free models filter
+    document.getElementById('show-free-only')?.addEventListener('change', (e) => {
+        showFreeOnly = e.target.checked;
+        // Re-render all open dropdowns
+        document.querySelectorAll('.model-dropdown.visible').forEach(dropdown => {
+            const activityName = dropdown.dataset.activity;
+            const input = document.querySelector(`.model-search-input[data-activity="${activityName}"]`);
+            if (input) {
+                renderModelDropdown(dropdown, input.value, activityName);
+            }
+        });
+    });
+
+    // Refresh models button
+    document.getElementById('refresh-models')?.addEventListener('click', async () => {
+        await fetch(`${API_BASE}/api/v1/config/models/refresh`, { method: 'POST' });
+        await loadModels();
+        // Reload activities to refresh price badges
+        await loadActivities();
+    });
+
+    // Load when models config section is shown
+    document.querySelectorAll('.config-nav li').forEach(item => {
+        item.addEventListener('click', () => {
+            if (item.dataset.config === 'models') {
+                loadModels().then(() => loadActivities());
+            }
+        });
+    });
+}
+
+
 // Add to initialization
 document.addEventListener('DOMContentLoaded', () => {
     initProviderConfig();
+    initModelSelection();
 });

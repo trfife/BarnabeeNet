@@ -5,6 +5,8 @@ Provides endpoints for:
 - Configuring provider credentials (encrypted storage)
 - Testing provider connections
 - Managing provider enable/disable state
+- Listing available models from providers
+- Configuring activity-based model selection
 """
 
 from __future__ import annotations
@@ -561,3 +563,354 @@ async def delete_secret(
         raise HTTPException(status_code=404, detail=f"Secret not found: {key_name}")
 
     return {"success": True, "deleted": key_name}
+
+
+# =============================================================================
+# Model Listing Endpoints
+# =============================================================================
+
+
+class ModelInfo(BaseModel):
+    """Information about an available LLM model."""
+
+    id: str
+    name: str
+    provider: str
+    context_length: int
+    pricing_prompt: float  # per 1M tokens in USD
+    pricing_completion: float  # per 1M tokens in USD
+    modality: str = "text->text"
+    is_free: bool = False
+    description: str = ""
+
+
+class ModelsListResponse(BaseModel):
+    """Response with available models."""
+
+    models: list[ModelInfo]
+    total_count: int
+    free_count: int
+    provider: str
+
+
+# Cache for model listings (refresh every 5 minutes)
+_models_cache: dict[str, tuple[list[ModelInfo], datetime]] = {}
+MODELS_CACHE_TTL_SECONDS = 300  # 5 minutes
+
+
+@router.get("/models", response_model=ModelsListResponse)
+async def list_models(
+    request: Request,
+    provider: str = "openrouter",
+    secrets: SecretsService = Depends(get_secrets),
+) -> ModelsListResponse:
+    """List available models from a provider.
+
+    Currently supports OpenRouter which provides access to many models.
+    Models are cached for 5 minutes to reduce API calls.
+    """
+    # Check cache
+    cache_key = f"models_{provider}"
+    if cache_key in _models_cache:
+        models, cached_at = _models_cache[cache_key]
+        if (datetime.now(UTC) - cached_at).total_seconds() < MODELS_CACHE_TTL_SECONDS:
+            return ModelsListResponse(
+                models=models,
+                total_count=len(models),
+                free_count=sum(1 for m in models if m.is_free),
+                provider=provider,
+            )
+
+    # Get API key for the provider
+    provider_secrets = await secrets.get_secrets_for_provider(provider)
+    api_key = provider_secrets.get(f"{provider}_api_key")
+
+    if provider == "openrouter":
+        models = await _fetch_openrouter_models(api_key)
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Model listing not supported for provider: {provider}",
+        )
+
+    # Cache the results
+    _models_cache[cache_key] = (models, datetime.now(UTC))
+
+    return ModelsListResponse(
+        models=models,
+        total_count=len(models),
+        free_count=sum(1 for m in models if m.is_free),
+        provider=provider,
+    )
+
+
+async def _fetch_openrouter_models(api_key: str | None = None) -> list[ModelInfo]:
+    """Fetch available models from OpenRouter API."""
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(
+            "https://openrouter.ai/api/v1/models",
+            headers=headers,
+        )
+
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch OpenRouter models: {response.status_code}")
+            return []
+
+        data = response.json()
+        models_data = data.get("data", [])
+
+        models = []
+        for m in models_data:
+            pricing = m.get("pricing", {})
+            prompt_price = float(pricing.get("prompt", "0")) * 1_000_000  # Convert to per 1M
+            completion_price = float(pricing.get("completion", "0")) * 1_000_000
+
+            is_free = prompt_price == 0 and completion_price == 0
+
+            models.append(
+                ModelInfo(
+                    id=m.get("id", ""),
+                    name=m.get("name", m.get("id", "")),
+                    provider="openrouter",
+                    context_length=m.get("context_length", 0),
+                    pricing_prompt=prompt_price,
+                    pricing_completion=completion_price,
+                    modality=m.get("architecture", {}).get("modality", "text->text"),
+                    is_free=is_free,
+                    description=m.get("description", "")[:200],  # Truncate long descriptions
+                )
+            )
+
+        # Sort: free models first, then by name
+        models.sort(key=lambda x: (not x.is_free, x.name.lower()))
+
+        return models
+
+
+@router.post("/models/refresh")
+async def refresh_models_cache(
+    provider: str = "openrouter",
+) -> dict[str, Any]:
+    """Force refresh the models cache for a provider."""
+    cache_key = f"models_{provider}"
+    if cache_key in _models_cache:
+        del _models_cache[cache_key]
+
+    return {"success": True, "message": f"Cache cleared for {provider}"}
+
+
+# =============================================================================
+# Activity Configuration Endpoints
+# =============================================================================
+
+
+class ActivityConfigResponse(BaseModel):
+    """Configuration for a single activity."""
+
+    activity: str
+    model: str
+    temperature: float
+    max_tokens: int
+    priority: str
+    description: str
+    provider_override: str | None = None
+
+
+class AllActivitiesResponse(BaseModel):
+    """All activity configurations."""
+
+    activities: list[ActivityConfigResponse]
+    groups: dict[str, list[str]]  # Group activities by agent
+
+
+class UpdateActivityRequest(BaseModel):
+    """Request to update activity configuration."""
+
+    model: str
+    temperature: float | None = None
+    max_tokens: int | None = None
+
+
+# Redis key for activity config overrides
+ACTIVITY_CONFIGS_KEY = "barnabeenet:activity_configs"
+
+
+@router.get("/activities", response_model=AllActivitiesResponse)
+async def list_activities(request: Request) -> AllActivitiesResponse:
+    """List all LLM activities and their current configuration.
+
+    Returns activities grouped by agent (meta, action, interaction, memory, instant).
+    """
+    from barnabeenet.services.llm.activities import get_activity_config_manager
+
+    manager = get_activity_config_manager()
+
+    # Load any Redis overrides
+    redis = request.app.state.redis
+    overrides = await redis.hgetall(ACTIVITY_CONFIGS_KEY)
+
+    activities = []
+    groups: dict[str, list[str]] = {
+        "meta": [],
+        "action": [],
+        "interaction": [],
+        "memory": [],
+        "instant": [],
+    }
+
+    for activity_name, config in manager.get_all().items():
+        # Apply Redis override if exists
+        if activity_name in overrides:
+            import json
+
+            override = json.loads(overrides[activity_name])
+            config.model = override.get("model", config.model)
+            if "temperature" in override:
+                config.temperature = override["temperature"]
+            if "max_tokens" in override:
+                config.max_tokens = override["max_tokens"]
+
+        activities.append(
+            ActivityConfigResponse(
+                activity=activity_name,
+                model=config.model,
+                temperature=config.temperature,
+                max_tokens=config.max_tokens,
+                priority=config.priority,
+                description=config.description,
+                provider_override=config.provider_override,
+            )
+        )
+
+        # Group by agent prefix
+        agent = activity_name.split(".")[0] if "." in activity_name else "other"
+        if agent in groups:
+            groups[agent].append(activity_name)
+
+    # Sort activities by name
+    activities.sort(key=lambda x: x.activity)
+
+    return AllActivitiesResponse(activities=activities, groups=groups)
+
+
+@router.get("/activities/{activity_name}", response_model=ActivityConfigResponse)
+async def get_activity(request: Request, activity_name: str) -> ActivityConfigResponse:
+    """Get configuration for a specific activity."""
+    from barnabeenet.services.llm.activities import get_activity_config_manager
+
+    manager = get_activity_config_manager()
+    all_activities = manager.get_all()
+
+    if activity_name not in all_activities:
+        raise HTTPException(status_code=404, detail=f"Activity not found: {activity_name}")
+
+    config = all_activities[activity_name]
+
+    # Apply Redis override if exists
+    redis = request.app.state.redis
+    override_json = await redis.hget(ACTIVITY_CONFIGS_KEY, activity_name)
+    if override_json:
+        import json
+
+        override = json.loads(override_json)
+        config.model = override.get("model", config.model)
+        if "temperature" in override:
+            config.temperature = override["temperature"]
+        if "max_tokens" in override:
+            config.max_tokens = override["max_tokens"]
+
+    return ActivityConfigResponse(
+        activity=activity_name,
+        model=config.model,
+        temperature=config.temperature,
+        max_tokens=config.max_tokens,
+        priority=config.priority,
+        description=config.description,
+        provider_override=config.provider_override,
+    )
+
+
+@router.put("/activities/{activity_name}")
+async def update_activity(
+    request: Request,
+    activity_name: str,
+    update: UpdateActivityRequest,
+) -> dict[str, Any]:
+    """Update configuration for a specific activity.
+
+    Changes are stored in Redis and override defaults.
+    """
+    import json
+
+    from barnabeenet.services.llm.activities import get_activity_config_manager
+
+    manager = get_activity_config_manager()
+    all_activities = manager.get_all()
+
+    if activity_name not in all_activities:
+        raise HTTPException(status_code=404, detail=f"Activity not found: {activity_name}")
+
+    # Build override dict
+    override: dict[str, Any] = {"model": update.model}
+    if update.temperature is not None:
+        override["temperature"] = update.temperature
+    if update.max_tokens is not None:
+        override["max_tokens"] = update.max_tokens
+
+    # Store in Redis
+    redis = request.app.state.redis
+    await redis.hset(ACTIVITY_CONFIGS_KEY, activity_name, json.dumps(override))
+
+    # Also update the in-memory manager
+    config = manager.get(activity_name)
+    config.model = update.model
+    if update.temperature is not None:
+        config.temperature = update.temperature
+    if update.max_tokens is not None:
+        config.max_tokens = update.max_tokens
+
+    logger.info(f"Updated activity config: {activity_name} -> {update.model}")
+
+    return {
+        "success": True,
+        "activity": activity_name,
+        "model": update.model,
+        "temperature": update.temperature or config.temperature,
+        "max_tokens": update.max_tokens or config.max_tokens,
+    }
+
+
+@router.delete("/activities/{activity_name}/override")
+async def reset_activity(request: Request, activity_name: str) -> dict[str, Any]:
+    """Reset activity configuration to defaults (remove Redis override)."""
+    from barnabeenet.services.llm.activities import (
+        DEFAULT_ACTIVITY_CONFIGS,
+        get_activity_config_manager,
+    )
+
+    if activity_name not in DEFAULT_ACTIVITY_CONFIGS:
+        raise HTTPException(status_code=404, detail=f"Activity not found: {activity_name}")
+
+    # Remove from Redis
+    redis = request.app.state.redis
+    await redis.hdel(ACTIVITY_CONFIGS_KEY, activity_name)
+
+    # Reset in-memory config
+    manager = get_activity_config_manager()
+    default_config = DEFAULT_ACTIVITY_CONFIGS[activity_name]
+    config = manager.get(activity_name)
+    config.model = default_config["model"]
+    config.temperature = default_config.get("temperature", 0.7)
+    config.max_tokens = default_config.get("max_tokens", 1000)
+
+    logger.info(f"Reset activity config: {activity_name}")
+
+    return {
+        "success": True,
+        "activity": activity_name,
+        "reset_to": default_config,
+    }

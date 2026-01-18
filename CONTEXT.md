@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after MetaAgent Classification Verified on VM)
+2026-01-18 (after Dashboard Model Selection UI)
 
 ## Current Phase
-**Phase 1: Core Services** - FULL PIPELINE WORKING
+**Phase 1: Core Services** - FULL PIPELINE WORKING + MODEL CONFIG UI
 
 ## Development Workflow
 
@@ -67,12 +67,12 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **LLM Working End-to-End** - Barnabee responds with personality! InteractionAgent calls LLM successfully. E2E tests show LLM responses like "Today is Wednesday, January 3rd, 2024. *adjusts pocket watch* Lovely winter day we're having, isn't it?"
 - [x] **MetaAgent Classification Fixed** - Orchestrator now calls MetaAgent.classify() directly (was incorrectly calling handle_input and missing the ClassificationResult). Intent routing should now work correctly for instant/action/memory intents.
 - [x] **MetaAgent Classification Verified on VM** - Deployed and tested on VM. E2E tests confirm: time/date/greeting queries route to InstantAgent (instant intent), conversation queries route to InteractionAgent (conversation intent). LLM responses working with Barnabee personality. Fixed restart.sh to load .env for master key persistence.
+- [x] **Dashboard Model Selection UI** - New "Model Selection" config section with searchable dropdowns for all 16+ activities. Live model list from OpenRouter (339+ models), shows pricing and context length, filter for free models. Persists selections to Redis. API endpoints: GET/PUT /api/v1/config/activities, GET /api/v1/config/models.
 
 ### In Progress
 - [ ] Home Assistant entity discovery
 
 ### Not Started
-- [ ] Home Assistant entity discovery
 - [ ] Family profile system
 
 ---

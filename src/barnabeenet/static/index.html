@@ -439,6 +439,7 @@
                     <h4>Categories</h4>
                     <ul class="config-nav">
                         <li class="active" data-config="providers">🤖 LLM Providers</li>
+                        <li data-config="models">🧠 Model Selection</li>
                         <li data-config="general">🔧 General Settings</li>
                         <li data-config="voice">🎤 Voice Settings</li>
                         <li data-config="homeassistant">🏠 Home Assistant</li>
@@ -531,6 +532,26 @@
                             </select>
                         </div>
                         <button class="btn btn-primary">💾 Save Settings</button>
+                    </div>
+
+                    <!-- Model Selection Section -->
+                    <div id="config-models" class="config-section">
+                        <h3>🧠 Model Selection</h3>
+                        <p class="section-desc">Configure which models are used for each activity. Use free models during testing to save costs.</p>
+
+                        <div class="models-toolbar">
+                            <div class="models-filter">
+                                <label>
+                                    <input type="checkbox" id="show-free-only"> Show free models only
+                                </label>
+                                <span class="models-count" id="models-count-display">Loading models...</span>
+                            </div>
+                            <button class="btn btn-small" id="refresh-models">🔄 Refresh Models</button>
+                        </div>
+
+                        <div class="activities-list" id="activities-list">
+                            <div class="loading-spinner">Loading activities...</div>
+                        </div>
                     </div>
                     <div id="config-voice" class="config-section">
                         <h3>Voice Settings</h3>
