@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-17 (after memory system implementation)
+2026-01-17 (after Home Assistant integration)
 
 ## Current Phase
-**Phase 1: Core Services** - MEMORY SYSTEM COMPLETE
+**Phase 1: Core Services** - HOME ASSISTANT INTEGRATION COMPLETE
 
 ## Development Workflow
 
@@ -50,12 +50,12 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **AgentOrchestrator** - Full pipeline: classify → memory retrieve → route to agent → store memories
 - [x] **Voice Pipeline + Orchestrator Integration** - Full voice-to-voice with multi-agent AI
 - [x] **Memory Storage System** - EmbeddingService (all-MiniLM-L6-v2), MemoryStorage with Redis + in-memory fallback, vector similarity search
+- [x] **Home Assistant Integration** - HomeAssistantClient with REST API, EntityRegistry with fuzzy name matching, service call execution
 
 ### In Progress
-- [ ] Home Assistant integration
+- [ ] Dashboard Phase 1 (Grafana + activity stream)
 
 ### Not Started
-- [ ] Home Assistant integration
 - [ ] Dashboard Phase 1 (Grafana + activity stream)
 
 ---
@@ -76,8 +76,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Home Assistant integration ← NEXT
-2. Dashboard Phase 1 (Grafana + activity stream)
+1. Dashboard Phase 1 (Grafana + activity stream) ← NEXT
 
 ---
 

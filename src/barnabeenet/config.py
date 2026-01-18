@@ -135,6 +135,24 @@ class LLMSettings(BaseSettings):
     signal_stream_max_len: int = 10000
 
 
+class HomeAssistantSettings(BaseSettings):
+    """Home Assistant integration settings."""
+
+    model_config = SettingsConfigDict(env_prefix="HA_")
+
+    # Connection
+    url: str = "http://homeassistant.local:8123"
+    token: str = ""  # Long-lived access token
+    timeout: float = 10.0
+    verify_ssl: bool = True
+
+    # Entity refresh
+    refresh_interval_sec: int = 300  # Refresh entity registry every 5 minutes
+
+    # Enabled features
+    enabled: bool = True
+
+
 class Settings(BaseSettings):
     """Main application settings."""
 
@@ -167,6 +185,7 @@ class Settings(BaseSettings):
     audio: AudioSettings = Field(default_factory=AudioSettings)
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    homeassistant: HomeAssistantSettings = Field(default_factory=HomeAssistantSettings)
 
     @field_validator("data_dir", "models_dir", mode="before")
     @classmethod
