@@ -33,6 +33,7 @@ from barnabeenet.agents.meta import (
 )
 from barnabeenet.services.activity_log import get_activity_logger
 from barnabeenet.services.llm.openrouter import OpenRouterClient
+from barnabeenet.services.metrics_store import get_metrics_store
 from barnabeenet.services.pipeline_signals import PipelineLogger, SignalType
 
 logger = logging.getLogger(__name__)
@@ -359,6 +360,21 @@ class AgentOrchestrator:
             response=ctx.response_text,
             success=not ctx.agent_response or "error" not in ctx.agent_response,
         )
+
+        # Record pipeline latency for metrics graphs
+        try:
+            metrics_store = await get_metrics_store()
+            await metrics_store.record_latency(
+                "pipeline",
+                total_ms,
+                {"intent": ctx.classification.intent.value if ctx.classification else None},
+            )
+            if "classification" in ctx.stage_timings:
+                await metrics_store.record_latency(
+                    "llm", ctx.stage_timings["classification"], {"stage": "classification"}
+                )
+        except Exception as e:
+            logger.debug(f"Failed to record pipeline metrics: {e}")
 
         return self._build_response(ctx)
 

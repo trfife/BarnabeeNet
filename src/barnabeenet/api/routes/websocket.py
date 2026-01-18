@@ -389,17 +389,13 @@ class DashboardConnectionManager:
             activity_logger = get_activity_logger()
             activity_logger.subscribe(self._on_activity)
             self._subscribed = True
-            logger.info(f"DashboardManager subscribed to activity logger (id={id(activity_logger)}, subs={len(activity_logger._subscribers)})")
         except Exception as e:
             logger.warning(f"Failed to subscribe to activity logger: {e}")
 
     async def _on_activity(self, activity: Activity) -> None:
         """Handle incoming activity from the logger."""
-        logger.info(f"_on_activity called: type={activity.type.value}, connections={len(self._connections)}")
         if not self._connections:
-            logger.info("No connections, skipping broadcast")
             return
-        logger.info(f"Broadcasting activity to {len(self._connections)} dashboard connections")
         await self.broadcast(
             "activity",
             {
