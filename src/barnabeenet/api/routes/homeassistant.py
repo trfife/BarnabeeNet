@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from barnabeenet.config import get_settings
+from barnabeenet.services.activity_log import ActivityType, get_activity_logger
 from barnabeenet.services.homeassistant.client import HomeAssistantClient
 from barnabeenet.services.secrets import SecretsService, get_secrets_service
 
@@ -820,12 +821,24 @@ async def call_service(
     if not client or not client.connected:
         raise HTTPException(status_code=503, detail="Home Assistant not connected")
 
+    activity_logger = get_activity_logger()
+
     try:
         result = await client.call_service(
             service_request.service,
             entity_id=service_request.entity_id,
             **service_request.data,
         )
+
+        # Log to activity logger
+        await activity_logger.log_quick(
+            type=ActivityType.HA_SERVICE_CALL,
+            source="homeassistant",
+            title=f"Service: {service_request.service}",
+            detail=f"Entity: {service_request.entity_id or 'all'}, Success: {result.success}",
+            entity_id=service_request.entity_id,
+        )
+
         return ServiceCallResponse(
             success=result.success,
             service=result.service,
@@ -834,6 +847,16 @@ async def call_service(
         )
     except Exception as e:
         logger.error("Service call failed: %s", e)
+
+        # Log failure
+        await activity_logger.log_quick(
+            type=ActivityType.HA_SERVICE_CALL,
+            source="homeassistant",
+            title=f"Service FAILED: {service_request.service}",
+            detail=str(e),
+            entity_id=service_request.entity_id,
+        )
+
         return ServiceCallResponse(
             success=False,
             service=service_request.service,
@@ -872,8 +895,20 @@ async def toggle_entity(request: Request, entity_id: str) -> ServiceCallResponse
     else:
         service = f"{domain}.toggle"
 
+    activity_logger = get_activity_logger()
+
     try:
         result = await client.call_service(service, entity_id=entity_id)
+
+        # Log toggle action
+        await activity_logger.log_quick(
+            type=ActivityType.HA_SERVICE_CALL,
+            source="homeassistant",
+            title=f"Toggle: {entity_id}",
+            detail=f"Service: {service}, Success: {result.success}",
+            entity_id=entity_id,
+        )
+
         return ServiceCallResponse(
             success=result.success,
             service=service,
@@ -881,6 +916,13 @@ async def toggle_entity(request: Request, entity_id: str) -> ServiceCallResponse
             message=result.message,
         )
     except Exception as e:
+        await activity_logger.log_quick(
+            type=ActivityType.HA_SERVICE_CALL,
+            source="homeassistant",
+            title=f"Toggle FAILED: {entity_id}",
+            detail=str(e),
+            entity_id=entity_id,
+        )
         return ServiceCallResponse(
             success=False,
             service=service,

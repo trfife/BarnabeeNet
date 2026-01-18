@@ -31,6 +31,7 @@ from barnabeenet.agents.meta import (
     IntentCategory,
     MetaAgent,
 )
+from barnabeenet.services.activity_log import get_activity_logger
 from barnabeenet.services.llm.openrouter import OpenRouterClient
 from barnabeenet.services.pipeline_signals import PipelineLogger, SignalType
 
@@ -279,6 +280,18 @@ class AgentOrchestrator:
 
         total_start = time.perf_counter()
 
+        # Start activity trace
+        activity_logger = get_activity_logger()
+        trace_id = ctx.trace_id or f"trace_{uuid.uuid4().hex[:8]}"
+        ctx.trace_id = trace_id
+        await activity_logger.start_trace(
+            trace_id=trace_id,
+            user_input=text,
+            speaker=speaker,
+            room=room,
+            input_type="voice",
+        )
+
         # Start pipeline trace
         if self._pipeline_logger:
             await self._pipeline_logger.start_trace(
@@ -340,6 +353,13 @@ class AgentOrchestrator:
                 memories_retrieved=ctx.retrieved_memories if ctx.retrieved_memories else None,
             )
 
+        # Complete activity trace
+        await activity_logger.complete_trace(
+            trace_id=trace_id,
+            response=ctx.response_text,
+            success=not ctx.agent_response or "error" not in ctx.agent_response,
+        )
+
         return self._build_response(ctx)
 
     async def _classify(self, ctx: RequestContext) -> None:
@@ -359,7 +379,19 @@ class AgentOrchestrator:
         latency_ms = (time.perf_counter() - start) * 1000
         ctx.stage_timings["classification"] = latency_ms
 
-        # Log classification signal
+        # Log to activity logger
+        if ctx.classification and ctx.trace_id:
+            activity_logger = get_activity_logger()
+            await activity_logger.add_step(
+                trace_id=ctx.trace_id,
+                agent="meta",
+                action="classified",
+                summary=f"Intent: {ctx.classification.intent.value} ({ctx.classification.confidence:.0%})",
+                detail=f"Sub-category: {ctx.classification.sub_category or 'none'}",
+                duration_ms=latency_ms,
+            )
+
+        # Log classification signal (existing pipeline logger)
         if self._pipeline_logger and ctx.classification:
             await self._pipeline_logger.log_signal(
                 trace_id=ctx.trace_id,
@@ -404,7 +436,21 @@ class AgentOrchestrator:
         latency_ms = (time.perf_counter() - start) * 1000
         ctx.stage_timings["memory_retrieval"] = latency_ms
 
-        # Log memory retrieval signal
+        # Log to activity logger
+        if ctx.trace_id:
+            activity_logger = get_activity_logger()
+            await activity_logger.add_step(
+                trace_id=ctx.trace_id,
+                agent="memory",
+                action="retrieved",
+                summary=f"Retrieved {len(ctx.retrieved_memories)} relevant memories",
+                detail=f"Query: {queries.primary_query[:80]}..."
+                if queries.primary_query and len(queries.primary_query) > 80
+                else queries.primary_query,
+                duration_ms=latency_ms,
+            )
+
+        # Log memory retrieval signal (existing pipeline logger)
         if self._pipeline_logger:
             await self._pipeline_logger.log_signal(
                 trace_id=ctx.trace_id,
@@ -524,7 +570,21 @@ class AgentOrchestrator:
         latency_ms = (time.perf_counter() - start) * 1000
         ctx.stage_timings["agent_handling"] = latency_ms
 
-        # Log agent response
+        # Log to activity logger
+        if ctx.trace_id:
+            activity_logger = get_activity_logger()
+            await activity_logger.add_step(
+                trace_id=ctx.trace_id,
+                agent=agent_name,
+                action="responded",
+                summary=f"{agent_name.title()} agent: {ctx.response_text[:60]}..."
+                if len(ctx.response_text) > 60
+                else f"{agent_name.title()} agent: {ctx.response_text}",
+                detail=f"Intent: {intent.value}",
+                duration_ms=latency_ms,
+            )
+
+        # Log agent response (existing pipeline logger)
         if self._pipeline_logger:
             # Map agent name to signal type
             signal_map = {
