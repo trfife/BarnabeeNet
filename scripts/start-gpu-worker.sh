@@ -23,7 +23,7 @@ if pgrep -f "uvicorn workers.gpu_stt_worker:app" > /dev/null; then
     echo -e "${YELLOW}⚠ GPU worker already running${NC}"
     PID=$(pgrep -f "uvicorn workers.gpu_stt_worker:app")
     echo "  PID: $PID"
-    
+
     # Test health
     if curl -s http://localhost:8001/health | grep -q "healthy"; then
         echo -e "${GREEN}✓ Worker is healthy${NC}"

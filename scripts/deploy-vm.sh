@@ -35,7 +35,7 @@ echo -e "${GREEN}✓ Code updated${NC}"
 echo -e "\n${YELLOW}[3/4] Checking for restart script...${NC}"
 if ssh "$VM_HOST" "test -f $VM_PROJECT_DIR/scripts/restart.sh"; then
     echo -e "${GREEN}✓ Restart script found${NC}"
-    
+
     echo -e "\n${YELLOW}[4/4] Restarting services...${NC}"
     ssh "$VM_HOST" "cd $VM_PROJECT_DIR && ./scripts/restart.sh"
 else

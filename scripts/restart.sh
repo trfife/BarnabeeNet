@@ -75,7 +75,12 @@ if [ -d ".venv" ]; then
     mkdir -p logs
 
     # Build the startup command with proper env for NixOS
-    START_CMD="cd $PROJECT_DIR && source .venv/bin/activate"
+    START_CMD="cd $PROJECT_DIR"
+    # Load environment variables from .env if present
+    if [ -f "$PROJECT_DIR/.env" ]; then
+        START_CMD="$START_CMD && set -a && source .env && set +a"
+    fi
+    START_CMD="$START_CMD && source .venv/bin/activate"
     if [ -n "$LD_LIBRARY_PATH" ]; then
         START_CMD="export LD_LIBRARY_PATH='$LD_LIBRARY_PATH' && $START_CMD"
     fi

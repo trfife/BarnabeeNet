@@ -825,10 +825,10 @@ function displayE2EResults(data) {
     }
 
     testListEl.innerHTML = data.test_results.map(test => {
-        const resultClass = test.result === 'pass' ? 'passed' : 
-                           test.result === 'fail' ? 'failed' : 'error';
-        const resultIcon = test.result === 'pass' ? '✓' : 
-                          test.result === 'fail' ? '✗' : '⚠';
+        const resultClass = test.result === 'pass' ? 'passed' :
+            test.result === 'fail' ? 'failed' : 'error';
+        const resultIcon = test.result === 'pass' ? '✓' :
+            test.result === 'fail' ? '✗' : '⚠';
 
         const assertionsHtml = test.assertions.map(a => {
             const aClass = a.passed ? 'passed' : 'failed';
@@ -874,11 +874,11 @@ async function loadProviders() {
     try {
         const response = await fetch(`${API_BASE}/api/v1/config/providers`);
         const data = await response.json();
-        
+
         providersData = data.providers || [];
         document.getElementById('providers-configured').textContent = data.configured_count || 0;
         document.getElementById('providers-enabled').textContent = data.enabled_count || 0;
-        
+
         renderProvidersList();
     } catch (e) {
         console.error('Failed to load providers:', e);
@@ -900,27 +900,27 @@ async function loadProviderStatus() {
 
 function renderProvidersList() {
     const container = document.getElementById('providers-list');
-    
+
     if (!providersData.length) {
         container.innerHTML = '<p class="text-muted">No providers available</p>';
         return;
     }
-    
+
     // First load status to show which are configured
     loadProviderStatus().then(statusData => {
         const statusMap = new Map(
             statusData.statuses?.map(s => [s.provider_type, s]) || []
         );
-        
+
         container.innerHTML = providersData.map(provider => {
             const status = statusMap.get(provider.provider_type) || {};
             const isConfigured = status.configured;
             const isEnabled = status.enabled;
-            
+
             const statusClass = isEnabled ? 'enabled' : isConfigured ? 'configured' : 'not-configured';
             const statusText = isEnabled ? '✓ Enabled' : isConfigured ? '⏸ Configured' : 'Not configured';
             const statusIcon = getProviderIcon(provider.provider_type);
-            
+
             return `
                 <div class="provider-card ${statusClass}" data-provider="${provider.provider_type}">
                     <div class="provider-icon">${statusIcon}</div>
@@ -934,7 +934,7 @@ function renderProvidersList() {
                             ${isConfigured ? '⚙️ Configure' : '➕ Setup'}
                         </button>
                         ${isConfigured ? `
-                            <button class="btn btn-small ${isEnabled ? 'btn-warning' : 'btn-primary'}" 
+                            <button class="btn btn-small ${isEnabled ? 'btn-warning' : 'btn-primary'}"
                                     onclick="toggleProvider('${provider.provider_type}', ${!isEnabled})">
                                 ${isEnabled ? '⏸ Disable' : '▶️ Enable'}
                             </button>
@@ -967,35 +967,35 @@ function getProviderIcon(providerType) {
 function openProviderSetup(providerType) {
     const provider = providersData.find(p => p.provider_type === providerType);
     if (!provider) return;
-    
+
     currentProvider = provider;
-    
+
     // Update modal content
     document.getElementById('provider-modal-title').textContent = `Configure ${provider.display_name}`;
     document.getElementById('provider-type').value = providerType;
-    
+
     // Setup instructions
     const stepsEl = document.getElementById('provider-setup-steps');
     stepsEl.innerHTML = provider.setup_instructions.map(step => `<li>${step}</li>`).join('');
-    
+
     // Links
     document.getElementById('provider-docs-link').href = provider.docs_url;
     document.getElementById('provider-key-link').href = provider.api_key_url;
-    
+
     // Secret fields
     const secretFieldsEl = document.getElementById('provider-secret-fields');
     secretFieldsEl.innerHTML = provider.secret_fields.map(field => `
         <div class="form-group">
             <label>${field.display_name} ${field.required ? '<span class="required">*</span>' : ''}</label>
-            <input type="password" 
-                   class="form-control" 
+            <input type="password"
+                   class="form-control"
                    id="secret-${field.name}"
                    placeholder="${field.placeholder}"
                    ${field.required ? 'required' : ''}>
             <small class="form-help">${field.description}</small>
         </div>
     `).join('');
-    
+
     // Config fields
     const configFieldsEl = document.getElementById('provider-config-fields');
     if (provider.config_fields && provider.config_fields.length) {
@@ -1006,9 +1006,9 @@ function openProviderSetup(providerType) {
                         <div class="form-group">
                             <label>${field.display_name}</label>
                             <select class="form-control" id="config-${field.name}">
-                                ${field.options.map(opt => 
-                                    `<option value="${opt}" ${opt === field.default ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
+                                ${field.options.map(opt =>
+                        `<option value="${opt}" ${opt === field.default ? 'selected' : ''}>${opt}</option>`
+                    ).join('')}
                             </select>
                         </div>
                     `;
@@ -1016,8 +1016,8 @@ function openProviderSetup(providerType) {
                 return `
                     <div class="form-group">
                         <label>${field.display_name}</label>
-                        <input type="${field.field_type === 'number' ? 'number' : 'text'}" 
-                               class="form-control" 
+                        <input type="${field.field_type === 'number' ? 'number' : 'text'}"
+                               class="form-control"
                                id="config-${field.name}"
                                value="${field.default || ''}"
                                placeholder="${field.placeholder || ''}">
@@ -1028,39 +1028,39 @@ function openProviderSetup(providerType) {
     } else {
         configFieldsEl.innerHTML = '';
     }
-    
+
     // Pricing notes
-    document.getElementById('provider-pricing').innerHTML = provider.pricing_notes ? 
+    document.getElementById('provider-pricing').innerHTML = provider.pricing_notes ?
         `<p class="pricing-note">💰 ${provider.pricing_notes}</p>` : '';
-    
+
     // Clear test result
     document.getElementById('provider-test-result').style.display = 'none';
-    
+
     // Show modal
     document.getElementById('provider-modal').style.display = 'flex';
 }
 
 async function testProviderConnection() {
     if (!currentProvider) return;
-    
+
     const resultEl = document.getElementById('provider-test-result');
     resultEl.style.display = 'block';
     resultEl.className = 'test-result testing';
     resultEl.innerHTML = '🔄 Testing connection...';
-    
+
     // First save the credentials temporarily for the test
     const secrets = {};
     currentProvider.secret_fields.forEach(field => {
         const value = document.getElementById(`secret-${field.name}`)?.value;
         if (value) secrets[field.name] = value;
     });
-    
+
     if (Object.keys(secrets).length === 0) {
         resultEl.className = 'test-result error';
         resultEl.innerHTML = '❌ Please enter at least one credential to test';
         return;
     }
-    
+
     // Save first, then test
     try {
         // Save credentials
@@ -1069,7 +1069,7 @@ async function testProviderConnection() {
             const value = document.getElementById(`config-${field.name}`)?.value;
             if (value) config[field.name] = value;
         });
-        
+
         await fetch(`${API_BASE}/api/v1/config/providers/setup`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1079,7 +1079,7 @@ async function testProviderConnection() {
                 config: config
             })
         });
-        
+
         // Now test
         const testResponse = await fetch(`${API_BASE}/api/v1/config/providers/test`, {
             method: 'POST',
@@ -1088,12 +1088,12 @@ async function testProviderConnection() {
                 provider_type: currentProvider.provider_type
             })
         });
-        
+
         const testResult = await testResponse.json();
-        
+
         if (testResult.success) {
             resultEl.className = 'test-result success';
-            resultEl.innerHTML = `✅ ${testResult.message}` + 
+            resultEl.innerHTML = `✅ ${testResult.message}` +
                 (testResult.latency_ms ? ` (${testResult.latency_ms.toFixed(0)}ms)` : '');
         } else {
             resultEl.className = 'test-result error';
@@ -1107,21 +1107,21 @@ async function testProviderConnection() {
 
 async function saveProvider(e) {
     e.preventDefault();
-    
+
     if (!currentProvider) return;
-    
+
     const secrets = {};
     currentProvider.secret_fields.forEach(field => {
         const value = document.getElementById(`secret-${field.name}`)?.value;
         if (value) secrets[field.name] = value;
     });
-    
+
     const config = {};
     currentProvider.config_fields?.forEach(field => {
         const value = document.getElementById(`config-${field.name}`)?.value;
         if (value) config[field.name] = value;
     });
-    
+
     try {
         const response = await fetch(`${API_BASE}/api/v1/config/providers/setup`, {
             method: 'POST',
@@ -1132,14 +1132,14 @@ async function saveProvider(e) {
                 config: config
             })
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok && result.success) {
             const providerName = currentProvider?.display_name || currentProvider?.provider_type || 'Provider';
             closeProviderModal();
             loadProviders(); // Refresh the list
-            
+
             // Show success message
             if (typeof addActivityItem === 'function') {
                 addActivityItem({
@@ -1183,14 +1183,14 @@ function initProviderConfig() {
     document.getElementById('close-provider-modal')?.addEventListener('click', closeProviderModal);
     document.getElementById('test-provider-btn')?.addEventListener('click', testProviderConnection);
     document.getElementById('provider-setup-form')?.addEventListener('submit', saveProvider);
-    
+
     // Close modal on background click
     document.getElementById('provider-modal')?.addEventListener('click', (e) => {
         if (e.target.id === 'provider-modal') {
             closeProviderModal();
         }
     });
-    
+
     // Load providers when config page is shown
     document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', () => {
@@ -1199,7 +1199,7 @@ function initProviderConfig() {
             }
         });
     });
-    
+
     // Also load if we're starting on config page
     if (window.location.hash === '#config') {
         loadProviders();

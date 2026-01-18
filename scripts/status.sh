@@ -21,7 +21,7 @@ if curl -s --connect-timeout 2 http://localhost:8001/health > /tmp/gpu_health.js
     STATUS=$(cat /tmp/gpu_health.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','unknown'))" 2>/dev/null || echo "parse error")
     GPU=$(cat /tmp/gpu_health.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('gpu_name','unknown'))" 2>/dev/null || echo "unknown")
     MEM=$(cat /tmp/gpu_health.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(f\"{d.get('gpu_memory_used_mb',0):.0f}/{d.get('gpu_memory_total_mb',0):.0f} MB\")" 2>/dev/null || echo "unknown")
-    
+
     if [ "$STATUS" == "healthy" ]; then
         echo -e "  Status: ${GREEN}✓ healthy${NC}"
     else
@@ -39,14 +39,14 @@ fi
 echo -e "\n${YELLOW}[VM Services - 192.168.86.51]${NC}"
 if ssh -o ConnectTimeout=2 "$VM_HOST" "echo connected" > /dev/null 2>&1; then
     echo -e "  SSH: ${GREEN}✓ connected${NC}"
-    
+
     # Redis
     if ssh "$VM_HOST" "redis-cli ping" 2>/dev/null | grep -q "PONG"; then
         echo -e "  Redis: ${GREEN}✓ running${NC}"
     else
         echo -e "  Redis: ${RED}✗ not responding${NC}"
     fi
-    
+
     # Check if VM can reach GPU worker
     if ssh "$VM_HOST" "curl -s --connect-timeout 2 http://192.168.86.61:8001/health" 2>/dev/null | grep -q "healthy"; then
         echo -e "  GPU Worker Access: ${GREEN}✓ reachable${NC}"
