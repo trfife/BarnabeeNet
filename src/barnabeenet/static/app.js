@@ -1851,8 +1851,8 @@ async function loadHAOverviewTab() {
         // Get counts from snapshot
         const snapshot = overview.snapshot || {};
         document.getElementById('ha-entity-count').textContent = snapshot.entities_count || 0;
-        document.getElementById('ha-area-count').textContent = snapshot.areas_count > 0 ? snapshot.areas_count : 'N/A*';
-        document.getElementById('ha-device-count').textContent = snapshot.devices_count > 0 ? snapshot.devices_count : 'N/A*';
+        document.getElementById('ha-area-count').textContent = snapshot.areas_count || 0;
+        document.getElementById('ha-device-count').textContent = snapshot.devices_count || 0;
 
         // Update domain counts
         const domainCountsEl = document.getElementById('ha-domain-counts');
@@ -2011,9 +2011,8 @@ async function loadHAAreasTab() {
         if (data.areas.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <p class="text-muted">🏠 No areas loaded yet</p>
-                    <p class="text-muted">Home Assistant's Area Registry requires WebSocket API access.</p>
-                    <p class="text-muted">Areas will be available in a future update.</p>
+                    <p class="text-muted">🏠 No areas defined in Home Assistant</p>
+                    <p class="text-muted">Create areas in Home Assistant Settings → Areas & Zones</p>
                 </div>
             `;
             return;
@@ -2053,9 +2052,8 @@ async function loadHADevicesTab() {
         if (data.devices.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <p class="text-muted">📱 No devices loaded yet</p>
-                    <p class="text-muted">Home Assistant's Device Registry requires WebSocket API access.</p>
-                    <p class="text-muted">Devices will be available in a future update.</p>
+                    <p class="text-muted">📱 No devices found</p>
+                    <p class="text-muted">Devices will appear when integrations are configured in Home Assistant</p>
                 </div>
             `;
             return;
