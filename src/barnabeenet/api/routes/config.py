@@ -888,6 +888,39 @@ class ModelHealthBatchResponse(BaseModel):
     results: list[ModelHealthResponse]
 
 
+# NOTE: /schedule must come BEFORE /{model_id:path} to avoid capture
+@router.post("/models/health-check/schedule")
+async def trigger_scheduled_health_check(
+    secrets: SecretsService = Depends(get_secrets),
+    force: bool = False,
+) -> dict[str, Any]:
+    """Trigger the scheduled health check.
+
+    Set force=True to run even if not enough time has passed.
+    """
+    global _last_health_check_time
+
+    if force:
+        _last_health_check_time = None  # Reset to force run
+
+    result = await run_scheduled_health_check(secrets, limit=20)
+
+    if result is None:
+        next_check = _get_seconds_until_next_health_check()
+        return {
+            "ran": False,
+            "message": f"Health check not due yet. Next check in {next_check} seconds.",
+            "next_check_in_seconds": next_check,
+        }
+
+    return {
+        "ran": True,
+        "checked": result.checked,
+        "working": result.working,
+        "failed": result.failed,
+    }
+
+
 @router.post("/models/health-check/{model_id:path}")
 async def check_model_health(
     model_id: str,
@@ -1166,38 +1199,6 @@ async def _check_model_health_internal(model_id: str, api_key: str) -> ModelHeal
             last_checked=datetime.now(UTC),
             error=error_msg,
         )
-
-
-@router.post("/models/health-check/schedule")
-async def trigger_scheduled_health_check(
-    secrets: SecretsService = Depends(get_secrets),
-    force: bool = False,
-) -> dict[str, Any]:
-    """Trigger the scheduled health check.
-
-    Set force=True to run even if not enough time has passed.
-    """
-    global _last_health_check_time
-
-    if force:
-        _last_health_check_time = None  # Reset to force run
-
-    result = await run_scheduled_health_check(secrets, limit=20)
-
-    if result is None:
-        next_check = _get_seconds_until_next_health_check()
-        return {
-            "ran": False,
-            "message": f"Health check not due yet. Next check in {next_check} seconds.",
-            "next_check_in_seconds": next_check,
-        }
-
-    return {
-        "ran": True,
-        "checked": result.checked,
-        "working": result.working,
-        "failed": result.failed,
-    }
 
 
 # =============================================================================
