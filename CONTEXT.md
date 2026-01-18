@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (Home Assistant action execution - Barnabee can now control devices!)
+2026-01-18 (Smart Entity Resolution - batch/area/floor commands working!)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + DASHBOARD ENHANCEMENT
@@ -81,6 +81,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Real-time HA State Changes** - Persistent WebSocket subscription to Home Assistant `state_changed` events. Auto-subscribes on connect with exponential backoff reconnection. StateChangeEvent model with rolling buffer (500 events). `/api/v1/homeassistant/events` endpoint for activity log. Dashboard Activity Log tab shows live state changes with domain icons, friendly names, and state transitions. Filters "interesting" domains (lights, switches, etc.) for overview.
 - [x] **Dashboard Chat Tab (Phase 5)** - Direct text conversation with Barnabee from the dashboard. Chat bubble UI with avatars, timestamps, thinking animation. Suggestion chips for quick actions (time, weather, lights, jokes). Connects to `/api/v1/voice/process` endpoint. Shows agent used and intent on each response. Clear conversation button. Fully styled dark theme matching dashboard.
 - [x] **Home Assistant Action Execution** - AgentOrchestrator now executes ActionAgent commands via HomeAssistantClient. After parsing device control commands (turn on/off, set value, etc.), the orchestrator: (1) resolves entity names to entity_ids using EntityRegistry fuzzy matching, (2) calls HA service via REST API, (3) logs execution result to pipeline signals. Tested: "Turn on/off dining table light" successfully controls `light.dining_table_light`. State changes visible in `/api/v1/homeassistant/events`.
+- [x] **Smart Entity Resolution** - SmartEntityResolver class for intelligent batch operations. Features: (1) Area/room aliases ("living room" → living_room), (2) Floor-based commands ("lights downstairs" → all first floor lights), (3) Area groups ("kids rooms" → boys_room + girls_room + playroom), (4) Device type synonyms (blinds → cover, lights → light), (5) Cross-domain matching (searches switch domain for light commands since many lights are controlled by switches), (6) Word boundary matching to prevent false positives. Supports commands like "turn off all the lights downstairs", "close all the blinds in the living room", "open blinds in the girls room".
 
 ### In Progress
 - [ ] Dashboard Phase 6: Voice input in Chat tab (microphone)
