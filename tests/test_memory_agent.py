@@ -18,6 +18,105 @@ from barnabeenet.services.llm.openrouter import ChatResponse
 
 
 @pytest.fixture
+def mock_storage():
+    """Create a mock memory storage service."""
+    storage = AsyncMock()
+    storage.init = AsyncMock()
+    storage.shutdown = AsyncMock()
+
+    # Track stored memories for search simulation
+    stored_memories = {}
+
+    def create_stored_memory(
+        content,
+        memory_type="semantic",
+        importance=0.5,
+        participants=None,
+        tags=None,
+        time_context=None,
+        day_context=None,
+        memory_id=None,
+    ):
+        mid = memory_id or f"mem_{len(stored_memories):03d}"
+        mock_mem = MagicMock()
+        mock_mem.id = mid
+        mock_mem.content = content
+        mock_mem.memory_type = memory_type
+        mock_mem.importance = importance
+        mock_mem.participants = participants or []
+        mock_mem.tags = tags or []
+        mock_mem.time_context = time_context
+        mock_mem.day_context = day_context
+        mock_mem.to_dict = MagicMock(
+            return_value={
+                "id": mid,
+                "content": content,
+                "memory_type": memory_type,
+                "importance": importance,
+                "created_at": datetime.now().isoformat(),
+                "last_accessed": None,
+                "access_count": 0,
+                "participants": participants or [],
+                "tags": tags or [],
+                "time_context": time_context,
+                "day_context": day_context,
+            }
+        )
+        stored_memories[mid] = mock_mem
+        return mock_mem
+
+    async def store_memory_impl(
+        content,
+        memory_type="semantic",
+        importance=0.5,
+        participants=None,
+        tags=None,
+        time_context=None,
+        day_context=None,
+        memory_id=None,
+    ):
+        return create_stored_memory(
+            content,
+            memory_type,
+            importance,
+            participants,
+            tags,
+            time_context,
+            day_context,
+            memory_id,
+        )
+
+    async def search_memories_impl(
+        query, memory_type=None, participants=None, max_results=10, min_score=0.3
+    ):
+        # Simple keyword matching for tests
+        results = []
+        for mem in stored_memories.values():
+            if memory_type and mem.memory_type != memory_type:
+                continue
+            if participants and not any(p in mem.participants for p in participants):
+                continue
+            # Simple keyword match
+            if query.lower() in mem.content.lower():
+                results.append((mem, 0.9))
+        return results[:max_results]
+
+    async def delete_memory_impl(memory_id):
+        if memory_id in stored_memories:
+            del stored_memories[memory_id]
+            return True
+        return False
+
+    storage.store_memory = AsyncMock(side_effect=store_memory_impl)
+    storage.search_memories = AsyncMock(side_effect=search_memories_impl)
+    storage.get_memory = AsyncMock(side_effect=lambda mid: stored_memories.get(mid))
+    storage.delete_memory = AsyncMock(side_effect=delete_memory_impl)
+    storage.update_memory_access = AsyncMock()
+
+    return storage
+
+
+@pytest.fixture
 def mock_llm_response_generate() -> ChatResponse:
     """Create a mock LLM response for memory generation."""
     return ChatResponse(
@@ -85,18 +184,20 @@ def agent_config() -> MemoryConfig:
 
 
 @pytest.fixture
-async def initialized_agent(mock_llm_client: MagicMock, agent_config: MemoryConfig) -> MemoryAgent:
-    """Create an initialized MemoryAgent with mock LLM."""
-    agent = MemoryAgent(llm_client=mock_llm_client, config=agent_config)
+async def initialized_agent(
+    mock_llm_client: MagicMock, agent_config: MemoryConfig, mock_storage
+) -> MemoryAgent:
+    """Create an initialized MemoryAgent with mock LLM and storage."""
+    agent = MemoryAgent(llm_client=mock_llm_client, config=agent_config, storage=mock_storage)
     await agent.init()
     yield agent
     await agent.shutdown()
 
 
 @pytest.fixture
-async def agent_no_llm(agent_config: MemoryConfig) -> MemoryAgent:
+async def agent_no_llm(agent_config: MemoryConfig, mock_storage) -> MemoryAgent:
     """Create an agent without LLM (fallback mode)."""
-    agent = MemoryAgent(llm_client=None, config=agent_config)
+    agent = MemoryAgent(llm_client=None, config=agent_config, storage=mock_storage)
     await agent.init()
     yield agent
     await agent.shutdown()
@@ -106,9 +207,9 @@ class TestMemoryAgentInit:
     """Test MemoryAgent initialization."""
 
     @pytest.mark.asyncio
-    async def test_init_with_llm_client(self, mock_llm_client: MagicMock) -> None:
+    async def test_init_with_llm_client(self, mock_llm_client: MagicMock, mock_storage) -> None:
         """Agent initializes with provided LLM client."""
-        agent = MemoryAgent(llm_client=mock_llm_client)
+        agent = MemoryAgent(llm_client=mock_llm_client, storage=mock_storage)
         await agent.init()
         assert agent._initialized is True
         await agent.shutdown()
@@ -119,9 +220,9 @@ class TestMemoryAgentInit:
         assert initialized_agent.name == "memory"
 
     @pytest.mark.asyncio
-    async def test_double_init_safe(self, mock_llm_client: MagicMock) -> None:
+    async def test_double_init_safe(self, mock_llm_client: MagicMock, mock_storage) -> None:
         """Double initialization is safe."""
-        agent = MemoryAgent(llm_client=mock_llm_client)
+        agent = MemoryAgent(llm_client=mock_llm_client, storage=mock_storage)
         await agent.init()
         await agent.init()  # Should be no-op
         assert agent._initialized is True
@@ -248,16 +349,20 @@ class TestMemoryRetrieval:
         assert result["count"] == 0
 
     @pytest.mark.asyncio
-    async def test_retrieve_updates_access_count(self, initialized_agent: MemoryAgent) -> None:
-        """Retrieval updates access metadata."""
-        store_result = await initialized_agent.handle_input(
+    async def test_retrieve_updates_access_metadata(
+        self, initialized_agent: MemoryAgent, mock_storage
+    ) -> None:
+        """Retrieval calls storage to update access metadata."""
+        await initialized_agent.handle_input(
             "Unique memory content here",
             {
                 "operation": MemoryOperation.STORE,
                 "tags": ["unique"],
             },
         )
-        memory_id = store_result["memory_id"]
+
+        # Reset the mock call count
+        mock_storage.update_memory_access.reset_mock()
 
         # Retrieve twice
         await initialized_agent.handle_input(
@@ -269,9 +374,8 @@ class TestMemoryRetrieval:
             {"operation": MemoryOperation.RETRIEVE},
         )
 
-        memory = initialized_agent.get_memory(memory_id)
-        assert memory.access_count == 2
-        assert memory.last_accessed is not None
+        # Should have called update_memory_access for each retrieval
+        assert mock_storage.update_memory_access.call_count >= 2
 
 
 class TestMemoryGeneration:

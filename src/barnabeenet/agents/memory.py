@@ -21,10 +21,13 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from barnabeenet.agents.base import Agent
 from barnabeenet.services.llm.openrouter import ChatMessage, OpenRouterClient
+
+if TYPE_CHECKING:
+    from barnabeenet.services.memory.storage import MemoryStorage, StoredMemory
 
 logger = logging.getLogger(__name__)
 
@@ -221,7 +224,7 @@ class MemoryAgent(Agent):
     """Agent for memory storage, retrieval, and generation.
 
     Uses LLM (GPT-4o-mini) for memory generation and extraction.
-    Provides semantic search over stored memories.
+    Provides semantic search over stored memories via MemoryStorage service.
     """
 
     name = "memory"
@@ -230,18 +233,21 @@ class MemoryAgent(Agent):
         self,
         llm_client: OpenRouterClient | None = None,
         config: MemoryConfig | None = None,
+        storage: MemoryStorage | None = None,
     ) -> None:
         """Initialize the Memory Agent.
 
         Args:
             llm_client: Optional OpenRouter client for LLM operations.
             config: Optional configuration overrides.
+            storage: Optional memory storage service.
         """
         self._llm_client = llm_client
         self._owns_client = llm_client is None
         self.config = config or MemoryConfig()
+        self._storage = storage
 
-        # In-memory storage (will be replaced with Redis/vector DB)
+        # Legacy in-memory storage (kept for compatibility during transition)
         self._memories: dict[str, Memory] = {}
         self._working_memory: dict[str, dict[str, Any]] = {}  # session_id -> context
 
@@ -267,13 +273,22 @@ class MemoryAgent(Agent):
                     "Agent will use fallback memory operations."
                 )
 
+        # Initialize storage service
+        if self._storage is None:
+            from barnabeenet.services.memory.storage import get_memory_storage
+
+            self._storage = get_memory_storage()
+        await self._storage.init()
+
         self._initialized = True
-        logger.info("MemoryAgent initialized")
+        logger.info("MemoryAgent initialized with storage backend")
 
     async def shutdown(self) -> None:
         """Clean up resources."""
         if self._owns_client and self._llm_client:
             await self._llm_client.shutdown()
+        if self._storage:
+            await self._storage.shutdown()
         self._memories.clear()
         self._working_memory.clear()
         self._initialized = False
@@ -332,13 +347,25 @@ class MemoryAgent(Agent):
     # =========================================================================
 
     async def _handle_store(self, text: str, ctx: dict[str, Any]) -> dict[str, Any]:
-        """Store a new memory."""
+        """Store a new memory using the storage service."""
         memory_type = ctx.get("memory_type", MemoryType.SEMANTIC)
         if isinstance(memory_type, str):
             memory_type = MemoryType(memory_type)
 
+        # Use storage service for persistence with vector embeddings
+        stored = await self._storage.store_memory(
+            content=text,
+            memory_type=memory_type.value,
+            importance=ctx.get("importance", 0.5),
+            participants=ctx.get("participants", []),
+            tags=ctx.get("tags", []),
+            time_context=ctx.get("time_context"),
+            day_context=ctx.get("day_context"),
+        )
+
+        # Also keep in legacy storage for compatibility
         memory = Memory(
-            id=self._generate_memory_id(),
+            id=stored.id,
             content=text,
             memory_type=memory_type,
             importance=ctx.get("importance", 0.5),
@@ -347,44 +374,69 @@ class MemoryAgent(Agent):
             time_context=ctx.get("time_context"),
             day_context=ctx.get("day_context"),
         )
-
         self._memories[memory.id] = memory
 
         return {
             "success": True,
-            "memory_id": memory.id,
-            "memory": memory.to_dict(),
-            "response": f"Memory stored: {memory.content[:50]}...",
+            "memory_id": stored.id,
+            "memory": stored.to_dict(),
+            "response": f"Memory stored: {text[:50]}...",
         }
 
     async def _handle_retrieve(self, query: str, ctx: dict[str, Any]) -> dict[str, Any]:
-        """Retrieve memories relevant to a query."""
+        """Retrieve memories using semantic vector search."""
         # If explicit memory queries provided (from MetaAgent)
         memory_queries = ctx.get("memory_queries")
         if memory_queries and hasattr(memory_queries, "primary_query"):
             query = memory_queries.primary_query
 
-        # Simple keyword-based retrieval (will be replaced with vector search)
-        matches = self._search_memories(
-            query,
-            memory_type=ctx.get("memory_type"),
+        # Use storage service for vector similarity search
+        memory_type = ctx.get("memory_type")
+        if isinstance(memory_type, MemoryType):
+            memory_type = memory_type.value
+
+        results = await self._storage.search_memories(
+            query=query,
+            memory_type=memory_type,
             participants=ctx.get("participants"),
             max_results=ctx.get("max_results", self.config.max_retrieval_results),
+            min_score=self.config.min_relevance_score,
         )
 
-        # Update access metadata
-        now = datetime.now()
-        for memory in matches:
-            memory.last_accessed = now
-            memory.access_count += 1
+        # Update access metadata for returned memories
+        for stored_memory, _ in results:
+            await self._storage.update_memory_access(stored_memory.id)
+
+        # Convert to response format
+        memories_data = [
+            {
+                **m.to_dict(),
+                "similarity": score,
+            }
+            for m, score in results
+        ]
 
         return {
             "success": True,
             "query": query,
-            "memories": [m.to_dict() for m in matches],
-            "count": len(matches),
-            "response": self._format_retrieval_response(matches),
+            "memories": memories_data,
+            "count": len(results),
+            "response": self._format_retrieval_response_from_results(results),
         }
+
+    def _format_retrieval_response_from_results(
+        self, results: list[tuple[StoredMemory, float]]
+    ) -> str:
+        """Format search results into a response."""
+        if not results:
+            return "I don't have any relevant memories about that."
+
+        if len(results) == 1:
+            return f"I recall: {results[0][0].content}"
+
+        return f"I found {len(results)} related memories. " + "; ".join(
+            m.content for m, _ in results[:3]
+        )
 
     async def _handle_generate(self, ctx: dict[str, Any]) -> dict[str, Any]:
         """Generate a memory from events using LLM."""
@@ -444,9 +496,21 @@ class MemoryAgent(Agent):
                     "response": "Event not significant enough to store.",
                 }
 
-            # Create and store memory
+            # Store memory using storage service (with embeddings)
+            memory_type = self._map_memory_type(memory_data.get("type", "event"))
+            stored = await self._storage.store_memory(
+                content=memory_data["content"],
+                memory_type=memory_type.value,
+                importance=importance,
+                participants=memory_data.get("participants", []),
+                tags=memory_data.get("tags", []),
+                time_context=memory_data.get("time_context"),
+                day_context=memory_data.get("day_context"),
+            )
+
+            # Also keep in legacy storage for compatibility
             memory = Memory(
-                id=self._generate_memory_id(),
+                id=stored.id,
                 content=memory_data["content"],
                 memory_type=memory_type,
                 importance=importance,
@@ -456,15 +520,14 @@ class MemoryAgent(Agent):
                 day_context=memory_data.get("day_context"),
                 source_event_ids=[e.id for e in event_objs],
             )
-
             self._memories[memory.id] = memory
 
             return {
                 "success": True,
                 "stored": True,
-                "memory_id": memory.id,
-                "memory": memory.to_dict(),
-                "response": f"Memory generated: {memory.content}",
+                "memory_id": stored.id,
+                "memory": stored.to_dict(),
+                "response": f"Memory generated: {memory_data['content']}",
             }
 
         except json.JSONDecodeError as e:
@@ -500,8 +563,13 @@ class MemoryAgent(Agent):
         if not memory_id:
             return {"success": False, "error": "No memory_id provided"}
 
-        if memory_id in self._memories:
-            del self._memories[memory_id]
+        # Delete from storage service
+        deleted = await self._storage.delete_memory(memory_id)
+
+        # Also remove from legacy storage
+        self._memories.pop(memory_id, None)
+
+        if deleted:
             return {
                 "success": True,
                 "memory_id": memory_id,
