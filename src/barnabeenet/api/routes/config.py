@@ -1224,11 +1224,20 @@ class AutoSelectResponse(BaseModel):
     error: str | None = None
 
 
+# Redis keys for per-mode auto-selected models
+TESTING_MODE_AUTOSELECT_KEY = "barnabeenet:autoselect:testing"
+PRODUCTION_MODE_AUTOSELECT_KEY = "barnabeenet:autoselect:production"
+
+
 async def _apply_recommendations_to_config(
     request: Request,
     recommendations: dict[str, str],
+    mode: str | None = None,
 ) -> None:
-    """Apply model recommendations to Redis and in-memory config."""
+    """Apply model recommendations to Redis and in-memory config.
+
+    If mode is provided, also saves to the per-mode auto-select storage.
+    """
     import json
 
     from barnabeenet.services.llm.activities import get_activity_config_manager
@@ -1237,7 +1246,7 @@ async def _apply_recommendations_to_config(
     manager = get_activity_config_manager()
 
     for activity_name, model in recommendations.items():
-        # Store in Redis
+        # Store in Redis (active config)
         override = {"model": model}
         await redis.hset(ACTIVITY_CONFIGS_KEY, activity_name, json.dumps(override))
 
@@ -1247,6 +1256,14 @@ async def _apply_recommendations_to_config(
             config.model = model
         except Exception:
             pass
+
+    # Save to per-mode storage if mode specified
+    if mode:
+        mode_key = (
+            TESTING_MODE_AUTOSELECT_KEY if mode == "testing" else PRODUCTION_MODE_AUTOSELECT_KEY
+        )
+        await redis.set(mode_key, json.dumps(recommendations))
+        logger.info(f"Saved auto-selection for {mode} mode")
 
     logger.info(f"Applied auto-selection: {len(recommendations)} activities updated")
 
@@ -1261,10 +1278,27 @@ async def auto_select_models(
 
     Analyzes each activity's requirements (speed, accuracy, quality, context length)
     and matches them to the best available models.
+
+    The selection respects the current mode (testing/production):
+    - Testing mode: Only uses free models
+    - Production mode: Can use any models
+
+    Results are saved per-mode, so switching modes restores previous selections.
     """
     import json
 
     from barnabeenet.services.llm.activities import DEFAULT_ACTIVITY_CONFIGS
+
+    # Get current mode to determine free_only setting
+    redis = request.app.state.redis
+    mode_bytes = await redis.get(MODE_KEY)
+    current_mode = mode_bytes.decode() if mode_bytes else "testing"
+
+    # In testing mode, always use free models only
+    # In production mode, use the params.free_only setting
+    use_free_only = params.free_only if current_mode == "production" else True
+
+    logger.info(f"Auto-select running in {current_mode} mode (free_only={use_free_only})")
 
     # Get available models with health status (include failed to see health)
     models_response = await list_models(
@@ -1274,7 +1308,7 @@ async def auto_select_models(
         secrets=secrets,
     )
 
-    if params.free_only:
+    if use_free_only:
         available_models = [m for m in models_response.models if m.is_free]
     else:
         available_models = models_response.models
@@ -1534,8 +1568,8 @@ Select the best model for EACH activity. Return ONLY the JSON mapping."""
                     valid_recs[activity] = working_models[0].id
                     reasoning[activity] = "Default fallback"
 
-            # Auto-apply the recommendations to config
-            await _apply_recommendations_to_config(request, valid_recs)
+            # Auto-apply the recommendations to config and save for this mode
+            await _apply_recommendations_to_config(request, valid_recs, mode=current_mode)
 
             return AutoSelectResponse(
                 success=True,
@@ -1871,8 +1905,10 @@ async def get_current_mode(request: Request) -> dict[str, str]:
 async def set_mode(request: Request, preset: ModePreset) -> ModeResponse:
     """Switch all activities to testing or production models.
 
-    Testing mode: All free models (Google Gemini 2.0 Flash)
-    Production mode: Recommended quality models (Claude, GPT-4o, DeepSeek)
+    First checks for saved auto-selected models for this mode.
+    If found, uses those. Otherwise falls back to default presets:
+    - Testing mode: All free models (Google Gemini 2.0 Flash)
+    - Production mode: Recommended quality models (Claude, GPT-4o, DeepSeek)
     """
     import json
 
@@ -1884,10 +1920,35 @@ async def set_mode(request: Request, preset: ModePreset) -> ModeResponse:
             detail="Mode must be 'testing' or 'production'",
         )
 
-    models = TESTING_MODE_MODELS if preset.mode == "testing" else PRODUCTION_MODE_MODELS
-
     redis = request.app.state.redis
     manager = get_activity_config_manager()
+
+    # Check for saved auto-selected models for this mode
+    mode_key = (
+        TESTING_MODE_AUTOSELECT_KEY if preset.mode == "testing" else PRODUCTION_MODE_AUTOSELECT_KEY
+    )
+    saved_autoselect = await redis.get(mode_key)
+
+    if saved_autoselect:
+        # Use previously auto-selected models for this mode
+        try:
+            models = json.loads(
+                saved_autoselect.decode()
+                if isinstance(saved_autoselect, bytes)
+                else saved_autoselect
+            )
+            logger.info(
+                f"Restoring saved auto-selection for {preset.mode} mode ({len(models)} activities)"
+            )
+        except json.JSONDecodeError:
+            logger.warning(
+                f"Failed to parse saved auto-selection for {preset.mode}, using defaults"
+            )
+            models = TESTING_MODE_MODELS if preset.mode == "testing" else PRODUCTION_MODE_MODELS
+    else:
+        # Use default presets
+        models = TESTING_MODE_MODELS if preset.mode == "testing" else PRODUCTION_MODE_MODELS
+        logger.info(f"No saved auto-selection for {preset.mode}, using defaults")
 
     updated = 0
     for activity_name, model in models.items():

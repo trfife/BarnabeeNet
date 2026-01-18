@@ -1394,9 +1394,9 @@ function renderModelDropdown(dropdown, searchTerm, activityName) {
 
     dropdown.innerHTML = filteredModels.map((model, index) => {
         const healthClass = model.health_status === 'working' ? 'health-working' :
-                           model.health_status === 'failed' ? 'health-failed' : '';
+            model.health_status === 'failed' ? 'health-failed' : '';
         const healthIcon = model.health_status === 'working' ? '✓' :
-                          model.health_status === 'failed' ? '✗' : '';
+            model.health_status === 'failed' ? '✗' : '';
         const providerBadge = model.provider_display || model.provider || 'Unknown';
 
         return `
