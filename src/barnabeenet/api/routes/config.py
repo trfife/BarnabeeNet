@@ -1224,6 +1224,33 @@ class AutoSelectResponse(BaseModel):
     error: str | None = None
 
 
+async def _apply_recommendations_to_config(
+    request: Request,
+    recommendations: dict[str, str],
+) -> None:
+    """Apply model recommendations to Redis and in-memory config."""
+    import json
+
+    from barnabeenet.services.llm.activities import get_activity_config_manager
+
+    redis = request.app.state.redis
+    manager = get_activity_config_manager()
+
+    for activity_name, model in recommendations.items():
+        # Store in Redis
+        override = {"model": model}
+        await redis.hset(ACTIVITY_CONFIGS_KEY, activity_name, json.dumps(override))
+
+        # Update in-memory
+        try:
+            config = manager.get(activity_name)
+            config.model = model
+        except Exception:
+            pass
+
+    logger.info(f"Applied auto-selection: {len(recommendations)} activities updated")
+
+
 @router.post("/activities/auto-select")
 async def auto_select_models(
     request: Request,
@@ -1260,27 +1287,37 @@ async def auto_select_models(
             error="No models available" + (" (free only)" if params.free_only else ""),
         )
 
-    # Filter to only working models if we have health data
+    # Filter out failed models - only include working or unchecked models
     working_models = []
+    failed_models = []
     for m in available_models:
         if m.id in _model_health_cache:
             working, _, _ = _model_health_cache[m.id]
             if working:
                 working_models.append(m)
+            else:
+                failed_models.append(m.id)
         else:
-            # Include unchecked models
+            # Include unchecked models (no health data yet)
             working_models.append(m)
 
-    if not working_models:
-        working_models = available_models  # Fall back to all if none verified
+    if failed_models:
+        logger.info(f"Auto-select excluding {len(failed_models)} failed models")
 
-    # Build model summary for AI
+    if not working_models:
+        return AutoSelectResponse(
+            success=False,
+            recommendations={},
+            reasoning={},
+            error=f"No working models available. {len(failed_models)} models failed health check.",
+        )
+
+    # Build model summary for AI (only working/unchecked models)
     model_summary = []
     for m in working_models[:30]:  # Limit to top 30
         health_note = ""
         if m.id in _model_health_cache:
-            working, _, _ = _model_health_cache[m.id]
-            health_note = " [VERIFIED WORKING]" if working else " [FAILED]"
+            health_note = " [VERIFIED WORKING]"
 
         model_summary.append(
             f"- {m.id}: {m.name}, context={m.context_length}, "
@@ -1305,7 +1342,7 @@ Consider:
 2. MAX_TOKENS: Ensure model context length can handle the task
 3. Model capabilities: Some models are better at certain tasks (coding, conversation, analysis)
 4. If a model is marked [VERIFIED WORKING], prefer it over unchecked ones
-5. NEVER select a model marked [FAILED]
+5. All models in this list have passed health checks or are unchecked - prefer [VERIFIED WORKING] ones
 
 Respond with ONLY a JSON object mapping activity names to model IDs, like:
 {"meta.classify_intent": "model/id", "interaction.respond": "other/model", ...}
@@ -1417,10 +1454,10 @@ Select the best model for EACH activity. Return ONLY the JSON mapping."""
             logger.debug(f"Auto-select parsing JSON: {content[:200]}...")
             recommendations = json.loads(content.strip())
 
-            # Validate recommendations
+            # Validate recommendations - only accept working models
             valid_recs = {}
             reasoning = {}
-            valid_model_ids = {m.id for m in available_models}
+            valid_model_ids = {m.id for m in working_models}  # Only working models
 
             for activity, model_id in recommendations.items():
                 if activity in DEFAULT_ACTIVITY_CONFIGS:
@@ -1429,21 +1466,25 @@ Select the best model for EACH activity. Return ONLY the JSON mapping."""
                         priority = DEFAULT_ACTIVITY_CONFIGS[activity]["priority"]
                         reasoning[activity] = f"Selected for {priority} priority task"
                     else:
-                        # Model not in our list, use a fallback
-                        fallback = working_models[0].id if working_models else available_models[0].id
+                        # Model not in working list, use a fallback
+                        fallback = working_models[0].id
                         valid_recs[activity] = fallback
-                        reasoning[activity] = f"Fallback (requested {model_id} not available)"
+                        reasoning[activity] = f"Fallback (requested {model_id} failed health check or unavailable)"
 
             # Fill any missing activities
             for activity in DEFAULT_ACTIVITY_CONFIGS:
                 if activity not in valid_recs:
-                    valid_recs[activity] = working_models[0].id if working_models else available_models[0].id
+                    valid_recs[activity] = working_models[0].id
                     reasoning[activity] = "Default fallback"
+
+            # Auto-apply the recommendations to config
+            await _apply_recommendations_to_config(request, valid_recs)
 
             return AutoSelectResponse(
                 success=True,
                 recommendations=valid_recs,
                 reasoning=reasoning,
+                applied=True,
             )
 
     except json.JSONDecodeError as e:
@@ -1468,37 +1509,12 @@ async def apply_auto_selection(
     params: AutoSelectRequest,
     secrets: SecretsService = Depends(get_secrets),
 ) -> AutoSelectResponse:
-    """Auto-select models AND apply them to all activities."""
-    import json
+    """Auto-select models AND apply them to all activities.
 
-    from barnabeenet.services.llm.activities import get_activity_config_manager
-
-    # First get recommendations
-    result = await auto_select_models(request, params, secrets)
-
-    if not result.success:
-        return result
-
-    # Apply recommendations
-    redis = request.app.state.redis
-    manager = get_activity_config_manager()
-
-    for activity_name, model in result.recommendations.items():
-        # Store in Redis
-        override = {"model": model}
-        await redis.hset(ACTIVITY_CONFIGS_KEY, activity_name, json.dumps(override))
-
-        # Update in-memory
-        try:
-            config = manager.get(activity_name)
-            config.model = model
-        except Exception:
-            pass
-
-    logger.info(f"Applied auto-selection: {len(result.recommendations)} activities updated")
-
-    result.applied = True
-    return result
+    Note: This endpoint is now identical to /auto-select since
+    recommendations are automatically applied.
+    """
+    return await auto_select_models(request, params, secrets)
 
 
 # =============================================================================
