@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (Activity Logging System + Agent Chain Display)
+2026-01-18 (Secrets Persistence Fix)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + COMPREHENSIVE LOGGING
@@ -88,6 +88,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Mode-Aware Auto-Select** - Auto-select respects testing/production mode. Uses free_only=True for testing mode. Per-mode persistence: auto-select choices stored separately for testing and production modes. Toggling mode restores previously saved auto-selections.
 - [x] **Comprehensive Activity Logging System** - New ActivityLogger service (`/api/v1/activity/*`) with 30+ ActivityType enum values (user.input, meta.classify, action.execute, interaction.respond, ha.state_change, llm.request, etc.). Activity and ConversationTrace models track full agent decision chains. WebSocket integration pushes activities to dashboard in real-time. Orchestrator logs classification, memory retrieval, and agent routing steps. HA client logs service calls and toggle actions.
 - [x] **Agent Chain Display in Chat** - After each chat response, fetches conversation trace and displays collapsible "Agent Chain" showing step-by-step agent decisions. Shows agent icons (🧠 meta, ⚡ instant, 🎯 action, 💬 interaction, 📝 memory), actions, summaries, and durations. Expandable/collapsible via click. CSS styled to match dark theme.
+- [x] **Secrets Persistence Verified** - All API keys and HA tokens are encrypted (Fernet AES-128) and stored in Redis. Master key loaded from BARNABEENET_MASTER_KEY env var. Fixed bug in /homeassistant/status endpoint returning wrong URL. Added error logging for secret decryption failures. Secrets survive restarts: HA token, OpenRouter key, and 7 other provider keys all persist correctly.
 
 ### In Progress
 - [ ] Dashboard Phase 6: Voice input in Chat tab (microphone)
