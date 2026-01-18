@@ -65,16 +65,27 @@ if [ -d ".venv" ]; then
         sleep 2
     fi
     
-    # Start in screen session
-    echo "Starting BarnabeeNet in screen session..."
-    screen -dmS barnabeenet bash -c "cd $PROJECT_DIR && source .venv/bin/activate && python -m uvicorn barnabeenet.main:app --host 0.0.0.0 --port 8000"
+    # Start with tmux or nohup (tmux preferred, nohup as fallback)
+    echo "Starting BarnabeeNet in background..."
+    if command -v tmux &> /dev/null; then
+        # Kill existing tmux session if exists
+        tmux kill-session -t barnabeenet 2>/dev/null || true
+        tmux new-session -d -s barnabeenet "cd $PROJECT_DIR && source .venv/bin/activate && python -m uvicorn barnabeenet.main:app --host 0.0.0.0 --port 8000 2>&1 | tee logs/barnabeenet.log"
+        ATTACH_CMD="tmux attach -t barnabeenet"
+    else
+        # Fallback to nohup
+        mkdir -p logs
+        nohup bash -c "cd $PROJECT_DIR && source .venv/bin/activate && python -m uvicorn barnabeenet.main:app --host 0.0.0.0 --port 8000" > logs/barnabeenet.log 2>&1 &
+        ATTACH_CMD="tail -f logs/barnabeenet.log"
+    fi
     
-    sleep 2
+    sleep 3
     if pgrep -f "uvicorn barnabeenet.main:app" > /dev/null; then
-        echo -e "${GREEN}✓ BarnabeeNet app started (screen -r barnabeenet to attach)${NC}"
+        echo -e "${GREEN}✓ BarnabeeNet app started${NC}"
+        echo "  Attach: $ATTACH_CMD"
     else
         echo -e "${RED}❌ BarnabeeNet app failed to start${NC}"
-        echo "  Check logs: screen -r barnabeenet"
+        echo "  Check logs: cat logs/barnabeenet.log"
     fi
 else
     echo -e "${YELLOW}⚠ No .venv found - run 'python -m venv .venv && pip install -r requirements.txt' first${NC}"
