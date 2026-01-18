@@ -53,5 +53,37 @@ else
     echo "  Install podman-compose or docker-compose"
 fi
 
+# Restart BarnabeeNet FastAPI app
+echo -e "\n${YELLOW}[3/3] Restarting BarnabeeNet app...${NC}"
+
+# Check if virtual environment exists
+if [ -d ".venv" ]; then
+    # Kill existing process if running
+    if pgrep -f "uvicorn barnabeenet.main:app" > /dev/null; then
+        echo "Stopping existing BarnabeeNet process..."
+        pkill -f "uvicorn barnabeenet.main:app" || true
+        sleep 2
+    fi
+    
+    # Start in screen session
+    echo "Starting BarnabeeNet in screen session..."
+    screen -dmS barnabeenet bash -c "cd $PROJECT_DIR && source .venv/bin/activate && python -m uvicorn barnabeenet.main:app --host 0.0.0.0 --port 8000"
+    
+    sleep 2
+    if pgrep -f "uvicorn barnabeenet.main:app" > /dev/null; then
+        echo -e "${GREEN}✓ BarnabeeNet app started (screen -r barnabeenet to attach)${NC}"
+    else
+        echo -e "${RED}❌ BarnabeeNet app failed to start${NC}"
+        echo "  Check logs: screen -r barnabeenet"
+    fi
+else
+    echo -e "${YELLOW}⚠ No .venv found - run 'python -m venv .venv && pip install -r requirements.txt' first${NC}"
+fi
+
 echo ""
 echo -e "${GREEN}✅ Restart complete${NC}"
+echo ""
+echo "Services:"
+echo "  - BarnabeeNet API: http://192.168.86.51:8000"
+echo "  - Grafana:         http://192.168.86.51:3000"
+echo "  - Prometheus:      http://192.168.86.51:9090"

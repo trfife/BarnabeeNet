@@ -55,10 +55,27 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Dashboard Phase 2** - WebSocket endpoint (/ws/activity) for real-time signal streaming, ConnectionManager with filtering, SignalStreamer background task reading from Redis Streams
 
 ### In Progress
-- [ ] End-to-end voice testing
+- [ ] VM Deployment
 
 ### Not Started
 - [ ] End-to-end voice testing
+
+---
+
+## Deployment Architecture
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| **BarnabeeNet App** | VM (192.168.86.51:8000) | Main runtime - agents, API, dashboard |
+| **Redis** | VM (192.168.86.51:6379) | Message bus, signals, memory cache |
+| **Prometheus** | VM (192.168.86.51:9090) | Metrics storage |
+| **Grafana** | VM (192.168.86.51:3000) | Dashboard UI |
+| **GPU STT Worker** | Man-of-war (192.168.86.61:8001) | Fast transcription via RTX 4070 Ti |
+
+**Deployment flow:**
+1. Develop & test locally on Man-of-war
+2. `./scripts/deploy-vm.sh` pushes to VM and restarts services
+3. VM runs production, Man-of-war provides GPU acceleration
 
 ---
 
@@ -78,7 +95,8 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. End-to-end voice testing ← NEXT
+1. VM Deployment ← NEXT (set up venv on VM, first deploy)
+2. End-to-end voice testing
 
 ---
 
