@@ -422,9 +422,9 @@ function renderLLMInspector(modal, signal) {
             const role = msg.role || 'unknown';
             const content = msg.content || '';
             const roleClass = role === 'system' ? 'llm-msg-system' :
-                              role === 'user' ? 'llm-msg-user' : 'llm-msg-assistant';
+                role === 'user' ? 'llm-msg-user' : 'llm-msg-assistant';
             const roleIcon = role === 'system' ? '⚙️' :
-                             role === 'user' ? '👤' : '🤖';
+                role === 'user' ? '👤' : '🤖';
             return `
                 <div class="llm-message ${roleClass}">
                     <div class="llm-message-header">
@@ -1043,7 +1043,7 @@ function renderWaterfallTimeline(trace) {
             <div class="timeline-row">
                 <span class="step-label" title="${escapeHtml(signal.summary || signal.signal_type)}">${escapeHtml(label)}</span>
                 <div class="timeline-bar-container">
-                    <div class="timeline-bar ${barClass}" 
+                    <div class="timeline-bar ${barClass}"
                          style="left: ${startPercent.toFixed(1)}%; width: ${Math.min(widthPercent, 100 - startPercent).toFixed(1)}%">
                     </div>
                     <span class="step-duration">${duration?.toFixed(0) || 0}ms</span>
