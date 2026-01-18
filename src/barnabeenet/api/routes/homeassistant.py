@@ -298,7 +298,7 @@ async def get_ha_client_with_request(request: Request) -> HomeAssistantClient | 
 
 async def get_ha_client() -> HomeAssistantClient | None:
     """Get or create the Home Assistant client (fallback without request).
-    
+
     This function is used by components like the orchestrator that don't have
     access to the request object. It will return the existing client if already
     connected, otherwise try to create one from cached config or env settings.

@@ -583,8 +583,13 @@ class ActionAgent(Agent):
         text_lower = text.lower()
         # Keywords that indicate batch operations
         batch_keywords = [
-            "all ", "every ", "all the ", "every the ",
-            " downstairs", " upstairs", " floor",
+            "all ",
+            "every ",
+            "all the ",
+            "every the ",
+            " downstairs",
+            " upstairs",
+            " floor",
         ]
         for keyword in batch_keywords:
             if keyword in text_lower or text_lower.startswith(keyword.strip()):

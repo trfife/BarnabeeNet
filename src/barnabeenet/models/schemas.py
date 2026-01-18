@@ -250,7 +250,9 @@ class TextProcessResponse(BaseModel):
     total_latency_ms: float = Field(..., description="Total latency including overhead")
     memories_retrieved: int = Field(default=0, description="Number of memories retrieved")
     memories_stored: int = Field(default=0, description="Number of new memories stored")
-    actions: list[dict] = Field(default_factory=list, description="Actions taken (for action intents)")
+    actions: list[dict] = Field(
+        default_factory=list, description="Actions taken (for action intents)"
+    )
 
     class Config:
         json_schema_extra = {

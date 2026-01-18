@@ -152,7 +152,9 @@ class Entity:
                 return 0.4 + (matching_words / len(query_words)) * 0.2
 
         # Check entity_id for matches (e.g., switch.office_switch_light)
-        entity_name_part = entity_id_lower.split(".")[-1] if "." in entity_id_lower else entity_id_lower
+        entity_name_part = (
+            entity_id_lower.split(".")[-1] if "." in entity_id_lower else entity_id_lower
+        )
         if query_lower in entity_name_part:
             return 0.4 + (len(query_lower) / len(entity_name_part)) * 0.2
 

@@ -37,7 +37,13 @@ AREA_ALIASES: dict[str, list[str]] = {
     "den": ["den", "tv room", "media room"],
     "entry": ["entry", "entryway", "foyer", "front door", "mudroom"],
     # Bathrooms
-    "guest_bath": ["guest bath", "guest bathroom", "powder room", "half bath", "downstairs bathroom"],
+    "guest_bath": [
+        "guest bath",
+        "guest bathroom",
+        "powder room",
+        "half bath",
+        "downstairs bathroom",
+    ],
     "kids_bath": ["kids bath", "kids bathroom", "children's bathroom", "upstairs bathroom"],
     "parents_bath": ["parents bath", "master bath", "master bathroom", "main bath"],
     # Bedrooms
@@ -54,12 +60,21 @@ AREA_ALIASES: dict[str, list[str]] = {
 # Floor aliases - maps user terms to floor IDs
 FLOOR_ALIASES: dict[str, list[str]] = {
     "first_floor": [
-        "downstairs", "first floor", "ground floor", "main floor",
-        "main level", "lower level", "1st floor"
+        "downstairs",
+        "first floor",
+        "ground floor",
+        "main floor",
+        "main level",
+        "lower level",
+        "1st floor",
     ],
     "second_floor": [
-        "upstairs", "second floor", "upper floor", "upper level",
-        "2nd floor", "top floor"
+        "upstairs",
+        "second floor",
+        "upper floor",
+        "upper level",
+        "2nd floor",
+        "top floor",
     ],
     "outside": ["outside", "outdoor", "outdoors", "exterior"],
 }
@@ -148,7 +163,7 @@ BATCH_PATTERNS = [
 @dataclass
 class ResolvedTarget:
     """Result of entity resolution."""
-    
+
     entities: list[Entity] = field(default_factory=list)
     area: Area | None = None
     domain: str | None = None
@@ -160,7 +175,7 @@ class ResolvedTarget:
 
 class SmartEntityResolver:
     """Intelligent entity resolver for natural language commands.
-    
+
     Handles:
     - Single entity resolution with fuzzy matching
     - Area-based batch operations
@@ -168,45 +183,45 @@ class SmartEntityResolver:
     - Device type synonyms
     - Cross-domain matching
     """
-    
+
     def __init__(self, ha_client: HomeAssistantClient) -> None:
         self._ha = ha_client
         self._area_lookup: dict[str, str] = {}  # alias -> area_id
         self._floor_lookup: dict[str, str] = {}  # alias -> floor_id
         self._init_lookups()
-    
+
     def _init_lookups(self) -> None:
         """Initialize alias lookup tables."""
         # Build area alias lookup
         for area_id, aliases in AREA_ALIASES.items():
             for alias in aliases:
                 self._area_lookup[alias.lower()] = area_id
-        
+
         # Build floor alias lookup
         for floor_id, aliases in FLOOR_ALIASES.items():
             for alias in aliases:
                 self._floor_lookup[alias.lower()] = floor_id
-    
+
     def resolve_area(self, text: str) -> Area | None:
         """Resolve a text phrase to an area.
-        
+
         Tries:
         1. Exact area name match
         2. Area alias match
         3. Fuzzy area name match
         """
         text_lower = text.lower().strip()
-        
+
         # Check HA areas directly
         area = self._ha.find_area_by_name(text)
         if area:
             return area
-        
+
         # Check aliases
         area_id = self._area_lookup.get(text_lower)
         if area_id:
             return self._ha.get_area(area_id)
-        
+
         # Try partial matching - "girls room" in "girls_room"
         for area in self._ha.areas.values():
             if text_lower in area.name.lower() or text_lower in area.id.lower():
@@ -215,31 +230,31 @@ class SmartEntityResolver:
             normalized = text_lower.replace("'s", "s").replace("'", "")
             if normalized in area.name.lower() or normalized in area.id.lower():
                 return area
-        
+
         return None
-    
+
     def resolve_floor(self, text: str) -> str | None:
         """Resolve a text phrase to a floor ID."""
         text_lower = text.lower().strip()
         return self._floor_lookup.get(text_lower)
-    
+
     def get_areas_on_floor(self, floor_id: str) -> list[Area]:
         """Get all areas on a specific floor."""
         return [a for a in self._ha.areas.values() if a.floor_id == floor_id]
-    
+
     def get_area_group(self, group_name: str) -> list[str]:
         """Get area IDs for a named group."""
         return AREA_GROUPS.get(group_name.lower().replace(" ", "_"), [])
-    
+
     def normalize_device_type(self, text: str) -> str | None:
         """Normalize a device type phrase to HA domain."""
         text_lower = text.lower().strip()
         return DEVICE_TYPE_SYNONYMS.get(text_lower)
-    
+
     def get_alternative_domains(self, domain: str) -> list[str]:
         """Get alternative domains that might contain matching entities."""
         return DOMAIN_ALTERNATIVES.get(domain, [])
-    
+
     def resolve(
         self,
         entity_name: str,
@@ -247,33 +262,33 @@ class SmartEntityResolver:
         area_hint: str | None = None,
     ) -> ResolvedTarget:
         """Resolve a natural language entity reference.
-        
+
         Args:
             entity_name: The entity reference (e.g., "office light", "all blinds in living room")
             domain: Optional domain hint
             area_hint: Optional area hint from context
-            
+
         Returns:
             ResolvedTarget with matched entities
         """
         result = ResolvedTarget()
         entity_name = entity_name.strip()
-        
+
         # Check for batch patterns first
         batch_result = self._try_batch_resolution(entity_name, domain)
         if batch_result.entities:
             return batch_result
-        
+
         # Try single entity resolution
         return self._resolve_single(entity_name, domain, area_hint)
-    
+
     def _try_batch_resolution(
         self,
         text: str,
         domain: str | None = None,
     ) -> ResolvedTarget:
         """Try to resolve as a batch operation.
-        
+
         Handles patterns like:
         - "all lights in living room"
         - "blinds in the kitchen"
@@ -292,7 +307,7 @@ class SmartEntityResolver:
             device_type = all_match.group(1)
             location = all_match.group(2) if all_match.group(2) else None
             return self._resolve_batch(device_type, location, domain)
-        
+
         # Pattern: "(device_type) in/on (location)" - implicit batch
         # e.g., "lights in the kitchen", "blinds in office"
         location_match = re.match(
@@ -305,7 +320,7 @@ class SmartEntityResolver:
             # Only treat as batch if device_type is plural or matches a type
             if device_type.endswith("s") or device_type in DEVICE_TYPE_SYNONYMS:
                 return self._resolve_batch(device_type, location, domain)
-        
+
         # Pattern: "(device_type) (floor_alias)" - floor-based batch
         # e.g., "lights downstairs", "blinds upstairs"
         for word in text_lower.split():
@@ -317,7 +332,7 @@ class SmartEntityResolver:
                     return self._resolve_batch(device_type, word, domain)
 
         return ResolvedTarget()  # Empty result = not a batch
-    
+
     def _resolve_batch(
         self,
         device_type: str,
@@ -326,23 +341,23 @@ class SmartEntityResolver:
     ) -> ResolvedTarget:
         """Resolve a batch operation targeting multiple entities."""
         result = ResolvedTarget(is_batch=True, resolution_method="batch")
-        
+
         # Determine the target domain
         domain = domain_hint or self.normalize_device_type(device_type)
         if not domain:
             # Try singular form
             singular = device_type.rstrip("s")
             domain = self.normalize_device_type(singular)
-        
+
         if not domain:
             result.error = f"Unknown device type: {device_type}"
             return result
-        
+
         result.domain = domain
-        
+
         # Determine target areas
         target_area_ids: list[str] = []
-        
+
         if location:
             # Check if it's a floor reference
             floor_id = self.resolve_floor(location)
@@ -365,19 +380,37 @@ class SmartEntityResolver:
                         logger.debug("Resolved area: %s", area.id)
                     else:
                         # Last try: look in entity names
-                        logger.debug("Could not resolve location '%s', searching entity names", location)
-        
+                        logger.debug(
+                            "Could not resolve location '%s', searching entity names", location
+                        )
+
         # Get entities
         all_domains = [domain] + self.get_alternative_domains(domain)
-        
+
         for dom in all_domains:
             if target_area_ids:
-                # Get entities by area
+                # First try: Get entities by area_id
                 for area_id in target_area_ids:
                     entities = self._ha.entities.get_by_area(area_id)
                     for entity in entities:
                         if entity.domain == dom:
                             result.entities.append(entity)
+
+                # If no entities found by area_id, fall back to name matching
+                # Many entities have area in their name but area_id not set
+                if not result.entities and location:
+                    location_lower = location.lower()
+                    entities = self._ha.entities.get_by_domain(dom)
+                    for entity in entities:
+                        name_lower = entity.friendly_name.lower()
+                        id_lower = entity.entity_id.lower()
+                        # Check if location appears in name or id
+                        if (
+                            location_lower in name_lower
+                            or location_lower.replace(" ", "_") in id_lower
+                        ):
+                            if entity not in result.entities:
+                                result.entities.append(entity)
             else:
                 # No specific area - get all entities of domain
                 # But check if location appears in entity name
@@ -386,14 +419,15 @@ class SmartEntityResolver:
                     # Filter by location in name
                     location_lower = location.lower()
                     entities = [
-                        e for e in entities
+                        e
+                        for e in entities
                         if location_lower in e.friendly_name.lower()
                         or location_lower in e.entity_id.lower()
                     ]
                 for entity in entities:
                     if entity not in result.entities:
                         result.entities.append(entity)
-        
+
         if result.entities:
             result.confidence = 0.8
             logger.info(
@@ -404,9 +438,9 @@ class SmartEntityResolver:
             )
         else:
             result.error = f"No {device_type} found" + (f" in {location}" if location else "")
-        
+
         return result
-    
+
     def _resolve_single(
         self,
         entity_name: str,
@@ -415,17 +449,17 @@ class SmartEntityResolver:
     ) -> ResolvedTarget:
         """Resolve a single entity reference."""
         result = ResolvedTarget(resolution_method="single")
-        
+
         # Collect candidates from all relevant domains
         candidates: list[tuple[float, Entity]] = []
-        
+
         domains_to_search = [domain] if domain else list(DEVICE_TYPE_SYNONYMS.values())
         domains_to_search = list(set(domains_to_search))  # Dedupe
-        
+
         # Add alternative domains
         if domain:
             domains_to_search.extend(self.get_alternative_domains(domain))
-        
+
         for dom in domains_to_search:
             if not dom:
                 continue
@@ -438,13 +472,13 @@ class SmartEntityResolver:
                     if area and area_hint.lower() in area.name.lower():
                         score += 0.1
                 candidates.append((score, entity))
-        
+
         if not candidates:
             # Try without domain restriction
             entity = self._ha.resolve_entity(entity_name, None)
             if entity:
                 candidates.append((entity.match_score(entity_name), entity))
-        
+
         if candidates:
             candidates.sort(key=lambda x: x[0], reverse=True)
             best_entity = candidates[0][1]
@@ -458,16 +492,16 @@ class SmartEntityResolver:
             )
         else:
             result.error = f"Could not find entity: {entity_name}"
-        
+
         return result
-    
+
     def resolve_multiple(
         self,
         targets: list[str],
         domain: str | None = None,
     ) -> list[ResolvedTarget]:
         """Resolve multiple entity targets.
-        
+
         Handles comma-separated lists like:
         "living room, kitchen, and office blinds"
         """

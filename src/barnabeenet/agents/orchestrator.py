@@ -703,24 +703,30 @@ class AgentOrchestrator:
                 )
                 if result.success:
                     success_count += 1
-                    results.append({
-                        "entity_id": entity.entity_id,
-                        "success": True,
-                    })
+                    results.append(
+                        {
+                            "entity_id": entity.entity_id,
+                            "success": True,
+                        }
+                    )
                 else:
                     fail_count += 1
-                    results.append({
-                        "entity_id": entity.entity_id,
-                        "success": False,
-                        "error": result.message,
-                    })
+                    results.append(
+                        {
+                            "entity_id": entity.entity_id,
+                            "success": False,
+                            "error": result.message,
+                        }
+                    )
             except Exception as e:
                 fail_count += 1
-                results.append({
-                    "entity_id": entity.entity_id,
-                    "success": False,
-                    "error": str(e),
-                })
+                results.append(
+                    {
+                        "entity_id": entity.entity_id,
+                        "success": False,
+                        "error": str(e),
+                    }
+                )
 
         # Build response
         total = len(resolved.entities)
@@ -819,7 +825,7 @@ class AgentOrchestrator:
                 candidates.sort(key=lambda x: x[0], reverse=True)
                 entity = candidates[0][1]
                 best_score = candidates[0][0]
-                
+
                 # Log if we chose from alternative domain
                 entity_domain = entity.entity_id.split(".")[0] if "." in entity.entity_id else None
                 if entity_domain and entity_domain != domain:
