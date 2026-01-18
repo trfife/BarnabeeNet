@@ -1898,7 +1898,9 @@ async def get_current_mode(request: Request) -> dict[str, str]:
     """Get the current model mode (testing or production)."""
     redis = request.app.state.redis
     mode = await redis.get(MODE_KEY)
-    return {"mode": mode.decode() if mode else "testing"}
+    if mode is None:
+        return {"mode": "testing"}
+    return {"mode": mode.decode() if isinstance(mode, bytes) else mode}
 
 
 @router.post("/mode", response_model=ModeResponse)
