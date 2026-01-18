@@ -1,18 +1,19 @@
 """Home Assistant API client.
 
-Async client for communicating with Home Assistant's REST API.
+Async client for communicating with Home Assistant's REST API and WebSocket API.
 Handles:
 - Authentication via long-lived access token
 - Service calls (turn_on, turn_off, etc.)
 - State retrieval
 - Entity discovery
-- Device/Area/Automation/Integration registries
+- Device/Area/Automation/Integration registries (via WebSocket)
 - Error log fetching
-- Event subscriptions (via WebSocket in future)
+- Event subscriptions (via WebSocket)
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -20,6 +21,8 @@ from datetime import datetime
 from typing import Any
 
 import httpx
+import websockets
+from websockets.exceptions import WebSocketException
 
 from barnabeenet.services.homeassistant.entities import Entity, EntityRegistry, EntityState
 from barnabeenet.services.homeassistant.models import (
@@ -212,6 +215,9 @@ class HomeAssistantClient:
     async def refresh_entities(self) -> int:
         """Refresh the entity registry from Home Assistant.
 
+        Loads entity states from REST API and enriches with entity registry
+        data (including area_id) from WebSocket API.
+
         Returns:
             Number of entities loaded.
         """
@@ -219,13 +225,34 @@ class HomeAssistantClient:
             return 0
 
         try:
+            # Get entity states from REST API
             response = await self._client.get("/api/states")
             response.raise_for_status()
             states = response.json()
 
+            # Try to get entity registry from WebSocket for area assignments
+            entity_registry_data = await self._ws_command("config/entity_registry/list")
+            entity_registry_map: dict[str, dict[str, Any]] = {}
+            if entity_registry_data:
+                for entry in entity_registry_data:
+                    entity_id = entry.get("entity_id")
+                    if entity_id:
+                        entity_registry_map[entity_id] = entry
+                logger.debug(
+                    "Loaded %d entity registry entries via WebSocket", len(entity_registry_map)
+                )
+
             self._entity_registry.clear()
             for state_data in states:
                 entity = self._parse_entity(state_data)
+
+                # Enrich with entity registry data (area_id, device_id, etc.)
+                entity_id = state_data.get("entity_id", "")
+                if entity_id in entity_registry_map:
+                    registry_entry = entity_registry_map[entity_id]
+                    entity.area_id = registry_entry.get("area_id")
+                    entity.device_id = registry_entry.get("device_id")
+
                 self._entity_registry.add(entity)
 
             logger.info("Loaded %d entities from Home Assistant", len(self._entity_registry))
@@ -237,73 +264,136 @@ class HomeAssistantClient:
             logger.error("Failed to refresh entities: %s", e)
             return 0
 
+    async def _ws_command(self, command_type: str) -> list[dict[str, Any]] | None:
+        """Execute a WebSocket command and return the result.
+
+        Home Assistant's WebSocket API flow:
+        1. Connect to ws://host:port/api/websocket
+        2. Receive {"type": "auth_required"}
+        3. Send {"type": "auth", "access_token": "token"}
+        4. Receive {"type": "auth_ok"} or {"type": "auth_invalid"}
+        5. Send command with {"id": 1, "type": "command_type"}
+        6. Receive {"id": 1, "type": "result", "success": true, "result": [...]}
+
+        Args:
+            command_type: The WebSocket command type (e.g., "config/device_registry/list")
+
+        Returns:
+            List of results or None if failed.
+        """
+        # Convert HTTP URL to WebSocket URL
+        ws_url = self._url.replace("http://", "ws://").replace("https://", "wss://")
+        ws_url = f"{ws_url}/api/websocket"
+
+        try:
+            async with websockets.connect(ws_url) as ws:
+                # Step 1: Wait for auth_required
+                msg = json.loads(await ws.recv())
+                if msg.get("type") != "auth_required":
+                    logger.error("Unexpected WebSocket message: %s", msg)
+                    return None
+
+                # Step 2: Send auth
+                await ws.send(json.dumps({"type": "auth", "access_token": self._token}))
+
+                # Step 3: Wait for auth response
+                msg = json.loads(await ws.recv())
+                if msg.get("type") == "auth_invalid":
+                    logger.error("WebSocket auth failed: %s", msg.get("message"))
+                    return None
+                if msg.get("type") != "auth_ok":
+                    logger.error("Unexpected auth response: %s", msg)
+                    return None
+
+                logger.debug("WebSocket authenticated successfully")
+
+                # Step 4: Send command
+                await ws.send(json.dumps({"id": 1, "type": command_type}))
+
+                # Step 5: Wait for result
+                msg = json.loads(await ws.recv())
+                if msg.get("type") == "result" and msg.get("success"):
+                    return msg.get("result", [])
+                else:
+                    logger.error("WebSocket command failed: %s", msg)
+                    return None
+
+        except WebSocketException as e:
+            logger.warning("WebSocket error for %s: %s", command_type, e)
+            return None
+        except Exception as e:
+            logger.warning("WebSocket connection failed for %s: %s", command_type, e)
+            return None
+
     async def refresh_devices(self) -> int:
         """Refresh the device registry from Home Assistant.
 
-        Uses the internal config registry endpoint.
+        Uses WebSocket API (preferred) with REST fallback.
         Devices change infrequently - recommended to cache.
 
         Returns:
             Number of devices loaded.
         """
-        if not self._client:
+        # Try WebSocket API first (required for newer HA versions)
+        devices_data = await self._ws_command("config/device_registry/list")
+
+        if devices_data is None and self._client:
+            # Fallback to REST API (may work on older HA versions)
+            try:
+                response = await self._client.get("/api/config/device_registry")
+                if response.status_code == 200:
+                    devices_data = response.json()
+            except httpx.RequestError:
+                pass
+
+        if devices_data is None:
+            logger.warning("Device registry not available via WebSocket or REST API")
             return 0
 
-        try:
-            # Try the websocket-like endpoint (works on newer HA versions)
-            response = await self._client.get("/api/config/device_registry")
-            if response.status_code == 404:
-                logger.warning("Device registry endpoint not available (HA version may be old)")
-                return 0
-            response.raise_for_status()
-            devices_data = response.json()
+        self._devices.clear()
+        for device_data in devices_data:
+            device = self._parse_device(device_data)
+            self._devices[device.id] = device
 
-            self._devices.clear()
-            for device_data in devices_data:
-                device = self._parse_device(device_data)
-                self._devices[device.id] = device
-
-            logger.info("Loaded %d devices from Home Assistant", len(self._devices))
-            self._snapshot.devices_count = len(self._devices)
-            self._snapshot.last_refresh["devices"] = datetime.now()
-            return len(self._devices)
-
-        except httpx.RequestError as e:
-            logger.error("Failed to refresh devices: %s", e)
-            return 0
+        logger.info("Loaded %d devices from Home Assistant", len(self._devices))
+        self._snapshot.devices_count = len(self._devices)
+        self._snapshot.last_refresh["devices"] = datetime.now()
+        return len(self._devices)
 
     async def refresh_areas(self) -> int:
         """Refresh the area registry from Home Assistant.
 
+        Uses WebSocket API (preferred) with REST fallback.
         Areas (rooms/zones) change very infrequently.
 
         Returns:
             Number of areas loaded.
         """
-        if not self._client:
+        # Try WebSocket API first (required for newer HA versions)
+        areas_data = await self._ws_command("config/area_registry/list")
+
+        if areas_data is None and self._client:
+            # Fallback to REST API (may work on older HA versions)
+            try:
+                response = await self._client.get("/api/config/area_registry")
+                if response.status_code == 200:
+                    areas_data = response.json()
+            except httpx.RequestError:
+                pass
+
+        if areas_data is None:
+            logger.warning("Area registry not available via WebSocket or REST API")
             return 0
 
-        try:
-            response = await self._client.get("/api/config/area_registry")
-            if response.status_code == 404:
-                logger.warning("Area registry endpoint not available")
-                return 0
-            response.raise_for_status()
-            areas_data = response.json()
+        self._areas.clear()
+        for area_data in areas_data:
+            area = self._parse_area(area_data)
+            self._areas[area.id] = area
 
-            self._areas.clear()
-            for area_data in areas_data:
-                area = self._parse_area(area_data)
-                self._areas[area.id] = area
-
-            logger.info("Loaded %d areas from Home Assistant", len(self._areas))
-            self._snapshot.areas_count = len(self._areas)
-            self._snapshot.last_refresh["areas"] = datetime.now()
-            return len(self._areas)
-
-        except httpx.RequestError as e:
-            logger.error("Failed to refresh areas: %s", e)
-            return 0
+        logger.info("Loaded %d areas from Home Assistant", len(self._areas))
+        self._snapshot.areas_count = len(self._areas)
+        self._snapshot.last_refresh["areas"] = datetime.now()
+        return len(self._areas)
 
     async def refresh_automations(self) -> int:
         """Refresh automations from Home Assistant states.

@@ -51,6 +51,7 @@ class Entity:
     friendly_name: str
     device_class: str | None = None
     area_id: str | None = None
+    device_id: str | None = None
     state: EntityState | None = None
 
     @property
