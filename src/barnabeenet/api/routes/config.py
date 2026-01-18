@@ -395,9 +395,14 @@ async def _test_provider_connection(
             )
             if response.status_code == 200:
                 data = response.json()
+                limit_remaining = data.get("data", {}).get("limit_remaining")
+                if limit_remaining is not None:
+                    credit_msg = f"Credit: ${float(limit_remaining):.2f}"
+                else:
+                    credit_msg = "API key valid"
                 return {
                     "success": True,
-                    "message": f"Connected! Credit: ${data.get('data', {}).get('limit_remaining', 0):.2f}",
+                    "message": f"Connected! {credit_msg}",
                 }
             return {"success": False, "message": f"Auth failed: {response.status_code}"}
 

@@ -1135,18 +1135,21 @@ async function saveProvider(e) {
         
         const result = await response.json();
         
-        if (result.success) {
+        if (response.ok && result.success) {
+            const providerName = currentProvider?.display_name || currentProvider?.provider_type || 'Provider';
             closeProviderModal();
             loadProviders(); // Refresh the list
             
             // Show success message
-            addActivityItem({
-                type: 'system',
-                message: `Provider ${currentProvider.display_name} configured successfully`,
-                timestamp: new Date().toISOString()
-            });
+            if (typeof addActivityItem === 'function') {
+                addActivityItem({
+                    type: 'system',
+                    message: `Provider ${providerName} configured successfully`,
+                    timestamp: new Date().toISOString()
+                });
+            }
         } else {
-            alert(`Failed to save: ${result.detail || 'Unknown error'}`);
+            alert(`Failed to save: ${result.detail || result.message || 'Unknown error'}`);
         }
     } catch (e) {
         alert(`Error saving provider: ${e.message}`);
