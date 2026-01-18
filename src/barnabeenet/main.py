@@ -161,6 +161,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Start GPU worker health check task
     app_state._health_check_task = asyncio.create_task(_gpu_worker_health_check_loop())
 
+    # Start model health check task (runs hourly)
+    app_state._model_health_check_task = asyncio.create_task(_model_health_check_loop())
+
     # Start WebSocket signal streamer
     try:
         from barnabeenet.api.routes.websocket import start_signal_streamer
@@ -198,6 +201,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app_state._health_check_task.cancel()
         try:
             await app_state._health_check_task
+        except asyncio.CancelledError:
+            pass
+
+    # Cancel model health check task
+    if hasattr(app_state, "_model_health_check_task") and app_state._model_health_check_task:
+        app_state._model_health_check_task.cancel()
+        try:
+            await app_state._model_health_check_task
         except asyncio.CancelledError:
             pass
 
@@ -241,6 +252,36 @@ async def _check_gpu_worker() -> None:
     except Exception:
         app_state.gpu_worker_available = False
         app_state.gpu_worker_last_check = time.time()
+
+
+async def _model_health_check_loop() -> None:
+    """Background task to check LLM model health every hour."""
+    logger = structlog.get_logger()
+
+    # Wait 30 seconds before first check to let app fully start
+    await asyncio.sleep(30)
+
+    while True:
+        try:
+            from barnabeenet.api.routes.config import run_scheduled_health_check
+            from barnabeenet.services.secrets import SecretsService
+
+            secrets = SecretsService()
+            await secrets.initialize()
+
+            result = await run_scheduled_health_check(secrets, limit=20)
+            if result:
+                logger.info(
+                    "Scheduled model health check complete",
+                    working=result.working,
+                    failed=result.failed,
+                    total=result.checked,
+                )
+        except Exception as e:
+            logger.warning("Model health check error", error=str(e))
+
+        # Sleep for 1 hour
+        await asyncio.sleep(3600)
 
 
 # =============================================================================

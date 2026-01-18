@@ -1800,10 +1800,35 @@ body {
     color: var(--bg-primary);
 }
 
+.model-option-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
 .model-option-name {
     font-size: 13px;
     font-weight: 500;
-    margin-bottom: 2px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.model-provider-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(139, 148, 158, 0.2);
+    color: var(--text-muted);
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.model-option.highlighted .model-provider-badge {
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--bg-secondary);
 }
 
 .model-option-details {
@@ -1811,6 +1836,29 @@ body {
     gap: 12px;
     font-size: 11px;
     color: var(--text-muted);
+    align-items: center;
+}
+
+.model-health-icon {
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.model-health-icon.health-working {
+    color: var(--accent-primary);
+}
+
+.model-health-icon.health-failed {
+    color: var(--accent-error);
+}
+
+.model-option.health-working {
+    border-left: 3px solid var(--accent-primary);
+}
+
+.model-option.health-failed {
+    border-left: 3px solid var(--accent-error);
+    opacity: 0.6;
 }
 
 .model-option.highlighted .model-option-details {

@@ -576,12 +576,15 @@ class ModelInfo(BaseModel):
     id: str
     name: str
     provider: str
+    provider_display: str = ""  # Human-readable provider name
     context_length: int
     pricing_prompt: float  # per 1M tokens in USD
     pricing_completion: float  # per 1M tokens in USD
     modality: str = "text->text"
     is_free: bool = False
     description: str = ""
+    health_status: str = "unknown"  # working, failed, unknown
+    health_error: str | None = None
 
 
 class ModelsListResponse(BaseModel):
@@ -590,57 +593,118 @@ class ModelsListResponse(BaseModel):
     models: list[ModelInfo]
     total_count: int
     free_count: int
+    working_count: int = 0
     provider: str
+    providers_included: list[str] = []  # All providers included in this response
 
 
 # Cache for model listings (refresh every 5 minutes)
 _models_cache: dict[str, tuple[list[ModelInfo], datetime]] = {}
 MODELS_CACHE_TTL_SECONDS = 300  # 5 minutes
 
+# Background health check state
+_last_health_check_time: datetime | None = None
+HEALTH_CHECK_INTERVAL_SECONDS = 3600  # 1 hour
+
 
 @router.get("/models", response_model=ModelsListResponse)
 async def list_models(
     request: Request,
-    provider: str = "openrouter",
+    provider: str = "all",  # "all" fetches from all configured providers
+    include_failed: bool = False,  # By default, exclude models that failed health check
     secrets: SecretsService = Depends(get_secrets),
 ) -> ModelsListResponse:
-    """List available models from a provider.
+    """List available models from configured providers.
 
-    Currently supports OpenRouter which provides access to many models.
-    Models are cached for 5 minutes to reduce API calls.
+    By default, fetches from all configured providers and excludes models
+    that have failed health checks. Set include_failed=True to see all models.
     """
-    # Check cache
-    cache_key = f"models_{provider}"
-    if cache_key in _models_cache:
-        models, cached_at = _models_cache[cache_key]
-        if (datetime.now(UTC) - cached_at).total_seconds() < MODELS_CACHE_TTL_SECONDS:
-            return ModelsListResponse(
-                models=models,
-                total_count=len(models),
-                free_count=sum(1 for m in models if m.is_free),
-                provider=provider,
-            )
+    providers_to_fetch = []
+    providers_included = []
 
-    # Get API key for the provider
-    provider_secrets = await secrets.get_secrets_for_provider(provider)
-    api_key = provider_secrets.get(f"{provider}_api_key")
+    if provider == "all":
+        # Get all configured providers
+        from barnabeenet.models.provider_config import PROVIDER_REGISTRY
 
-    if provider == "openrouter":
-        models = await _fetch_openrouter_models(api_key)
+        stored_secrets = await secrets.list_secrets()
+        configured_providers = {s.provider for s in stored_secrets}
+
+        # Always include OpenRouter if configured
+        if "openrouter" in configured_providers:
+            providers_to_fetch.append("openrouter")
+
+        # Add other configured providers
+        for p in configured_providers:
+            if p not in providers_to_fetch and p in [pt.value for pt in PROVIDER_REGISTRY]:
+                providers_to_fetch.append(p)
+
+        # If nothing configured, just use openrouter
+        if not providers_to_fetch:
+            providers_to_fetch = ["openrouter"]
     else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Model listing not supported for provider: {provider}",
-        )
+        providers_to_fetch = [provider]
 
-    # Cache the results
-    _models_cache[cache_key] = (models, datetime.now(UTC))
+    all_models: list[ModelInfo] = []
+
+    for prov in providers_to_fetch:
+        cache_key = f"models_{prov}"
+
+        # Check cache
+        if cache_key in _models_cache:
+            models, cached_at = _models_cache[cache_key]
+            if (datetime.now(UTC) - cached_at).total_seconds() < MODELS_CACHE_TTL_SECONDS:
+                all_models.extend(models)
+                providers_included.append(prov)
+                continue
+
+        # Fetch from provider
+        provider_secrets = await secrets.get_secrets_for_provider(prov)
+        api_key = provider_secrets.get(f"{prov}_api_key")
+
+        if prov == "openrouter":
+            models = await _fetch_openrouter_models(api_key)
+        elif prov == "openai":
+            models = await _fetch_openai_models(api_key)
+        elif prov == "anthropic":
+            models = await _fetch_anthropic_models(api_key)
+        else:
+            # For other providers, add their default models
+            models = _get_provider_default_models(prov)
+
+        if models:
+            _models_cache[cache_key] = (models, datetime.now(UTC))
+            all_models.extend(models)
+            providers_included.append(prov)
+
+    # Apply health status to models
+    for model in all_models:
+        if model.id in _model_health_cache:
+            working, _, error = _model_health_cache[model.id]
+            model.health_status = "working" if working else "failed"
+            model.health_error = error
+        else:
+            model.health_status = "unknown"
+
+    # Filter out failed models unless requested
+    if not include_failed:
+        all_models = [m for m in all_models if m.health_status != "failed"]
+
+    # Sort: working first, then unknown, then free, then by name
+    def sort_key(m: ModelInfo) -> tuple:
+        health_order = {"working": 0, "unknown": 1, "failed": 2}
+        return (health_order.get(m.health_status, 1), not m.is_free, m.name.lower())
+
+    all_models.sort(key=sort_key)
+
+    working_count = sum(1 for m in all_models if m.health_status == "working")
 
     return ModelsListResponse(
-        models=models,
-        total_count=len(models),
-        free_count=sum(1 for m in models if m.is_free),
+        models=all_models,
+        total_count=len(all_models),
+        free_count=sum(1 for m in all_models if m.is_free),
+        working_count=working_count,
         provider=provider,
+        providers_included=providers_included,
     )
 
 
@@ -676,6 +740,7 @@ async def _fetch_openrouter_models(api_key: str | None = None) -> list[ModelInfo
                     id=m.get("id", ""),
                     name=m.get("name", m.get("id", "")),
                     provider="openrouter",
+                    provider_display="OpenRouter",
                     context_length=m.get("context_length", 0),
                     pricing_prompt=prompt_price,
                     pricing_completion=completion_price,
@@ -689,6 +754,94 @@ async def _fetch_openrouter_models(api_key: str | None = None) -> list[ModelInfo
         models.sort(key=lambda x: (not x.is_free, x.name.lower()))
 
         return models
+
+
+async def _fetch_openai_models(api_key: str | None = None) -> list[ModelInfo]:
+    """Fetch available models from OpenAI API."""
+    if not api_key:
+        return _get_provider_default_models("openai")
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(
+                "https://api.openai.com/v1/models",
+                headers=headers,
+            )
+
+            if response.status_code != 200:
+                logger.error(f"Failed to fetch OpenAI models: {response.status_code}")
+                return _get_provider_default_models("openai")
+
+            data = response.json()
+            models_data = data.get("data", [])
+
+            models = []
+            for m in models_data:
+                model_id = m.get("id", "")
+                # Only include GPT models (skip embeddings, whisper, etc.)
+                if not any(x in model_id for x in ["gpt", "o1", "o3"]):
+                    continue
+
+                models.append(
+                    ModelInfo(
+                        id=model_id,
+                        name=model_id,
+                        provider="openai",
+                        provider_display="OpenAI",
+                        context_length=128000,  # Default, varies by model
+                        pricing_prompt=0,  # Would need separate pricing lookup
+                        pricing_completion=0,
+                        is_free=False,
+                    )
+                )
+
+            models.sort(key=lambda x: x.name)
+            return models
+    except Exception as e:
+        logger.error(f"Error fetching OpenAI models: {e}")
+        return _get_provider_default_models("openai")
+
+
+async def _fetch_anthropic_models(api_key: str | None = None) -> list[ModelInfo]:
+    """Return known Anthropic models (no public models API)."""
+    # Anthropic doesn't have a public models listing API
+    return _get_provider_default_models("anthropic")
+
+
+def _get_provider_default_models(provider: str) -> list[ModelInfo]:
+    """Get default models for a provider from the registry."""
+    from barnabeenet.models.provider_config import PROVIDER_REGISTRY, ProviderType
+
+    try:
+        provider_type = ProviderType(provider)
+        provider_info = PROVIDER_REGISTRY.get(provider_type)
+
+        if not provider_info:
+            return []
+
+        models = []
+        for model_id in provider_info.default_models:
+            models.append(
+                ModelInfo(
+                    id=model_id,
+                    name=model_id,
+                    provider=provider,
+                    provider_display=provider_info.display_name,
+                    context_length=128000,  # Default
+                    pricing_prompt=0,
+                    pricing_completion=0,
+                    is_free=False,
+                )
+            )
+
+        return models
+    except ValueError:
+        return []
 
 
 @router.post("/models/refresh")
@@ -837,8 +990,13 @@ async def check_free_models_health(
 
     This helps identify which free models are actually usable.
     """
-    # Get current free models
-    models_response = await list_models(request, "openrouter", secrets)
+    # Get current free models (include failed to check them again)
+    models_response = await list_models(
+        request=request,
+        provider="all",
+        include_failed=True,
+        secrets=secrets,
+    )
     free_models = [m for m in models_response.models if m.is_free][:limit]
 
     results = []
@@ -872,11 +1030,173 @@ async def get_model_health_status() -> dict[str, Any]:
             "error": error,
         }
 
+    global _last_health_check_time
+    last_check_str = _last_health_check_time.isoformat() if _last_health_check_time else None
+
     return {
         "total_checked": len(statuses),
         "working": sum(1 for s in statuses.values() if s["working"]),
         "failed": sum(1 for s in statuses.values() if not s["working"]),
+        "last_full_check": last_check_str,
+        "next_check_in_seconds": _get_seconds_until_next_health_check(),
         "models": statuses,
+    }
+
+
+def _get_seconds_until_next_health_check() -> int | None:
+    """Calculate seconds until next scheduled health check."""
+    global _last_health_check_time
+    if _last_health_check_time is None:
+        return 0  # Should run immediately
+
+    elapsed = (datetime.now(UTC) - _last_health_check_time).total_seconds()
+    remaining = HEALTH_CHECK_INTERVAL_SECONDS - elapsed
+    return max(0, int(remaining))
+
+
+async def run_scheduled_health_check(
+    secrets: SecretsService,
+    limit: int = 20,
+) -> ModelHealthBatchResponse | None:
+    """Run health check if enough time has passed since last check.
+
+    Called periodically (e.g., from a background task or on-demand).
+    Returns None if not enough time has passed.
+    """
+    global _last_health_check_time
+
+    # Check if enough time has passed
+    if _last_health_check_time is not None:
+        elapsed = (datetime.now(UTC) - _last_health_check_time).total_seconds()
+        if elapsed < HEALTH_CHECK_INTERVAL_SECONDS:
+            return None
+
+    logger.info("Running scheduled model health check")
+
+    # Get free models directly (can't use list_models without Request)
+    openrouter_secrets = await secrets.get_secrets_for_provider("openrouter")
+    api_key = openrouter_secrets.get("openrouter_api_key")
+
+    if not api_key:
+        logger.warning("No OpenRouter API key configured for health check")
+        return None
+
+    models = await _fetch_openrouter_models(api_key)
+    free_models = [m for m in models if m.is_free][:limit]
+
+    results = []
+    working_count = 0
+    failed_count = 0
+
+    for model in free_models:
+        result = await _check_model_health_internal(model.id, api_key)
+        results.append(result)
+        if result.working:
+            working_count += 1
+        else:
+            failed_count += 1
+
+    _last_health_check_time = datetime.now(UTC)
+    logger.info(
+        f"Health check complete: {working_count} working, {failed_count} failed of {len(results)} checked"
+    )
+
+    return ModelHealthBatchResponse(
+        checked=len(results),
+        working=working_count,
+        failed=failed_count,
+        results=results,
+    )
+
+
+async def _check_model_health_internal(model_id: str, api_key: str) -> ModelHealthResponse:
+    """Internal health check without Request dependency."""
+    import time
+
+    start_time = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model_id,
+                    "messages": [{"role": "user", "content": "Say OK"}],
+                    "max_tokens": 5,
+                },
+            )
+
+            latency_ms = (time.perf_counter() - start_time) * 1000
+
+            if response.status_code == 200:
+                _model_health_cache[model_id] = (True, datetime.now(UTC), None)
+                return ModelHealthResponse(
+                    model_id=model_id,
+                    working=True,
+                    last_checked=datetime.now(UTC),
+                    latency_ms=latency_ms,
+                )
+            else:
+                error_msg = f"HTTP {response.status_code}"
+                try:
+                    error_data = response.json()
+                    if "error" in error_data:
+                        error_msg = error_data["error"].get("message", error_msg)
+                except Exception:
+                    pass
+
+                _model_health_cache[model_id] = (False, datetime.now(UTC), error_msg)
+                return ModelHealthResponse(
+                    model_id=model_id,
+                    working=False,
+                    last_checked=datetime.now(UTC),
+                    error=error_msg,
+                    latency_ms=latency_ms,
+                )
+
+    except Exception as e:
+        error_msg = str(e)
+        _model_health_cache[model_id] = (False, datetime.now(UTC), error_msg)
+        return ModelHealthResponse(
+            model_id=model_id,
+            working=False,
+            last_checked=datetime.now(UTC),
+            error=error_msg,
+        )
+
+
+@router.post("/models/health-check/schedule")
+async def trigger_scheduled_health_check(
+    secrets: SecretsService = Depends(get_secrets),
+    force: bool = False,
+) -> dict[str, Any]:
+    """Trigger the scheduled health check.
+
+    Set force=True to run even if not enough time has passed.
+    """
+    global _last_health_check_time
+
+    if force:
+        _last_health_check_time = None  # Reset to force run
+
+    result = await run_scheduled_health_check(secrets, limit=20)
+
+    if result is None:
+        next_check = _get_seconds_until_next_health_check()
+        return {
+            "ran": False,
+            "message": f"Health check not due yet. Next check in {next_check} seconds.",
+            "next_check_in_seconds": next_check,
+        }
+
+    return {
+        "ran": True,
+        "checked": result.checked,
+        "working": result.working,
+        "failed": result.failed,
     }
 
 
@@ -918,8 +1238,13 @@ async def auto_select_models(
 
     from barnabeenet.services.llm.activities import DEFAULT_ACTIVITY_CONFIGS
 
-    # Get available models with health status
-    models_response = await list_models(request, "openrouter", secrets)
+    # Get available models with health status (include failed to see health)
+    models_response = await list_models(
+        request=request,
+        provider="all",
+        include_failed=True,
+        secrets=secrets,
+    )
 
     if params.free_only:
         available_models = [m for m in models_response.models if m.is_free]

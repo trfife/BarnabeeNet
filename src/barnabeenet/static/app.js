@@ -1217,13 +1217,17 @@ let showFreeOnly = false;
 
 async function loadModels() {
     try {
-        const response = await fetch(`${API_BASE}/api/v1/config/models`);
+        const response = await fetch(`${API_BASE}/api/v1/config/models?provider=all`);
         const data = await response.json();
         availableModels = data.models || [];
 
         const countDisplay = document.getElementById('models-count-display');
         if (countDisplay) {
-            countDisplay.textContent = `${data.total_count} models available (${data.free_count} free)`;
+            const workingText = data.working_count > 0 ? `, ${data.working_count} verified` : '';
+            const providersText = data.providers_included?.length > 1
+                ? ` from ${data.providers_included.length} providers`
+                : '';
+            countDisplay.textContent = `${data.total_count} models (${data.free_count} free${workingText})${providersText}`;
         }
 
         return availableModels;
@@ -1362,12 +1366,16 @@ function initModelDropdowns() {
 function renderModelDropdown(dropdown, searchTerm, activityName) {
     let filteredModels = availableModels;
 
+    // Filter out failed models (they shouldn't appear in the list)
+    filteredModels = filteredModels.filter(m => m.health_status !== 'failed');
+
     // Filter by search term
     if (searchTerm) {
         const term = searchTerm.toLowerCase();
         filteredModels = filteredModels.filter(m =>
             m.id.toLowerCase().includes(term) ||
-            m.name.toLowerCase().includes(term)
+            m.name.toLowerCase().includes(term) ||
+            (m.provider_display || '').toLowerCase().includes(term)
         );
     }
 
@@ -1384,20 +1392,32 @@ function renderModelDropdown(dropdown, searchTerm, activityName) {
         return;
     }
 
-    dropdown.innerHTML = filteredModels.map((model, index) => `
-        <div class="model-option ${index === 0 ? 'highlighted' : ''}"
-             data-model-id="${model.id}"
-             data-activity="${activityName}"
-             onclick="selectModel('${model.id}', '${activityName}')">
-            <div class="model-option-name">${model.name}</div>
-            <div class="model-option-details">
-                <span class="model-option-price ${model.is_free ? 'free' : ''}">
-                    ${model.is_free ? 'FREE' : `$${(model.pricing_prompt + model.pricing_completion).toFixed(2)}/M tokens`}
-                </span>
-                <span class="model-option-context">${(model.context_length / 1000).toFixed(0)}K context</span>
+    dropdown.innerHTML = filteredModels.map((model, index) => {
+        const healthClass = model.health_status === 'working' ? 'health-working' :
+                           model.health_status === 'failed' ? 'health-failed' : '';
+        const healthIcon = model.health_status === 'working' ? '✓' :
+                          model.health_status === 'failed' ? '✗' : '';
+        const providerBadge = model.provider_display || model.provider || 'Unknown';
+
+        return `
+            <div class="model-option ${index === 0 ? 'highlighted' : ''} ${healthClass}"
+                 data-model-id="${model.id}"
+                 data-activity="${activityName}"
+                 onclick="selectModel('${model.id}', '${activityName}')">
+                <div class="model-option-header">
+                    <span class="model-option-name">${model.name}</span>
+                    <span class="model-provider-badge">${providerBadge}</span>
+                </div>
+                <div class="model-option-details">
+                    <span class="model-option-price ${model.is_free ? 'free' : ''}">
+                        ${model.is_free ? 'FREE' : `$${(model.pricing_prompt + model.pricing_completion).toFixed(2)}/M`}
+                    </span>
+                    <span class="model-option-context">${(model.context_length / 1000).toFixed(0)}K ctx</span>
+                    ${healthIcon ? `<span class="model-health-icon ${healthClass}">${healthIcon}</span>` : ''}
+                </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function handleDropdownKeyboard(e, dropdown, input, activityName) {
