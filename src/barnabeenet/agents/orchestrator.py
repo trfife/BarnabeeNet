@@ -644,8 +644,44 @@ class AgentOrchestrator:
         if not entity_id and entity_name:
             domain = action_spec.get("domain")
             entity = self._ha_client.resolve_entity(entity_name, domain)
+            
+            # If not found, try alternative domains
+            # Lights are often controlled by switches, and vice versa
+            if not entity:
+                alternative_domains = self._get_alternative_domains(domain, entity_name)
+                for alt_domain in alternative_domains:
+                    entity = self._ha_client.resolve_entity(entity_name, alt_domain)
+                    if entity:
+                        logger.info(
+                            "Found entity in alternative domain: %s -> %s",
+                            domain,
+                            alt_domain,
+                        )
+                        break
+            
+            # Still not found? Try without domain restriction
+            if not entity:
+                entity = self._ha_client.resolve_entity(entity_name, None)
+                if entity:
+                    logger.info(
+                        "Found entity with no domain restriction: %s",
+                        entity.entity_id,
+                    )
+
             if entity:
                 entity_id = entity.entity_id
+                # Update service to match the actual entity domain
+                actual_domain = entity.entity_id.split(".")[0] if "." in entity.entity_id else None
+                if actual_domain and actual_domain != domain:
+                    service = self._adapt_service_to_domain(service, actual_domain)
+                    action_spec["service"] = service
+                    action_spec["entity_id"] = entity_id
+                    logger.info(
+                        "Adapted service from %s domain to %s: %s",
+                        domain,
+                        actual_domain,
+                        service,
+                    )
                 logger.info("Resolved '%s' to entity_id: %s", entity_name, entity_id)
             else:
                 logger.warning("Could not resolve entity: %s", entity_name)
@@ -692,6 +728,53 @@ class AgentOrchestrator:
                 "message": f"Error executing action: {e}",
                 "error": str(e),
             }
+
+    def _get_alternative_domains(self, domain: str | None, entity_name: str) -> list[str]:
+        """Get alternative domains to search when primary domain doesn't match.
+
+        Many devices can control lights but are in different domains:
+        - switch: Smart plugs, wall switches controlling lights
+        - input_boolean: Virtual switches
+        - automation: Can be toggled
+        """
+        # Domain alternatives - lights and switches are often interchangeable
+        alternatives: dict[str, list[str]] = {
+            "light": ["switch", "input_boolean"],
+            "switch": ["light", "input_boolean"],
+            "fan": ["switch"],
+            "cover": ["switch"],
+        }
+
+        # Check if entity name contains hints about the actual device type
+        name_lower = entity_name.lower()
+        result = alternatives.get(domain or "", [])
+
+        # If name contains "light" but domain is switch, prioritize finding it
+        if "light" in name_lower and domain != "switch":
+            if "switch" not in result:
+                result.insert(0, "switch")
+
+        return result
+
+    def _adapt_service_to_domain(self, service: str, target_domain: str) -> str:
+        """Adapt a service call to work with a different domain.
+
+        For example, light.turn_on -> switch.turn_on when the entity is a switch.
+        """
+        if "." not in service:
+            return service
+
+        original_domain, action = service.split(".", 1)
+
+        # Map common actions between domains
+        # light and switch share turn_on, turn_off, toggle
+        compatible_actions = {"turn_on", "turn_off", "toggle"}
+
+        if action in compatible_actions:
+            return f"{target_domain}.{action}"
+
+        # For other actions, try to use the target domain's equivalent
+        return f"{target_domain}.{action}"
 
     def _build_response(self, ctx: RequestContext) -> dict[str, Any]:
         """Build the final response dict."""
