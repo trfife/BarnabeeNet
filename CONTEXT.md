@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after E2E Testing Framework)
+2026-01-18 (after E2E Testing VM Deployment)
 
 ## Current Phase
-**Phase 1: Core Services** - E2E TESTING FRAMEWORK COMPLETE
+**Phase 1: Core Services** - E2E TESTING DEPLOYED TO VM
 
 ## Development Workflow
 
@@ -60,11 +60,13 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Activity-Based LLM Configuration** - Granular model selection per activity (16+ activities like meta.classify_intent, interaction.respond, memory.generate). Configurable via YAML (config/llm.yaml), environment variables (LLM_ACTIVITY_*), or defaults. Different models for classification vs conversation vs memory tasks.
 - [x] **E2E Testing Framework** - Complete end-to-end test suite with API endpoints, dashboard integration, signal logging. Tests for InstantAgent (time, date, math, greetings), ActionAgent (device control), InteractionAgent (LLM conversations). Results visible in dashboard activity feed and trace inspector.
 - [x] **Text Process Endpoint** - `/api/v1/voice/process` for text-only pipeline testing without audio (used by dashboard and E2E tests)
+- [x] **E2E Testing Deployed to VM** - E2E endpoints accessible at http://192.168.86.51:8000/api/v1/e2e/, quick test runs successfully, results show assertions and agent routing. Tests fail without LLM API key (expected behavior - MetaAgent needs key for intent classification).
 
 ### In Progress
 - [ ] None currently
 
 ### Not Started
+- [ ] Configure LLM API key on VM for proper intent classification
 - [ ] Home Assistant entity discovery
 - [ ] Family profile system
 
@@ -103,7 +105,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Deploy E2E testing to VM and verify dashboard integration ← NEXT
+1. Configure LLM API key on VM for proper intent classification ← NEXT
 2. Home Assistant entity discovery
 3. Family profile system
 
