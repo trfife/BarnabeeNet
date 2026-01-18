@@ -13,9 +13,12 @@ Handles:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
+from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -33,6 +36,7 @@ from barnabeenet.services.homeassistant.models import (
     HADataSnapshot,
     Integration,
     LogEntry,
+    StateChangeEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,6 +101,12 @@ class HomeAssistantClient:
         self._integrations: dict[str, Integration] = {}
         self._snapshot: HADataSnapshot = HADataSnapshot()
 
+        # Event subscription state
+        self._state_changes: deque[StateChangeEvent] = deque(maxlen=500)  # Rolling buffer
+        self._event_task: asyncio.Task[None] | None = None
+        self._event_callbacks: list[Callable[[StateChangeEvent], None]] = []
+        self._ws_connected: bool = False
+
     @property
     def url(self) -> str:
         """Get the Home Assistant URL."""
@@ -137,6 +147,25 @@ class HomeAssistantClient:
         """Get the current data snapshot summary."""
         return self._snapshot
 
+    @property
+    def state_changes(self) -> list[StateChangeEvent]:
+        """Get recent state change events (newest first)."""
+        return list(self._state_changes)
+
+    @property
+    def is_subscribed(self) -> bool:
+        """Check if subscribed to state change events."""
+        return self._ws_connected and self._event_task is not None
+
+    def add_state_change_callback(self, callback: Callable[[StateChangeEvent], None]) -> None:
+        """Add a callback to be called when state changes occur."""
+        self._event_callbacks.append(callback)
+
+    def remove_state_change_callback(self, callback: Callable[[StateChangeEvent], None]) -> None:
+        """Remove a state change callback."""
+        if callback in self._event_callbacks:
+            self._event_callbacks.remove(callback)
+
     async def __aenter__(self) -> HomeAssistantClient:
         """Async context manager entry."""
         await self.connect()
@@ -166,13 +195,19 @@ class HomeAssistantClient:
             self._connected = True
             logger.info("Connected to Home Assistant at %s", self._url)
 
-            # Load entity registry
-            await self.refresh_entities()
+            # Load all registries (entities, devices, areas, automations, integrations)
+            await self.refresh_all()
+
+            # Start event subscription for real-time updates
+            await self.subscribe_to_events()
         else:
             logger.warning("Failed to connect to Home Assistant at %s", self._url)
 
     async def close(self) -> None:
-        """Close the HTTP client."""
+        """Close the HTTP client and event subscription."""
+        # Stop event subscription
+        await self.unsubscribe_from_events()
+
         if self._client:
             await self._client.aclose()
             self._client = None
@@ -806,3 +841,148 @@ class HomeAssistantClient:
                 last_updated=state_data.get("last_updated"),
             ),
         )
+
+    # =========================================================================
+    # Event Subscription (WebSocket)
+    # =========================================================================
+
+    async def subscribe_to_events(self) -> None:
+        """Start subscribing to Home Assistant state change events via WebSocket.
+
+        Creates a background task that maintains a persistent WebSocket connection
+        and receives real-time state change notifications.
+        """
+        if self._event_task is not None:
+            logger.debug("Already subscribed to events")
+            return
+
+        self._event_task = asyncio.create_task(self._event_subscription_loop())
+        logger.info("Started Home Assistant event subscription")
+
+    async def unsubscribe_from_events(self) -> None:
+        """Stop subscribing to Home Assistant events."""
+        if self._event_task is not None:
+            self._event_task.cancel()
+            try:
+                await self._event_task
+            except asyncio.CancelledError:
+                pass
+            self._event_task = None
+            self._ws_connected = False
+            logger.info("Stopped Home Assistant event subscription")
+
+    async def _event_subscription_loop(self) -> None:
+        """Background task that maintains WebSocket connection for events."""
+        reconnect_delay = 5  # seconds between reconnection attempts
+        max_reconnect_delay = 60
+
+        while True:
+            try:
+                await self._run_event_subscription()
+            except asyncio.CancelledError:
+                logger.info("Event subscription cancelled")
+                break
+            except Exception as e:
+                logger.error("Event subscription error: %s", e)
+                self._ws_connected = False
+
+            # Exponential backoff on reconnect
+            logger.info("Reconnecting to HA WebSocket in %d seconds...", reconnect_delay)
+            await asyncio.sleep(reconnect_delay)
+            reconnect_delay = min(reconnect_delay * 2, max_reconnect_delay)
+
+    async def _run_event_subscription(self) -> None:
+        """Run the WebSocket event subscription."""
+        # Build WebSocket URL
+        ws_url = self._url.replace("http://", "ws://").replace("https://", "wss://")
+        ws_url = f"{ws_url}/api/websocket"
+
+        logger.debug("Connecting to HA WebSocket at %s", ws_url)
+
+        async with websockets.connect(ws_url) as ws:
+            # Step 1: Receive auth_required
+            msg = json.loads(await ws.recv())
+            if msg.get("type") != "auth_required":
+                raise RuntimeError(f"Expected auth_required, got: {msg.get('type')}")
+
+            # Step 2: Send auth
+            await ws.send(json.dumps({"type": "auth", "access_token": self._token}))
+
+            # Step 3: Receive auth result
+            msg = json.loads(await ws.recv())
+            if msg.get("type") != "auth_ok":
+                raise RuntimeError(f"Auth failed: {msg}")
+
+            logger.info("WebSocket authenticated with Home Assistant")
+
+            # Step 4: Subscribe to state_changed events
+            await ws.send(
+                json.dumps({"id": 1, "type": "subscribe_events", "event_type": "state_changed"})
+            )
+
+            # Step 5: Receive subscription confirmation
+            msg = json.loads(await ws.recv())
+            if not msg.get("success"):
+                raise RuntimeError(f"Failed to subscribe to events: {msg}")
+
+            logger.info("Subscribed to Home Assistant state_changed events")
+            self._ws_connected = True
+
+            # Step 6: Listen for events
+            async for raw_msg in ws:
+                try:
+                    msg = json.loads(raw_msg)
+                    if msg.get("type") == "event":
+                        event_data = msg.get("event", {})
+                        if event_data.get("event_type") == "state_changed":
+                            await self._handle_state_change(event_data.get("data", {}))
+                except json.JSONDecodeError:
+                    logger.warning("Invalid JSON from WebSocket: %s", raw_msg[:100])
+                except Exception as e:
+                    logger.warning("Error processing event: %s", e)
+
+    async def _handle_state_change(self, data: dict[str, Any]) -> None:
+        """Process a state_changed event from Home Assistant."""
+        entity_id = data.get("entity_id", "")
+        old_state = data.get("old_state") or {}
+        new_state = data.get("new_state") or {}
+
+        # Skip unavailable/unknown transitions that aren't meaningful
+        old_value = old_state.get("state")
+        new_value = new_state.get("state")
+
+        # Create state change event
+        event = StateChangeEvent(
+            entity_id=entity_id,
+            old_state=old_value,
+            new_state=new_value,
+            timestamp=datetime.now(),
+            old_attributes=old_state.get("attributes", {}),
+            new_attributes=new_state.get("attributes", {}),
+        )
+
+        # Add to rolling buffer
+        self._state_changes.appendleft(event)
+
+        # Update entity state in registry if we have it
+        entity = self._entity_registry.get(entity_id)
+        if entity and new_state:
+            entity.state = EntityState(
+                state=new_value or "unknown",
+                attributes=new_state.get("attributes", {}),
+                last_changed=new_state.get("last_changed"),
+                last_updated=new_state.get("last_updated"),
+            )
+
+        # Notify callbacks
+        for callback in self._event_callbacks:
+            try:
+                callback(event)
+            except Exception as e:
+                logger.warning("State change callback error: %s", e)
+
+        # Log significant changes (not sensor updates every second)
+        if old_value != new_value and new_value not in (None, "unavailable"):
+            domain = entity_id.split(".")[0] if "." in entity_id else "unknown"
+            if domain in ("light", "switch", "climate", "lock", "cover", "media_player"):
+                logger.info("State change: %s: %s → %s", entity_id, old_value, new_value)

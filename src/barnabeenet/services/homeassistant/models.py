@@ -175,6 +175,42 @@ class LogEntry:
 
 
 @dataclass
+class StateChangeEvent:
+    """Home Assistant state change event from WebSocket subscription.
+
+    Represents a real-time state change notification.
+    """
+
+    entity_id: str
+    old_state: str | None
+    new_state: str | None
+    timestamp: datetime
+    old_attributes: dict[str, Any] = field(default_factory=dict)
+    new_attributes: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def domain(self) -> str:
+        """Get entity domain (e.g., 'light', 'switch')."""
+        return self.entity_id.split(".")[0] if "." in self.entity_id else "unknown"
+
+    @property
+    def friendly_name(self) -> str:
+        """Get friendly name from new attributes or entity_id."""
+        return self.new_attributes.get("friendly_name", self.entity_id)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dict for API response."""
+        return {
+            "entity_id": self.entity_id,
+            "old_state": self.old_state,
+            "new_state": self.new_state,
+            "timestamp": self.timestamp.isoformat(),
+            "friendly_name": self.friendly_name,
+            "domain": self.domain,
+        }
+
+
+@dataclass
 class HADataSnapshot:
     """Complete snapshot of Home Assistant data.
 

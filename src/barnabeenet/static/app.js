@@ -1879,34 +1879,34 @@ async function loadHAOverviewTab() {
     }
 }
 
-// Load recent HA activity from signals
+// Load recent HA activity from state change events
 async function loadRecentHAActivity() {
     const container = document.getElementById('ha-recent-activity');
     if (!container) return;
 
     try {
-        // Get activity from dashboard activity feed filtered for HA
-        const response = await fetch(`${API_BASE}/api/v1/dashboard/activity?limit=10`);
+        // Get state change events from HA WebSocket subscription
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/events?limit=10`);
         const data = await response.json();
 
-        // Filter for HA-related activity
-        const haActivity = (data.items || []).filter(item =>
-            item.type?.includes('ha_') ||
-            item.type?.includes('homeassistant') ||
-            item.message?.toLowerCase().includes('home assistant') ||
-            item.message?.toLowerCase().includes('light') ||
-            item.message?.toLowerCase().includes('switch')
-        );
+        // Filter for "interesting" domains - skip sensors updating every second
+        const interestingDomains = ['light', 'switch', 'climate', 'lock', 'cover', 'media_player', 'fan', 'automation', 'scene'];
+        const events = (data.events || []).filter(e => interestingDomains.includes(e.domain));
 
-        if (haActivity.length === 0) {
-            container.innerHTML = '<p class="text-muted">No recent Home Assistant activity. Talk to Barnabee to control your home!</p>';
+        if (events.length === 0) {
+            const subscriptionStatus = data.is_subscribed
+                ? 'Listening for state changes...'
+                : 'Not subscribed to events';
+            container.innerHTML = `<p class="text-muted">No recent Home Assistant activity. ${subscriptionStatus}</p>`;
             return;
         }
 
-        container.innerHTML = haActivity.map(item => `
+        container.innerHTML = events.map(event => `
             <div class="ha-activity-item">
-                <span class="activity-time">${formatActivityTime(item.timestamp)}</span>
-                <span class="activity-message">${escapeHtml(item.message || item.type)}</span>
+                <span class="activity-time">${formatActivityTime(event.timestamp)}</span>
+                <span class="activity-icon">${getDomainIcon(event.domain)}</span>
+                <span class="activity-entity">${escapeHtml(event.friendly_name)}</span>
+                <span class="activity-change">${escapeHtml(event.old_state || '?')} → ${escapeHtml(event.new_state || '?')}</span>
             </div>
         `).join('');
 
@@ -1916,7 +1916,7 @@ async function loadRecentHAActivity() {
     }
 }
 
-// Load Activity Tab - full log of Barnabee's HA interactions
+// Load Activity Tab - real-time state change log
 async function loadHAActivityTab() {
     const container = document.getElementById('ha-activity-log');
     if (!container) return;
@@ -1924,41 +1924,64 @@ async function loadHAActivityTab() {
     container.innerHTML = '<div class="loading-spinner">Loading activity...</div>';
 
     try {
-        // Get activity from dashboard
-        const response = await fetch(`${API_BASE}/api/v1/dashboard/activity?limit=50`);
+        // Get state change events from HA WebSocket subscription
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/events?limit=100`);
         const data = await response.json();
 
-        // Filter for HA-related activity
-        const haActivity = (data.items || []).filter(item =>
-            item.type?.includes('ha_') ||
-            item.type?.includes('homeassistant') ||
-            item.type?.includes('action') ||
-            item.message?.toLowerCase().includes('home assistant') ||
-            item.message?.toLowerCase().includes('light') ||
-            item.message?.toLowerCase().includes('switch') ||
-            item.message?.toLowerCase().includes('turn')
-        );
+        const events = data.events || [];
 
-        if (haActivity.length === 0) {
+        if (events.length === 0) {
+            const subscriptionStatus = data.is_subscribed
+                ? '<span class="subscription-active">🟢 Subscribed to Home Assistant events</span>'
+                : '<span class="subscription-inactive">🔴 Not subscribed to events</span>';
             container.innerHTML = `
                 <div class="empty-state">
-                    <p class="text-muted">No Home Assistant activity yet.</p>
-                    <p class="text-muted">Try saying "Hey Barnabee, turn on the living room lights"</p>
+                    ${subscriptionStatus}
+                    <p class="text-muted">No state changes received yet.</p>
+                    <p class="text-muted">Toggle a light or change something in Home Assistant to see events here.</p>
                 </div>
             `;
             return;
         }
 
-        container.innerHTML = haActivity.map(item => `
-            <div class="ha-activity-log-item ${item.type?.includes('error') ? 'error' : ''}">
-                <div class="activity-log-header">
-                    <span class="activity-type">${formatActivityType(item.type)}</span>
-                    <span class="activity-time">${formatActivityTime(item.timestamp)}</span>
-                </div>
-                <div class="activity-log-message">${escapeHtml(item.message || 'No message')}</div>
-                ${item.data ? `<div class="activity-log-data">${JSON.stringify(item.data, null, 2)}</div>` : ''}
-            </div>
-        `).join('');
+        // Group events by time (last 5 minutes, last 30 minutes, older)
+        const now = Date.now();
+        const fiveMinutes = 5 * 60 * 1000;
+        const thirtyMinutes = 30 * 60 * 1000;
+
+        const recentEvents = events.filter(e => now - new Date(e.timestamp).getTime() < fiveMinutes);
+        const olderEvents = events.filter(e => {
+            const age = now - new Date(e.timestamp).getTime();
+            return age >= fiveMinutes && age < thirtyMinutes;
+        });
+        const oldestEvents = events.filter(e => now - new Date(e.timestamp).getTime() >= thirtyMinutes);
+
+        let html = '';
+        const subscriptionIndicator = data.is_subscribed
+            ? '<span class="subscription-active">🟢 Live</span>'
+            : '<span class="subscription-inactive">🔴 Not subscribed</span>';
+
+        html += `<div class="activity-section-header">${subscriptionIndicator} <span class="event-count">${events.length} events</span></div>`;
+
+        if (recentEvents.length > 0) {
+            html += '<div class="activity-section"><h4>Last 5 minutes</h4>';
+            html += recentEvents.map(e => renderStateChangeEvent(e)).join('');
+            html += '</div>';
+        }
+
+        if (olderEvents.length > 0) {
+            html += '<div class="activity-section"><h4>Last 30 minutes</h4>';
+            html += olderEvents.map(e => renderStateChangeEvent(e)).join('');
+            html += '</div>';
+        }
+
+        if (oldestEvents.length > 0) {
+            html += '<div class="activity-section"><h4>Earlier</h4>';
+            html += oldestEvents.map(e => renderStateChangeEvent(e)).join('');
+            html += '</div>';
+        }
+
+        container.innerHTML = html;
 
     } catch (e) {
         console.error('Failed to load HA activity log:', e);
@@ -1966,12 +1989,31 @@ async function loadHAActivityTab() {
     }
 }
 
-function formatActivityType(type) {
-    if (!type) return '🔹';
-    if (type.includes('ha_service')) return '⚡ Service Call';
-    if (type.includes('action')) return '🎯 Action';
-    if (type.includes('error')) return '❌ Error';
-    return '🔹 ' + type;
+function renderStateChangeEvent(event) {
+    const stateClass = getStateClass(event.new_state);
+    return `
+        <div class="ha-event-item ${stateClass}">
+            <div class="event-header">
+                <span class="event-icon">${getDomainIcon(event.domain)}</span>
+                <span class="event-entity">${escapeHtml(event.friendly_name)}</span>
+                <span class="event-time">${formatActivityTime(event.timestamp)}</span>
+            </div>
+            <div class="event-change">
+                <span class="old-state">${escapeHtml(event.old_state || 'unknown')}</span>
+                <span class="arrow">→</span>
+                <span class="new-state ${stateClass}">${escapeHtml(event.new_state || 'unknown')}</span>
+            </div>
+        </div>
+    `;
+}
+
+function getStateClass(state) {
+    if (!state) return '';
+    if (state === 'on') return 'state-on';
+    if (state === 'off') return 'state-off';
+    if (state === 'unavailable') return 'state-unavailable';
+    if (state === 'unknown') return 'state-unknown';
+    return '';
 }
 
 function formatActivityTime(timestamp) {

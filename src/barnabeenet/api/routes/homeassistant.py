@@ -183,6 +183,25 @@ class LogResponse(BaseModel):
     total: int
 
 
+class StateChangeSummary(BaseModel):
+    """Summary of a state change event."""
+
+    entity_id: str
+    friendly_name: str
+    domain: str
+    old_state: str | None
+    new_state: str | None
+    timestamp: str
+
+
+class StateChangesResponse(BaseModel):
+    """Response containing state change events."""
+
+    events: list[StateChangeSummary]
+    total: int
+    is_subscribed: bool = Field(description="Whether actively receiving events")
+
+
 class ServiceCallRequest(BaseModel):
     """Request to call a Home Assistant service."""
 
@@ -731,6 +750,49 @@ async def get_error_logs(
     ]
 
     return LogResponse(entries=log_summaries, total=len(log_summaries))
+
+
+@router.get("/events", response_model=StateChangesResponse)
+async def get_state_change_events(
+    request: Request,
+    domain: str | None = Query(None, description="Filter by entity domain"),
+    limit: int = Query(100, ge=1, le=500, description="Max events to return"),
+) -> StateChangesResponse:
+    """Get recent state change events from Home Assistant.
+
+    Returns real-time state changes received via WebSocket subscription.
+    """
+    client = await get_ha_client_with_request(request)
+    if not client:
+        return StateChangesResponse(events=[], total=0, is_subscribed=False)
+
+    # Get state changes from client
+    events = client.state_changes
+
+    # Apply domain filter if specified
+    if domain:
+        events = [e for e in events if e.domain == domain]
+
+    # Limit results
+    events = events[:limit]
+
+    event_summaries = [
+        StateChangeSummary(
+            entity_id=e.entity_id,
+            friendly_name=e.friendly_name,
+            domain=e.domain,
+            old_state=e.old_state,
+            new_state=e.new_state,
+            timestamp=e.timestamp.isoformat(),
+        )
+        for e in events
+    ]
+
+    return StateChangesResponse(
+        events=event_summaries,
+        total=len(event_summaries),
+        is_subscribed=client.is_subscribed,
+    )
 
 
 @router.post("/services/call", response_model=ServiceCallResponse)

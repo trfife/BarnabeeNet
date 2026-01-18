@@ -3612,6 +3612,20 @@ body {
     min-width: 70px;
 }
 
+.ha-activity-item .activity-icon {
+    font-size: 16px;
+}
+
+.ha-activity-item .activity-entity {
+    flex: 1;
+    font-weight: 500;
+}
+
+.ha-activity-item .activity-change {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
 /* HA Activity Log Tab */
 .ha-activity-header {
     margin-bottom: 16px;
@@ -3627,6 +3641,118 @@ body {
     overflow-y: auto;
 }
 
+/* State change event items */
+.ha-event-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+}
+
+.ha-event-item.state-on {
+    border-left: 3px solid var(--accent-primary);
+}
+
+.ha-event-item.state-off {
+    border-left: 3px solid var(--text-muted);
+}
+
+.ha-event-item.state-unavailable {
+    border-left: 3px solid var(--accent-error);
+}
+
+.event-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.event-icon {
+    font-size: 18px;
+}
+
+.event-entity {
+    flex: 1;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.event-time {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.event-change {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.event-change .old-state {
+    color: var(--text-muted);
+}
+
+.event-change .arrow {
+    color: var(--text-secondary);
+}
+
+.event-change .new-state {
+    font-weight: 500;
+}
+
+.event-change .new-state.state-on {
+    color: var(--accent-primary);
+}
+
+.event-change .new-state.state-off {
+    color: var(--text-secondary);
+}
+
+.event-change .new-state.state-unavailable {
+    color: var(--accent-error);
+}
+
+/* Activity sections */
+.activity-section {
+    margin-bottom: 20px;
+}
+
+.activity-section h4 {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.activity-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.subscription-active {
+    color: var(--accent-primary);
+    font-weight: 500;
+}
+
+.subscription-inactive {
+    color: var(--accent-error);
+    font-weight: 500;
+}
+
+.event-count {
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+/* Legacy activity log items (keep for backwards compat) */
 .ha-activity-log-item {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
