@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (Dashboard Phase 2: SkyrimNet Parity)
+2026-01-18 (Typo Handling + Memory System Fixes)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + COMPREHENSIVE LOGGING
@@ -90,6 +90,8 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Agent Chain Display in Chat** - After each chat response, fetches conversation trace and displays collapsible "Agent Chain" showing step-by-step agent decisions. Shows agent icons (🧠 meta, ⚡ instant, 🎯 action, 💬 interaction, 📝 memory), actions, summaries, and durations. Expandable/collapsible via click. CSS styled to match dark theme.
 - [x] **Secrets Persistence Verified** - All API keys and HA tokens are encrypted (Fernet AES-128) and stored in Redis. Master key loaded from BARNABEENET_MASTER_KEY env var. Fixed bug in /homeassistant/status endpoint returning wrong URL. Added error logging for secret decryption failures. Secrets survive restarts: HA token, OpenRouter key, and 7 other provider keys all persist correctly.
 - [x] **Dashboard Phase 2: SkyrimNet Parity** - (1) HA State Change Streaming: `_handle_state_change()` logs to ActivityLogger with domain icons (💡🔌🌡️🔒 etc.), broadcasts via WebSocket to dashboard. (2) Expandable LLM Request Cards: `showLLMInspector()` modal shows full LLM signal details (system prompt, messages, response, tokens, cost, latency). (3) Waterfall Timeline: `renderWaterfallTimeline()` visualizes request duration breakdown per component with colored bars. (4) Live Stats Bar: Real-time counters (events/sec, total, LLM calls, HA events) on Logs page. CSS for `.llm-inspector-modal`, `.waterfall-timeline`, `.activity-stats-bar`.
+- [x] **Typo-Tolerant Voice Commands** - MetaAgent and ActionAgent patterns handle common typos: "trun", "tunr" → turn; "swtich", "swich" → switch; "of" → off. Mid-sentence patterns catch commands embedded in longer phrases. Tested: "trun off the office light" correctly executes `light.turn_off` on `light.office_light`.
+- [x] **Memory System Fixed** - Orchestrator now passes memory operation (STORE/RETRIEVE/FORGET) from MetaAgent's sub_category to MemoryAgent. Binary Redis client for embedding storage (fixes UTF-8 decode errors with numpy arrays). Memory store/recall now working: "remember my favorite color is blue" stores, "do you remember my favorite color" retrieves.
 
 ### In Progress
 - [ ] Dashboard Phase 6: Voice input in Chat tab (microphone)
