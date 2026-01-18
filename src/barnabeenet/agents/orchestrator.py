@@ -338,7 +338,8 @@ class AgentOrchestrator:
         """Stage 1: Classify intent with MetaAgent."""
         start = time.perf_counter()
 
-        result = await self._meta_agent.handle_input(
+        # Call classify() directly to get ClassificationResult object
+        ctx.classification = await self._meta_agent.classify(
             ctx.text,
             {
                 "speaker": ctx.speaker,
@@ -347,7 +348,6 @@ class AgentOrchestrator:
             },
         )
 
-        ctx.classification = result.get("classification")
         latency_ms = (time.perf_counter() - start) * 1000
         ctx.stage_timings["classification"] = latency_ms
 

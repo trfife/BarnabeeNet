@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-17 (after Provider Config VM Deployment)
+2026-01-18 (after MetaAgent Classification Fix)
 
 ## Current Phase
-**Phase 1: Core Services** - PROVIDER CONFIG DEPLOYED TO VM
+**Phase 1: Core Services** - INTENT CLASSIFICATION WORKING
 
 ## Development Workflow
 
@@ -63,12 +63,14 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **E2E Testing Deployed to VM** - E2E endpoints accessible at http://192.168.86.51:8000/api/v1/e2e/, quick test runs successfully, results show assertions and agent routing. Tests fail without LLM API key (expected behavior - MetaAgent needs key for intent classification).
 - [x] **LLM Provider Configuration System** - Dashboard-based provider config (not hardcoded). Encrypted secrets storage (Fernet encryption with master key). Support for 12 providers: OpenRouter, OpenAI, Anthropic, Azure, Google, xAI, DeepSeek, HuggingFace, Bedrock, Together, Mistral, Groq. Each provider has setup instructions, docs links, API key generation URLs. Config persisted in Redis (AOF enabled). API at /api/v1/config/providers, /api/v1/config/secrets. Dashboard UI in Configuration page.
 - [x] **Provider Config Deployed to VM** - Master key generated and stored in .env, app restarted with encryption enabled. All 12 providers visible in /api/v1/config/providers/status endpoint. Ready to configure API keys via dashboard.
+- [x] **OpenRouter API Key Configured** - API key set via dashboard Configuration page. Test connection succeeded. Orchestrator reads API key from encrypted provider config (SecretsService).
+- [x] **LLM Working End-to-End** - Barnabee responds with personality! InteractionAgent calls LLM successfully. E2E tests show LLM responses like "Today is Wednesday, January 3rd, 2024. *adjusts pocket watch* Lovely winter day we're having, isn't it?"
+- [x] **MetaAgent Classification Fixed** - Orchestrator now calls MetaAgent.classify() directly (was incorrectly calling handle_input and missing the ClassificationResult). Intent routing should now work correctly for instant/action/memory intents.
 
 ### In Progress
-- [ ] None currently
+- [ ] Verify MetaAgent intent classification working on VM
 
 ### Not Started
-- [ ] Configure LLM API key on VM for proper intent classification
 - [ ] Home Assistant entity discovery
 - [ ] Family profile system
 
@@ -107,7 +109,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Configure OpenRouter API key via dashboard and test E2E ← NEXT
+1. Verify MetaAgent classification on VM (deploy & run E2E tests) ← NEXT
 2. Home Assistant entity discovery
 3. Family profile system
 
@@ -134,6 +136,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-01-18 | Fix orchestrator to call MetaAgent.classify() | Bug: was calling handle_input() and missing ClassificationResult object |
 | 2026-01-18 | Dashboard-based LLM provider config | Production-ready: no hardcoded keys, supports 12 providers, encrypted storage |
 | 2026-01-18 | Fernet encryption for secrets | Master key from env var, secure at-rest storage in Redis |
 | 2026-01-18 | E2E testing framework | Automated pipeline validation with dashboard visibility |

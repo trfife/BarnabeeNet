@@ -230,14 +230,12 @@ class TestPipelineFlow:
 
         # Mock all agents
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.INSTANT,
-                    confidence=0.99,
-                    sub_category="greeting",
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.INSTANT,
+                confidence=0.99,
+                sub_category="greeting",
+            )
         )
 
         orch._instant_agent = AsyncMock()
@@ -257,14 +255,12 @@ class TestPipelineFlow:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.INSTANT,
-                    confidence=0.99,
-                    sub_category="greeting",
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.INSTANT,
+                confidence=0.99,
+                sub_category="greeting",
+            )
         )
 
         orch._instant_agent = AsyncMock()
@@ -281,14 +277,12 @@ class TestPipelineFlow:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.ACTION,
-                    confidence=0.95,
-                    sub_category="light_control",
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.ACTION,
+                confidence=0.95,
+                sub_category="light_control",
+            )
         )
 
         orch._action_agent = AsyncMock()
@@ -311,14 +305,12 @@ class TestPipelineFlow:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.CONVERSATION,
-                    confidence=0.90,
-                    sub_category="general",
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.CONVERSATION,
+                confidence=0.90,
+                sub_category="general",
+            )
         )
 
         orch._interaction_agent = AsyncMock()
@@ -337,14 +329,12 @@ class TestPipelineFlow:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.QUERY,
-                    confidence=0.92,
-                    sub_category="factual",
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.QUERY,
+                confidence=0.92,
+                sub_category="factual",
+            )
         )
 
         orch._interaction_agent = AsyncMock()
@@ -362,14 +352,12 @@ class TestPipelineFlow:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.MEMORY,
-                    confidence=0.95,
-                    sub_category="recall",
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.MEMORY,
+                confidence=0.95,
+                sub_category="recall",
+            )
         )
 
         orch._memory_agent = AsyncMock()
@@ -388,14 +376,12 @@ class TestPipelineFlow:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.EMERGENCY,
-                    confidence=0.99,
-                    sub_category="fire",
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.EMERGENCY,
+                confidence=0.99,
+                sub_category="fire",
+            )
         )
 
         orch._interaction_agent = AsyncMock()
@@ -430,18 +416,16 @@ class TestMemoryIntegration:
 
         # Mock agents
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.CONVERSATION,
-                    confidence=0.90,
-                    memory_queries=MemoryQuerySet(
-                        primary_query="family preferences",
-                        topic_tags=["family"],
-                        relevant_people=["thomas"],
-                    ),
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.CONVERSATION,
+                confidence=0.90,
+                memory_queries=MemoryQuerySet(
+                    primary_query="family preferences",
+                    topic_tags=["family"],
+                    relevant_people=["thomas"],
+                ),
+            )
         )
 
         orch._memory_agent = AsyncMock()
@@ -473,13 +457,11 @@ class TestMemoryIntegration:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.INSTANT,
-                    confidence=0.99,
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.INSTANT,
+                confidence=0.99,
+            )
         )
 
         orch._instant_agent = AsyncMock()
@@ -499,18 +481,16 @@ class TestMemoryIntegration:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.CONVERSATION,
-                    confidence=0.90,
-                    context=ContextEvaluation(
-                        emotional_tone=EmotionalTone.POSITIVE,
-                        urgency_level=UrgencyLevel.LOW,
-                        empathy_needed=False,
-                    ),
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.CONVERSATION,
+                confidence=0.90,
+                context=ContextEvaluation(
+                    emotional_tone=EmotionalTone.POSITIVE,
+                    urgency_level=UrgencyLevel.LOW,
+                    empathy_needed=False,
+                ),
+            )
         )
 
         orch._interaction_agent = AsyncMock()
@@ -543,13 +523,11 @@ class TestContextPassing:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.INSTANT,
-                    confidence=0.99,
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.INSTANT,
+                confidence=0.99,
+            )
         )
 
         orch._instant_agent = AsyncMock()
@@ -567,13 +545,11 @@ class TestContextPassing:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.ACTION,
-                    confidence=0.95,
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.ACTION,
+                confidence=0.95,
+            )
         )
 
         orch._action_agent = AsyncMock()
@@ -590,13 +566,11 @@ class TestContextPassing:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.CONVERSATION,
-                    confidence=0.90,
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.CONVERSATION,
+                confidence=0.90,
+            )
         )
 
         orch._interaction_agent = AsyncMock()
@@ -614,13 +588,11 @@ class TestContextPassing:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.INSTANT,
-                    confidence=0.99,
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.INSTANT,
+                confidence=0.99,
+            )
         )
 
         orch._instant_agent = AsyncMock()
@@ -646,13 +618,11 @@ class TestTimings:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.INSTANT,
-                    confidence=0.99,
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.INSTANT,
+                confidence=0.99,
+            )
         )
 
         orch._instant_agent = AsyncMock()
@@ -669,13 +639,11 @@ class TestTimings:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.INSTANT,
-                    confidence=0.99,
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.INSTANT,
+                confidence=0.99,
+            )
         )
 
         orch._instant_agent = AsyncMock()
@@ -692,13 +660,11 @@ class TestTimings:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.INSTANT,
-                    confidence=0.99,
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.INSTANT,
+                confidence=0.99,
+            )
         )
 
         orch._instant_agent = AsyncMock()
@@ -724,7 +690,7 @@ class TestErrorHandling:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(side_effect=Exception("LLM Error"))
+        orch._meta_agent.classify = AsyncMock(side_effect=Exception("LLM Error"))
 
         result = await orch.process("hello")
 
@@ -737,13 +703,11 @@ class TestErrorHandling:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.ACTION,
-                    confidence=0.95,
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.ACTION,
+                confidence=0.95,
+            )
         )
 
         orch._action_agent = AsyncMock()
@@ -854,13 +818,11 @@ class TestIntentConfidence:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.INSTANT,
-                    confidence=0.95,
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.INSTANT,
+                confidence=0.95,
+            )
         )
 
         orch._instant_agent = AsyncMock()
@@ -876,7 +838,9 @@ class TestIntentConfidence:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(return_value={})
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(intent=IntentCategory.UNKNOWN, confidence=0.0)
+        )
 
         orch._interaction_agent = AsyncMock()
         orch._interaction_agent.handle_input = AsyncMock(return_value={"response": "Hi!"})
@@ -900,13 +864,11 @@ class TestFallbackBehavior:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(
-            return_value={
-                "classification": ClassificationResult(
-                    intent=IntentCategory.UNKNOWN,
-                    confidence=0.3,
-                )
-            }
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(
+                intent=IntentCategory.UNKNOWN,
+                confidence=0.3,
+            )
         )
 
         orch._interaction_agent = AsyncMock()
@@ -924,7 +886,9 @@ class TestFallbackBehavior:
         orch._initialized = True
 
         orch._meta_agent = AsyncMock()
-        orch._meta_agent.handle_input = AsyncMock(return_value={})
+        orch._meta_agent.classify = AsyncMock(
+            return_value=ClassificationResult(intent=IntentCategory.UNKNOWN, confidence=0.0)
+        )
 
         orch._interaction_agent = AsyncMock()
         orch._interaction_agent.handle_input = AsyncMock(return_value={"response": "Hello!"})
