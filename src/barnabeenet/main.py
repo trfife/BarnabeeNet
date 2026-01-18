@@ -70,6 +70,7 @@ class AppState:
         self.redis_client = None
         self.stt_service = None
         self.tts_service = None
+        self.orchestrator = None
         self.gpu_worker_available = False
         self.gpu_worker_last_check = 0.0
         self._health_check_task: asyncio.Task | None = None
@@ -119,6 +120,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error("Redis connection failed", error=str(e))
         # Continue without Redis for now - not critical for Phase 1
 
+    # Initialize Agent Orchestrator
+    try:
+        from barnabeenet.agents.orchestrator import get_orchestrator
+
+        app_state.orchestrator = get_orchestrator()
+        await app_state.orchestrator.init()
+        logger.info("Agent Orchestrator initialized")
+    except Exception as e:
+        logger.error("Orchestrator initialization failed", error=str(e))
+        # Continue - orchestrator will init lazily on first request
+
     # Start GPU worker health check task
     app_state._health_check_task = asyncio.create_task(_gpu_worker_health_check_loop())
 
@@ -132,6 +144,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # --- Shutdown ---
     logger.info("Shutting down BarnabeeNet")
+
+    # Shutdown orchestrator
+    if app_state.orchestrator:
+        await app_state.orchestrator.shutdown()
 
     # Cancel health check task
     if app_state._health_check_task:

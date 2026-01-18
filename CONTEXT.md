@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-17 (after LLM Provider abstraction layer)
+2026-01-17 (after orchestrator + voice pipeline integration)
 
 ## Current Phase
-**Phase 1: Core Services** - ALL 5 AGENTS + ORCHESTRATOR + MULTI-PROVIDER LLM COMPLETE
+**Phase 1: Core Services** - VOICE PIPELINE INTEGRATED WITH ORCHESTRATOR
 
 ## Development Workflow
 
@@ -48,9 +48,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **InteractionAgent** - Complex conversations with LLM (Claude/GPT-4), Barnabee persona
 - [x] **MemoryAgent** - Memory storage/retrieval/generation, working memory, conversation extraction
 - [x] **AgentOrchestrator** - Full pipeline: classify → memory retrieve → route to agent → store memories
+- [x] **Voice Pipeline + Orchestrator Integration** - Full voice-to-voice with multi-agent AI
 
 ### In Progress
-- [ ] Voice pipeline + orchestrator integration
+- [ ] Memory system (vector storage, Redis integration)
 
 ### Not Started
 - [ ] Memory system (vector storage, Redis integration)
@@ -75,10 +76,9 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Wire orchestrator into voice pipeline ← NEXT
-2. Memory system (vector storage, Redis integration)
-3. Home Assistant integration
-4. Dashboard Phase 1 (Grafana + activity stream)
+1. Memory system (vector storage, Redis integration) ← NEXT
+2. Home Assistant integration
+3. Dashboard Phase 1 (Grafana + activity stream)
 
 ---
 

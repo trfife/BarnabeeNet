@@ -6,7 +6,7 @@ import time
 import httpx
 import structlog
 
-from barnabeenet.agents.manager import get_global_agent_manager
+from barnabeenet.agents.orchestrator import get_orchestrator
 from barnabeenet.config import get_settings
 from barnabeenet.main import app_state
 from barnabeenet.models.schemas import (
@@ -67,18 +67,26 @@ class VoicePipelineService:
 
         stt_latency_ms = 0.0  # left for later observability
 
-        # Process: dispatch to AgentManager (defaults to echo agent)
-        manager = get_global_agent_manager()
-        # Ensure default agents are registered
-        await manager.register_default_agents()
-        agent_resp = await manager.handle(
-            input_text,
-            context={
-                "language": request.language,
-            },
+        # Process: dispatch to AgentOrchestrator (full multi-agent pipeline)
+        orchestrator = get_orchestrator()
+        orchestrator_resp = await orchestrator.process(
+            text=input_text,
+            speaker=request.speaker,
+            room=request.room,
+            conversation_id=request.conversation_id,
         )
 
-        response_text = agent_resp.get("response", f"You said: {input_text}")
+        response_text = orchestrator_resp.get("response", f"You said: {input_text}")
+        agent_used = orchestrator_resp.get("agent", "unknown")
+        intent = orchestrator_resp.get("intent", "unknown")
+
+        logger.info(
+            "Orchestrator processed request",
+            agent=agent_used,
+            intent=intent,
+            input_text=input_text[:50],
+            response_text=response_text[:50],
+        )
 
         # TTS
         tts = KokoroTTS(voice=request.response_voice or get_settings().tts.voice)
@@ -97,6 +105,10 @@ class VoicePipelineService:
             stt_engine=engine_used,
             stt_latency_ms=stt_latency_ms,
             response_text=response_text,
+            intent=intent,
+            agent=agent_used,
+            request_id=orchestrator_resp.get("request_id"),
+            conversation_id=orchestrator_resp.get("conversation_id"),
             audio_base64=synth_res["audio_base64"]
             if "audio_base64" in synth_res
             else base64.b64encode(synth_res["audio_bytes"]).decode(),

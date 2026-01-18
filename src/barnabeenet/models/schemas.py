@@ -200,12 +200,21 @@ class VoicePipelineRequest(BaseModel):
     response_voice: str | None = Field(default=None, description="TTS voice to use")
     output_format: AudioFormat = Field(default=AudioFormat.WAV)
 
+    # Context for orchestrator
+    speaker: str | None = Field(default=None, description="Speaker ID if known")
+    room: str | None = Field(default=None, description="Room where request originated")
+    conversation_id: str | None = Field(
+        default=None, description="Conversation ID for context continuity"
+    )
+
     class Config:
         json_schema_extra = {
             "example": {
                 "audio_base64": "UklGRi...",
                 "sample_rate": 16000,
                 "language": "en",
+                "speaker": "thomas",
+                "room": "living_room",
             }
         }
 
@@ -218,8 +227,14 @@ class VoicePipelineResponse(BaseModel):
     stt_engine: STTEngine = Field(..., description="STT engine used")
     stt_latency_ms: float = Field(..., description="STT processing time")
 
-    # Output (for Phase 1, we just echo back)
+    # Orchestrator output
     response_text: str = Field(..., description="Response text")
+    intent: str = Field(default="unknown", description="Classified intent category")
+    agent: str = Field(default="unknown", description="Agent that handled request")
+    request_id: str | None = Field(default=None, description="Unique request ID")
+    conversation_id: str | None = Field(default=None, description="Conversation ID")
+
+    # Audio output
     audio_base64: str = Field(..., description="Base64-encoded output audio")
     tts_latency_ms: float = Field(..., description="TTS processing time")
 
@@ -234,7 +249,10 @@ class VoicePipelineResponse(BaseModel):
                 "input_text": "What time is it?",
                 "stt_engine": "parakeet",
                 "stt_latency_ms": 28.5,
-                "response_text": "You said: What time is it?",
+                "response_text": "The current time is 3:45 PM.",
+                "intent": "instant",
+                "agent": "instant",
+                "request_id": "abc12345",
                 "audio_base64": "UklGRi...",
                 "tts_latency_ms": 92.1,
                 "total_latency_ms": 120.6,
