@@ -19,6 +19,7 @@
         </div>
         <div class="nav-links">
             <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
+            <a href="#" class="nav-link" data-page="chat">Chat</a>
             <a href="#" class="nav-link" data-page="logs">Logs</a>
             <a href="#" class="nav-link" data-page="prompts">Prompts</a>
             <a href="#" class="nav-link" data-page="setup">Setup & Test</a>
@@ -162,6 +163,58 @@
                     </div>
                     <div class="modal-body" id="trace-detail">
                         <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Page - Talk to Barnabee -->
+        <div id="page-chat" class="page">
+            <div class="chat-container">
+                <!-- Chat Header -->
+                <div class="chat-header">
+                    <div class="chat-avatar">🐝</div>
+                    <div class="chat-info">
+                        <h2>Barnabee</h2>
+                        <span class="chat-status" id="chat-status">Ready to chat</span>
+                    </div>
+                    <div class="chat-actions">
+                        <button id="chat-clear-btn" class="btn btn-secondary" title="Clear conversation">
+                            🗑️ Clear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Chat Messages Area -->
+                <div class="chat-messages" id="chat-messages">
+                    <div class="chat-welcome">
+                        <div class="welcome-avatar">🐝</div>
+                        <h3>Hello! I'm Barnabee</h3>
+                        <p>Your friendly home assistant. I can help you with:</p>
+                        <div class="welcome-suggestions">
+                            <button class="suggestion-chip" data-suggestion="What time is it?">🕐 What time is it?</button>
+                            <button class="suggestion-chip" data-suggestion="What's the weather like?">🌤️ Weather</button>
+                            <button class="suggestion-chip" data-suggestion="Turn on the living room lights">💡 Control lights</button>
+                            <button class="suggestion-chip" data-suggestion="Tell me a joke">😄 Tell me a joke</button>
+                            <button class="suggestion-chip" data-suggestion="What can you do?">❓ What can you do?</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Input -->
+                <div class="chat-input-container">
+                    <div class="chat-input-wrapper">
+                        <input type="text" 
+                               id="chat-input" 
+                               class="chat-input" 
+                               placeholder="Type a message to Barnabee..."
+                               autocomplete="off">
+                        <button id="chat-send-btn" class="chat-send-btn" title="Send message">
+                            <span class="send-icon">➤</span>
+                        </button>
+                    </div>
+                    <div class="chat-input-hint">
+                        Press <kbd>Enter</kbd> to send • Barnabee responds with personality!
                     </div>
                 </div>
             </div>

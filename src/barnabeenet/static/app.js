@@ -3646,7 +3646,237 @@ document.addEventListener('DOMContentLoaded', () => {
                     initPromptsPage();
                 }
             }
+            if (link.dataset.page === 'chat') {
+                // Initialize chat page on first visit
+                if (!chatInitialized) {
+                    initChatPage();
+                }
+            }
         });
     });
 });
 
+
+// =============================================================================
+// Chat Page - Talk to Barnabee
+// =============================================================================
+
+let chatInitialized = false;
+let chatMessages = [];
+
+function initChatPage() {
+    chatInitialized = true;
+    
+    // Set up event listeners
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('chat-send-btn');
+    const clearBtn = document.getElementById('chat-clear-btn');
+    
+    // Send on button click
+    sendBtn?.addEventListener('click', sendChatMessage);
+    
+    // Send on Enter key
+    chatInput?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendChatMessage();
+        }
+    });
+    
+    // Clear conversation
+    clearBtn?.addEventListener('click', clearChat);
+    
+    // Suggestion chips
+    document.querySelectorAll('.suggestion-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const suggestion = chip.dataset.suggestion;
+            if (suggestion) {
+                document.getElementById('chat-input').value = suggestion;
+                sendChatMessage();
+            }
+        });
+    });
+    
+    console.log('Chat page initialized');
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const messagesContainer = document.getElementById('chat-messages');
+    const sendBtn = document.getElementById('chat-send-btn');
+    
+    const message = input.value.trim();
+    if (!message) return;
+    
+    // Clear input
+    input.value = '';
+    
+    // Remove welcome screen if present
+    const welcome = messagesContainer.querySelector('.chat-welcome');
+    if (welcome) {
+        welcome.remove();
+    }
+    
+    // Add user message
+    addChatMessage('user', message);
+    
+    // Show thinking indicator
+    const thinkingId = showThinkingIndicator();
+    
+    // Update status
+    updateChatStatus('Thinking...', true);
+    sendBtn.disabled = true;
+    
+    try {
+        // Call the text process endpoint
+        const response = await fetch(`${API_BASE}/api/v1/voice/process`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                text: message,
+                speaker: 'Dashboard User',
+                room: 'Dashboard'
+            }),
+        });
+        
+        const data = await response.json();
+        
+        // Remove thinking indicator
+        removeThinkingIndicator(thinkingId);
+        
+        if (response.ok) {
+            // Add assistant response
+            const assistantMessage = data.response || data.text || 'I received your message but have no response.';
+            const agent = data.agent_used || data.agent || null;
+            const intent = data.intent || null;
+            
+            addChatMessage('assistant', assistantMessage, { agent, intent });
+            updateChatStatus('Ready to chat');
+        } else {
+            // Error response
+            const errorMsg = data.detail || data.error || 'Something went wrong';
+            addChatMessage('assistant', errorMsg, { error: true });
+            updateChatStatus('Error occurred');
+        }
+    } catch (error) {
+        // Network error
+        removeThinkingIndicator(thinkingId);
+        addChatMessage('assistant', `Connection error: ${error.message}`, { error: true });
+        updateChatStatus('Connection error');
+    } finally {
+        sendBtn.disabled = false;
+        input.focus();
+    }
+}
+
+function addChatMessage(role, content, meta = {}) {
+    const messagesContainer = document.getElementById('chat-messages');
+    
+    const messageEl = document.createElement('div');
+    messageEl.className = `chat-message ${role}`;
+    
+    const avatar = role === 'user' ? '👤' : '🐝';
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    let metaHtml = `<span class="message-time">${time}</span>`;
+    if (meta.agent) {
+        metaHtml += ` <span class="agent-badge">${meta.agent}</span>`;
+    }
+    if (meta.intent) {
+        metaHtml += ` <span class="agent-badge">${meta.intent}</span>`;
+    }
+    
+    const bubbleClass = meta.error ? 'message-bubble message-error' : 'message-bubble';
+    
+    messageEl.innerHTML = `
+        <div class="message-avatar">${avatar}</div>
+        <div class="message-content">
+            <div class="${bubbleClass}">${escapeHtml(content)}</div>
+            <div class="message-meta">${metaHtml}</div>
+        </div>
+    `;
+    
+    messagesContainer.appendChild(messageEl);
+    
+    // Scroll to bottom
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // Store in history
+    chatMessages.push({ role, content, time, meta });
+}
+
+function showThinkingIndicator() {
+    const messagesContainer = document.getElementById('chat-messages');
+    const id = 'thinking-' + Date.now();
+    
+    const thinkingEl = document.createElement('div');
+    thinkingEl.id = id;
+    thinkingEl.className = 'chat-message assistant';
+    thinkingEl.innerHTML = `
+        <div class="message-avatar">🐝</div>
+        <div class="message-content">
+            <div class="message-bubble thinking-indicator">
+                <div class="thinking-dot"></div>
+                <div class="thinking-dot"></div>
+                <div class="thinking-dot"></div>
+            </div>
+        </div>
+    `;
+    
+    messagesContainer.appendChild(thinkingEl);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    return id;
+}
+
+function removeThinkingIndicator(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.remove();
+    }
+}
+
+function updateChatStatus(status, thinking = false) {
+    const statusEl = document.getElementById('chat-status');
+    if (statusEl) {
+        statusEl.textContent = status;
+        statusEl.className = thinking ? 'chat-status thinking' : 'chat-status';
+    }
+}
+
+function clearChat() {
+    const messagesContainer = document.getElementById('chat-messages');
+    chatMessages = [];
+    
+    // Restore welcome screen
+    messagesContainer.innerHTML = `
+        <div class="chat-welcome">
+            <div class="welcome-avatar">🐝</div>
+            <h3>Hello! I'm Barnabee</h3>
+            <p>Your friendly home assistant. I can help you with:</p>
+            <div class="welcome-suggestions">
+                <button class="suggestion-chip" data-suggestion="What time is it?">🕐 What time is it?</button>
+                <button class="suggestion-chip" data-suggestion="What's the weather like?">🌤️ Weather</button>
+                <button class="suggestion-chip" data-suggestion="Turn on the living room lights">💡 Control lights</button>
+                <button class="suggestion-chip" data-suggestion="Tell me a joke">😄 Tell me a joke</button>
+                <button class="suggestion-chip" data-suggestion="What can you do?">❓ What can you do?</button>
+            </div>
+        </div>
+    `;
+    
+    // Re-attach suggestion chip listeners
+    document.querySelectorAll('.suggestion-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const suggestion = chip.dataset.suggestion;
+            if (suggestion) {
+                document.getElementById('chat-input').value = suggestion;
+                sendChatMessage();
+            }
+        });
+    });
+    
+    updateChatStatus('Ready to chat');
+    showToast('Conversation cleared');
+}
