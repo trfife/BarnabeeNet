@@ -194,8 +194,9 @@ class AgentOrchestrator:
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
             redis_client = redis.from_url(redis_url, decode_responses=True)
 
-            # Create secrets service
+            # Create and initialize secrets service
             secrets_service = SecretsService(redis_client)
+            secrets_service.initialize()
 
             # Get secrets for this provider
             provider_secrets = await secrets_service.get_secrets_for_provider(provider)
