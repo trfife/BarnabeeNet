@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after Dashboard Phase 4: HA Control Panel)
+2026-01-18 (after Dashboard Phase 4 revision: "What Barnabee Knows")
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + DASHBOARD ENHANCEMENT
@@ -76,6 +76,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Logging Dashboard (Phase 2)** - Logs page with Chart.js performance graphs (STT/TTS/LLM/Pipeline latency). Real-time log stream with filtering by level (ERROR/WARN/INFO/DEBUG) and text search. Metrics API endpoints (GET/POST /api/v1/dashboard/metrics/*).
 - [x] **Agent Prompts Page (Phase 3)** - Extracted all agent prompts to text files in /src/barnabeenet/prompts/ (meta_agent, instant_agent, action_agent, interaction_agent, memory_agent). Prompts API with version history (/api/v1/prompts/*). Dashboard UI for viewing/editing prompts with syntax highlighting, Ctrl+S save, history viewer, version restore.
 - [x] **HA Control Panel (Phase 4)** - Enhanced entity cards with brightness sliders, color temperature controls, climate temperature adjustment, cover position sliders, media player controls. Area quick actions (all lights on/off). Service call dialog for advanced control. Entity context menu with details view. Toast notifications.
+- [x] **"What Barnabee Knows" Page (Phase 4 revision)** - Refocused HA page from direct control to read-only knowledge view. Shows what Barnabee understands about Home Assistant: discovery stats, entity counts by domain, area information, device registry. Activity log for HA interactions. Tabs: Overview, Entities, Areas, Devices, Activity Log. The dashboard is for VIEWING what Barnabee knows, not for controlling devices directly (users should use HA dashboard for control).
 
 ### In Progress
 - [ ] Connect to actual Home Assistant instance - configure via dashboard
