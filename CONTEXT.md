@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (Real-time HA state changes via WebSocket event subscription)
+2026-01-18 (Dashboard Chat tab for direct Barnabee interaction)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + DASHBOARD ENHANCEMENT
@@ -79,9 +79,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **"What Barnabee Knows" Page (Phase 4 revision)** - Refocused HA page from direct control to read-only knowledge view. Shows what Barnabee understands about Home Assistant: discovery stats, entity counts by domain, area information, device registry. Activity log for HA interactions. Tabs: Overview, Entities, Areas, Devices, Activity Log. The dashboard is for VIEWING what Barnabee knows, not for controlling devices directly (users should use HA dashboard for control).
 - [x] **Home Assistant WebSocket API** - Implemented WebSocket protocol for HA device/area/entity registries (REST API doesn't expose these). Added `_ws_command()` method to HomeAssistantClient that handles auth flow (auth_required → send token → auth_ok → command → result). Commands: `config/device_registry/list`, `config/area_registry/list`, `config/entity_registry/list`. Entity dataclass enriched with device_id. Data now loads correctly: 2288 entities, 238 devices, 20 areas.
 - [x] **Real-time HA State Changes** - Persistent WebSocket subscription to Home Assistant `state_changed` events. Auto-subscribes on connect with exponential backoff reconnection. StateChangeEvent model with rolling buffer (500 events). `/api/v1/homeassistant/events` endpoint for activity log. Dashboard Activity Log tab shows live state changes with domain icons, friendly names, and state transitions. Filters "interesting" domains (lights, switches, etc.) for overview.
+- [x] **Dashboard Chat Tab (Phase 5)** - Direct text conversation with Barnabee from the dashboard. Chat bubble UI with avatars, timestamps, thinking animation. Suggestion chips for quick actions (time, weather, lights, jokes). Connects to `/api/v1/voice/process` endpoint. Shows agent used and intent on each response. Clear conversation button. Fully styled dark theme matching dashboard.
 
 ### In Progress
-- [ ] Dashboard Phase 5: AI Chat tab for Barnabee interaction
+- [ ] Dashboard Phase 6: Voice input in Chat tab (microphone)
 
 ### Not Started
 - [ ] HA activity feed integration (filter by HA vs other activities)
