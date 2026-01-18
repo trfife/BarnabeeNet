@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after Dashboard Phase 4 revision: "What Barnabee Knows")
+2026-01-18 (WebSocket API for Home Assistant registries - entities/devices/areas fully loading)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + DASHBOARD ENHANCEMENT
@@ -77,9 +77,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Agent Prompts Page (Phase 3)** - Extracted all agent prompts to text files in /src/barnabeenet/prompts/ (meta_agent, instant_agent, action_agent, interaction_agent, memory_agent). Prompts API with version history (/api/v1/prompts/*). Dashboard UI for viewing/editing prompts with syntax highlighting, Ctrl+S save, history viewer, version restore.
 - [x] **HA Control Panel (Phase 4)** - Enhanced entity cards with brightness sliders, color temperature controls, climate temperature adjustment, cover position sliders, media player controls. Area quick actions (all lights on/off). Service call dialog for advanced control. Entity context menu with details view. Toast notifications.
 - [x] **"What Barnabee Knows" Page (Phase 4 revision)** - Refocused HA page from direct control to read-only knowledge view. Shows what Barnabee understands about Home Assistant: discovery stats, entity counts by domain, area information, device registry. Activity log for HA interactions. Tabs: Overview, Entities, Areas, Devices, Activity Log. The dashboard is for VIEWING what Barnabee knows, not for controlling devices directly (users should use HA dashboard for control).
+- [x] **Home Assistant WebSocket API** - Implemented WebSocket protocol for HA device/area/entity registries (REST API doesn't expose these). Added `_ws_command()` method to HomeAssistantClient that handles auth flow (auth_required → send token → auth_ok → command → result). Commands: `config/device_registry/list`, `config/area_registry/list`, `config/entity_registry/list`. Entity dataclass enriched with device_id. Data now loads correctly: 2288 entities, 238 devices, 20 areas.
 
 ### In Progress
-- [ ] Connect to actual Home Assistant instance - configure via dashboard
+- [ ] Dashboard Phase 5: AI Chat tab for Barnabee interaction
 
 ### Not Started
 - [ ] HA activity feed integration (filter by HA vs other activities)
