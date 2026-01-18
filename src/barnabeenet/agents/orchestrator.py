@@ -196,7 +196,7 @@ class AgentOrchestrator:
 
             # Create and initialize secrets service
             secrets_service = SecretsService(redis_client)
-            secrets_service.initialize()
+            await secrets_service.initialize()
 
             # Get secrets for this provider
             provider_secrets = await secrets_service.get_secrets_for_provider(provider)
