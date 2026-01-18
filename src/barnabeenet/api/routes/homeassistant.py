@@ -247,7 +247,10 @@ async def get_ha_config_from_redis(request: Request) -> dict[str, str]:
                 if secrets_service and "token_encrypted" in config:
                     try:
                         config["token"] = await secrets_service.get_secret("ha_token")
-                    except Exception:
+                        if not config["token"]:
+                            logger.warning("HA token decrypted but empty - may need to re-save")
+                    except Exception as e:
+                        logger.error("Failed to decrypt HA token: %s", e)
                         config["token"] = ""
                 _ha_config_cache = config
                 return config
@@ -399,14 +402,14 @@ async def get_connection_status(request: Request) -> HAConnectionStatus:
     if config:
         return HAConnectionStatus(
             connected=True,
-            url=settings.homeassistant.url,
+            url=ha_url,
             version=config.get("version"),
             location_name=config.get("location_name"),
         )
 
     return HAConnectionStatus(
         connected=True,
-        url=settings.homeassistant.url,
+        url=ha_url,
     )
 
 
