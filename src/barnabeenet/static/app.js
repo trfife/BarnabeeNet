@@ -3695,10 +3695,13 @@ function connectDashboardWebSocket() {
         };
 
         dashboardWs.onmessage = (event) => {
+            console.log('Dashboard WS received:', event.data);
             try {
                 const msg = JSON.parse(event.data);
+                console.log('Dashboard message parsed:', msg.type, msg);
 
                 if (msg.type === 'activity') {
+                    console.log('Processing activity:', msg.data);
                     // Add to logs page
                     addLogEntry({
                         timestamp: msg.data.timestamp,
