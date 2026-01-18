@@ -395,8 +395,11 @@ class DashboardConnectionManager:
 
     async def _on_activity(self, activity: Activity) -> None:
         """Handle incoming activity from the logger."""
+        logger.info(f"_on_activity called: type={activity.type.value}, connections={len(self._connections)}")
         if not self._connections:
+            logger.info("No connections, skipping broadcast")
             return
+        logger.info(f"Broadcasting activity to {len(self._connections)} dashboard connections")
         await self.broadcast(
             "activity",
             {

@@ -198,13 +198,16 @@ class ActivityLogger:
                 self._activities = self._activities[-self._max_activities :]
 
         # Broadcast to subscribers
-        logger.debug(f"Broadcasting activity to {len(self._subscribers)} subscribers")
+        if self._subscribers:
+            logger.info(f"Broadcasting {activity.type.value} to {len(self._subscribers)} subscribers (logger_id={id(self)})")
         for callback in self._subscribers:
             try:
+                logger.info(f"Calling subscriber: {callback}")
                 if asyncio.iscoroutinefunction(callback):
                     await callback(activity)
                 else:
                     callback(activity)
+                logger.info("Subscriber called successfully")
             except Exception as e:
                 logger.error(f"Activity subscriber error: {e}")
 
