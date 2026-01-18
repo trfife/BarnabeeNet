@@ -1395,12 +1395,26 @@ Select the best model for EACH activity. Return ONLY the JSON mapping."""
             content = data["choices"][0]["message"]["content"]
 
             # Parse JSON from response
+            # Handle DeepSeek R1's <think> reasoning tokens
+            if "<think>" in content and "</think>" in content:
+                content = content.split("</think>")[-1]
+
             # Handle potential markdown code blocks
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0]
 
+            # Try to extract JSON object from anywhere in the content
+            content = content.strip()
+            if not content.startswith("{"):
+                # Find first { and last }
+                start = content.find("{")
+                end = content.rfind("}")
+                if start != -1 and end != -1:
+                    content = content[start : end + 1]
+
+            logger.debug(f"Auto-select parsing JSON: {content[:200]}...")
             recommendations = json.loads(content.strip())
 
             # Validate recommendations
