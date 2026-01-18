@@ -358,3 +358,198 @@ async def stop_signal_streamer() -> None:
     """Stop the signal streamer (call during app shutdown)."""
     streamer = get_signal_streamer()
     await streamer.stop()
+
+
+# =============================================================================
+# Dashboard WebSocket - Real-time push for all dashboard updates
+# =============================================================================
+
+
+class DashboardConnectionManager:
+    """Manages WebSocket connections for the dashboard.
+
+    Supports real-time push for:
+    - Activity feed updates
+    - Metrics updates
+    - Test results
+    - System status
+    """
+
+    def __init__(self) -> None:
+        self._connections: list[WebSocket] = []
+        self._heartbeat_interval = 30.0
+
+    async def connect(self, websocket: WebSocket) -> None:
+        """Accept a new dashboard WebSocket connection."""
+        await websocket.accept()
+        self._connections.append(websocket)
+        logger.info(
+            "Dashboard WebSocket connected. Total: %d",
+            len(self._connections),
+        )
+
+    def disconnect(self, websocket: WebSocket) -> None:
+        """Remove a dashboard WebSocket connection."""
+        if websocket in self._connections:
+            self._connections.remove(websocket)
+        logger.info(
+            "Dashboard WebSocket disconnected. Total: %d",
+            len(self._connections),
+        )
+
+    async def broadcast(self, message_type: str, data: dict[str, Any]) -> None:
+        """Broadcast message to all dashboard connections."""
+        message = {"type": message_type, "data": data}
+        disconnected = []
+
+        for ws in self._connections:
+            try:
+                await ws.send_json(message)
+            except Exception as e:
+                logger.warning("Dashboard broadcast failed: %s", e)
+                disconnected.append(ws)
+
+        for ws in disconnected:
+            self.disconnect(ws)
+
+    async def send_to(self, websocket: WebSocket, message_type: str, data: dict[str, Any]) -> None:
+        """Send message to a specific connection."""
+        try:
+            await websocket.send_json({"type": message_type, "data": data})
+        except Exception as e:
+            logger.warning("Dashboard send failed: %s", e)
+            self.disconnect(websocket)
+
+    @property
+    def connection_count(self) -> int:
+        """Get number of active dashboard connections."""
+        return len(self._connections)
+
+
+# Global dashboard connection manager
+dashboard_manager = DashboardConnectionManager()
+
+
+@router.websocket("/ws/dashboard")
+async def websocket_dashboard(websocket: WebSocket) -> None:
+    """WebSocket endpoint for real-time dashboard updates.
+
+    Provides:
+    - Activity feed updates
+    - Metrics updates (latency graphs)
+    - Test result streaming
+    - System status updates
+    - Heartbeat for connection health
+
+    Client messages:
+    - {"type": "subscribe", "channels": ["activity", "metrics", "tests", "status"]}
+    - {"type": "ping"}
+    """
+    await dashboard_manager.connect(websocket)
+
+    try:
+        # Send initial connection status
+        from barnabeenet.services.dashboard_service import get_dashboard_service
+
+        try:
+            service = await get_dashboard_service()
+            health = await service.get_system_health()
+            await dashboard_manager.send_to(
+                websocket,
+                "status",
+                {"connected": True, "health": health.model_dump()},
+            )
+        except Exception as e:
+            await dashboard_manager.send_to(
+                websocket,
+                "status",
+                {"connected": True, "health": None, "error": str(e)},
+            )
+
+        # Main message loop
+        while True:
+            try:
+                data = await asyncio.wait_for(
+                    websocket.receive_json(),
+                    timeout=dashboard_manager._heartbeat_interval,
+                )
+
+                msg_type = data.get("type", "")
+
+                if msg_type == "ping":
+                    await dashboard_manager.send_to(websocket, "pong", {})
+
+                elif msg_type == "get_stats":
+                    try:
+                        service = await get_dashboard_service()
+                        stats = await service.get_stats()
+                        await dashboard_manager.send_to(
+                            websocket,
+                            "stats",
+                            stats.model_dump(),
+                        )
+                    except Exception as e:
+                        await dashboard_manager.send_to(
+                            websocket,
+                            "error",
+                            {"message": str(e)},
+                        )
+
+                elif msg_type == "get_health":
+                    try:
+                        service = await get_dashboard_service()
+                        health = await service.get_system_health()
+                        await dashboard_manager.send_to(
+                            websocket,
+                            "health",
+                            health.model_dump(),
+                        )
+                    except Exception as e:
+                        await dashboard_manager.send_to(
+                            websocket,
+                            "error",
+                            {"message": str(e)},
+                        )
+
+                elif msg_type == "get_latency_history":
+                    component = data.get("component", "pipeline")
+                    minutes = data.get("minutes", 60)
+                    try:
+                        service = await get_dashboard_service()
+                        history = await service.get_latency_history(component, minutes)
+                        await dashboard_manager.send_to(
+                            websocket,
+                            "latency_history",
+                            {"component": component, "data": history},
+                        )
+                    except Exception as e:
+                        await dashboard_manager.send_to(
+                            websocket,
+                            "error",
+                            {"message": str(e)},
+                        )
+
+            except TimeoutError:
+                # Send heartbeat
+                await dashboard_manager.send_to(websocket, "heartbeat", {})
+
+    except WebSocketDisconnect:
+        dashboard_manager.disconnect(websocket)
+    except Exception as e:
+        logger.error("Dashboard WebSocket error: %s", e)
+        dashboard_manager.disconnect(websocket)
+
+
+async def broadcast_activity(activity: dict[str, Any]) -> None:
+    """Broadcast an activity to all dashboard connections."""
+    await dashboard_manager.broadcast("activity", activity)
+
+
+async def broadcast_metrics(metrics: dict[str, Any]) -> None:
+    """Broadcast metrics update to all dashboard connections."""
+    await dashboard_manager.broadcast("metrics", metrics)
+
+
+async def broadcast_test_result(result: dict[str, Any]) -> None:
+    """Broadcast test result to all dashboard connections."""
+    await dashboard_manager.broadcast("test_result", result)
