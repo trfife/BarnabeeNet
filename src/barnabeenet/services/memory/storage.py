@@ -364,6 +364,9 @@ class MemoryStorage:
             memory_key = f"{self.config.memory_prefix}{memory_id}"
             data = await self._redis.get(memory_key)
             if data:
+                # Handle both bytes (binary client) and str (decode_responses client)
+                if isinstance(data, bytes):
+                    data = data.decode("utf-8")
                 memory = StoredMemory.from_dict(json.loads(data))
                 # Load embedding
                 embedding_key = f"{self.config.embedding_prefix}{memory_id}"
@@ -393,6 +396,9 @@ class MemoryStorage:
             if not data:
                 return False
 
+            # Handle both bytes and str
+            if isinstance(data, bytes):
+                data = data.decode("utf-8")
             memory = StoredMemory.from_dict(json.loads(data))
 
             # Delete from indices
@@ -472,7 +478,10 @@ class MemoryStorage:
         if memory_type:
             type_key = f"{self.config.memory_prefix}type:{memory_type}"
             type_ids = await self._redis.smembers(type_key)
-            candidate_ids = set(type_ids)
+            # Handle bytes from binary client
+            candidate_ids = {
+                mid.decode("utf-8") if isinstance(mid, bytes) else mid for mid in type_ids
+            }
 
         # Filter by participants
         if participants:
@@ -480,7 +489,10 @@ class MemoryStorage:
             for p in participants:
                 p_key = f"{self.config.memory_prefix}participant:{p}"
                 p_ids = await self._redis.smembers(p_key)
-                participant_ids.update(p_ids)
+                # Handle bytes from binary client
+                participant_ids.update(
+                    mid.decode("utf-8") if isinstance(mid, bytes) else mid for mid in p_ids
+                )
             if candidate_ids is not None:
                 candidate_ids &= participant_ids
             else:
@@ -489,7 +501,10 @@ class MemoryStorage:
         # If no filters, get all memory IDs
         if candidate_ids is None:
             all_ids = await self._redis.zrange(f"{self.config.memory_prefix}index", 0, -1)
-            candidate_ids = set(all_ids)
+            # Handle bytes from binary client
+            candidate_ids = {
+                mid.decode("utf-8") if isinstance(mid, bytes) else mid for mid in all_ids
+            }
 
         if not candidate_ids:
             return []
@@ -642,15 +657,20 @@ def get_memory_storage(redis_client: redis.Redis | None = None) -> MemoryStorage
 
     Args:
         redis_client: Optional Redis client. If provided on first call, will be used.
+                     Should be a binary client (decode_responses=False) for embedding support.
     """
     global _memory_storage
     if _memory_storage is None:
-        # Try to get redis from app state if not provided
+        # Try to get binary redis from app state if not provided
         if redis_client is None:
             try:
                 from barnabeenet.main import app_state
 
-                redis_client = app_state.redis_client
+                # Use binary redis client for embeddings (no decode_responses)
+                redis_client = getattr(app_state, "redis_client_binary", None)
+                if redis_client is None:
+                    # Fallback to regular client (may fail with binary data)
+                    redis_client = app_state.redis_client
             except Exception:
                 pass
         _memory_storage = MemoryStorage(redis_client=redis_client)

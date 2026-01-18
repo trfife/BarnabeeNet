@@ -115,10 +115,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     init_metrics(version=__version__, env=settings.env)
 
-    # Initialize Redis connection
+    # Initialize Redis connections
     try:
         import redis.asyncio as redis
 
+        # Main Redis client with decode_responses for text data
         app_state.redis_client = redis.from_url(
             settings.redis.url,
             encoding="utf-8",
@@ -127,6 +128,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await app_state.redis_client.ping()
         # Make redis available on app.state for dependency injection
         app.state.redis = app_state.redis_client
+
+        # Binary Redis client for embeddings (no decode_responses)
+        app_state.redis_client_binary = redis.from_url(
+            settings.redis.url,
+            decode_responses=False,
+        )
+        await app_state.redis_client_binary.ping()
+
         logger.info("Redis connected", url=settings.redis.url)
 
         # Load activity config overrides from Redis
