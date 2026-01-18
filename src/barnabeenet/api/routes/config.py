@@ -1339,8 +1339,32 @@ Select the best model for EACH activity. Return ONLY the JSON mapping."""
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            # Use a reliable model for the selection
-            selector_model = "qwen/qwen3-coder:free" if params.free_only else "anthropic/claude-3.5-sonnet"
+            # Use a verified working model for the selection
+            # Priority: deepseek-r1 (good reasoning), llama-3.3-70b, mistral devstral, then any working
+            preferred_selectors = [
+                "deepseek/deepseek-r1-0528:free",
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "mistralai/devstral-2512:free",
+                "google/gemma-3-27b-it:free",
+                "nvidia/nemotron-nano-9b-v2:free",
+            ]
+
+            selector_model = None
+            if params.free_only:
+                # Find a verified working model
+                for model_id in preferred_selectors:
+                    if model_id in _model_health_cache:
+                        working, _, _ = _model_health_cache[model_id]
+                        if working:
+                            selector_model = model_id
+                            break
+                # Fallback to first preferred if no health data
+                if not selector_model:
+                    selector_model = preferred_selectors[0]
+            else:
+                selector_model = "anthropic/claude-3.5-sonnet"
+
+            logger.info(f"Auto-select using selector model: {selector_model}")
 
             response = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
