@@ -406,12 +406,12 @@ async def get_overview(request: Request) -> HAOverview:
 
 
 @router.post("/refresh")
-async def refresh_all_data() -> dict[str, Any]:
+async def refresh_all_data(request: Request) -> dict[str, Any]:
     """Refresh all Home Assistant data.
 
     Reloads entities, devices, areas, automations, and integrations.
     """
-    client = await get_ha_client()
+    client = await get_ha_client_with_request(request)
     if not client or not client.connected:
         raise HTTPException(status_code=503, detail="Home Assistant not connected")
 
@@ -436,6 +436,7 @@ async def refresh_all_data() -> dict[str, Any]:
 
 @router.get("/entities", response_model=EntitiesResponse)
 async def get_entities(
+    request: Request,
     domain: str | None = Query(None, description="Filter by domain (light, switch, etc.)"),
     area: str | None = Query(None, description="Filter by area ID"),
     search: str | None = Query(None, description="Search in entity name"),
@@ -446,7 +447,7 @@ async def get_entities(
 
     Supports filtering by domain, area, and search query.
     """
-    client = await get_ha_client()
+    client = await get_ha_client_with_request(request)
     if not client or not client.connected:
         return EntitiesResponse(entities=[], total=0, domains=[])
 
@@ -518,9 +519,9 @@ async def get_entities(
 
 
 @router.get("/entities/{entity_id}", response_model=EntitySummary)
-async def get_entity(entity_id: str) -> EntitySummary:
+async def get_entity(request: Request, entity_id: str) -> EntitySummary:
     """Get a specific entity by ID."""
-    client = await get_ha_client()
+    client = await get_ha_client_with_request(request)
     if not client or not client.connected:
         raise HTTPException(status_code=503, detail="Home Assistant not connected")
 
@@ -560,11 +561,12 @@ async def get_entity(entity_id: str) -> EntitySummary:
 
 @router.get("/devices", response_model=DevicesResponse)
 async def get_devices(
+    request: Request,
     area: str | None = Query(None, description="Filter by area ID"),
     search: str | None = Query(None, description="Search in device name"),
 ) -> DevicesResponse:
     """Get Home Assistant devices."""
-    client = await get_ha_client()
+    client = await get_ha_client_with_request(request)
     if not client or not client.connected:
         return DevicesResponse(devices=[], total=0)
 
@@ -608,9 +610,9 @@ async def get_devices(
 
 
 @router.get("/areas", response_model=AreasResponse)
-async def get_areas() -> AreasResponse:
+async def get_areas(request: Request) -> AreasResponse:
     """Get Home Assistant areas (rooms/zones)."""
-    client = await get_ha_client()
+    client = await get_ha_client_with_request(request)
     if not client or not client.connected:
         return AreasResponse(areas=[], total=0)
 
@@ -645,9 +647,9 @@ async def get_areas() -> AreasResponse:
 
 
 @router.get("/automations", response_model=AutomationsResponse)
-async def get_automations() -> AutomationsResponse:
+async def get_automations(request: Request) -> AutomationsResponse:
     """Get Home Assistant automations."""
-    client = await get_ha_client()
+    client = await get_ha_client_with_request(request)
     if not client or not client.connected:
         return AutomationsResponse(automations=[], total=0)
 
@@ -670,9 +672,9 @@ async def get_automations() -> AutomationsResponse:
 
 
 @router.get("/integrations", response_model=IntegrationsResponse)
-async def get_integrations() -> IntegrationsResponse:
+async def get_integrations(request: Request) -> IntegrationsResponse:
     """Get Home Assistant integrations."""
-    client = await get_ha_client()
+    client = await get_ha_client_with_request(request)
     if not client or not client.connected:
         return IntegrationsResponse(integrations=[], total=0)
 
@@ -698,11 +700,12 @@ async def get_integrations() -> IntegrationsResponse:
 
 @router.get("/logs", response_model=LogResponse)
 async def get_error_logs(
+    request: Request,
     level: str | None = Query(None, description="Filter by log level"),
     limit: int = Query(50, ge=1, le=200, description="Max entries to return"),
 ) -> LogResponse:
     """Get Home Assistant error logs."""
-    client = await get_ha_client()
+    client = await get_ha_client_with_request(request)
     if not client or not client.connected:
         return LogResponse(entries=[], total=0)
 
@@ -731,41 +734,43 @@ async def get_error_logs(
 
 
 @router.post("/services/call", response_model=ServiceCallResponse)
-async def call_service(request: ServiceCallRequest) -> ServiceCallResponse:
+async def call_service(
+    http_request: Request, service_request: ServiceCallRequest
+) -> ServiceCallResponse:
     """Call a Home Assistant service.
 
     Execute a service like light.turn_on, switch.turn_off, etc.
     """
-    client = await get_ha_client()
+    client = await get_ha_client_with_request(http_request)
     if not client or not client.connected:
         raise HTTPException(status_code=503, detail="Home Assistant not connected")
 
     try:
         result = await client.call_service(
-            request.service,
-            entity_id=request.entity_id,
-            **request.data,
+            service_request.service,
+            entity_id=service_request.entity_id,
+            **service_request.data,
         )
         return ServiceCallResponse(
             success=result.success,
             service=result.service,
-            entity_id=result.entity_id or request.entity_id,
+            entity_id=result.entity_id or service_request.entity_id,
             message=result.message,
         )
     except Exception as e:
         logger.error("Service call failed: %s", e)
         return ServiceCallResponse(
             success=False,
-            service=request.service,
-            entity_id=request.entity_id,
+            service=service_request.service,
+            entity_id=service_request.entity_id,
             message=f"Service call failed: {e}",
         )
 
 
 @router.post("/entities/{entity_id}/toggle", response_model=ServiceCallResponse)
-async def toggle_entity(entity_id: str) -> ServiceCallResponse:
+async def toggle_entity(request: Request, entity_id: str) -> ServiceCallResponse:
     """Toggle an entity on/off."""
-    client = await get_ha_client()
+    client = await get_ha_client_with_request(request)
     if not client or not client.connected:
         raise HTTPException(status_code=503, detail="Home Assistant not connected")
 
