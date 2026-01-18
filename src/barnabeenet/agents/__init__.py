@@ -13,6 +13,14 @@ from .interaction import (
     InteractionConfig,
 )
 from .manager import AgentManager
+from .memory import (
+    Event,
+    Memory,
+    MemoryAgent,
+    MemoryConfig,
+    MemoryOperation,
+    MemoryType,
+)
 from .meta import (
     ClassificationResult,
     ContextEvaluation,
@@ -36,11 +44,17 @@ __all__ = [
     "ConversationTurn",
     "DeviceDomain",
     "EmotionalTone",
+    "Event",
     "InstantAgent",
     "IntentCategory",
     "InteractionAgent",
     "InteractionConfig",
+    "Memory",
+    "MemoryAgent",
+    "MemoryConfig",
+    "MemoryOperation",
     "MemoryQuerySet",
+    "MemoryType",
     "MetaAgent",
     "MetaAgentConfig",
     "UrgencyLevel",
