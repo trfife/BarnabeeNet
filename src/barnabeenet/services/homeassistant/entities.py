@@ -133,11 +133,20 @@ class Entity:
         # "office light" matches "Office Switch Light" because both words present
         query_words = query_lower.split()
         if len(query_words) > 1:
-            name_words = set(name_lower.split())
-            matching_words = sum(1 for w in query_words if w in name_words)
+            name_words = name_lower.split()
+            name_words_set = set(name_words)
+            matching_words = sum(1 for w in query_words if w in name_words_set)
             if matching_words == len(query_words):
-                # All words match - good score (but less than substring match)
-                return 0.7
+                # All words match - score based on name conciseness
+                # Prefer "Office Switch Light" (3 words) over "Office Door Status Light" (4 words)
+                # when matching "office light" (2 words)
+                base_score = 0.7
+                # Bonus for shorter names (fewer extra words)
+                name_word_count = len(name_words)
+                extra_words = name_word_count - len(query_words)
+                # Penalize extra words: 0 extra = +0.15, 1 extra = +0.1, 2+ extra = +0.05
+                conciseness_bonus = max(0.05, 0.15 - extra_words * 0.05)
+                return min(0.85, base_score + conciseness_bonus)
             elif matching_words >= len(query_words) - 1:
                 # Most words match - moderate score
                 return 0.4 + (matching_words / len(query_words)) * 0.2

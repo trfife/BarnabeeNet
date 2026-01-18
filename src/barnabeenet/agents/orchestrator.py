@@ -640,28 +640,58 @@ class AgentOrchestrator:
                 "message": "No service specified",
             }
 
-        # Always try to resolve entity_id - ActionAgent may have guessed wrong
-        # We have access to the actual HA entity registry
+        # Resolve entity_id - search both specified domain AND alternative domains
+        # then pick the best match. This handles cases where:
+        # - "office light" → switch.office_switch_light (switch controlling a light)
+        # - ActionAgent guessed wrong domain
         domain = action_spec.get("domain")
         if entity_name:
-            entity = self._ha_client.resolve_entity(entity_name, domain)
+            # Collect all candidate matches across relevant domains
+            candidates: list[tuple[float, Any]] = []
 
-            # If not found, try alternative domains
-            # Lights are often controlled by switches, and vice versa
-            if not entity:
-                alternative_domains = self._get_alternative_domains(domain, entity_name)
-                for alt_domain in alternative_domains:
-                    entity = self._ha_client.resolve_entity(entity_name, alt_domain)
-                    if entity:
-                        logger.info(
-                            "Found entity in alternative domain: %s -> %s",
-                            domain,
-                            alt_domain,
-                        )
-                        break
-            
-            # Still not found? Try without domain restriction
-            if not entity:
+            # Search specified domain
+            entity = self._ha_client.resolve_entity(entity_name, domain)
+            if entity:
+                score = entity.match_score(entity_name)
+                candidates.append((score, entity))
+                logger.debug(
+                    "Found in %s domain: %s (score=%.2f)",
+                    domain,
+                    entity.entity_id,
+                    score,
+                )
+
+            # Also search alternative domains (lights often controlled by switches)
+            alternative_domains = self._get_alternative_domains(domain, entity_name)
+            for alt_domain in alternative_domains:
+                alt_entity = self._ha_client.resolve_entity(entity_name, alt_domain)
+                if alt_entity:
+                    score = alt_entity.match_score(entity_name)
+                    candidates.append((score, alt_entity))
+                    logger.debug(
+                        "Found in %s domain: %s (score=%.2f)",
+                        alt_domain,
+                        alt_entity.entity_id,
+                        score,
+                    )
+
+            # Pick the best match
+            if candidates:
+                candidates.sort(key=lambda x: x[0], reverse=True)
+                entity = candidates[0][1]
+                best_score = candidates[0][0]
+                
+                # Log if we chose from alternative domain
+                entity_domain = entity.entity_id.split(".")[0] if "." in entity.entity_id else None
+                if entity_domain and entity_domain != domain:
+                    logger.info(
+                        "Best match from alternative domain %s: %s (score=%.2f)",
+                        entity_domain,
+                        entity.entity_id,
+                        best_score,
+                    )
+            else:
+                # Try without domain restriction as last resort
                 entity = self._ha_client.resolve_entity(entity_name, None)
                 if entity:
                     logger.info(
