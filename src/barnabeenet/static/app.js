@@ -1589,4 +1589,481 @@ function initModelSelection() {
 document.addEventListener('DOMContentLoaded', () => {
     initProviderConfig();
     initModelSelection();
+    initHomeAssistant();
 });
+
+// =============================================================================
+// Home Assistant
+// =============================================================================
+
+let haEntities = [];
+let haDomains = [];
+let haAreas = [];
+let haDevices = [];
+
+function initHomeAssistant() {
+    // Entity search
+    document.getElementById('entity-search')?.addEventListener('input', debounce(filterEntities, 300));
+
+    // Domain filter
+    document.getElementById('entity-type-filter')?.addEventListener('change', filterEntities);
+
+    // Area filter
+    document.getElementById('entity-area-filter')?.addEventListener('change', filterEntities);
+
+    // Refresh button
+    document.getElementById('refresh-entities')?.addEventListener('click', refreshHAData);
+
+    // Load when page is shown
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', () => {
+            if (link.dataset.page === 'entities') {
+                loadHAStatus();
+                loadHAEntities();
+            }
+        });
+    });
+
+    // Config page HA section
+    document.querySelectorAll('.config-nav li').forEach(item => {
+        item.addEventListener('click', () => {
+            if (item.dataset.config === 'homeassistant') {
+                loadHAStatus();
+            }
+        });
+    });
+
+    // Test connection button
+    document.getElementById('test-ha-connection')?.addEventListener('click', testHAConnection);
+
+    // Save HA config button
+    document.getElementById('save-ha-config')?.addEventListener('click', saveHAConfig);
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function (...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+async function loadHAStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/status`);
+        const data = await response.json();
+
+        updateHAStatusDisplay(data);
+
+        // If connected, load overview
+        if (data.connected) {
+            await loadHAOverview();
+        }
+    } catch (e) {
+        console.error('Failed to load HA status:', e);
+        updateHAStatusDisplay({ connected: false, error: 'Failed to connect to BarnabeeNet API' });
+    }
+}
+
+function updateHAStatusDisplay(data) {
+    const statusContainer = document.getElementById('ha-connection-status');
+    if (!statusContainer) return;
+
+    if (data.connected) {
+        statusContainer.innerHTML = `
+            <div class="ha-status-connected">
+                <span class="status-indicator connected"></span>
+                <span class="status-text">Connected to Home Assistant</span>
+            </div>
+            <div class="ha-details">
+                ${data.version ? `<span class="ha-detail">Version: ${data.version}</span>` : ''}
+                ${data.location_name ? `<span class="ha-detail">Name: ${data.location_name}</span>` : ''}
+            </div>
+        `;
+    } else {
+        statusContainer.innerHTML = `
+            <div class="ha-status-disconnected">
+                <span class="status-indicator disconnected"></span>
+                <span class="status-text">Not Connected</span>
+            </div>
+            ${data.error ? `<div class="ha-error">${escapeHtml(data.error)}</div>` : ''}
+        `;
+    }
+}
+
+async function loadHAOverview() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/overview`);
+        const data = await response.json();
+
+        // Update domain counts
+        const domainCountsContainer = document.getElementById('ha-domain-counts');
+        if (domainCountsContainer && data.domain_counts) {
+            const sortedDomains = Object.entries(data.domain_counts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+
+            domainCountsContainer.innerHTML = sortedDomains.map(([domain, count]) => `
+                <div class="domain-count-item">
+                    <span class="domain-icon">${getDomainIcon(domain)}</span>
+                    <span class="domain-name">${domain}</span>
+                    <span class="domain-count">${count}</span>
+                </div>
+            `).join('');
+        }
+
+        // Update snapshot summary
+        const snapshotContainer = document.getElementById('ha-snapshot-summary');
+        if (snapshotContainer && data.snapshot) {
+            snapshotContainer.innerHTML = `
+                <div class="snapshot-grid">
+                    <div class="snapshot-item">
+                        <span class="snapshot-value">${data.snapshot.entities_count || 0}</span>
+                        <span class="snapshot-label">Entities</span>
+                    </div>
+                    <div class="snapshot-item">
+                        <span class="snapshot-value">${data.snapshot.devices_count || 0}</span>
+                        <span class="snapshot-label">Devices</span>
+                    </div>
+                    <div class="snapshot-item">
+                        <span class="snapshot-value">${data.snapshot.areas_count || 0}</span>
+                        <span class="snapshot-label">Areas</span>
+                    </div>
+                    <div class="snapshot-item">
+                        <span class="snapshot-value">${data.snapshot.automations_count || 0}</span>
+                        <span class="snapshot-label">Automations</span>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (e) {
+        console.error('Failed to load HA overview:', e);
+    }
+}
+
+async function loadHAEntities() {
+    const container = document.getElementById('entities-list');
+    if (!container) return;
+
+    container.innerHTML = '<div class="loading-spinner">Loading entities...</div>';
+
+    try {
+        // Load entities
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/entities?limit=500`);
+        const data = await response.json();
+
+        haEntities = data.entities || [];
+        haDomains = data.domains || [];
+
+        // Update domain filter options
+        updateDomainFilter(haDomains);
+
+        // Load areas for filter
+        await loadHAAreas();
+
+        // Render entities
+        renderEntities(haEntities);
+    } catch (e) {
+        console.error('Failed to load entities:', e);
+        container.innerHTML = `
+            <div class="empty-state">
+                <p class="text-muted">⚠️ Failed to load entities</p>
+                <p class="text-muted">${e.message}</p>
+                <button class="btn" onclick="loadHAEntities()">🔄 Retry</button>
+            </div>
+        `;
+    }
+}
+
+async function loadHAAreas() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/areas`);
+        const data = await response.json();
+        haAreas = data.areas || [];
+
+        // Update area filter
+        const areaFilter = document.getElementById('entity-area-filter');
+        if (areaFilter) {
+            areaFilter.innerHTML = '<option value="">All Areas</option>' +
+                haAreas.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
+        }
+    } catch (e) {
+        console.error('Failed to load areas:', e);
+    }
+}
+
+function updateDomainFilter(domains) {
+    const filter = document.getElementById('entity-type-filter');
+    if (!filter) return;
+
+    const domainOptions = domains.map(d => `<option value="${d}">${getDomainDisplayName(d)}</option>`).join('');
+    filter.innerHTML = '<option value="">All Types</option>' + domainOptions;
+}
+
+function filterEntities() {
+    const search = document.getElementById('entity-search')?.value?.toLowerCase() || '';
+    const domain = document.getElementById('entity-type-filter')?.value || '';
+    const area = document.getElementById('entity-area-filter')?.value || '';
+
+    let filtered = haEntities;
+
+    if (search) {
+        filtered = filtered.filter(e =>
+            e.friendly_name.toLowerCase().includes(search) ||
+            e.entity_id.toLowerCase().includes(search)
+        );
+    }
+
+    if (domain) {
+        filtered = filtered.filter(e => e.domain === domain);
+    }
+
+    if (area) {
+        filtered = filtered.filter(e => e.area_id === area);
+    }
+
+    renderEntities(filtered);
+}
+
+function renderEntities(entities) {
+    const container = document.getElementById('entities-list');
+    if (!container) return;
+
+    if (entities.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <p class="text-muted">No entities found</p>
+                <p class="text-muted">Connect to Home Assistant in Configuration → Home Assistant</p>
+            </div>
+        `;
+        return;
+    }
+
+    // Group by domain for better organization
+    const grouped = {};
+    entities.forEach(e => {
+        if (!grouped[e.domain]) grouped[e.domain] = [];
+        grouped[e.domain].push(e);
+    });
+
+    // Render as grid
+    container.innerHTML = entities.map(e => renderEntityCard(e)).join('');
+}
+
+function renderEntityCard(entity) {
+    const stateClass = getStateClass(entity);
+    const icon = getDomainIcon(entity.domain);
+    const isControllable = ['light', 'switch', 'fan', 'cover', 'lock', 'input_boolean'].includes(entity.domain);
+
+    return `
+        <div class="entity-card ${stateClass}" data-entity-id="${entity.entity_id}">
+            <div class="entity-header">
+                <span class="entity-icon">${icon}</span>
+                <div class="entity-info">
+                    <div class="entity-name">${escapeHtml(entity.friendly_name)}</div>
+                    <div class="entity-id">${entity.entity_id}</div>
+                </div>
+            </div>
+            <div class="entity-state">
+                <span class="state-badge ${stateClass}">${formatState(entity)}</span>
+                ${entity.area_name ? `<span class="entity-area">${escapeHtml(entity.area_name)}</span>` : ''}
+            </div>
+            ${isControllable ? `
+                <div class="entity-controls">
+                    <button class="btn btn-small" onclick="toggleEntity('${entity.entity_id}')">
+                        ${entity.is_on ? '🔴 Turn Off' : '🟢 Turn On'}
+                    </button>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+function getStateClass(entity) {
+    const state = entity.state?.toLowerCase() || '';
+    if (state === 'on' || state === 'open' || state === 'unlocked' || state === 'playing') {
+        return 'state-on';
+    }
+    if (state === 'off' || state === 'closed' || state === 'locked' || state === 'paused' || state === 'idle') {
+        return 'state-off';
+    }
+    if (state === 'unavailable' || state === 'unknown') {
+        return 'state-unavailable';
+    }
+    return 'state-other';
+}
+
+function formatState(entity) {
+    const state = entity.state || 'unknown';
+    const attrs = entity.attributes || {};
+
+    // Add extra info for certain domains
+    if (entity.domain === 'light' && state === 'on' && attrs.brightness) {
+        const percent = Math.round((attrs.brightness / 255) * 100);
+        return `${state} (${percent}%)`;
+    }
+    if (entity.domain === 'climate' && attrs.temperature) {
+        return `${attrs.temperature}°`;
+    }
+    if (entity.domain === 'sensor') {
+        const unit = attrs.unit_of_measurement || '';
+        return `${state}${unit}`;
+    }
+    if (entity.domain === 'binary_sensor') {
+        return state === 'on' ? (attrs.device_class || 'on') : 'off';
+    }
+
+    return state;
+}
+
+function getDomainIcon(domain) {
+    const icons = {
+        'light': '💡',
+        'switch': '🔌',
+        'fan': '🌀',
+        'climate': '🌡️',
+        'sensor': '📊',
+        'binary_sensor': '⭕',
+        'cover': '🪟',
+        'lock': '🔒',
+        'media_player': '📺',
+        'camera': '📷',
+        'vacuum': '🤖',
+        'automation': '⚙️',
+        'script': '📜',
+        'scene': '🎬',
+        'input_boolean': '☑️',
+        'input_number': '🔢',
+        'input_select': '📝',
+        'input_text': '📝',
+        'person': '👤',
+        'device_tracker': '📍',
+        'weather': '⛅',
+        'sun': '☀️',
+        'zone': '🗺️',
+        'update': '🔄',
+        'button': '🔘',
+        'number': '🔢',
+        'select': '📋',
+        'text': '📝',
+        'datetime': '📅',
+        'timer': '⏱️',
+        'counter': '🔢',
+        'alarm_control_panel': '🚨',
+        'water_heater': '🚿',
+        'humidifier': '💧',
+        'remote': '📱',
+        'siren': '🔔',
+    };
+    return icons[domain] || '❓';
+}
+
+function getDomainDisplayName(domain) {
+    const names = {
+        'light': 'Lights',
+        'switch': 'Switches',
+        'fan': 'Fans',
+        'climate': 'Climate',
+        'sensor': 'Sensors',
+        'binary_sensor': 'Binary Sensors',
+        'cover': 'Covers',
+        'lock': 'Locks',
+        'media_player': 'Media Players',
+        'camera': 'Cameras',
+        'vacuum': 'Vacuums',
+        'automation': 'Automations',
+        'script': 'Scripts',
+        'scene': 'Scenes',
+        'input_boolean': 'Input Booleans',
+        'person': 'People',
+        'device_tracker': 'Device Trackers',
+        'weather': 'Weather',
+        'update': 'Updates',
+        'button': 'Buttons',
+    };
+    return names[domain] || domain.charAt(0).toUpperCase() + domain.slice(1).replace(/_/g, ' ');
+}
+
+async function toggleEntity(entityId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/entities/${entityId}/toggle`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Refresh entity list after toggle
+            setTimeout(loadHAEntities, 500);
+        } else {
+            alert(`Failed to toggle: ${data.message}`);
+        }
+    } catch (e) {
+        console.error('Toggle failed:', e);
+        alert(`Toggle failed: ${e.message}`);
+    }
+}
+
+async function refreshHAData() {
+    const btn = document.getElementById('refresh-entities');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '🔄 Refreshing...';
+    }
+
+    try {
+        // Call refresh endpoint
+        await fetch(`${API_BASE}/api/v1/homeassistant/refresh`, { method: 'POST' });
+
+        // Reload entities
+        await loadHAEntities();
+
+        // Reload overview
+        await loadHAOverview();
+    } catch (e) {
+        console.error('Refresh failed:', e);
+        alert(`Refresh failed: ${e.message}`);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🔄 Refresh';
+        }
+    }
+}
+
+async function testHAConnection() {
+    const result = document.getElementById('ha-test-result');
+    if (result) {
+        result.className = 'test-result loading';
+        result.textContent = 'Testing connection...';
+        result.style.display = 'block';
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/status`);
+        const data = await response.json();
+
+        if (data.connected) {
+            if (result) {
+                result.className = 'test-result success';
+                result.textContent = `✓ Connected! Version: ${data.version || 'Unknown'}`;
+            }
+        } else {
+            if (result) {
+                result.className = 'test-result error';
+                result.textContent = `✗ ${data.error || 'Connection failed'}`;
+            }
+        }
+    } catch (e) {
+        if (result) {
+            result.className = 'test-result error';
+            result.textContent = `✗ Error: ${e.message}`;
+        }
+    }
+}
+
+async function saveHAConfig() {
+    // Note: This would require a backend endpoint to save HA config
+    // For now, HA is configured via environment variables
+    alert('Home Assistant configuration is managed via environment variables (HA_URL, HA_TOKEN).\nSee the documentation for setup instructions.');
+}

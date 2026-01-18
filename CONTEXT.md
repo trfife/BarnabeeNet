@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after Home Assistant entity discovery expansion)
+2026-01-18 (after Home Assistant dashboard UI + API endpoints)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + MODEL CONFIG UI
@@ -70,9 +70,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **MetaAgent Classification Verified on VM** - Deployed and tested on VM. E2E tests confirm: time/date/greeting queries route to InstantAgent (instant intent), conversation queries route to InteractionAgent (conversation intent). LLM responses working with Barnabee personality. Fixed restart.sh to load .env for master key persistence.
 - [x] **Dashboard Model Selection UI** - New "Model Selection" config section with searchable dropdowns for all 16+ activities. Live model list from OpenRouter (339+ models), shows pricing and context length, filter for free models. Persists selections to Redis. API endpoints: GET/PUT /api/v1/config/activities, GET /api/v1/config/models.
 - [x] **Testing/Production Mode Toggle** - One-click switch between Testing mode (all free models - Gemini 2.0 Flash) and Production mode (quality models - Claude, GPT-4o, DeepSeek). Mode persists in Redis. API: GET/POST /api/v1/config/mode.
+- [x] **Home Assistant Dashboard UI + API** - Full dashboard integration at `/api/v1/homeassistant/`. Endpoints for: connection status, overview, entities (with search/filter/pagination), devices, areas, automations, integrations, logs, service calls, entity toggle. Dashboard Entities page with real-time entity cards, domain icons, state badges, toggle controls. Configuration page with HA setup instructions.
 
 ### In Progress
-- [ ] Home Assistant dashboard UI + API endpoints
+- [ ] Home Assistant intelligent log filtering agent
 
 ### Not Started
 - [ ] Home Assistant intelligent log filtering agent
@@ -113,9 +114,8 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Home Assistant dashboard UI + API endpoints ← NEXT
-2. Home Assistant intelligent log filtering agent
-3. Family profile system
+1. Home Assistant intelligent log filtering agent ← NEXT
+2. Family profile system
 
 ---
 

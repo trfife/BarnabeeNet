@@ -304,7 +304,16 @@ def create_app() -> FastAPI:
 
 def _register_routes(app: FastAPI) -> None:
     """Register API routes."""
-    from barnabeenet.api.routes import config, dashboard, e2e, health, metrics, voice, websocket
+    from barnabeenet.api.routes import (
+        config,
+        dashboard,
+        e2e,
+        health,
+        homeassistant,
+        metrics,
+        voice,
+        websocket,
+    )
 
     # Root endpoint - serve dashboard
     @app.get("/", include_in_schema=False)
@@ -336,6 +345,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(dashboard.router, prefix="/api/v1", tags=["Dashboard"])
     app.include_router(config.router, prefix="/api/v1", tags=["Configuration"])
     app.include_router(e2e.router, prefix="/api/v1", tags=["E2E Testing"])
+    app.include_router(homeassistant.router, prefix="/api/v1", tags=["Home Assistant"])
     app.include_router(metrics.router, tags=["Metrics"])
     app.include_router(websocket.router, prefix="/api/v1", tags=["WebSocket"])
 

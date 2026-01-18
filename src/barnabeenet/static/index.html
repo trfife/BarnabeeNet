@@ -409,8 +409,20 @@
                 <p>View and control connected devices</p>
             </div>
 
+            <!-- Connection Status Banner -->
+            <div class="card ha-status-banner">
+                <div id="ha-connection-status">
+                    <div class="ha-status-disconnected">
+                        <span class="status-indicator disconnected"></span>
+                        <span class="status-text">Checking connection...</span>
+                    </div>
+                </div>
+                <div id="ha-snapshot-summary"></div>
+            </div>
+
+            <!-- Entity Browser -->
             <div class="entities-toolbar">
-                <input type="text" id="entity-search" class="form-control" placeholder="Search entities...">
+                <input type="text" id="entity-search" class="form-control" placeholder="🔍 Search entities...">
                 <select id="entity-type-filter" class="filter-select">
                     <option value="">All Types</option>
                     <option value="light">Lights</option>
@@ -419,11 +431,28 @@
                     <option value="sensor">Sensors</option>
                     <option value="media_player">Media Players</option>
                 </select>
+                <select id="entity-area-filter" class="filter-select">
+                    <option value="">All Areas</option>
+                </select>
                 <button class="btn" id="refresh-entities">🔄 Refresh</button>
             </div>
 
             <div class="entities-grid" id="entities-list">
-                <p class="text-muted">Connect to Home Assistant to see entities</p>
+                <div class="empty-state">
+                    <p class="text-muted">Loading entities...</p>
+                </div>
+            </div>
+
+            <!-- Domain Overview -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <h3>📊 Domains Overview</h3>
+                </div>
+                <div class="card-body">
+                    <div class="domain-counts" id="ha-domain-counts">
+                        <p class="text-muted">Connect to Home Assistant to see domain statistics</p>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -537,7 +566,8 @@
                     <!-- Model Selection Section -->
                     <div id="config-models" class="config-section">
                         <h3>🧠 Model Selection</h3>
-                        <p class="section-desc">Configure which models are used for each activity. Use free models during testing to save costs.</p>
+                        <p class="section-desc">Configure which models are used for each activity. Use free models
+                            during testing to save costs.</p>
 
                         <!-- Mode Toggle -->
                         <div class="mode-toggle-container">
@@ -576,16 +606,49 @@
                         <p class="text-muted">Configure TTS and STT preferences</p>
                     </div>
                     <div id="config-homeassistant" class="config-section">
-                        <h3>Home Assistant</h3>
+                        <h3>🏠 Home Assistant</h3>
+                        <p class="section-desc">Configure connection to your Home Assistant instance.</p>
+
+                        <!-- Connection Status -->
+                        <div class="ha-config-status" id="ha-config-connection-status">
+                            <div class="ha-status-disconnected">
+                                <span class="status-indicator disconnected"></span>
+                                <span class="status-text">Checking connection...</span>
+                            </div>
+                        </div>
+
                         <div class="form-group">
-                            <label>HA URL</label>
-                            <input type="text" class="form-control" placeholder="http://homeassistant.local:8123">
+                            <label>Home Assistant URL</label>
+                            <input type="text" id="ha-url-input" class="form-control" placeholder="http://homeassistant.local:8123">
+                            <small class="form-text">The URL of your Home Assistant instance</small>
                         </div>
                         <div class="form-group">
                             <label>Long-Lived Access Token</label>
-                            <input type="password" class="form-control" placeholder="••••••••••••••••">
+                            <input type="password" id="ha-token-input" class="form-control" placeholder="••••••••••••••••">
+                            <small class="form-text">Generate in Home Assistant: Profile → Long-Lived Access Tokens</small>
                         </div>
-                        <button class="btn btn-primary">🔗 Test Connection</button>
+                        <div class="form-actions">
+                            <button class="btn" id="test-ha-connection">🔗 Test Connection</button>
+                            <button class="btn btn-primary" id="save-ha-config">💾 Save</button>
+                        </div>
+                        <div id="ha-test-result" class="test-result" style="display: none;"></div>
+
+                        <hr>
+
+                        <h4>📋 Setup Instructions</h4>
+                        <ol class="setup-steps">
+                            <li>In Home Assistant, go to your <strong>Profile</strong> (click your name in sidebar)</li>
+                            <li>Scroll down to <strong>Long-Lived Access Tokens</strong></li>
+                            <li>Click <strong>Create Token</strong>, name it "BarnabeeNet"</li>
+                            <li>Copy the token and paste it above</li>
+                            <li>Set <code>HA_URL</code> and <code>HA_TOKEN</code> environment variables</li>
+                        </ol>
+
+                        <div class="info-box">
+                            <strong>Note:</strong> Home Assistant connection is configured via environment variables. Set these in your .env file:
+                            <pre>HA_URL=http://homeassistant.local:8123
+HA_TOKEN=your_long_lived_access_token</pre>
+                        </div>
                     </div>
                     <div id="config-memory" class="config-section">
                         <h3>Memory Settings</h3>
