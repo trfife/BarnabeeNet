@@ -131,7 +131,14 @@ class AgentOrchestrator:
             from barnabeenet.services.llm.openrouter import AgentModelConfig
 
             settings = get_settings()
-            api_key = settings.llm.openrouter_api_key
+
+            # First try to get API key from encrypted provider config (dashboard-configured)
+            api_key = await self._get_provider_api_key("openrouter")
+
+            # Fall back to environment variable if not in provider config
+            if not api_key:
+                api_key = settings.llm.openrouter_api_key
+
             if api_key:
                 # Use settings for model configuration
                 model_config = AgentModelConfig.from_settings(settings.llm)
@@ -142,10 +149,10 @@ class AgentOrchestrator:
                     site_name=settings.llm.openrouter_site_name,
                 )
                 await self._llm_client.init()
-                logger.info("Created shared LLM client from settings")
+                logger.info("Created shared LLM client (from provider config or settings)")
             else:
                 logger.warning(
-                    "LLM_OPENROUTER_API_KEY not set. Agents will use fallback responses."
+                    "No API key found in provider config or environment. Agents will use fallback responses."
                 )
 
         # Initialize all agents
@@ -166,6 +173,46 @@ class AgentOrchestrator:
 
         self._initialized = True
         logger.info("AgentOrchestrator initialized with all agents")
+
+    async def _get_provider_api_key(self, provider: str) -> str | None:
+        """Get API key from encrypted provider config.
+
+        Args:
+            provider: Provider name (e.g., 'openrouter')
+
+        Returns:
+            Decrypted API key or None if not configured
+        """
+        try:
+            import os
+
+            import redis.asyncio as redis
+
+            from barnabeenet.services.secrets import SecretsService
+
+            # Get Redis connection
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+            redis_client = redis.from_url(redis_url, decode_responses=True)
+
+            # Create secrets service
+            secrets_service = SecretsService(redis_client)
+
+            # Get secrets for this provider
+            provider_secrets = await secrets_service.get_secrets_for_provider(provider)
+
+            await redis_client.aclose()
+
+            if provider_secrets:
+                # Look for the API key (stored as {provider}_api_key)
+                api_key = provider_secrets.get(f"{provider}_api_key")
+                if api_key:
+                    logger.info(f"Found {provider} API key in provider config")
+                    return api_key
+
+            return None
+        except Exception as e:
+            logger.debug(f"Could not get provider API key from config: {e}")
+            return None
 
     async def shutdown(self) -> None:
         """Shutdown all agents."""
