@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
     <nav class="navbar">
         <div class="nav-brand">
@@ -106,11 +108,14 @@
                     <div class="card-actions">
                         <select id="activity-filter" class="filter-select">
                             <option value="">All Types</option>
-                            <option value="llm_call">LLM Calls</option>
+                            <option value="request_start">Requests</option>
                             <option value="stt">STT</option>
-                            <option value="tts">TTS</option>
-                            <option value="ha_action">HA Actions</option>
+                            <option value="meta_classify">Classification</option>
+                            <option value="llm_request">LLM Calls</option>
+                            <option value="ha_service_call">HA Actions</option>
                             <option value="memory">Memory</option>
+                            <option value="tts">TTS</option>
+                            <option value="error">Errors</option>
                         </select>
                         <button class="btn btn-small" id="clear-activity">Clear</button>
                         <label class="toggle-label">
@@ -123,308 +128,335 @@
                     <div class="activity-feed" id="activity-feed">
                         <div class="activity-item info">
                             <span class="activity-time">--:--:--</span>
-                            <span class="activity-badge">System</span>
+                            <span class="activity-badge system">System</span>
                             <span class="activity-message">Connecting to activity stream...</span>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Setup & Test Page -->
-        <div id="page-setup" class="page">
-            <div class="page-header">
-                <h1>⚡ Setup & Test</h1>
-                <p>Configure and test core functionality for TTS, LLM, and STT systems</p>
-            </div>
-
-            <div class="setup-grid">
-                <!-- TTS Config -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>🔊 Text-to-Speech</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label>TTS Backend</label>
-                            <select id="tts-backend" class="form-control">
-                                <option value="kokoro">Kokoro (Local)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Voice</label>
-                            <select id="tts-voice" class="form-control">
-                                <option value="bm_fable">bm_fable (British Male)</option>
-                                <option value="af_bella">af_bella (American Female)</option>
-                                <option value="am_adam">am_adam (American Male)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Test Text</label>
-                            <input type="text" id="tts-test-text" class="form-control" 
-                                   value="Hello! I'm Barnabee, your friendly home assistant.">
-                        </div>
-                        <button class="btn btn-primary" id="test-tts">🔊 Test TTS</button>
-                        <div id="tts-result" class="test-result"></div>
-                    </div>
-                </div>
-
-                <!-- LLM Config -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>🧠 Language Model</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label>Provider</label>
-                            <select id="llm-provider" class="form-control">
-                                <option value="openrouter">OpenRouter</option>
-                                <option value="openai">OpenAI</option>
-                                <option value="anthropic">Anthropic</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>API Key</label>
-                            <input type="password" id="llm-api-key" class="form-control" 
-                                   placeholder="••••••••••••••••">
-                        </div>
-                        <div class="form-group">
-                            <label>Test Prompt</label>
-                            <input type="text" id="llm-test-prompt" class="form-control" 
-                                   value="What time is it?">
-                        </div>
-                        <button class="btn btn-primary" id="test-llm">🧠 Test LLM</button>
-                        <div id="llm-result" class="test-result"></div>
-                    </div>
-                </div>
-
-                <!-- STT Config -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>🎤 Speech Recognition</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label>STT Backend</label>
-                            <select id="stt-backend" class="form-control">
-                                <option value="gpu">GPU Worker (Parakeet)</option>
-                                <option value="cpu">CPU (Distil-Whisper)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>GPU Worker URL</label>
-                            <input type="text" id="stt-gpu-url" class="form-control" 
-                                   value="http://192.168.86.61:8001">
-                        </div>
-                        <div class="status-row">
-                            <span class="status-label">GPU Worker:</span>
-                            <span class="status-value" id="gpu-worker-status">Checking...</span>
-                        </div>
-                        <button class="btn btn-primary" id="test-stt">🎤 Test STT</button>
-                        <div id="stt-result" class="test-result"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Voice Pipeline Test -->
+            <!-- Recent Request Traces -->
             <div class="card full-width">
                 <div class="card-header">
-                    <h3>🎙️ Full Voice Pipeline Test</h3>
+                    <h3>🔍 Recent Request Traces</h3>
+                    <div class="card-actions">
+                        <button class="btn btn-small" id="refresh-traces">🔄 Refresh</button>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <p>Test the complete voice pipeline: Speech → AI → Response → Speech</p>
-                    <div class="pipeline-test">
-                        <div class="form-group">
-                            <label>Test Input (simulated speech)</label>
-                            <input type="text" id="pipeline-input" class="form-control" 
-                                   value="Turn on the living room lights">
-                        </div>
-                        <button class="btn btn-primary btn-large" id="test-pipeline">
-                            🚀 Test Full Pipeline
-                        </button>
+                    <div class="traces-list" id="traces-list">
+                        <p class="text-muted">Loading traces...</p>
                     </div>
-                    <div id="pipeline-result" class="test-result"></div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Family Page -->
-        <div id="page-family" class="page">
-            <div class="page-header">
-                <h1>👨‍👩‍👧‍👦 Family Profiles</h1>
-                <p>Manage family member profiles and preferences</p>
             </div>
 
-            <div class="family-grid" id="family-list">
-                <!-- Family members will be populated here -->
-                <div class="card family-card">
-                    <div class="family-avatar">👨</div>
-                    <h4>Thom</h4>
-                    <p class="text-muted">Admin</p>
-                    <div class="family-prefs">
-                        <span class="pref-tag">Morning Person</span>
+            <!-- Trace Detail Modal -->
+            <div id="trace-modal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>🔬 Request Trace Detail</h3>
+                        <button class="btn btn-small" id="close-modal">✕</button>
+                    </div>
+                    <div class="modal-body" id="trace-detail">
+                        <!-- Populated dynamically -->
                     </div>
                 </div>
-                <div class="card family-card">
-                    <div class="family-avatar">👩</div>
-                    <h4>Elizabeth</h4>
-                    <p class="text-muted">Adult</p>
-                    <div class="family-prefs">
-                        <span class="pref-tag">Night Owl</span>
-                    </div>
-                </div>
-                <div class="card family-card">
-                    <div class="family-avatar">👧</div>
-                    <h4>Viola</h4>
-                    <p class="text-muted">Child</p>
-                    <div class="family-prefs">
-                        <span class="pref-tag">Bedtime: 8pm</span>
-                    </div>
-                </div>
-                <div class="card family-card">
-                    <div class="family-avatar">👦</div>
-                    <h4>Xander</h4>
-                    <p class="text-muted">Child</p>
-                    <div class="family-prefs">
-                        <span class="pref-tag">Bedtime: 8pm</span>
-                    </div>
-                </div>
-                <div class="card family-card">
-                    <div class="family-avatar">👶</div>
-                    <h4>Penelope</h4>
-                    <p class="text-muted">Toddler</p>
-                    <div class="family-prefs">
-                        <span class="pref-tag">Bedtime: 7pm</span>
-                    </div>
-                </div>
-                <div class="card family-card">
-                    <div class="family-avatar">👶</div>
-                    <h4>Zachary</h4>
-                    <p class="text-muted">Toddler</p>
-                    <div class="family-prefs">
-                        <span class="pref-tag">Bedtime: 7pm</span>
-                    </div>
-                </div>
-                <div class="card family-card add-new">
-                    <div class="family-avatar">➕</div>
-                    <h4>Add Member</h4>
-                </div>
-            </div>
-        </div>
-
-        <!-- Entities Page -->
-        <div id="page-entities" class="page">
-            <div class="page-header">
-                <h1>🏠 Home Assistant Entities</h1>
-                <p>View and control connected devices</p>
             </div>
 
-            <div class="entities-toolbar">
-                <input type="text" id="entity-search" class="form-control" placeholder="Search entities...">
-                <select id="entity-type-filter" class="filter-select">
-                    <option value="">All Types</option>
-                    <option value="light">Lights</option>
-                    <option value="switch">Switches</option>
-                    <option value="climate">Climate</option>
-                    <option value="sensor">Sensors</option>
-                    <option value="media_player">Media Players</option>
-                </select>
-                <button class="btn" id="refresh-entities">🔄 Refresh</button>
-            </div>
-
-            <div class="entities-grid" id="entities-list">
-                <p class="text-muted">Connect to Home Assistant to see entities</p>
-            </div>
-        </div>
-
-        <!-- Configuration Page -->
-        <div id="page-config" class="page">
-            <div class="page-header">
-                <h1>⚙️ Configuration</h1>
-                <p>Manage system configurations</p>
-            </div>
-
-            <div class="config-layout">
-                <div class="config-sidebar">
-                    <h4>Categories</h4>
-                    <ul class="config-nav">
-                        <li class="active" data-config="general">🔧 General Settings</li>
-                        <li data-config="ai">🧠 AI Model</li>
-                        <li data-config="voice">🎤 Voice Settings</li>
-                        <li data-config="homeassistant">🏠 Home Assistant</li>
-                        <li data-config="memory">💾 Memory</li>
-                        <li data-config="advanced">⚡ Advanced</li>
-                    </ul>
+            <!-- Setup & Test Page -->
+            <div id="page-setup" class="page">
+                <div class="page-header">
+                    <h1>⚡ Setup & Test</h1>
+                    <p>Configure and test core functionality for TTS, LLM, and STT systems</p>
                 </div>
-                <div class="config-content">
-                    <div id="config-general" class="config-section active">
-                        <h3>General Settings</h3>
-                        <div class="form-group">
-                            <label>Assistant Name</label>
-                            <input type="text" class="form-control" value="Barnabee">
+
+                <div class="setup-grid">
+                    <!-- TTS Config -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>🔊 Text-to-Speech</h3>
                         </div>
-                        <div class="form-group">
-                            <label>Wake Word</label>
-                            <input type="text" class="form-control" value="Hey Barnabee">
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>TTS Backend</label>
+                                <select id="tts-backend" class="form-control">
+                                    <option value="kokoro">Kokoro (Local)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Voice</label>
+                                <select id="tts-voice" class="form-control">
+                                    <option value="bm_fable">bm_fable (British Male)</option>
+                                    <option value="af_bella">af_bella (American Female)</option>
+                                    <option value="am_adam">am_adam (American Male)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Test Text</label>
+                                <input type="text" id="tts-test-text" class="form-control"
+                                    value="Hello! I'm Barnabee, your friendly home assistant.">
+                            </div>
+                            <button class="btn btn-primary" id="test-tts">🔊 Test TTS</button>
+                            <div id="tts-result" class="test-result"></div>
                         </div>
-                        <div class="form-group">
-                            <label>Environment</label>
-                            <select class="form-control">
-                                <option value="development">Development</option>
-                                <option value="production">Production</option>
-                            </select>
-                        </div>
-                        <button class="btn btn-primary">💾 Save Settings</button>
                     </div>
-                    <div id="config-ai" class="config-section">
-                        <h3>AI Model Settings</h3>
-                        <div class="form-group">
-                            <label>Default Provider</label>
-                            <select class="form-control">
-                                <option value="openrouter">OpenRouter</option>
-                                <option value="anthropic">Anthropic</option>
-                                <option value="openai">OpenAI</option>
-                            </select>
+
+                    <!-- LLM Config -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>🧠 Language Model</h3>
                         </div>
-                        <div class="form-group">
-                            <label>Conversation Model</label>
-                            <input type="text" class="form-control" value="anthropic/claude-3.5-sonnet">
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Provider</label>
+                                <select id="llm-provider" class="form-control">
+                                    <option value="openrouter">OpenRouter</option>
+                                    <option value="openai">OpenAI</option>
+                                    <option value="anthropic">Anthropic</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>API Key</label>
+                                <input type="password" id="llm-api-key" class="form-control"
+                                    placeholder="••••••••••••••••">
+                            </div>
+                            <div class="form-group">
+                                <label>Test Prompt</label>
+                                <input type="text" id="llm-test-prompt" class="form-control" value="What time is it?">
+                            </div>
+                            <button class="btn btn-primary" id="test-llm">🧠 Test LLM</button>
+                            <div id="llm-result" class="test-result"></div>
                         </div>
-                        <div class="form-group">
-                            <label>Fast Model (Intent)</label>
-                            <input type="text" class="form-control" value="anthropic/claude-3-haiku">
-                        </div>
-                        <button class="btn btn-primary">💾 Save Settings</button>
                     </div>
-                    <div id="config-voice" class="config-section">
-                        <h3>Voice Settings</h3>
-                        <p class="text-muted">Configure TTS and STT preferences</p>
-                    </div>
-                    <div id="config-homeassistant" class="config-section">
-                        <h3>Home Assistant</h3>
-                        <div class="form-group">
-                            <label>HA URL</label>
-                            <input type="text" class="form-control" placeholder="http://homeassistant.local:8123">
+
+                    <!-- STT Config -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>🎤 Speech Recognition</h3>
                         </div>
-                        <div class="form-group">
-                            <label>Long-Lived Access Token</label>
-                            <input type="password" class="form-control" placeholder="••••••••••••••••">
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>STT Backend</label>
+                                <select id="stt-backend" class="form-control">
+                                    <option value="gpu">GPU Worker (Parakeet)</option>
+                                    <option value="cpu">CPU (Distil-Whisper)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>GPU Worker URL</label>
+                                <input type="text" id="stt-gpu-url" class="form-control"
+                                    value="http://192.168.86.61:8001">
+                            </div>
+                            <div class="status-row">
+                                <span class="status-label">GPU Worker:</span>
+                                <span class="status-value" id="gpu-worker-status">Checking...</span>
+                            </div>
+                            <button class="btn btn-primary" id="test-stt">🎤 Test STT</button>
+                            <div id="stt-result" class="test-result"></div>
                         </div>
-                        <button class="btn btn-primary">🔗 Test Connection</button>
-                    </div>
-                    <div id="config-memory" class="config-section">
-                        <h3>Memory Settings</h3>
-                        <p class="text-muted">Configure memory storage and retrieval</p>
-                    </div>
-                    <div id="config-advanced" class="config-section">
-                        <h3>Advanced Settings</h3>
-                        <p class="text-muted">Advanced configuration options</p>
                     </div>
                 </div>
+
+                <!-- Voice Pipeline Test -->
+                <div class="card full-width">
+                    <div class="card-header">
+                        <h3>🎙️ Full Voice Pipeline Test</h3>
+                    </div>
+                    <div class="card-body">
+                        <p>Test the complete voice pipeline: Speech → AI → Response → Speech</p>
+                        <div class="pipeline-test">
+                            <div class="form-group">
+                                <label>Test Input (simulated speech)</label>
+                                <input type="text" id="pipeline-input" class="form-control"
+                                    value="Turn on the living room lights">
+                            </div>
+                            <button class="btn btn-primary btn-large" id="test-pipeline">
+                                🚀 Test Full Pipeline
+                            </button>
+                        </div>
+                        <div id="pipeline-result" class="test-result"></div>
+                    </div>
+                </div>
             </div>
-        </div>
+
+            <!-- Family Page -->
+            <div id="page-family" class="page">
+                <div class="page-header">
+                    <h1>👨‍👩‍👧‍👦 Family Profiles</h1>
+                    <p>Manage family member profiles and preferences</p>
+                </div>
+
+                <div class="family-grid" id="family-list">
+                    <!-- Family members will be populated here -->
+                    <div class="card family-card">
+                        <div class="family-avatar">👨</div>
+                        <h4>Thom</h4>
+                        <p class="text-muted">Admin</p>
+                        <div class="family-prefs">
+                            <span class="pref-tag">Morning Person</span>
+                        </div>
+                    </div>
+                    <div class="card family-card">
+                        <div class="family-avatar">👩</div>
+                        <h4>Elizabeth</h4>
+                        <p class="text-muted">Adult</p>
+                        <div class="family-prefs">
+                            <span class="pref-tag">Night Owl</span>
+                        </div>
+                    </div>
+                    <div class="card family-card">
+                        <div class="family-avatar">👧</div>
+                        <h4>Viola</h4>
+                        <p class="text-muted">Child</p>
+                        <div class="family-prefs">
+                            <span class="pref-tag">Bedtime: 8pm</span>
+                        </div>
+                    </div>
+                    <div class="card family-card">
+                        <div class="family-avatar">👦</div>
+                        <h4>Xander</h4>
+                        <p class="text-muted">Child</p>
+                        <div class="family-prefs">
+                            <span class="pref-tag">Bedtime: 8pm</span>
+                        </div>
+                    </div>
+                    <div class="card family-card">
+                        <div class="family-avatar">👶</div>
+                        <h4>Penelope</h4>
+                        <p class="text-muted">Toddler</p>
+                        <div class="family-prefs">
+                            <span class="pref-tag">Bedtime: 7pm</span>
+                        </div>
+                    </div>
+                    <div class="card family-card">
+                        <div class="family-avatar">👶</div>
+                        <h4>Zachary</h4>
+                        <p class="text-muted">Toddler</p>
+                        <div class="family-prefs">
+                            <span class="pref-tag">Bedtime: 7pm</span>
+                        </div>
+                    </div>
+                    <div class="card family-card add-new">
+                        <div class="family-avatar">➕</div>
+                        <h4>Add Member</h4>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entities Page -->
+            <div id="page-entities" class="page">
+                <div class="page-header">
+                    <h1>🏠 Home Assistant Entities</h1>
+                    <p>View and control connected devices</p>
+                </div>
+
+                <div class="entities-toolbar">
+                    <input type="text" id="entity-search" class="form-control" placeholder="Search entities...">
+                    <select id="entity-type-filter" class="filter-select">
+                        <option value="">All Types</option>
+                        <option value="light">Lights</option>
+                        <option value="switch">Switches</option>
+                        <option value="climate">Climate</option>
+                        <option value="sensor">Sensors</option>
+                        <option value="media_player">Media Players</option>
+                    </select>
+                    <button class="btn" id="refresh-entities">🔄 Refresh</button>
+                </div>
+
+                <div class="entities-grid" id="entities-list">
+                    <p class="text-muted">Connect to Home Assistant to see entities</p>
+                </div>
+            </div>
+
+            <!-- Configuration Page -->
+            <div id="page-config" class="page">
+                <div class="page-header">
+                    <h1>⚙️ Configuration</h1>
+                    <p>Manage system configurations</p>
+                </div>
+
+                <div class="config-layout">
+                    <div class="config-sidebar">
+                        <h4>Categories</h4>
+                        <ul class="config-nav">
+                            <li class="active" data-config="general">🔧 General Settings</li>
+                            <li data-config="ai">🧠 AI Model</li>
+                            <li data-config="voice">🎤 Voice Settings</li>
+                            <li data-config="homeassistant">🏠 Home Assistant</li>
+                            <li data-config="memory">💾 Memory</li>
+                            <li data-config="advanced">⚡ Advanced</li>
+                        </ul>
+                    </div>
+                    <div class="config-content">
+                        <div id="config-general" class="config-section active">
+                            <h3>General Settings</h3>
+                            <div class="form-group">
+                                <label>Assistant Name</label>
+                                <input type="text" class="form-control" value="Barnabee">
+                            </div>
+                            <div class="form-group">
+                                <label>Wake Word</label>
+                                <input type="text" class="form-control" value="Hey Barnabee">
+                            </div>
+                            <div class="form-group">
+                                <label>Environment</label>
+                                <select class="form-control">
+                                    <option value="development">Development</option>
+                                    <option value="production">Production</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary">💾 Save Settings</button>
+                        </div>
+                        <div id="config-ai" class="config-section">
+                            <h3>AI Model Settings</h3>
+                            <div class="form-group">
+                                <label>Default Provider</label>
+                                <select class="form-control">
+                                    <option value="openrouter">OpenRouter</option>
+                                    <option value="anthropic">Anthropic</option>
+                                    <option value="openai">OpenAI</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Conversation Model</label>
+                                <input type="text" class="form-control" value="anthropic/claude-3.5-sonnet">
+                            </div>
+                            <div class="form-group">
+                                <label>Fast Model (Intent)</label>
+                                <input type="text" class="form-control" value="anthropic/claude-3-haiku">
+                            </div>
+                            <button class="btn btn-primary">💾 Save Settings</button>
+                        </div>
+                        <div id="config-voice" class="config-section">
+                            <h3>Voice Settings</h3>
+                            <p class="text-muted">Configure TTS and STT preferences</p>
+                        </div>
+                        <div id="config-homeassistant" class="config-section">
+                            <h3>Home Assistant</h3>
+                            <div class="form-group">
+                                <label>HA URL</label>
+                                <input type="text" class="form-control" placeholder="http://homeassistant.local:8123">
+                            </div>
+                            <div class="form-group">
+                                <label>Long-Lived Access Token</label>
+                                <input type="password" class="form-control" placeholder="••••••••••••••••">
+                            </div>
+                            <button class="btn btn-primary">🔗 Test Connection</button>
+                        </div>
+                        <div id="config-memory" class="config-section">
+                            <h3>Memory Settings</h3>
+                            <p class="text-muted">Configure memory storage and retrieval</p>
+                        </div>
+                        <div id="config-advanced" class="config-section">
+                            <h3>Advanced Settings</h3>
+                            <p class="text-muted">Advanced configuration options</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
     </main>
 
     <script src="/static/app.js"></script>
 </body>
+
 </html>

@@ -27,15 +27,15 @@ echo "================================"
 # Check if podman-compose is available
 if command -v podman-compose &> /dev/null; then
     echo "Using podman-compose..."
-    
+
     # Restart containers
     if [ -f "infrastructure/podman-compose.yml" ]; then
         echo -e "\n${YELLOW}[1/2] Stopping services...${NC}"
         podman-compose -f infrastructure/podman-compose.yml down || true
-        
+
         echo -e "\n${YELLOW}[2/2] Starting services...${NC}"
         podman-compose -f infrastructure/podman-compose.yml up -d
-        
+
         echo -e "\n${GREEN}✓ Services restarted${NC}"
         echo ""
         podman-compose -f infrastructure/podman-compose.yml ps
@@ -44,14 +44,14 @@ if command -v podman-compose &> /dev/null; then
     fi
 elif command -v docker-compose &> /dev/null; then
     echo "Using docker-compose..."
-    
+
     if [ -f "infrastructure/podman-compose.yml" ]; then
         echo -e "\n${YELLOW}[1/2] Stopping services...${NC}"
         docker-compose -f infrastructure/podman-compose.yml down || true
-        
+
         echo -e "\n${YELLOW}[2/2] Starting services...${NC}"
         docker-compose -f infrastructure/podman-compose.yml up -d
-        
+
         echo -e "\n${GREEN}✓ Services restarted${NC}"
     fi
 else
@@ -70,17 +70,17 @@ if [ -d ".venv" ]; then
         pkill -f "uvicorn barnabeenet.main:app" || true
         sleep 2
     fi
-    
+
     # Ensure logs directory exists
     mkdir -p logs
-    
+
     # Build the startup command with proper env for NixOS
     START_CMD="cd $PROJECT_DIR && source .venv/bin/activate"
     if [ -n "$LD_LIBRARY_PATH" ]; then
         START_CMD="export LD_LIBRARY_PATH='$LD_LIBRARY_PATH' && $START_CMD"
     fi
     START_CMD="$START_CMD && python -m uvicorn barnabeenet.main:app --host 0.0.0.0 --port 8000 2>&1 | tee logs/barnabeenet.log"
-    
+
     # Start with tmux or nohup (tmux preferred, nohup as fallback)
     echo "Starting BarnabeeNet in background..."
     if command -v tmux &> /dev/null; then
@@ -93,7 +93,7 @@ if [ -d ".venv" ]; then
         nohup bash -c "$START_CMD" &
         ATTACH_CMD="tail -f logs/barnabeenet.log"
     fi
-    
+
     sleep 3
     if pgrep -f "uvicorn barnabeenet.main:app" > /dev/null; then
         echo -e "${GREEN}✓ BarnabeeNet app started${NC}"

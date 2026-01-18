@@ -2,6 +2,7 @@
 
 Endpoints for the BarnabeeNet dashboard:
 - Activity stream (live feed of signals)
+- Request traces (full pipeline flow)
 - Signal history and search
 - System status
 """
@@ -14,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from barnabeenet.services.llm.signals import get_signal_logger
+from barnabeenet.services.pipeline_signals import get_pipeline_logger
 
 if TYPE_CHECKING:
     pass
@@ -319,3 +321,210 @@ async def get_dashboard_stats() -> DashboardStats:
         error_rate_percent=round(error_rate, 2),
         requests_by_agent=requests_by_agent,
     )
+
+
+# =============================================================================
+# Request Trace Models & Endpoints
+# =============================================================================
+
+
+class PipelineSignalResponse(BaseModel):
+    """A single signal in a pipeline trace."""
+
+    signal_id: str
+    signal_type: str
+    stage: str
+    component: str
+    timestamp: str
+    latency_ms: float | None = None
+    success: bool = True
+    error: str | None = None
+    model_used: str | None = None
+    summary: str = ""
+    input_data: dict[str, Any] = Field(default_factory=dict)
+    output_data: dict[str, Any] = Field(default_factory=dict)
+    tokens_in: int | None = None
+    tokens_out: int | None = None
+    cost_usd: float | None = None
+
+
+class RequestTraceResponse(BaseModel):
+    """Complete trace of a request through the pipeline."""
+
+    trace_id: str
+    started_at: str
+    completed_at: str | None = None
+    input_text: str
+    input_type: str = "text"
+    speaker: str | None = None
+    room: str | None = None
+
+    # Classification
+    intent: str | None = None
+    intent_confidence: float | None = None
+    context_type: str | None = None
+    mood: str | None = None
+
+    # Routing & Processing
+    agent_used: str | None = None
+    route_reason: str | None = None
+    memories_retrieved: list[str] = Field(default_factory=list)
+    ha_actions: list[dict[str, Any]] = Field(default_factory=list)
+
+    # Response
+    response_text: str = ""
+    response_type: str = "spoken"
+
+    # Totals
+    total_latency_ms: float | None = None
+    total_tokens: int = 0
+    total_cost_usd: float = 0.0
+
+    # Status
+    success: bool = True
+    error: str | None = None
+
+    # All signals
+    signals: list[PipelineSignalResponse] = Field(default_factory=list)
+
+
+class TraceListItem(BaseModel):
+    """Summary of a trace for list display."""
+
+    trace_id: str
+    timestamp: str
+    input_preview: str
+    response_preview: str
+    intent: str | None = None
+    agent_used: str | None = None
+    success: bool = True
+    total_latency_ms: float | None = None
+    signal_count: int = 0
+
+
+class TraceListResponse(BaseModel):
+    """List of recent traces."""
+
+    traces: list[TraceListItem]
+    total_count: int
+
+
+@router.get("/traces", response_model=TraceListResponse)
+async def get_recent_traces(
+    limit: int = Query(50, ge=1, le=200, description="Number of traces to return"),
+) -> TraceListResponse:
+    """Get recent request traces for the dashboard.
+
+    Shows the full list of processed requests with summary info.
+    """
+    pipeline_logger = get_pipeline_logger()
+    traces = await pipeline_logger.get_recent_traces(limit=limit)
+
+    items = []
+    for trace in traces:
+        items.append(
+            TraceListItem(
+                trace_id=trace.trace_id,
+                timestamp=trace.started_at.isoformat(),
+                input_preview=trace.input_text[:100] if trace.input_text else "",
+                response_preview=trace.response_text[:100] if trace.response_text else "",
+                intent=trace.intent,
+                agent_used=trace.agent_used,
+                success=trace.success,
+                total_latency_ms=trace.total_latency_ms,
+                signal_count=len(trace.signals),
+            )
+        )
+
+    return TraceListResponse(
+        traces=items,
+        total_count=len(items),
+    )
+
+
+@router.get("/traces/{trace_id}", response_model=RequestTraceResponse)
+async def get_trace_detail(trace_id: str) -> RequestTraceResponse:
+    """Get full details of a specific request trace.
+
+    Shows complete pipeline flow with all signals.
+    """
+    pipeline_logger = get_pipeline_logger()
+    trace = await pipeline_logger.get_trace_by_id(trace_id)
+
+    if not trace:
+        raise HTTPException(status_code=404, detail=f"Trace {trace_id} not found")
+
+    signals = [
+        PipelineSignalResponse(
+            signal_id=sig.signal_id,
+            signal_type=sig.signal_type.value,
+            stage=sig.stage,
+            component=sig.component,
+            timestamp=sig.timestamp.isoformat(),
+            latency_ms=sig.latency_ms,
+            success=sig.success,
+            error=sig.error,
+            model_used=sig.model_used,
+            summary=sig.summary,
+            input_data=sig.input_data,
+            output_data=sig.output_data,
+            tokens_in=sig.tokens_in,
+            tokens_out=sig.tokens_out,
+            cost_usd=sig.cost_usd,
+        )
+        for sig in trace.signals
+    ]
+
+    return RequestTraceResponse(
+        trace_id=trace.trace_id,
+        started_at=trace.started_at.isoformat(),
+        completed_at=trace.completed_at.isoformat() if trace.completed_at else None,
+        input_text=trace.input_text,
+        input_type=trace.input_type,
+        speaker=trace.speaker,
+        room=trace.room,
+        intent=trace.intent,
+        intent_confidence=trace.intent_confidence,
+        context_type=trace.context_type,
+        mood=trace.mood,
+        agent_used=trace.agent_used,
+        route_reason=trace.route_reason,
+        memories_retrieved=trace.memories_retrieved,
+        ha_actions=trace.ha_actions,
+        response_text=trace.response_text,
+        response_type=trace.response_type,
+        total_latency_ms=trace.total_latency_ms,
+        total_tokens=trace.total_tokens,
+        total_cost_usd=trace.total_cost_usd,
+        success=trace.success,
+        error=trace.error,
+        signals=signals,
+    )
+
+
+@router.get("/pipeline/signals")
+async def get_pipeline_signals(
+    limit: int = Query(100, ge=1, le=500),
+) -> list[dict[str, Any]]:
+    """Get recent pipeline signals for real-time display."""
+    pipeline_logger = get_pipeline_logger()
+    signals = pipeline_logger.get_fallback_signals(limit=limit)
+
+    return [
+        {
+            "signal_id": sig.signal_id,
+            "trace_id": sig.trace_id,
+            "signal_type": sig.signal_type.value,
+            "stage": sig.stage,
+            "component": sig.component,
+            "timestamp": sig.timestamp.isoformat(),
+            "latency_ms": sig.latency_ms,
+            "success": sig.success,
+            "error": sig.error,
+            "summary": sig.summary,
+            "speaker": sig.speaker,
+            "room": sig.room,
+            "model": sig.model_used,
+        }
+        for sig in signals
+    ]

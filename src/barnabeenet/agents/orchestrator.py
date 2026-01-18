@@ -28,6 +28,7 @@ from barnabeenet.agents.meta import (
     MetaAgent,
 )
 from barnabeenet.services.llm.openrouter import OpenRouterClient
+from barnabeenet.services.pipeline_signals import PipelineLogger, SignalType
 
 logger = logging.getLogger(__name__)
 
@@ -95,15 +96,18 @@ class AgentOrchestrator:
         self,
         llm_client: OpenRouterClient | None = None,
         config: OrchestratorConfig | None = None,
+        pipeline_logger: PipelineLogger | None = None,
     ) -> None:
         """Initialize the orchestrator.
 
         Args:
             llm_client: Shared LLM client for all agents.
             config: Optional configuration overrides.
+            pipeline_logger: Logger for pipeline signals (for dashboard).
         """
         self.config = config or OrchestratorConfig()
         self._llm_client = llm_client
+        self._pipeline_logger = pipeline_logger
 
         # Agents (initialized lazily or via init())
         self._meta_agent: MetaAgent | None = None
@@ -206,6 +210,16 @@ class AgentOrchestrator:
 
         total_start = time.perf_counter()
 
+        # Start pipeline trace
+        if self._pipeline_logger:
+            await self._pipeline_logger.start_trace(
+                trace_id=ctx.trace_id,
+                input_text=text,
+                input_type="voice",
+                speaker=speaker,
+                room=room,
+            )
+
         try:
             # Stage 1: Classification
             await self._classify(ctx)
@@ -224,10 +238,38 @@ class AgentOrchestrator:
         except Exception as e:
             logger.exception(f"Pipeline error: {e}")
             ctx.response_text = "I'm sorry, I encountered an error. Please try again."
+
+            # Log error signal
+            if self._pipeline_logger:
+                await self._pipeline_logger.log_signal(
+                    trace_id=ctx.trace_id,
+                    signal_type=SignalType.ERROR,
+                    summary=f"Pipeline error: {str(e)}",
+                    success=False,
+                    error=str(e),
+                )
             ctx.agent_response = {"error": str(e)}
 
         total_ms = (time.perf_counter() - total_start) * 1000
         ctx.stage_timings["total"] = total_ms
+
+        # Complete pipeline trace
+        if self._pipeline_logger:
+            agent_name = ctx.agent_response.get("_agent_name") if ctx.agent_response else None
+            intent_val = ctx.classification.intent.value if ctx.classification else None
+            confidence = ctx.classification.confidence if ctx.classification else None
+
+            await self._pipeline_logger.complete_trace(
+                trace_id=ctx.trace_id,
+                response_text=ctx.response_text,
+                response_type="tts",
+                success=not ctx.agent_response or "error" not in ctx.agent_response,
+                agent_used=agent_name,
+                intent=intent_val,
+                intent_confidence=confidence,
+                ha_actions=ctx.actions_taken if ctx.actions_taken else None,
+                memories_retrieved=ctx.retrieved_memories if ctx.retrieved_memories else None,
+            )
 
         return self._build_response(ctx)
 
@@ -245,7 +287,23 @@ class AgentOrchestrator:
         )
 
         ctx.classification = result.get("classification")
-        ctx.stage_timings["classification"] = (time.perf_counter() - start) * 1000
+        latency_ms = (time.perf_counter() - start) * 1000
+        ctx.stage_timings["classification"] = latency_ms
+
+        # Log classification signal
+        if self._pipeline_logger and ctx.classification:
+            await self._pipeline_logger.log_signal(
+                trace_id=ctx.trace_id,
+                signal_type=SignalType.META_CLASSIFY,
+                summary=f"Intent: {ctx.classification.intent.value} ({ctx.classification.confidence:.0%})",
+                latency_ms=latency_ms,
+                success=True,
+                extra_data={
+                    "intent": ctx.classification.intent.value,
+                    "confidence": ctx.classification.confidence,
+                    "sub_category": ctx.classification.sub_category,
+                },
+            )
 
         logger.debug(
             f"Classified '{ctx.text[:30]}...' as {ctx.classification.intent.value if ctx.classification else 'unknown'}"
@@ -274,7 +332,22 @@ class AgentOrchestrator:
         if result.get("memories"):
             ctx.retrieved_memories = [m["content"] for m in result["memories"]]
 
-        ctx.stage_timings["memory_retrieval"] = (time.perf_counter() - start) * 1000
+        latency_ms = (time.perf_counter() - start) * 1000
+        ctx.stage_timings["memory_retrieval"] = latency_ms
+
+        # Log memory retrieval signal
+        if self._pipeline_logger:
+            await self._pipeline_logger.log_signal(
+                trace_id=ctx.trace_id,
+                signal_type=SignalType.MEMORY_RETRIEVE,
+                summary=f"Retrieved {len(ctx.retrieved_memories)} memories",
+                latency_ms=latency_ms,
+                success=True,
+                extra_data={
+                    "query": queries.primary_query[:100] if queries.primary_query else None,
+                    "count": len(ctx.retrieved_memories),
+                },
+            )
 
         logger.debug(f"Retrieved {len(ctx.retrieved_memories)} memories")
 
@@ -307,6 +380,16 @@ class AgentOrchestrator:
             "sub_category": ctx.classification.sub_category if ctx.classification else None,
         }
 
+        # Log routing decision
+        if self._pipeline_logger:
+            await self._pipeline_logger.log_signal(
+                trace_id=ctx.trace_id,
+                signal_type=SignalType.AGENT_ROUTE,
+                summary=f"Routing to {intent.value} agent",
+                success=True,
+                extra_data={"intent": intent.value},
+            )
+
         # Route based on intent
         if intent == IntentCategory.INSTANT:
             ctx.agent_response = await self._instant_agent.handle_input(ctx.text, agent_context)
@@ -318,6 +401,15 @@ class AgentOrchestrator:
             # Track device actions
             if ctx.agent_response.get("action"):
                 ctx.actions_taken.append(ctx.agent_response["action"])
+                # Log HA action
+                if self._pipeline_logger:
+                    await self._pipeline_logger.log_signal(
+                        trace_id=ctx.trace_id,
+                        signal_type=SignalType.HA_ACTION,
+                        summary=f"Action: {ctx.agent_response['action'].get('service', 'unknown')}",
+                        success=True,
+                        extra_data=ctx.agent_response["action"],
+                    )
 
         elif intent == IntentCategory.MEMORY:
             # Direct memory operation
@@ -339,7 +431,33 @@ class AgentOrchestrator:
         ctx.response_text = ctx.agent_response.get("response", "")
         ctx.agent_response["_agent_name"] = agent_name
 
-        ctx.stage_timings["agent_handling"] = (time.perf_counter() - start) * 1000
+        latency_ms = (time.perf_counter() - start) * 1000
+        ctx.stage_timings["agent_handling"] = latency_ms
+
+        # Log agent response
+        if self._pipeline_logger:
+            # Map agent name to signal type
+            signal_map = {
+                "instant": SignalType.AGENT_INSTANT,
+                "action": SignalType.AGENT_ACTION,
+                "interaction": SignalType.AGENT_INTERACTION,
+                "memory": SignalType.AGENT_MEMORY,
+            }
+            signal_type = signal_map.get(agent_name, SignalType.AGENT_ROUTE)
+
+            await self._pipeline_logger.log_signal(
+                trace_id=ctx.trace_id,
+                signal_type=signal_type,
+                summary=f"{agent_name.title()}: {ctx.response_text[:80]}..."
+                if len(ctx.response_text) > 80
+                else f"{agent_name.title()}: {ctx.response_text}",
+                latency_ms=latency_ms,
+                success=True,
+                extra_data={
+                    "agent": agent_name,
+                    "response_length": len(ctx.response_text),
+                },
+            )
 
         logger.debug(f"Handled by {agent_name} agent")
 

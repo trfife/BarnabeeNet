@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after VM Deployment)
+2026-01-18 (after Pipeline Signal Dashboard)
 
 ## Current Phase
-**Phase 1: Core Services** - VM DEPLOYMENT COMPLETE
+**Phase 1: Core Services** - DASHBOARD OBSERVABILITY COMPLETE
 
 ## Development Workflow
 
@@ -54,6 +54,9 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Dashboard Phase 1** - Dashboard API endpoints (activity feed, signal details, stats), Prometheus metrics, Grafana + Prometheus compose config
 - [x] **Dashboard Phase 2** - WebSocket endpoint (/ws/activity) for real-time signal streaming, ConnectionManager with filtering, SignalStreamer background task reading from Redis Streams
 - [x] **VM Deployment** - BarnabeeNet running on VM (192.168.86.51:8000), NixOS firewall configured, all services healthy
+- [x] **Web Dashboard UI** - SkyrimNet-style dark theme dashboard at http://192.168.86.51:8000/
+- [x] **Pipeline Signal Logging** - Full request tracing with PipelineLogger, SignalType enum (25+ types), RequestTrace model
+- [x] **Dashboard Trace Visualization** - Request traces list, expandable trace details showing complete data flow (input → classify → agent → response)
 
 ### In Progress
 - [ ] End-to-end voice testing

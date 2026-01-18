@@ -78,6 +78,7 @@ class AppState:
         self.gpu_worker_available = False
         self.gpu_worker_last_check = 0.0
         self._health_check_task: asyncio.Task | None = None
+        self.pipeline_logger = None
 
     @property
     def uptime_seconds(self) -> float:
@@ -129,11 +130,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error("Redis connection failed", error=str(e))
         # Continue without Redis for now - not critical for Phase 1
 
+    # Initialize Pipeline Logger for dashboard
+    try:
+        from barnabeenet.services.pipeline_signals import init_pipeline_logger
+
+        app_state.pipeline_logger = await init_pipeline_logger(redis_client=app_state.redis_client)
+        logger.info("Pipeline logger initialized")
+    except Exception as e:
+        logger.error("Pipeline logger initialization failed", error=str(e))
+
     # Initialize Agent Orchestrator
     try:
-        from barnabeenet.agents.orchestrator import get_orchestrator
+        from barnabeenet.agents.orchestrator import AgentOrchestrator
 
-        app_state.orchestrator = get_orchestrator()
+        app_state.orchestrator = AgentOrchestrator(pipeline_logger=app_state.pipeline_logger)
         await app_state.orchestrator.init()
         logger.info("Agent Orchestrator initialized")
     except Exception as e:
