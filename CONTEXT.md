@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (Dashboard Chat tab for direct Barnabee interaction)
+2026-01-18 (Home Assistant action execution - Barnabee can now control devices!)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + DASHBOARD ENHANCEMENT
@@ -80,6 +80,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Home Assistant WebSocket API** - Implemented WebSocket protocol for HA device/area/entity registries (REST API doesn't expose these). Added `_ws_command()` method to HomeAssistantClient that handles auth flow (auth_required → send token → auth_ok → command → result). Commands: `config/device_registry/list`, `config/area_registry/list`, `config/entity_registry/list`. Entity dataclass enriched with device_id. Data now loads correctly: 2288 entities, 238 devices, 20 areas.
 - [x] **Real-time HA State Changes** - Persistent WebSocket subscription to Home Assistant `state_changed` events. Auto-subscribes on connect with exponential backoff reconnection. StateChangeEvent model with rolling buffer (500 events). `/api/v1/homeassistant/events` endpoint for activity log. Dashboard Activity Log tab shows live state changes with domain icons, friendly names, and state transitions. Filters "interesting" domains (lights, switches, etc.) for overview.
 - [x] **Dashboard Chat Tab (Phase 5)** - Direct text conversation with Barnabee from the dashboard. Chat bubble UI with avatars, timestamps, thinking animation. Suggestion chips for quick actions (time, weather, lights, jokes). Connects to `/api/v1/voice/process` endpoint. Shows agent used and intent on each response. Clear conversation button. Fully styled dark theme matching dashboard.
+- [x] **Home Assistant Action Execution** - AgentOrchestrator now executes ActionAgent commands via HomeAssistantClient. After parsing device control commands (turn on/off, set value, etc.), the orchestrator: (1) resolves entity names to entity_ids using EntityRegistry fuzzy matching, (2) calls HA service via REST API, (3) logs execution result to pipeline signals. Tested: "Turn on/off dining table light" successfully controls `light.dining_table_light`. State changes visible in `/api/v1/homeassistant/events`.
 
 ### In Progress
 - [ ] Dashboard Phase 6: Voice input in Chat tab (microphone)
