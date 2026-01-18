@@ -310,6 +310,7 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
             total_latency_ms=processing_time,
             memories_retrieved=orchestrator_resp.get("memories_retrieved", 0),
             memories_stored=orchestrator_resp.get("memories_stored", 0),
+            actions=orchestrator_resp.get("actions", []),
         )
 
     except Exception as e:

@@ -3752,7 +3752,7 @@ async function sendChatMessage() {
             const agent = data.agent_used || data.agent || null;
             const intent = data.intent || null;
             
-            addChatMessage('assistant', assistantMessage, { agent, intent });
+            addChatMessage('assistant', assistantMessage, { agent, intent, fullResponse: data });
             updateChatStatus('Ready to chat');
         } else {
             // Error response
@@ -3789,14 +3789,23 @@ function addChatMessage(role, content, meta = {}) {
     }
     
     const bubbleClass = meta.error ? 'message-bubble message-error' : 'message-bubble';
+    const clickable = role === 'assistant' && meta.fullResponse ? 'clickable' : '';
     
     messageEl.innerHTML = `
         <div class="message-avatar">${avatar}</div>
         <div class="message-content">
-            <div class="${bubbleClass}">${escapeHtml(content)}</div>
+            <div class="${bubbleClass} ${clickable}">${escapeHtml(content)}</div>
             <div class="message-meta">${metaHtml}</div>
         </div>
     `;
+    
+    // Add click handler for assistant messages with response data
+    if (role === 'assistant' && meta.fullResponse) {
+        const bubble = messageEl.querySelector('.message-bubble');
+        bubble.style.cursor = 'pointer';
+        bubble.title = 'Click to see details';
+        bubble.addEventListener('click', () => showChatResponseDetails(meta.fullResponse));
+    }
     
     messagesContainer.appendChild(messageEl);
     
@@ -3879,4 +3888,111 @@ function clearChat() {
     
     updateChatStatus('Ready to chat');
     showToast('Conversation cleared');
+}
+function showChatResponseDetails(data) {
+    // Create modal overlay
+    const modal = document.createElement('div');
+    modal.className = 'chat-details-modal';
+    modal.onclick = (e) => {
+        if (e.target === modal) modal.remove();
+    };
+    
+    // Build details content
+    const intent = data.intent || 'unknown';
+    const agent = data.agent_used || data.agent || 'unknown';
+    const latency = data.latency_ms?.toFixed(1) || data.total_latency_ms?.toFixed(1) || '?';
+    const traceId = data.trace_id || 'N/A';
+    const actions = data.actions || [];
+    
+    let actionsHtml = '';
+    if (actions.length > 0) {
+        actionsHtml = `
+            <div class="detail-section">
+                <h4>🎯 Actions</h4>
+                ${actions.map(action => {
+                    const executed = action.executed !== undefined ? action.executed : 'Not tracked';
+                    const executionMsg = action.execution_message || '';
+                    const entityName = action.entity_name || 'Unknown';
+                    const entityId = action.entity_id || 'Not resolved';
+                    const service = action.service || 'Unknown';
+                    const domain = action.domain || 'Unknown';
+                    
+                    const statusClass = action.executed === true ? 'success' : 
+                                        action.executed === false ? 'error' : 'pending';
+                    
+                    return `
+                        <div class="action-detail ${statusClass}">
+                            <div class="action-header">
+                                <span class="action-service">${service}</span>
+                                <span class="action-status ${statusClass}">
+                                    ${action.executed === true ? '✅ Executed' : 
+                                      action.executed === false ? '❌ Failed' : '⏳ Not executed'}
+                                </span>
+                            </div>
+                            <div class="action-info">
+                                <div><strong>Entity Name:</strong> ${entityName}</div>
+                                <div><strong>Entity ID:</strong> ${entityId}</div>
+                                <div><strong>Domain:</strong> ${domain}</div>
+                                ${executionMsg ? `<div><strong>Message:</strong> ${executionMsg}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    } else if (intent === 'action') {
+        actionsHtml = `
+            <div class="detail-section">
+                <h4>🎯 Actions</h4>
+                <div class="action-detail pending">
+                    <div class="action-header">
+                        <span class="action-status pending">⚠️ No action data captured</span>
+                    </div>
+                    <div class="action-info">
+                        The action may not have been executed. Check if Home Assistant is connected 
+                        and the entity exists.
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    modal.innerHTML = `
+        <div class="chat-details-content">
+            <div class="chat-details-header">
+                <h3>🐝 Response Details</h3>
+                <button class="close-btn" onclick="this.closest('.chat-details-modal').remove()">×</button>
+            </div>
+            <div class="chat-details-body">
+                <div class="detail-section">
+                    <h4>📊 Processing Info</h4>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Intent</span>
+                            <span class="detail-value badge-${intent}">${intent}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Agent</span>
+                            <span class="detail-value">${agent}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Latency</span>
+                            <span class="detail-value">${latency}ms</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Trace ID</span>
+                            <span class="detail-value trace-id">${traceId}</span>
+                        </div>
+                    </div>
+                </div>
+                ${actionsHtml}
+                <div class="detail-section">
+                    <h4>📄 Full Response</h4>
+                    <pre class="json-response">${JSON.stringify(data, null, 2)}</pre>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
 }
