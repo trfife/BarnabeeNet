@@ -137,32 +137,64 @@ function connectWebSocket() {
 }
 
 function handleActivityMessage(data) {
-    if (data.type === 'signal') {
+    // Handle wrapped messages from different WS endpoints
+    const messageType = data.type;
+    const payload = data.data || data;
+
+    if (messageType === 'signal' || payload.signal_type) {
+        // LLM/Pipeline signal from /ws/activity
+        const signalData = messageType === 'signal' ? payload : data;
         addActivityItem({
-            type: data.signal_type || 'system',
-            message: formatSignalMessage(data),
-            timestamp: data.timestamp,
-            latency: data.latency_ms
+            type: signalData.signal_type || signalData.event_type || 'system',
+            message: formatSignalMessage(signalData),
+            timestamp: signalData.timestamp,
+            latency: signalData.latency_ms,
+            signal_id: signalData.signal_id,
+            model: signalData.model,
+            trace_id: signalData.trace_id,
+            agent: signalData.agent_type || signalData.agent,
+            tokens_in: signalData.input_tokens,
+            tokens_out: signalData.output_tokens,
+            cost: signalData.cost_usd
         });
 
+        // Update live stats
+        updateLiveStats(signalData);
+
         // Track active trace for real-time updates
-        if (data.trace_id) {
-            if (!activeTraces.has(data.trace_id)) {
-                activeTraces.set(data.trace_id, {
-                    trace_id: data.trace_id,
+        if (signalData.trace_id) {
+            if (!activeTraces.has(signalData.trace_id)) {
+                activeTraces.set(signalData.trace_id, {
+                    trace_id: signalData.trace_id,
                     signals: [],
-                    started_at: data.timestamp
+                    started_at: signalData.timestamp
                 });
             }
-            activeTraces.get(data.trace_id).signals.push(data);
+            activeTraces.get(signalData.trace_id).signals.push(signalData);
         }
 
         // Refresh traces list for new/completed traces
-        if (data.signal_type === 'request_start' || data.signal_type === 'request_complete') {
+        if (signalData.signal_type === 'request_start' || signalData.signal_type === 'request_complete') {
             loadTraces();
         }
-    } else if (data.type === 'heartbeat') {
+    } else if (messageType === 'activity') {
+        // Activity log message from /ws/dashboard (including HA state changes)
+        addActivityItem({
+            type: payload.type || 'system',
+            message: payload.title || payload.detail || '',
+            timestamp: payload.timestamp,
+            source: payload.source,
+            trace_id: payload.trace_id,
+            duration_ms: payload.duration_ms
+        });
+
+        // Update live stats
+        updateLiveStats({ signal_type: payload.type });
+    } else if (messageType === 'heartbeat' || messageType === 'ping' || messageType === 'pong') {
         // Heartbeat - ignore
+    } else if (messageType === 'status') {
+        // Connection status - could update UI indicator
+        console.log('WebSocket status:', payload);
     }
 }
 
@@ -220,11 +252,38 @@ function addActivityItem(data) {
         second: '2-digit'
     });
 
+    // Check if this is an LLM signal that can be expanded
+    const isLLMSignal = data.signal_id && (data.type === 'llm_request' || data.type === 'llm.request' || data.type === 'llm_call');
+    const isHAEvent = data.type && (data.type.startsWith('ha.') || data.type === 'ha_state_change');
+
+    let expandButton = '';
+    if (isLLMSignal) {
+        expandButton = `<button class="activity-expand-btn" onclick="event.stopPropagation(); showLLMInspector('${data.signal_id}')" title="View LLM details">🔍</button>`;
+    }
+
+    // Build token/cost badge for LLM signals
+    let tokenBadge = '';
+    if (data.tokens_in !== undefined || data.tokens_out !== undefined) {
+        const tokensIn = data.tokens_in ?? '?';
+        const tokensOut = data.tokens_out ?? '?';
+        const cost = data.cost ? `$${data.cost.toFixed(5)}` : '';
+        tokenBadge = `<span class="activity-tokens">📥${tokensIn} 📤${tokensOut} ${cost}</span>`;
+    }
+
+    // Build agent badge
+    let agentBadge = '';
+    if (data.agent) {
+        agentBadge = `<span class="activity-agent">${data.agent}</span>`;
+    }
+
     item.innerHTML = `
         <span class="activity-time">${time}</span>
-        <span class="activity-badge ${data.type}">${data.type}</span>
+        <span class="activity-badge ${data.type}">${formatActivityType(data.type)}</span>
+        ${agentBadge}
         <span class="activity-message">${escapeHtml(data.message)}</span>
+        ${tokenBadge}
         ${data.latency ? `<span class="activity-latency">${data.latency.toFixed(0)}ms</span>` : ''}
+        ${expandButton}
     `;
 
     // Apply filter
@@ -245,6 +304,12 @@ function addActivityItem(data) {
     }
 }
 
+function formatActivityType(type) {
+    // Clean up activity type for display
+    if (!type) return 'unknown';
+    return type.replace(/\./g, ' ').replace(/_/g, ' ');
+}
+
 function filterActivityFeed() {
     document.querySelectorAll('.activity-item').forEach(item => {
         if (!activityFilter || item.dataset.type === activityFilter) {
@@ -253,6 +318,247 @@ function filterActivityFeed() {
             item.style.display = 'none';
         }
     });
+}
+
+// =============================================================================
+// Live Statistics
+// =============================================================================
+
+let liveStats = {
+    total: 0,
+    perSecond: 0,
+    llm: 0,
+    ha: 0,
+    lastMinute: []
+};
+
+function updateLiveStats(data) {
+    liveStats.total++;
+    liveStats.lastMinute.push(Date.now());
+    liveStats.lastMinute = liveStats.lastMinute.filter(t => t > Date.now() - 60000);
+    liveStats.perSecond = (liveStats.lastMinute.length / 60).toFixed(1);
+
+    const signalType = data.signal_type || data.activity_type || '';
+    if (signalType.startsWith('llm')) {
+        liveStats.llm++;
+    }
+    if (signalType.startsWith('ha')) {
+        liveStats.ha++;
+    }
+
+    // Update UI if elements exist
+    const perSecEl = document.getElementById('events-per-sec');
+    const totalEl = document.getElementById('events-total');
+    const llmEl = document.getElementById('events-llm');
+    const haEl = document.getElementById('events-ha');
+
+    if (perSecEl) perSecEl.textContent = liveStats.perSecond;
+    if (totalEl) totalEl.textContent = liveStats.total;
+    if (llmEl) llmEl.textContent = liveStats.llm;
+    if (haEl) haEl.textContent = liveStats.ha;
+}
+
+// =============================================================================
+// LLM Inspector Modal
+// =============================================================================
+
+async function showLLMInspector(signalId) {
+    // Show loading state in modal
+    const existingModal = document.getElementById('llm-inspector-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    const modal = document.createElement('div');
+    modal.id = 'llm-inspector-modal';
+    modal.className = 'modal llm-inspector-modal';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>🧠 LLM Request Inspector</h3>
+                <button class="btn btn-small" onclick="document.getElementById('llm-inspector-modal').remove()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Loading signal details...</p>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Close on backdrop click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/dashboard/signals/${signalId}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const signal = await response.json();
+        renderLLMInspector(modal, signal);
+    } catch (e) {
+        modal.querySelector('.modal-body').innerHTML = `
+            <div class="error-message">Failed to load signal: ${e.message}</div>
+        `;
+    }
+}
+
+function renderLLMInspector(modal, signal) {
+    const time = new Date(signal.timestamp).toLocaleString();
+    const latency = signal.latency_ms ? `${signal.latency_ms.toFixed(0)}ms` : 'N/A';
+    const inputTokens = signal.input_tokens ?? 'N/A';
+    const outputTokens = signal.output_tokens ?? 'N/A';
+    const totalTokens = signal.total_tokens ?? 'N/A';
+    const cost = signal.cost_usd ? `$${signal.cost_usd.toFixed(6)}` : 'N/A';
+
+    // Build messages display
+    let messagesHtml = '';
+    if (signal.messages && signal.messages.length > 0) {
+        messagesHtml = signal.messages.map(msg => {
+            const role = msg.role || 'unknown';
+            const content = msg.content || '';
+            const roleClass = role === 'system' ? 'llm-msg-system' :
+                              role === 'user' ? 'llm-msg-user' : 'llm-msg-assistant';
+            const roleIcon = role === 'system' ? '⚙️' :
+                             role === 'user' ? '👤' : '🤖';
+            return `
+                <div class="llm-message ${roleClass}">
+                    <div class="llm-message-header">
+                        <span class="llm-message-icon">${roleIcon}</span>
+                        <span class="llm-message-role">${role}</span>
+                    </div>
+                    <pre class="llm-message-content">${escapeHtml(content)}</pre>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Build system prompt display (if separate)
+    let systemPromptHtml = '';
+    if (signal.system_prompt) {
+        systemPromptHtml = `
+            <div class="llm-section">
+                <h4>⚙️ System Prompt</h4>
+                <pre class="llm-system-prompt">${escapeHtml(signal.system_prompt)}</pre>
+            </div>
+        `;
+    }
+
+    // Build injected context display
+    let contextHtml = '';
+    if (signal.injected_context && Object.keys(signal.injected_context).length > 0) {
+        contextHtml = `
+            <div class="llm-section">
+                <h4>📋 Injected Context</h4>
+                <pre class="llm-context">${escapeHtml(JSON.stringify(signal.injected_context, null, 2))}</pre>
+            </div>
+        `;
+    }
+
+    modal.querySelector('.modal-body').innerHTML = `
+        <div class="llm-inspector-content">
+            <!-- Header Card -->
+            <div class="llm-inspector-header">
+                <div class="llm-inspector-title">
+                    <span class="llm-agent-badge">${signal.agent_type || 'Unknown'}</span>
+                    <span class="llm-model-badge">${signal.model || 'Unknown Model'}</span>
+                    <span class="llm-provider-badge">${signal.provider || ''}</span>
+                </div>
+                <div class="llm-inspector-meta">
+                    <span class="llm-latency">${latency}</span>
+                    <span class="llm-time">${time}</span>
+                </div>
+            </div>
+
+            <!-- Metrics Bar -->
+            <div class="llm-metrics-bar">
+                <div class="llm-metric">
+                    <span class="llm-metric-icon">📥</span>
+                    <span class="llm-metric-value">${inputTokens}</span>
+                    <span class="llm-metric-label">Input Tokens</span>
+                </div>
+                <div class="llm-metric">
+                    <span class="llm-metric-icon">📤</span>
+                    <span class="llm-metric-value">${outputTokens}</span>
+                    <span class="llm-metric-label">Output Tokens</span>
+                </div>
+                <div class="llm-metric">
+                    <span class="llm-metric-icon">📊</span>
+                    <span class="llm-metric-value">${totalTokens}</span>
+                    <span class="llm-metric-label">Total Tokens</span>
+                </div>
+                <div class="llm-metric">
+                    <span class="llm-metric-icon">💰</span>
+                    <span class="llm-metric-value">${cost}</span>
+                    <span class="llm-metric-label">Cost</span>
+                </div>
+                <div class="llm-metric">
+                    <span class="llm-metric-icon">🌡️</span>
+                    <span class="llm-metric-value">${signal.temperature ?? 'N/A'}</span>
+                    <span class="llm-metric-label">Temperature</span>
+                </div>
+            </div>
+
+            ${systemPromptHtml}
+
+            <!-- Messages -->
+            <div class="llm-section">
+                <h4>💬 Conversation</h4>
+                <div class="llm-messages-container">
+                    ${messagesHtml || '<p class="text-muted">No messages captured</p>'}
+                </div>
+            </div>
+
+            <!-- Response -->
+            <div class="llm-section">
+                <h4>📥 LLM Response</h4>
+                <pre class="llm-response">${escapeHtml(signal.response_text || 'No response')}</pre>
+            </div>
+
+            ${contextHtml}
+
+            <!-- Error (if any) -->
+            ${signal.error ? `
+                <div class="llm-section llm-error-section">
+                    <h4>❌ Error</h4>
+                    <div class="llm-error">
+                        <strong>${signal.error_type || 'Error'}:</strong> ${escapeHtml(signal.error)}
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Context Info -->
+            <div class="llm-section llm-context-info">
+                <h4>📌 Request Context</h4>
+                <div class="llm-context-grid">
+                    <div class="llm-context-item">
+                        <span class="label">Signal ID:</span>
+                        <span class="value">${signal.signal_id}</span>
+                    </div>
+                    <div class="llm-context-item">
+                        <span class="label">Trace ID:</span>
+                        <span class="value">${signal.trace_id || 'N/A'}</span>
+                    </div>
+                    <div class="llm-context-item">
+                        <span class="label">Speaker:</span>
+                        <span class="value">${signal.speaker || 'Unknown'}</span>
+                    </div>
+                    <div class="llm-context-item">
+                        <span class="label">Room:</span>
+                        <span class="value">${signal.room || 'Unknown'}</span>
+                    </div>
+                    <div class="llm-context-item">
+                        <span class="label">User Input:</span>
+                        <span class="value">${signal.user_input || 'N/A'}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 // =============================================================================
@@ -591,6 +897,9 @@ function renderTraceDetail(trace) {
     const startTime = new Date(trace.started_at).toLocaleString();
     const endTime = trace.completed_at ? new Date(trace.completed_at).toLocaleString() : 'In progress';
 
+    // Build waterfall timeline
+    const waterfallHtml = renderWaterfallTimeline(trace);
+
     return `
         <div class="trace-header">
             <div class="trace-header-section">
@@ -673,6 +982,8 @@ function renderTraceDetail(trace) {
             </div>
         </div>
 
+        ${waterfallHtml}
+
         <div class="pipeline-flow">
             <h4>🔄 Pipeline Flow (${trace.signals.length} signals)</h4>
             <div class="pipeline-stages">
@@ -693,6 +1004,59 @@ function renderTraceDetail(trace) {
                 <div class="data-block">${trace.memories_retrieved.map(m => '• ' + m).join('\n')}</div>
             </div>
         ` : ''}
+    `;
+}
+
+function renderWaterfallTimeline(trace) {
+    if (!trace.signals || trace.signals.length === 0) {
+        return '';
+    }
+
+    const totalMs = trace.total_latency_ms || 1;
+
+    // Calculate cumulative timing from signals
+    // Signals are in order, so we can use their timestamps to calculate positions
+    const traceStart = new Date(trace.started_at).getTime();
+
+    const rows = trace.signals.map((signal, index) => {
+        const signalTime = new Date(signal.timestamp).getTime();
+        const startOffset = signalTime - traceStart;
+        const duration = signal.latency_ms || 0;
+
+        const startPercent = Math.max(0, (startOffset / totalMs) * 100);
+        const widthPercent = Math.max(1, (duration / totalMs) * 100);
+
+        // Determine bar class based on signal type
+        let barClass = 'llm';
+        const sigType = (signal.signal_type || '').toLowerCase();
+        if (sigType.includes('meta')) barClass = 'meta';
+        else if (sigType.includes('instant')) barClass = 'instant';
+        else if (sigType.includes('action')) barClass = 'action';
+        else if (sigType.includes('interaction')) barClass = 'interaction';
+        else if (sigType.includes('memory')) barClass = 'memory';
+        else if (sigType.includes('tts')) barClass = 'tts';
+        else if (sigType.includes('stt')) barClass = 'stt';
+
+        const label = `${signal.component || signal.signal_type}: ${signal.summary || ''}`.substring(0, 40);
+
+        return `
+            <div class="timeline-row">
+                <span class="step-label" title="${escapeHtml(signal.summary || signal.signal_type)}">${escapeHtml(label)}</span>
+                <div class="timeline-bar-container">
+                    <div class="timeline-bar ${barClass}" 
+                         style="left: ${startPercent.toFixed(1)}%; width: ${Math.min(widthPercent, 100 - startPercent).toFixed(1)}%">
+                    </div>
+                    <span class="step-duration">${duration?.toFixed(0) || 0}ms</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    return `
+        <div class="waterfall-timeline">
+            <h4>⏱️ Waterfall Timeline (${totalMs.toFixed(0)}ms total)</h4>
+            ${rows}
+        </div>
     `;
 }
 

@@ -228,6 +228,28 @@
                 <p>Real-time log stream with filtering and performance graphs</p>
             </div>
 
+            <!-- Live Activity Stats Bar -->
+            <div class="card full-width" style="margin-bottom: 20px;">
+                <div class="activity-stats-bar">
+                    <div class="stat">
+                        <span id="events-per-sec">0.0</span>
+                        <span>Events/sec</span>
+                    </div>
+                    <div class="stat">
+                        <span id="events-total">0</span>
+                        <span>Total</span>
+                    </div>
+                    <div class="stat">
+                        <span id="events-llm">0</span>
+                        <span>LLM Calls</span>
+                    </div>
+                    <div class="stat">
+                        <span id="events-ha">0</span>
+                        <span>HA Events</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Performance Graphs -->
             <div class="card full-width">
                 <div class="card-header">

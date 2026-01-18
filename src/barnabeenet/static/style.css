@@ -4743,3 +4743,433 @@ body {
     max-height: 200px;
     overflow-y: auto;
 }
+/* =============================================================================
+   Live Activity Stats Bar
+   ============================================================================= */
+
+.activity-stats-bar {
+    display: flex;
+    gap: 24px;
+    padding: 12px 20px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    justify-content: flex-start;
+}
+
+.activity-stats-bar .stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 80px;
+}
+
+.activity-stats-bar .stat span:first-child {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent-secondary);
+}
+
+.activity-stats-bar .stat span:last-child {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+/* Activity Feed Enhancements */
+.activity-expand-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 6px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+    margin-left: 8px;
+}
+
+.activity-expand-btn:hover {
+    background: var(--accent-primary);
+    color: var(--bg-primary);
+    border-color: var(--accent-primary);
+}
+
+.activity-tokens {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-left: 8px;
+    font-family: 'Monaco', 'Consolas', monospace;
+}
+
+.activity-agent {
+    font-size: 10px;
+    padding: 2px 6px;
+    background: var(--bg-hover);
+    border-radius: 4px;
+    color: var(--accent-secondary);
+    font-weight: 500;
+}
+
+/* Activity badge for HA state changes */
+.activity-badge.ha_state_change,
+.activity-badge.ha\.state_change {
+    background: #d97706;
+}
+
+/* =============================================================================
+   LLM Inspector Modal
+   ============================================================================= */
+
+.llm-inspector-modal .modal-content {
+    max-width: 900px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.llm-inspector-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.llm-inspector-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.llm-inspector-title {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.llm-agent-badge {
+    padding: 4px 12px;
+    background: var(--accent-primary);
+    color: var(--bg-primary);
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.llm-model-badge {
+    padding: 4px 12px;
+    background: var(--bg-hover);
+    color: var(--accent-secondary);
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: 'Monaco', 'Consolas', monospace;
+}
+
+.llm-provider-badge {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.llm-inspector-meta {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+
+.llm-latency {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent-primary);
+}
+
+.llm-time {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* LLM Metrics Bar */
+.llm-metrics-bar {
+    display: flex;
+    gap: 16px;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    justify-content: space-around;
+    border: 1px solid var(--border-color);
+}
+
+.llm-metric {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.llm-metric-icon {
+    font-size: 16px;
+}
+
+.llm-metric-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.llm-metric-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+/* LLM Sections */
+.llm-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.llm-section h4 {
+    font-size: 13px;
+    color: var(--accent-primary);
+    margin: 0 0 12px 0;
+}
+
+.llm-system-prompt {
+    background: var(--bg-secondary);
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 150px;
+    overflow-y: auto;
+    margin: 0;
+    border-left: 3px solid var(--accent-secondary);
+}
+
+.llm-messages-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.llm-message {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 12px;
+    border-left: 3px solid var(--border-color);
+}
+
+.llm-msg-system {
+    border-left-color: var(--accent-secondary);
+}
+
+.llm-msg-user {
+    border-left-color: var(--accent-primary);
+}
+
+.llm-msg-assistant {
+    border-left-color: #10b981;
+}
+
+.llm-message-header {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.llm-message-icon {
+    font-size: 14px;
+}
+
+.llm-message-role {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.llm-msg-system .llm-message-role {
+    color: var(--accent-secondary);
+}
+
+.llm-msg-user .llm-message-role {
+    color: var(--accent-primary);
+}
+
+.llm-msg-assistant .llm-message-role {
+    color: #10b981;
+}
+
+.llm-message-content {
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.llm-response {
+    background: var(--bg-secondary);
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+    margin: 0;
+    border-left: 3px solid #10b981;
+}
+
+.llm-context {
+    background: var(--bg-secondary);
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+    max-height: 150px;
+    overflow-y: auto;
+    margin: 0;
+}
+
+.llm-error-section {
+    border-color: var(--accent-error);
+}
+
+.llm-error {
+    color: var(--accent-error);
+    font-size: 12px;
+}
+
+.llm-context-info {
+    background: var(--bg-secondary);
+}
+
+.llm-context-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.llm-context-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.llm-context-item .label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.llm-context-item .value {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: 'Monaco', 'Consolas', monospace;
+    word-break: break-all;
+}
+
+/* =============================================================================
+   Waterfall Timeline
+   ============================================================================= */
+
+.waterfall-timeline {
+    padding: 16px;
+}
+
+.waterfall-timeline h4 {
+    font-size: 14px;
+    color: var(--accent-primary);
+    margin: 0 0 16px 0;
+}
+
+.timeline-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.step-label {
+    min-width: 180px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.timeline-bar-container {
+    flex: 1;
+    height: 24px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+}
+
+.timeline-bar {
+    position: absolute;
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+    border-radius: 4px;
+    min-width: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 8px;
+}
+
+.step-duration {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* Different colors for different step types */
+.timeline-bar.meta {
+    background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+}
+
+.timeline-bar.instant {
+    background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.timeline-bar.action {
+    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.timeline-bar.interaction {
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
+
+.timeline-bar.memory {
+    background: linear-gradient(90deg, #ec4899, #f472b6);
+}
+
+.timeline-bar.llm {
+    background: linear-gradient(90deg, #6366f1, #818cf8);
+}
+
+.timeline-bar.tts {
+    background: linear-gradient(90deg, #14b8a6, #2dd4bf);
+}
+
+.timeline-bar.stt {
+    background: linear-gradient(90deg, #0891b2, #22d3ee);
+}

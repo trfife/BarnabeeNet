@@ -943,6 +943,8 @@ class HomeAssistantClient:
 
     async def _handle_state_change(self, data: dict[str, Any]) -> None:
         """Process a state_changed event from Home Assistant."""
+        from barnabeenet.services.activity_log import ActivityType, log_activity
+
         entity_id = data.get("entity_id", "")
         old_state = data.get("old_state") or {}
         new_state = data.get("new_state") or {}
@@ -981,8 +983,48 @@ class HomeAssistantClient:
             except Exception as e:
                 logger.warning("State change callback error: %s", e)
 
-        # Log significant changes (not sensor updates every second)
+        # Log significant changes to activity log (not sensor updates every second)
         if old_value != new_value and new_value not in (None, "unavailable"):
             domain = entity_id.split(".")[0] if "." in entity_id else "unknown"
-            if domain in ("light", "switch", "climate", "lock", "cover", "media_player"):
+
+            # Only log state changes for user-relevant domains
+            if domain in (
+                "light",
+                "switch",
+                "climate",
+                "lock",
+                "cover",
+                "media_player",
+                "binary_sensor",
+                "alarm_control_panel",
+                "fan",
+                "vacuum",
+            ):
+                friendly_name = new_state.get("attributes", {}).get("friendly_name", entity_id)
+
+                domain_icons = {
+                    "light": "💡",
+                    "switch": "🔌",
+                    "sensor": "📊",
+                    "binary_sensor": "🔔",
+                    "climate": "🌡️",
+                    "lock": "🔒",
+                    "cover": "🚪",
+                    "media_player": "🎵",
+                    "fan": "🌀",
+                    "vacuum": "🧹",
+                    "alarm_control_panel": "🚨",
+                }
+                icon = domain_icons.get(domain, "🔄")
+
+                await log_activity(
+                    type=ActivityType.HA_STATE_CHANGE,
+                    source="homeassistant",
+                    title=f"{icon} {friendly_name}: {old_value} → {new_value}",
+                    entity_id=entity_id,
+                    domain=domain,
+                    old_state=old_value,
+                    new_state=new_value,
+                )
+
                 logger.info("State change: %s: %s → %s", entity_id, old_value, new_value)
