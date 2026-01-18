@@ -433,6 +433,34 @@ class SmartEntityResolver:
                                 if entity not in result.entities:
                                     result.entities.append(entity)
 
+        # Helper to check if a term appears as a whole word or phrase in text
+        def term_matches_in_text(term: str, text: str) -> bool:
+            """Check if term appears as a whole word/phrase in text.
+
+            Prevents false positives like "house" matching "greenhouse".
+            Uses word boundaries: start/end of string, spaces, underscores, hyphens.
+            """
+            import re
+
+            term_lower = term.lower()
+            text_lower = text.lower()
+            # Escape any regex special characters in the term
+            escaped_term = re.escape(term_lower)
+            # Match term with word boundaries (space, underscore, hyphen, or string boundary)
+            pattern = rf"(?:^|[\s_\-])({escaped_term})(?:$|[\s_\-])"
+            return bool(re.search(pattern, text_lower))
+
+        for dom in all_domains:
+            if target_area_ids:
+                # First try: Get entities by area_id
+                for area_id in target_area_ids:
+                    entities = self._ha.entities.get_by_area(area_id)
+                    for entity in entities:
+                        if entity.domain == dom:
+                            if entity_matches_device_type(entity, device_type, dom):
+                                if entity not in result.entities:
+                                    result.entities.append(entity)
+
                 # If no entities found by area_id, fall back to name matching
                 # Many entities have area in their name but area_id not set
                 if not result.entities and name_search_terms:
@@ -443,9 +471,11 @@ class SmartEntityResolver:
                             continue
                         name_lower = entity.friendly_name.lower()
                         id_lower = entity.entity_id.lower()
-                        # Check if any area name appears in name or id
+                        # Check if any area name appears in name or id as a whole word
                         for term in name_search_terms:
-                            if term.lower() in name_lower or term.lower() in id_lower:
+                            if term_matches_in_text(term, name_lower) or term_matches_in_text(
+                                term, id_lower
+                            ):
                                 if entity not in result.entities:
                                     result.entities.append(entity)
                                 break  # Found a match, no need to check other terms
