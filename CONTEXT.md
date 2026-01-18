@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after Pipeline Signal Dashboard)
+2026-01-18 (after Activity-Based LLM Configuration)
 
 ## Current Phase
 **Phase 1: Core Services** - DASHBOARD OBSERVABILITY COMPLETE
@@ -57,6 +57,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Web Dashboard UI** - SkyrimNet-style dark theme dashboard at http://192.168.86.51:8000/
 - [x] **Pipeline Signal Logging** - Full request tracing with PipelineLogger, SignalType enum (25+ types), RequestTrace model
 - [x] **Dashboard Trace Visualization** - Request traces list, expandable trace details showing complete data flow (input → classify → agent → response)
+- [x] **Activity-Based LLM Configuration** - Granular model selection per activity (16+ activities like meta.classify_intent, interaction.respond, memory.generate). Configurable via YAML (config/llm.yaml), environment variables (LLM_ACTIVITY_*), or defaults. Different models for classification vs conversation vs memory tasks.
 
 ### In Progress
 - [ ] End-to-end voice testing
@@ -126,6 +127,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-01-18 | Activity-based LLM config | Granular control: fast/cheap models for classification, quality models for conversation |
 | 2026-01-17 | OpenRouter for LLM API | Multi-model support, good pricing, reliable |
 | 2026-01-17 | Multi-agent model config | Different models per agent type (SkyrimNet pattern) |
 | 2026-01-17 | Signal logging to Redis | Full observability for dashboard request inspector |

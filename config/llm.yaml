@@ -56,14 +56,143 @@ agents:
     max_tokens: 800
     description: "Memory generation and summarization"
 
-# Model pricing reference (USD per 1M tokens)
-# Used for cost estimation in dashboard
-pricing:
-  "anthropic/claude-3.5-sonnet":
-    input: 3.0
-    output: 15.0
-  "anthropic/claude-3-haiku":
-    input: 0.25
+# =============================================================================
+# Activity-Level Configuration (NEW - granular control)
+# =============================================================================
+# Each agent performs multiple LLM activities. You can configure each
+# activity independently for optimal speed/cost/quality tradeoffs.
+#
+# Priority values: speed, cost, quality, accuracy, balanced
+# Provider override: Force a specific provider (openrouter, openai, anthropic, etc.)
+
+activities:
+  # ---------------------------------------------------------------------------
+  # MetaAgent Activities (run on EVERY request - optimize for speed)
+  # ---------------------------------------------------------------------------
+  meta.classify_intent:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.2
+    max_tokens: 150
+    priority: speed
+    description: "Intent classification (every request)"
+
+  meta.evaluate_context:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.3
+    max_tokens: 100
+    priority: speed
+    description: "Context and mood evaluation"
+
+  meta.generate_queries:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.4
+    max_tokens: 200
+    priority: speed
+    description: "Generate memory search queries"
+
+  # ---------------------------------------------------------------------------
+  # ActionAgent Activities (accuracy matters for device control)
+  # ---------------------------------------------------------------------------
+  action.parse_intent:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.2
+    max_tokens: 300
+    priority: accuracy
+    description: "Parse device control intent"
+
+  action.resolve_entities:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.1
+    max_tokens: 200
+    priority: accuracy
+    description: "Resolve entity names to HA IDs"
+
+  action.generate_confirm:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.5
+    max_tokens: 100
+    priority: speed
+    description: "Generate action confirmations"
+
+  action.generate_error:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.5
+    max_tokens: 150
+    priority: speed
+    description: "Generate helpful error messages"
+
+  # ---------------------------------------------------------------------------
+  # InteractionAgent Activities (QUALITY matters - this is the personality)
+  # ---------------------------------------------------------------------------
+  interaction.respond:
+    model: "anthropic/claude-3.5-sonnet"
+    temperature: 0.7
+    max_tokens: 1500
+    priority: quality
+    description: "Main conversational responses"
+
+  interaction.followup:
+    model: "anthropic/claude-3.5-sonnet"
+    temperature: 0.7
+    max_tokens: 1000
+    priority: quality
+    description: "Follow-up in conversation"
+
+  interaction.empathy:
+    model: "anthropic/claude-3.5-sonnet"
+    temperature: 0.8
+    max_tokens: 800
+    priority: quality
+    description: "Empathetic/emotional responses"
+
+  interaction.factual:
+    model: "openai/gpt-4o"
+    temperature: 0.3
+    max_tokens: 1000
+    priority: accuracy
+    description: "Factual question answering"
+
+  # ---------------------------------------------------------------------------
+  # MemoryAgent Activities (good summarization needed)
+  # ---------------------------------------------------------------------------
+  memory.generate:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.3
+    max_tokens: 500
+    priority: quality
+    description: "Generate memories from events"
+
+  memory.extract_facts:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.2
+    max_tokens: 400
+    priority: accuracy
+    description: "Extract facts from conversation"
+
+  memory.summarize:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.3
+    max_tokens: 300
+    priority: quality
+    description: "Summarize for memory storage"
+
+  memory.rank:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.2
+    max_tokens: 100
+    priority: speed
+    description: "Rank memory relevance"
+
+  # ---------------------------------------------------------------------------
+  # InstantAgent Activities (usually no LLM, this is fallback)
+  # ---------------------------------------------------------------------------
+  instant.fallback:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.5
+    max_tokens: 200
+    priority: speed
+    description: "Fallback for instant patterns"
+
     output: 1.25
   "openai/gpt-4o":
     input: 2.5

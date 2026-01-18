@@ -197,6 +197,8 @@ class OpenRouterClient:
         messages: list[ChatMessage] | list[dict[str, str]],
         agent_type: str = "interaction",
         *,
+        # Activity-based configuration (preferred over agent_type)
+        activity: str | None = None,
         # Context for signal logging
         conversation_id: str | None = None,
         trace_id: str | None = None,
@@ -214,7 +216,8 @@ class OpenRouterClient:
 
         Args:
             messages: List of chat messages
-            agent_type: Type of agent making request (meta, instant, action, interaction, memory)
+            agent_type: Type of agent making request (legacy, use activity instead)
+            activity: Specific LLM activity (e.g., "meta.classify_intent", "interaction.respond")
             conversation_id: ID linking related requests
             trace_id: ID for request tracing
             user_input: Original user input for logging
@@ -232,10 +235,26 @@ class OpenRouterClient:
         if self._client is None:
             await self.init()
 
-        config = self._get_model_config(agent_type)
-        actual_model = model or config.model
-        actual_temp = temperature if temperature is not None else config.temperature
-        actual_max_tokens = max_tokens or config.max_tokens
+        # Get config: activity-based (preferred) or agent-based (legacy)
+        if activity:
+            from barnabeenet.services.llm.activities import get_activity_config
+
+            activity_config = get_activity_config(activity)
+            actual_model = model or activity_config.model
+            actual_temp = temperature if temperature is not None else activity_config.temperature
+            actual_max_tokens = max_tokens or activity_config.max_tokens
+            config_top_p = activity_config.top_p
+            config_freq_penalty = activity_config.frequency_penalty
+            config_pres_penalty = activity_config.presence_penalty
+        else:
+            # Legacy agent-type based config
+            config = self._get_model_config(agent_type)
+            actual_model = model or config.model
+            actual_temp = temperature if temperature is not None else config.temperature
+            actual_max_tokens = max_tokens or config.max_tokens
+            config_top_p = config.top_p
+            config_freq_penalty = config.frequency_penalty
+            config_pres_penalty = config.presence_penalty
 
         # Normalize messages to dicts
         msg_dicts = []
@@ -249,9 +268,9 @@ class OpenRouterClient:
                 extracted_system = msg_dict["content"]
             msg_dicts.append(msg_dict)
 
-        # Create signal for logging
+        # Create signal for logging (include activity if specified)
         signal = LLMSignal(
-            agent_type=agent_type,
+            agent_type=activity or agent_type,  # Use activity for more granular tracking
             model=actual_model,
             temperature=actual_temp,
             max_tokens=actual_max_tokens,
@@ -273,12 +292,12 @@ class OpenRouterClient:
             "temperature": actual_temp,
             "max_tokens": actual_max_tokens,
         }
-        if config.top_p is not None:
-            payload["top_p"] = config.top_p
-        if config.frequency_penalty is not None:
-            payload["frequency_penalty"] = config.frequency_penalty
-        if config.presence_penalty is not None:
-            payload["presence_penalty"] = config.presence_penalty
+        if config_top_p is not None:
+            payload["top_p"] = config_top_p
+        if config_freq_penalty is not None:
+            payload["frequency_penalty"] = config_freq_penalty
+        if config_pres_penalty is not None:
+            payload["presence_penalty"] = config_pres_penalty
 
         start_time = time.perf_counter()
 
