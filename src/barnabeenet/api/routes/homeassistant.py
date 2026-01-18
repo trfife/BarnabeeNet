@@ -1034,6 +1034,9 @@ async def save_ha_config(
         # Try to connect with new config
         client = await get_ha_client_with_request(request)
         if client and client.connected:
+            # Start event subscription for the new client
+            if not client.is_subscribed:
+                await client.subscribe_to_events()
             ha_config = await client.get_config()
             return HAConfigResponse(
                 success=True,

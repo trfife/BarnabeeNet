@@ -42,6 +42,12 @@ from barnabeenet.services.homeassistant.models import (
 logger = logging.getLogger(__name__)
 
 
+class HAAuthenticationError(Exception):
+    """Raised when Home Assistant authentication fails (invalid token)."""
+
+    pass
+
+
 @dataclass
 class ServiceCallResult:
     """Result of a Home Assistant service call."""
@@ -871,17 +877,48 @@ class HomeAssistantClient:
             self._ws_connected = False
             logger.info("Stopped Home Assistant event subscription")
 
+    def update_token(self, new_token: str) -> None:
+        """Update the access token (used when token is refreshed via dashboard)."""
+        self._token = new_token
+        logger.info("HA access token updated")
+
+    async def reconnect_events(self) -> None:
+        """Reconnect event subscription (call after updating token)."""
+        await self.unsubscribe_from_events()
+        await self.subscribe_to_events()
+
     async def _event_subscription_loop(self) -> None:
         """Background task that maintains WebSocket connection for events."""
         reconnect_delay = 5  # seconds between reconnection attempts
         max_reconnect_delay = 60
+        auth_failures = 0
+        max_auth_failures = 3  # Stop after this many consecutive auth failures
 
         while True:
             try:
                 await self._run_event_subscription()
+                # Reset auth failures on successful connection
+                auth_failures = 0
+                reconnect_delay = 5
             except asyncio.CancelledError:
                 logger.info("Event subscription cancelled")
                 break
+            except HAAuthenticationError as e:
+                auth_failures += 1
+                logger.error(
+                    "HA WebSocket auth failed (%d/%d): %s - token may be invalid or expired",
+                    auth_failures,
+                    max_auth_failures,
+                    e,
+                )
+                self._ws_connected = False
+                if auth_failures >= max_auth_failures:
+                    logger.error(
+                        "HA WebSocket auth failed %d times - stopping reconnection. "
+                        "Please update the HA token in Configuration.",
+                        auth_failures,
+                    )
+                    break
             except Exception as e:
                 logger.error("Event subscription error: %s", e)
                 self._ws_connected = False
@@ -910,6 +947,8 @@ class HomeAssistantClient:
 
             # Step 3: Receive auth result
             msg = json.loads(await ws.recv())
+            if msg.get("type") == "auth_invalid":
+                raise HAAuthenticationError(msg.get("message", "Invalid access token"))
             if msg.get("type") != "auth_ok":
                 raise RuntimeError(f"Auth failed: {msg}")
 
