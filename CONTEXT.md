@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (Model Health Check + AI Auto-Selection + Multi-Provider Support!)
+2026-01-18 (Activity Logging System + Agent Chain Display)
 
 ## Current Phase
-**Phase 1: Core Services** - FULL PIPELINE WORKING + DASHBOARD ENHANCEMENT
+**Phase 1: Core Services** - FULL PIPELINE WORKING + COMPREHENSIVE LOGGING
 
 ## Development Workflow
 
@@ -85,6 +85,9 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Model Health Check** - API endpoint `/api/v1/config/models/health-check/{model_id}` tests if a model actually works (makes minimal test call). Batch endpoint `/api/v1/config/models/health-check-free` checks top free models. Results cached for 10 minutes. Health status endpoint `/api/v1/config/models/health-status` returns all cached results. Dashboard button "🩺 Health Check" shows working vs failed models with latency. Helps identify broken models in OpenRouter's list.
 - [x] **AI Model Auto-Selection** - AI-powered optimal model selection for all activities. Endpoint `/api/v1/config/activities/auto-select` uses AI to analyze each activity's priority (speed/accuracy/quality/balanced) and description, then recommends best available free model. `/api/v1/config/activities/auto-select/apply` applies recommendations to Redis. Dashboard button "🤖 Auto-Select" triggers AI selection with confirmation. Uses qwen/qwen3-coder:free for free-only mode.
 - [x] **Enhanced Model Health & Multi-Provider** - Models failing health check are hidden from dropdowns by default. Model list fetches from ALL configured providers (not just OpenRouter). Provider badge shows which system each model comes from (OpenRouter, OpenAI, Anthropic, etc.). Hourly background health check runs automatically. Health status API shows next scheduled check time. Working models sorted to top of dropdown. Verified working count shown in model summary.
+- [x] **Mode-Aware Auto-Select** - Auto-select respects testing/production mode. Uses free_only=True for testing mode. Per-mode persistence: auto-select choices stored separately for testing and production modes. Toggling mode restores previously saved auto-selections.
+- [x] **Comprehensive Activity Logging System** - New ActivityLogger service (`/api/v1/activity/*`) with 30+ ActivityType enum values (user.input, meta.classify, action.execute, interaction.respond, ha.state_change, llm.request, etc.). Activity and ConversationTrace models track full agent decision chains. WebSocket integration pushes activities to dashboard in real-time. Orchestrator logs classification, memory retrieval, and agent routing steps. HA client logs service calls and toggle actions.
+- [x] **Agent Chain Display in Chat** - After each chat response, fetches conversation trace and displays collapsible "Agent Chain" showing step-by-step agent decisions. Shows agent icons (🧠 meta, ⚡ instant, 🎯 action, 💬 interaction, 📝 memory), actions, summaries, and durations. Expandable/collapsible via click. CSS styled to match dark theme.
 
 ### In Progress
 - [ ] Dashboard Phase 6: Voice input in Chat tab (microphone)
