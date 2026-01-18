@@ -395,7 +395,7 @@ async def get_overview(request: Request) -> HAOverview:
 
     # Get domain counts from entity registry
     domain_counts: dict[str, int] = {}
-    for entity in client.entities:
+    for entity in client.entities.all():
         domain_counts[entity.domain] = domain_counts.get(entity.domain, 0) + 1
 
     return HAOverview(
@@ -451,7 +451,7 @@ async def get_entities(
         return EntitiesResponse(entities=[], total=0, domains=[])
 
     # Get all entities
-    all_entities = list(client.entities)
+    all_entities = list(client.entities.all())
 
     # Apply filters
     filtered = all_entities
@@ -625,7 +625,7 @@ async def get_areas() -> AreasResponse:
         if device.area_id:
             device_counts[device.area_id] = device_counts.get(device.area_id, 0) + 1
 
-    for entity in client.entities:
+    for entity in client.entities.all():
         if entity.area_id:
             entity_counts[entity.area_id] = entity_counts.get(entity.area_id, 0) + 1
 
