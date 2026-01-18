@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
+from barnabeenet.services.activity_log import Activity, get_activity_logger
 from barnabeenet.services.llm.signals import get_signal_logger
 
 if TYPE_CHECKING:
@@ -378,11 +379,44 @@ class DashboardConnectionManager:
     def __init__(self) -> None:
         self._connections: list[WebSocket] = []
         self._heartbeat_interval = 30.0
+        self._subscribed = False
+
+    def _subscribe_to_activities(self) -> None:
+        """Subscribe to activity logger updates."""
+        if self._subscribed:
+            return
+        try:
+            activity_logger = get_activity_logger()
+            activity_logger.subscribe(self._on_activity)
+            self._subscribed = True
+            logger.info("DashboardManager subscribed to activity logger")
+        except Exception as e:
+            logger.warning(f"Failed to subscribe to activity logger: {e}")
+
+    async def _on_activity(self, activity: Activity) -> None:
+        """Handle incoming activity from the logger."""
+        if not self._connections:
+            return
+        await self.broadcast(
+            "activity",
+            {
+                "id": activity.id,
+                "type": activity.type.value,
+                "level": activity.level.value,
+                "source": activity.source,
+                "title": activity.title,
+                "detail": activity.detail,
+                "timestamp": activity.timestamp.isoformat(),
+                "trace_id": activity.trace_id,
+                "duration_ms": activity.duration_ms,
+            },
+        )
 
     async def connect(self, websocket: WebSocket) -> None:
         """Accept a new dashboard WebSocket connection."""
         await websocket.accept()
         self._connections.append(websocket)
+        self._subscribe_to_activities()
         logger.info(
             "Dashboard WebSocket connected. Total: %d",
             len(self._connections),

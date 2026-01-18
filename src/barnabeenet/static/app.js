@@ -3335,7 +3335,33 @@ function connectDashboardWebSocket() {
                 const msg = JSON.parse(event.data);
 
                 if (msg.type === 'activity') {
-                    addLogEntry(msg.data);
+                    // Add to logs page
+                    addLogEntry({
+                        timestamp: msg.data.timestamp,
+                        level: msg.data.level,
+                        component: msg.data.source,
+                        message: msg.data.title + (msg.data.detail ? ': ' + msg.data.detail : '')
+                    });
+
+                    // Also add to main activity feed
+                    addActivityItem({
+                        type: msg.data.type,
+                        message: msg.data.title,
+                        timestamp: msg.data.timestamp,
+                        latency: msg.data.duration_ms
+                    });
+
+                    // Track trace if present
+                    if (msg.data.trace_id) {
+                        if (!activeTraces.has(msg.data.trace_id)) {
+                            activeTraces.set(msg.data.trace_id, {
+                                trace_id: msg.data.trace_id,
+                                signals: [],
+                                started_at: msg.data.timestamp
+                            });
+                        }
+                        activeTraces.get(msg.data.trace_id).signals.push(msg.data);
+                    }
                 } else if (msg.type === 'metrics') {
                     // Update metrics on the fly
                     updateMetricsFromWs(msg.data);
