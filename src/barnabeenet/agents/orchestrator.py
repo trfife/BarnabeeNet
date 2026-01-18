@@ -564,7 +564,16 @@ class AgentOrchestrator:
                     )
 
         elif intent == IntentCategory.MEMORY:
-            # Direct memory operation
+            # Direct memory operation - determine operation from sub_category
+            sub_category = ctx.classification.sub_category if ctx.classification else None
+            if sub_category == "store":
+                operation = MemoryOperation.STORE
+            elif sub_category == "forget":
+                operation = MemoryOperation.FORGET
+            else:
+                operation = MemoryOperation.RETRIEVE
+
+            agent_context["operation"] = operation
             ctx.agent_response = await self._memory_agent.handle_input(ctx.text, agent_context)
             agent_name = "memory"
 
