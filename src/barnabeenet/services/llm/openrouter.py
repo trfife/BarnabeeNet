@@ -9,12 +9,15 @@ from __future__ import annotations
 import logging
 import time
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from pydantic import BaseModel
 
 from barnabeenet.services.llm.signals import LLMSignal, get_signal_logger
+
+if TYPE_CHECKING:
+    from barnabeenet.config import LLMSettings
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +55,8 @@ class AgentModelConfig(BaseModel):
     - action: Medium tier for device control decisions
     - interaction: Quality model for complex conversations
     - memory: Good summarization for memory generation
+
+    Note: These are fallback defaults. Use from_settings() to load from config.
     """
 
     meta: ModelConfig = ModelConfig(
@@ -79,6 +84,37 @@ class AgentModelConfig(BaseModel):
         temperature=0.3,
         max_tokens=800,
     )
+
+    @classmethod
+    def from_settings(cls, settings: LLMSettings) -> AgentModelConfig:
+        """Create model config from application settings."""
+        return cls(
+            meta=ModelConfig(
+                model=settings.meta_model,
+                temperature=settings.meta_temperature,
+                max_tokens=settings.meta_max_tokens,
+            ),
+            instant=ModelConfig(
+                model=settings.instant_model,
+                temperature=settings.instant_temperature,
+                max_tokens=settings.instant_max_tokens,
+            ),
+            action=ModelConfig(
+                model=settings.action_model,
+                temperature=settings.action_temperature,
+                max_tokens=settings.action_max_tokens,
+            ),
+            interaction=ModelConfig(
+                model=settings.interaction_model,
+                temperature=settings.interaction_temperature,
+                max_tokens=settings.interaction_max_tokens,
+            ),
+            memory=ModelConfig(
+                model=settings.memory_model,
+                temperature=settings.memory_temperature,
+                max_tokens=settings.memory_max_tokens,
+            ),
+        )
 
 
 class ChatMessage(BaseModel):

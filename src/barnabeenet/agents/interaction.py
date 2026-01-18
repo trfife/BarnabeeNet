@@ -134,13 +134,21 @@ class InteractionAgent(Agent):
             return
 
         if self._llm_client is None:
-            import os
+            from barnabeenet.config import get_settings
+            from barnabeenet.services.llm.openrouter import AgentModelConfig
 
-            api_key = os.environ.get("LLM_OPENROUTER_API_KEY")
+            settings = get_settings()
+            api_key = settings.llm.openrouter_api_key
             if api_key:
-                self._llm_client = OpenRouterClient(api_key=api_key)
+                model_config = AgentModelConfig.from_settings(settings.llm)
+                self._llm_client = OpenRouterClient(
+                    api_key=api_key,
+                    model_config=model_config,
+                    site_url=settings.llm.openrouter_site_url,
+                    site_name=settings.llm.openrouter_site_name,
+                )
                 await self._llm_client.init()
-                logger.info("InteractionAgent created LLM client from environment")
+                logger.info("InteractionAgent created LLM client from settings")
             else:
                 logger.warning(
                     "No LLM client provided and LLM_OPENROUTER_API_KEY not set. "
