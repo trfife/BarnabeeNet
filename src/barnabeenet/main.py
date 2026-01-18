@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from barnabeenet import __version__
 from barnabeenet.config import get_settings
@@ -289,6 +289,24 @@ def create_app() -> FastAPI:
 def _register_routes(app: FastAPI) -> None:
     """Register API routes."""
     from barnabeenet.api.routes import dashboard, health, metrics, voice, websocket
+
+    # Root endpoint - redirect to docs or show info
+    @app.get("/", include_in_schema=False)
+    async def root():
+        """Root endpoint - shows API info."""
+        return {
+            "name": "BarnabeeNet",
+            "version": __version__,
+            "description": "Privacy-first, multi-agent AI smart home assistant",
+            "endpoints": {
+                "health": "/health",
+                "docs": "/docs",
+                "api": "/api/v1",
+                "metrics": "/metrics",
+                "dashboard_status": "/api/v1/dashboard/status",
+                "websocket": "/api/v1/ws/activity",
+            },
+        }
 
     app.include_router(health.router, tags=["Health"])
     app.include_router(voice.router, prefix="/api/v1", tags=["Voice"])
