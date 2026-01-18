@@ -1474,7 +1474,84 @@ function toggleActivityGroup(agent) {
     }
 }
 
+// =============================================================================
+// Mode Toggle (Testing vs Production)
+// =============================================================================
+
+let currentMode = 'testing';
+
+async function loadCurrentMode() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/config/mode`);
+        const data = await response.json();
+        currentMode = data.mode || 'testing';
+        updateModeUI();
+    } catch (e) {
+        console.error('Failed to load mode:', e);
+    }
+}
+
+function updateModeUI() {
+    // Update buttons
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === currentMode);
+    });
+
+    // Update status display
+    const modeDisplay = document.getElementById('current-mode-display');
+    if (modeDisplay) {
+        modeDisplay.textContent = currentMode === 'testing' ? 'Testing' : 'Production';
+        modeDisplay.classList.toggle('production', currentMode === 'production');
+    }
+}
+
+async function switchMode(mode) {
+    if (mode === currentMode) return;
+
+    const container = document.querySelector('.activities-list');
+    if (container) {
+        container.classList.add('mode-switching');
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/config/mode`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to switch mode');
+        }
+
+        const data = await response.json();
+        currentMode = data.mode;
+        updateModeUI();
+
+        // Reload activities to show new models
+        await loadActivities();
+
+        console.log(`Switched to ${mode} mode, updated ${data.updated_count} activities`);
+    } catch (e) {
+        console.error('Failed to switch mode:', e);
+        alert(`Failed to switch mode: ${e.message}`);
+    } finally {
+        if (container) {
+            container.classList.remove('mode-switching');
+        }
+    }
+}
+
+function initModeToggle() {
+    document.getElementById('mode-testing')?.addEventListener('click', () => switchMode('testing'));
+    document.getElementById('mode-production')?.addEventListener('click', () => switchMode('production'));
+}
+
+
 function initModelSelection() {
+    // Initialize mode toggle
+    initModeToggle();
+
     // Free models filter
     document.getElementById('show-free-only')?.addEventListener('change', (e) => {
         showFreeOnly = e.target.checked;
@@ -1500,6 +1577,7 @@ function initModelSelection() {
     document.querySelectorAll('.config-nav li').forEach(item => {
         item.addEventListener('click', () => {
             if (item.dataset.config === 'models') {
+                loadCurrentMode();
                 loadModels().then(() => loadActivities());
             }
         });

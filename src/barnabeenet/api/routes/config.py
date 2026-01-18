@@ -914,3 +914,131 @@ async def reset_activity(request: Request, activity_name: str) -> dict[str, Any]
         "activity": activity_name,
         "reset_to": default_config,
     }
+
+
+# =============================================================================
+# Mode Presets (Testing vs Production)
+# =============================================================================
+
+# Best free models for testing (as of Jan 2026)
+TESTING_MODE_MODELS: dict[str, str] = {
+    # MetaAgent - needs to be fast, free Gemini is great
+    "meta.classify_intent": "google/gemini-2.0-flash-exp:free",
+    "meta.evaluate_context": "google/gemini-2.0-flash-exp:free",
+    "meta.generate_queries": "google/gemini-2.0-flash-exp:free",
+    # ActionAgent - needs accuracy, Gemini handles this well
+    "action.parse_intent": "google/gemini-2.0-flash-exp:free",
+    "action.resolve_entities": "google/gemini-2.0-flash-exp:free",
+    "action.generate_confirm": "google/gemini-2.0-flash-exp:free",
+    "action.generate_error": "google/gemini-2.0-flash-exp:free",
+    # InteractionAgent - quality matters, Gemini 2.0 Flash is good
+    "interaction.respond": "google/gemini-2.0-flash-exp:free",
+    "interaction.followup": "google/gemini-2.0-flash-exp:free",
+    "interaction.empathy": "google/gemini-2.0-flash-exp:free",
+    "interaction.factual": "google/gemini-2.0-flash-exp:free",
+    # MemoryAgent - summarization, Gemini handles well
+    "memory.generate": "google/gemini-2.0-flash-exp:free",
+    "memory.extract_facts": "google/gemini-2.0-flash-exp:free",
+    "memory.summarize": "google/gemini-2.0-flash-exp:free",
+    "memory.rank": "google/gemini-2.0-flash-exp:free",
+    # InstantAgent fallback
+    "instant.fallback": "google/gemini-2.0-flash-exp:free",
+}
+
+# Recommended production models (quality + cost balance)
+PRODUCTION_MODE_MODELS: dict[str, str] = {
+    # MetaAgent - fast/cheap for every request
+    "meta.classify_intent": "deepseek/deepseek-chat",
+    "meta.evaluate_context": "deepseek/deepseek-chat",
+    "meta.generate_queries": "deepseek/deepseek-chat",
+    # ActionAgent - accuracy for device control
+    "action.parse_intent": "openai/gpt-4o-mini",
+    "action.resolve_entities": "openai/gpt-4o-mini",
+    "action.generate_confirm": "deepseek/deepseek-chat",
+    "action.generate_error": "deepseek/deepseek-chat",
+    # InteractionAgent - quality for personality
+    "interaction.respond": "anthropic/claude-3.5-sonnet",
+    "interaction.followup": "anthropic/claude-3.5-sonnet",
+    "interaction.empathy": "anthropic/claude-3.5-sonnet",
+    "interaction.factual": "openai/gpt-4o",
+    # MemoryAgent - good summarization
+    "memory.generate": "openai/gpt-4o-mini",
+    "memory.extract_facts": "openai/gpt-4o-mini",
+    "memory.summarize": "openai/gpt-4o-mini",
+    "memory.rank": "deepseek/deepseek-chat",
+    # InstantAgent fallback
+    "instant.fallback": "deepseek/deepseek-chat",
+}
+
+# Redis key for current mode
+MODE_KEY = "barnabeenet:model_mode"
+
+
+class ModePreset(BaseModel):
+    """Mode preset configuration."""
+
+    mode: str  # "testing" or "production"
+
+
+class ModeResponse(BaseModel):
+    """Response after switching modes."""
+
+    mode: str
+    updated_count: int
+    models: dict[str, str]
+
+
+@router.get("/mode")
+async def get_current_mode(request: Request) -> dict[str, str]:
+    """Get the current model mode (testing or production)."""
+    redis = request.app.state.redis
+    mode = await redis.get(MODE_KEY)
+    return {"mode": mode.decode() if mode else "testing"}
+
+
+@router.post("/mode", response_model=ModeResponse)
+async def set_mode(request: Request, preset: ModePreset) -> ModeResponse:
+    """Switch all activities to testing or production models.
+
+    Testing mode: All free models (Google Gemini 2.0 Flash)
+    Production mode: Recommended quality models (Claude, GPT-4o, DeepSeek)
+    """
+    import json
+
+    from barnabeenet.services.llm.activities import get_activity_config_manager
+
+    if preset.mode not in ("testing", "production"):
+        raise HTTPException(
+            status_code=400,
+            detail="Mode must be 'testing' or 'production'",
+        )
+
+    models = TESTING_MODE_MODELS if preset.mode == "testing" else PRODUCTION_MODE_MODELS
+
+    redis = request.app.state.redis
+    manager = get_activity_config_manager()
+
+    updated = 0
+    for activity_name, model in models.items():
+        # Store in Redis
+        override = {"model": model}
+        await redis.hset(ACTIVITY_CONFIGS_KEY, activity_name, json.dumps(override))
+
+        # Update in-memory
+        try:
+            config = manager.get(activity_name)
+            config.model = model
+            updated += 1
+        except Exception:
+            pass  # Activity might not exist
+
+    # Store current mode
+    await redis.set(MODE_KEY, preset.mode)
+
+    logger.info(f"Switched to {preset.mode} mode, updated {updated} activities")
+
+    return ModeResponse(
+        mode=preset.mode,
+        updated_count=updated,
+        models=models,
+    )

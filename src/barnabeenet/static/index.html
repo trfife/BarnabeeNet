@@ -539,6 +539,24 @@
                         <h3>🧠 Model Selection</h3>
                         <p class="section-desc">Configure which models are used for each activity. Use free models during testing to save costs.</p>
 
+                        <!-- Mode Toggle -->
+                        <div class="mode-toggle-container">
+                            <div class="mode-toggle">
+                                <button class="mode-btn active" data-mode="testing" id="mode-testing">
+                                    🧪 Testing Mode
+                                    <span class="mode-desc">Free models</span>
+                                </button>
+                                <button class="mode-btn" data-mode="production" id="mode-production">
+                                    🚀 Production Mode
+                                    <span class="mode-desc">Best quality</span>
+                                </button>
+                            </div>
+                            <div class="mode-status" id="mode-status">
+                                <span class="mode-label">Current:</span>
+                                <span class="mode-value" id="current-mode-display">Testing</span>
+                            </div>
+                        </div>
+
                         <div class="models-toolbar">
                             <div class="models-filter">
                                 <label>
