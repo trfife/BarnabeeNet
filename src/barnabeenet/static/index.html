@@ -589,11 +589,11 @@
         <!-- Entities Page (Home Assistant Dashboard) -->
         <div id="page-entities" class="page">
             <div class="page-header">
-                <h1>🏠 Home Assistant</h1>
-                <p>Browse entities, devices, areas, automations, and logs</p>
+                <h1>🏠 What Barnabee Knows</h1>
+                <p>Barnabee's understanding of your Home Assistant environment</p>
             </div>
 
-            <!-- Connection Status Banner -->
+            <!-- Discovery Status Banner -->
             <div class="card ha-status-banner">
                 <div id="ha-connection-status">
                     <div class="ha-status-disconnected">
@@ -606,17 +606,74 @@
 
             <!-- HA Tab Navigation -->
             <div class="ha-tabs">
-                <button class="ha-tab-btn active" data-ha-tab="entities">💡 Entities</button>
+                <button class="ha-tab-btn active" data-ha-tab="overview">📊 Overview</button>
+                <button class="ha-tab-btn" data-ha-tab="entities">💡 Entities</button>
                 <button class="ha-tab-btn" data-ha-tab="areas">🗺️ Areas</button>
                 <button class="ha-tab-btn" data-ha-tab="devices">📱 Devices</button>
-                <button class="ha-tab-btn" data-ha-tab="automations">⚙️ Automations</button>
-                <button class="ha-tab-btn" data-ha-tab="logs">📜 Logs</button>
+                <button class="ha-tab-btn" data-ha-tab="activity">📋 Activity Log</button>
+            </div>
+
+            <!-- Overview Tab (NEW) -->
+            <div id="ha-tab-overview" class="ha-tab-content active">
+                <div class="ha-overview-grid">
+                    <!-- Discovery Status -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>🔄 Discovery Status</h3>
+                        </div>
+                        <div class="card-body" id="ha-discovery-status">
+                            <div class="discovery-stats">
+                                <div class="discovery-stat">
+                                    <span class="stat-label">Last Sync</span>
+                                    <span class="stat-value" id="ha-last-sync">Never</span>
+                                </div>
+                                <div class="discovery-stat">
+                                    <span class="stat-label">Entities Known</span>
+                                    <span class="stat-value" id="ha-entity-count">0</span>
+                                </div>
+                                <div class="discovery-stat">
+                                    <span class="stat-label">Areas Mapped</span>
+                                    <span class="stat-value" id="ha-area-count">0</span>
+                                </div>
+                                <div class="discovery-stat">
+                                    <span class="stat-label">Devices Found</span>
+                                    <span class="stat-value" id="ha-device-count">0</span>
+                                </div>
+                            </div>
+                            <button class="btn" id="ha-sync-now">🔄 Sync Now</button>
+                        </div>
+                    </div>
+
+                    <!-- Domain Breakdown -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📊 What Barnabee Can Control</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="domain-counts" id="ha-domain-counts">
+                                <p class="text-muted">Connect to Home Assistant to see domain statistics</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent HA Activity -->
+                    <div class="card full-width">
+                        <div class="card-header">
+                            <h3>📋 Recent Barnabee Actions</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="ha-recent-activity" id="ha-recent-activity">
+                                <p class="text-muted">No recent Home Assistant activity</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Entities Tab -->
-            <div id="ha-tab-entities" class="ha-tab-content active">
+            <div id="ha-tab-entities" class="ha-tab-content">
                 <div class="entities-toolbar">
-                    <input type="text" id="entity-search" class="form-control" placeholder="🔍 Search entities...">
+                    <input type="text" id="entity-search" class="form-control" placeholder="🔍 Search entities Barnabee knows about...">
                     <select id="entity-type-filter" class="filter-select">
                         <option value="">All Types</option>
                         <option value="light">Lights</option>
@@ -632,24 +689,11 @@
                     <select id="entity-area-filter" class="filter-select">
                         <option value="">All Areas</option>
                     </select>
-                    <button class="btn" id="refresh-entities">🔄 Refresh</button>
                 </div>
 
                 <div class="entities-grid" id="entities-list">
                     <div class="empty-state">
                         <p class="text-muted">Loading entities...</p>
-                    </div>
-                </div>
-
-                <!-- Domain Overview -->
-                <div class="card full-width">
-                    <div class="card-header">
-                        <h3>📊 Domains Overview</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="domain-counts" id="ha-domain-counts">
-                            <p class="text-muted">Connect to Home Assistant to see domain statistics</p>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -672,20 +716,15 @@
                 </div>
             </div>
 
-            <!-- Automations Tab -->
-            <div id="ha-tab-automations" class="ha-tab-content">
-                <div class="automations-list" id="ha-automations-list">
-                    <div class="empty-state">
-                        <p class="text-muted">Loading automations...</p>
-                    </div>
+            <!-- Activity Log Tab (replaces Logs/Automations) -->
+            <div id="ha-tab-activity" class="ha-tab-content">
+                <div class="ha-activity-header">
+                    <h3>Barnabee's Home Assistant Activity</h3>
+                    <p class="text-muted">All actions Barnabee has taken through Home Assistant</p>
                 </div>
-            </div>
-
-            <!-- Logs Tab -->
-            <div id="ha-tab-logs" class="ha-tab-content">
-                <div class="logs-container" id="ha-logs-list">
+                <div class="ha-activity-log" id="ha-activity-log">
                     <div class="empty-state">
-                        <p class="text-muted">Loading logs...</p>
+                        <p class="text-muted">No activity yet. Talk to Barnabee to control your home!</p>
                     </div>
                 </div>
             </div>

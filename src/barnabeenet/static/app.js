@@ -1627,8 +1627,7 @@ function initHomeAssistant() {
         link.addEventListener('click', () => {
             if (link.dataset.page === 'entities') {
                 loadHAStatus();
-                loadHAEntities();
-                loadHAAreas();
+                loadHAOverviewTab();  // Load overview tab by default
             }
         });
     });
@@ -1663,6 +1662,9 @@ function switchHATab(tab) {
 
     // Load content for tab
     switch (tab) {
+        case 'overview':
+            loadHAOverviewTab();
+            break;
         case 'entities':
             loadHAEntities();
             break;
@@ -1672,11 +1674,8 @@ function switchHATab(tab) {
         case 'devices':
             loadHADevicesTab();
             break;
-        case 'automations':
-            loadHAAutomationsTab();
-            break;
-        case 'logs':
-            loadHALogsTab();
+        case 'activity':
+            loadHAActivityTab();
             break;
     }
 }
@@ -1833,6 +1832,166 @@ async function loadHAAreas() {
     }
 }
 
+// Load Overview Tab - shows what Barnabee knows about HA
+async function loadHAOverviewTab() {
+    try {
+        const [statusRes, overviewRes] = await Promise.all([
+            fetch(`${API_BASE}/api/v1/homeassistant/status`),
+            fetch(`${API_BASE}/api/v1/homeassistant/overview`)
+        ]);
+        
+        const status = await statusRes.json();
+        const overview = await overviewRes.json();
+        
+        // Update discovery stats
+        document.getElementById('ha-last-sync').textContent = status.connected 
+            ? new Date().toLocaleTimeString() 
+            : 'Not connected';
+        document.getElementById('ha-entity-count').textContent = overview.total_entities || 0;
+        document.getElementById('ha-area-count').textContent = overview.total_areas || 0;
+        document.getElementById('ha-device-count').textContent = overview.total_devices || 0;
+        
+        // Update domain counts
+        const domainCountsEl = document.getElementById('ha-domain-counts');
+        if (overview.domains && Object.keys(overview.domains).length > 0) {
+            domainCountsEl.innerHTML = Object.entries(overview.domains)
+                .sort((a, b) => b[1] - a[1])
+                .map(([domain, count]) => `
+                    <div class="domain-count-item">
+                        <span class="domain-icon">${getDomainIcon(domain)}</span>
+                        <span class="domain-name">${getDomainName(domain)}</span>
+                        <span class="domain-count">${count}</span>
+                    </div>
+                `).join('');
+        }
+        
+        // Load recent HA activity from the main activity feed (filter for HA actions)
+        loadRecentHAActivity();
+        
+    } catch (e) {
+        console.error('Failed to load HA overview:', e);
+    }
+}
+
+// Load recent HA activity from signals
+async function loadRecentHAActivity() {
+    const container = document.getElementById('ha-recent-activity');
+    if (!container) return;
+    
+    try {
+        // Get activity from dashboard activity feed filtered for HA
+        const response = await fetch(`${API_BASE}/api/v1/dashboard/activity?limit=10`);
+        const data = await response.json();
+        
+        // Filter for HA-related activity
+        const haActivity = (data.items || []).filter(item => 
+            item.type?.includes('ha_') || 
+            item.type?.includes('homeassistant') ||
+            item.message?.toLowerCase().includes('home assistant') ||
+            item.message?.toLowerCase().includes('light') ||
+            item.message?.toLowerCase().includes('switch')
+        );
+        
+        if (haActivity.length === 0) {
+            container.innerHTML = '<p class="text-muted">No recent Home Assistant activity. Talk to Barnabee to control your home!</p>';
+            return;
+        }
+        
+        container.innerHTML = haActivity.map(item => `
+            <div class="ha-activity-item">
+                <span class="activity-time">${formatActivityTime(item.timestamp)}</span>
+                <span class="activity-message">${escapeHtml(item.message || item.type)}</span>
+            </div>
+        `).join('');
+        
+    } catch (e) {
+        console.error('Failed to load HA activity:', e);
+        container.innerHTML = '<p class="text-muted">Failed to load activity</p>';
+    }
+}
+
+// Load Activity Tab - full log of Barnabee's HA interactions
+async function loadHAActivityTab() {
+    const container = document.getElementById('ha-activity-log');
+    if (!container) return;
+    
+    container.innerHTML = '<div class="loading-spinner">Loading activity...</div>';
+    
+    try {
+        // Get activity from dashboard
+        const response = await fetch(`${API_BASE}/api/v1/dashboard/activity?limit=50`);
+        const data = await response.json();
+        
+        // Filter for HA-related activity
+        const haActivity = (data.items || []).filter(item => 
+            item.type?.includes('ha_') || 
+            item.type?.includes('homeassistant') ||
+            item.type?.includes('action') ||
+            item.message?.toLowerCase().includes('home assistant') ||
+            item.message?.toLowerCase().includes('light') ||
+            item.message?.toLowerCase().includes('switch') ||
+            item.message?.toLowerCase().includes('turn')
+        );
+        
+        if (haActivity.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p class="text-muted">No Home Assistant activity yet.</p>
+                    <p class="text-muted">Try saying "Hey Barnabee, turn on the living room lights"</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = haActivity.map(item => `
+            <div class="ha-activity-log-item ${item.type?.includes('error') ? 'error' : ''}">
+                <div class="activity-log-header">
+                    <span class="activity-type">${formatActivityType(item.type)}</span>
+                    <span class="activity-time">${formatActivityTime(item.timestamp)}</span>
+                </div>
+                <div class="activity-log-message">${escapeHtml(item.message || 'No message')}</div>
+                ${item.data ? `<div class="activity-log-data">${JSON.stringify(item.data, null, 2)}</div>` : ''}
+            </div>
+        `).join('');
+        
+    } catch (e) {
+        console.error('Failed to load HA activity log:', e);
+        container.innerHTML = '<div class="empty-state"><p class="text-muted">Failed to load activity</p></div>';
+    }
+}
+
+function formatActivityType(type) {
+    if (!type) return '🔹';
+    if (type.includes('ha_service')) return '⚡ Service Call';
+    if (type.includes('action')) return '🎯 Action';
+    if (type.includes('error')) return '❌ Error';
+    return '🔹 ' + type;
+}
+
+function formatActivityTime(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString();
+}
+
+// Sync HA data button handler
+document.getElementById('ha-sync-now')?.addEventListener('click', async () => {
+    const btn = document.getElementById('ha-sync-now');
+    btn.disabled = true;
+    btn.textContent = '⏳ Syncing...';
+    
+    try {
+        await fetch(`${API_BASE}/api/v1/homeassistant/refresh`, { method: 'POST' });
+        await loadHAOverviewTab();
+        showToast('✅ Home Assistant data synced');
+    } catch (e) {
+        showToast('❌ Sync failed', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔄 Sync Now';
+    }
+});
+
 async function loadHAAreasTab() {
     const container = document.getElementById('ha-areas-list');
     if (!container) return;
@@ -1844,32 +2003,23 @@ async function loadHAAreasTab() {
         const data = await response.json();
 
         if (data.areas.length === 0) {
-            container.innerHTML = '<div class="empty-state"><p class="text-muted">No areas defined</p></div>';
+            container.innerHTML = '<div class="empty-state"><p class="text-muted">No areas defined in Home Assistant</p></div>';
             return;
         }
 
-        container.innerHTML = data.areas.map(area => `
+        container.innerHTML = `
+            <div class="areas-description">
+                <p class="text-muted">These are the areas Barnabee knows about. Say "turn off the lights in [area name]" to control them.</p>
+            </div>
+        ` + data.areas.map(area => `
             <div class="area-card" data-area-id="${area.area_id}">
-                <div class="area-header">
-                    <div class="area-icon">${area.icon || '🏠'}</div>
-                    <div class="area-info">
-                        <div class="area-name">${escapeHtml(area.name)}</div>
-                        <div class="area-stats">
-                            <span>${area.device_count} devices</span>
-                            <span>${area.entity_count} entities</span>
-                        </div>
+                <div class="area-icon">${area.icon || '🏠'}</div>
+                <div class="area-info">
+                    <div class="area-name">${escapeHtml(area.name)}</div>
+                    <div class="area-stats">
+                        <span>📱 ${area.device_count} devices</span>
+                        <span>💡 ${area.entity_count} entities</span>
                     </div>
-                </div>
-                <div class="area-quick-actions">
-                    <button class="btn btn-small" onclick="areaLightsOn('${area.area_id}')" title="All lights on">
-                        💡 On
-                    </button>
-                    <button class="btn btn-small" onclick="areaLightsOff('${area.area_id}')" title="All lights off">
-                        🌙 Off
-                    </button>
-                    <button class="btn btn-small" onclick="showAreaEntities('${area.area_id}', '${escapeHtml(area.name)}')" title="View entities">
-                        📋 View
-                    </button>
                 </div>
             </div>
         `).join('');
@@ -2046,131 +2196,29 @@ function renderEntities(entities) {
 function renderEntityCard(entity) {
     const stateClass = getStateClass(entity);
     const icon = getDomainIcon(entity.domain);
-    const isControllable = ['light', 'switch', 'fan', 'cover', 'lock', 'input_boolean'].includes(entity.domain);
     const attrs = entity.attributes || {};
 
-    // Build control section based on domain
-    let controls = '';
-    if (isControllable) {
-        controls = `
-            <div class="entity-controls">
-                <button class="btn btn-small btn-toggle ${entity.is_on ? 'on' : 'off'}" 
-                        onclick="toggleEntity('${entity.entity_id}')">
-                    ${entity.is_on ? '🔴 Off' : '🟢 On'}
-                </button>
-        `;
-
-        // Add brightness slider for dimmable lights
-        if (entity.domain === 'light' && entity.is_on && attrs.supported_features) {
-            const brightness = attrs.brightness || 255;
-            const percent = Math.round((brightness / 255) * 100);
-            controls += `
-                <div class="brightness-control">
-                    <span class="brightness-icon">☀️</span>
-                    <input type="range" class="brightness-slider" 
-                           min="1" max="100" value="${percent}"
-                           data-entity="${entity.entity_id}"
-                           onchange="setBrightness('${entity.entity_id}', this.value)">
-                    <span class="brightness-value">${percent}%</span>
-                </div>
-            `;
-        }
-
-        // Add color temp for lights that support it
-        if (entity.domain === 'light' && entity.is_on && attrs.color_temp_kelvin) {
-            const kelvin = attrs.color_temp_kelvin;
-            const minK = attrs.min_color_temp_kelvin || 2000;
-            const maxK = attrs.max_color_temp_kelvin || 6500;
-            controls += `
-                <div class="color-temp-control">
-                    <span class="color-temp-icon" title="Color Temperature">🔆</span>
-                    <input type="range" class="color-temp-slider"
-                           min="${minK}" max="${maxK}" value="${kelvin}"
-                           data-entity="${entity.entity_id}"
-                           onchange="setColorTemp('${entity.entity_id}', this.value)">
-                    <span class="color-temp-value">${kelvin}K</span>
-                </div>
-            `;
-        }
-
-        controls += '</div>';
+    // Build info section based on domain (read-only display)
+    let extraInfo = '';
+    
+    if (entity.domain === 'light' && entity.is_on && attrs.brightness) {
+        const percent = Math.round((attrs.brightness / 255) * 100);
+        extraInfo = `<div class="entity-extra">Brightness: ${percent}%</div>`;
     }
-
-    // Climate controls
+    
     if (entity.domain === 'climate') {
         const currentTemp = attrs.current_temperature || '--';
         const targetTemp = attrs.temperature || '--';
-        const hvacMode = entity.state || 'off';
-        controls = `
-            <div class="entity-controls climate-controls">
-                <div class="climate-display">
-                    <div class="climate-current">
-                        <span class="temp-value">${currentTemp}°</span>
-                        <span class="temp-label">Current</span>
-                    </div>
-                    <div class="climate-target">
-                        <button class="btn btn-tiny" onclick="adjustClimate('${entity.entity_id}', -0.5)">−</button>
-                        <span class="temp-value">${targetTemp}°</span>
-                        <button class="btn btn-tiny" onclick="adjustClimate('${entity.entity_id}', 0.5)">+</button>
-                        <span class="temp-label">Target</span>
-                    </div>
-                </div>
-                <div class="climate-modes">
-                    <select class="hvac-mode-select" onchange="setHvacMode('${entity.entity_id}', this.value)">
-                        ${(attrs.hvac_modes || ['off', 'heat', 'cool', 'auto']).map(mode => 
-                            `<option value="${mode}" ${mode === hvacMode ? 'selected' : ''}>${mode}</option>`
-                        ).join('')}
-                    </select>
-                </div>
-            </div>
-        `;
+        extraInfo = `<div class="entity-extra">Current: ${currentTemp}° | Target: ${targetTemp}°</div>`;
+    }
+    
+    if (entity.domain === 'sensor') {
+        const unit = attrs.unit_of_measurement || '';
+        extraInfo = `<div class="entity-extra">${entity.state}${unit}</div>`;
     }
 
-    // Cover controls (blinds, garage doors)
-    if (entity.domain === 'cover') {
-        const position = attrs.current_position;
-        controls = `
-            <div class="entity-controls cover-controls">
-                <div class="cover-buttons">
-                    <button class="btn btn-small" onclick="callService('cover.open_cover', '${entity.entity_id}')" title="Open">▲</button>
-                    <button class="btn btn-small" onclick="callService('cover.stop_cover', '${entity.entity_id}')" title="Stop">⬛</button>
-                    <button class="btn btn-small" onclick="callService('cover.close_cover', '${entity.entity_id}')" title="Close">▼</button>
-                </div>
-                ${position !== undefined ? `
-                    <div class="cover-position">
-                        <input type="range" class="cover-slider" min="0" max="100" value="${position}"
-                               onchange="setCoverPosition('${entity.entity_id}', this.value)">
-                        <span class="cover-value">${position}%</span>
-                    </div>
-                ` : ''}
-            </div>
-        `;
-    }
-
-    // Media player controls
-    if (entity.domain === 'media_player') {
-        const mediaTitle = attrs.media_title || '';
-        const mediaArtist = attrs.media_artist || '';
-        controls = `
-            <div class="entity-controls media-controls">
-                ${mediaTitle ? `<div class="media-info">${escapeHtml(mediaTitle)}${mediaArtist ? ` - ${escapeHtml(mediaArtist)}` : ''}</div>` : ''}
-                <div class="media-buttons">
-                    <button class="btn btn-tiny" onclick="callService('media_player.media_previous_track', '${entity.entity_id}')" title="Previous">⏮</button>
-                    <button class="btn btn-small" onclick="callService('media_player.media_play_pause', '${entity.entity_id}')" title="Play/Pause">
-                        ${entity.state === 'playing' ? '⏸' : '▶'}
-                    </button>
-                    <button class="btn btn-tiny" onclick="callService('media_player.media_next_track', '${entity.entity_id}')" title="Next">⏭</button>
-                </div>
-                ${attrs.volume_level !== undefined ? `
-                    <div class="volume-control">
-                        <span>🔊</span>
-                        <input type="range" class="volume-slider" min="0" max="100" 
-                               value="${Math.round(attrs.volume_level * 100)}"
-                               onchange="setVolume('${entity.entity_id}', this.value)">
-                    </div>
-                ` : ''}
-            </div>
-        `;
+    if (entity.domain === 'media_player' && attrs.media_title) {
+        extraInfo = `<div class="entity-extra">${escapeHtml(attrs.media_title)}</div>`;
     }
 
     return `
@@ -2181,13 +2229,12 @@ function renderEntityCard(entity) {
                     <div class="entity-name">${escapeHtml(entity.friendly_name)}</div>
                     <div class="entity-id">${entity.entity_id}</div>
                 </div>
-                <button class="btn btn-tiny entity-menu-btn" onclick="showEntityMenu('${entity.entity_id}', event)" title="More options">⋮</button>
             </div>
             <div class="entity-state">
                 <span class="state-badge ${stateClass}">${formatState(entity)}</span>
                 ${entity.area_name ? `<span class="entity-area">${escapeHtml(entity.area_name)}</span>` : ''}
             </div>
-            ${controls}
+            ${extraInfo}
         </div>
     `;
 }

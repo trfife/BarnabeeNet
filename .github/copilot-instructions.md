@@ -1,32 +1,24 @@
 # BarnabeeNet Copilot Agent Instructions
 
-## Core Loop (ONE TASK PER SESSION)
+## Core Loop
 
 When user says "continue the project":
 
 1. **READ**: `CONTEXT.md` for current state
-2. **DO ONE TASK**: Execute the FIRST item in "Next Steps" only
-3. **VALIDATE**: Run `./scripts/validate.sh`
-4. **UPDATE**: Edit `CONTEXT.md` - move task to "What's Working", update date
+2. **DO TASKS**: Execute items from "Next Steps" until complete
+3. **VALIDATE**: Run `./scripts/validate.sh` before commits
+4. **UPDATE**: Edit `CONTEXT.md` - move tasks to "What's Working", update date
 5. **COMMIT**: `git add -A && git commit -m "<type>: <description>" && git push`
-6. **STOP & REPORT**: Tell user what you did. Do NOT continue to next task.
-
-## Why One Task Per Session?
-
-- Avoids hitting request limits
-- Creates clean git history  
-- Each session = one focused task
-- User starts fresh session with updated context
+6. **CONTINUE**: Keep working until the overall task/feature is done
 
 ## Checkpoint Pattern
 
-After EVERY completed task:
+After completing significant work:
 ```bash
 git add -A
 git commit -m "<type>: <description>"
 git push
 ```
-Then STOP. User will say "continue the project" in a NEW session.
 
 ## Environment
 
@@ -37,8 +29,8 @@ Then STOP. User will say "continue the project" in a NEW session.
 
 ## CONTEXT.md Updates
 
-After completing a task:
-- Move completed item from "Next Steps" to "What's Working"
+After completing tasks:
+- Move completed items from "Next Steps" to "What's Working"
 - Update "Last Updated" date
 - Add any new blockers or decisions
 
