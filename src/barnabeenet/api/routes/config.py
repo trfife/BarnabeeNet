@@ -1431,9 +1431,12 @@ Select the best model for EACH activity. Return ONLY the JSON mapping."""
             data = response.json()
             content = data["choices"][0]["message"]["content"]
 
+            logger.info(f"Auto-select raw response length: {len(content)}")
+
             # Parse JSON from response
             # Handle DeepSeek R1's <think> reasoning tokens
             if "<think>" in content and "</think>" in content:
+                logger.debug("Stripping DeepSeek R1 <think> tokens")
                 content = content.split("</think>")[-1]
 
             # Handle potential markdown code blocks
@@ -1450,6 +1453,14 @@ Select the best model for EACH activity. Return ONLY the JSON mapping."""
                 end = content.rfind("}")
                 if start != -1 and end != -1:
                     content = content[start : end + 1]
+                else:
+                    logger.error(f"No JSON found in response: {content[:500]}")
+                    return AutoSelectResponse(
+                        success=False,
+                        recommendations={},
+                        reasoning={},
+                        error="No JSON found in AI response",
+                    )
 
             logger.debug(f"Auto-select parsing JSON: {content[:200]}...")
             recommendations = json.loads(content.strip())
