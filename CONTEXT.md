@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after Home Assistant dashboard UI + API endpoints)
+2026-01-18 (after Home Assistant dashboard config management + tabbed UI)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + MODEL CONFIG UI
@@ -71,11 +71,13 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Dashboard Model Selection UI** - New "Model Selection" config section with searchable dropdowns for all 16+ activities. Live model list from OpenRouter (339+ models), shows pricing and context length, filter for free models. Persists selections to Redis. API endpoints: GET/PUT /api/v1/config/activities, GET /api/v1/config/models.
 - [x] **Testing/Production Mode Toggle** - One-click switch between Testing mode (all free models - Gemini 2.0 Flash) and Production mode (quality models - Claude, GPT-4o, DeepSeek). Mode persists in Redis. API: GET/POST /api/v1/config/mode.
 - [x] **Home Assistant Dashboard UI + API** - Full dashboard integration at `/api/v1/homeassistant/`. Endpoints for: connection status, overview, entities (with search/filter/pagination), devices, areas, automations, integrations, logs, service calls, entity toggle. Dashboard Entities page with real-time entity cards, domain icons, state badges, toggle controls. Configuration page with HA setup instructions.
+- [x] **Home Assistant Config Management** - Dashboard-based HA configuration (URL + token). Config saved to Redis, token encrypted via SecretsService. Tab-based UI for HA views: Entities, Areas, Devices, Automations, Logs. Test connection before saving. Config can also fall back to env vars (HA_URL, HA_TOKEN) for backwards compatibility.
 
 ### In Progress
-- [ ] Home Assistant intelligent log filtering agent
+- [ ] Connect to actual Home Assistant instance - configure via dashboard
 
 ### Not Started
+- [ ] HA activity feed integration (filter by HA vs other activities)
 - [ ] Home Assistant intelligent log filtering agent
 - [ ] Family profile system
 
@@ -114,8 +116,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Home Assistant intelligent log filtering agent ← NEXT
-2. Family profile system
+1. Connect to actual Home Assistant instance - configure via dashboard ← NEXT
+2. HA activity feed integration (filter by HA vs other activities)
+3. Home Assistant intelligent log filtering agent
+4. Family profile system
 
 ---
 

@@ -7,6 +7,7 @@ Dashboard endpoints for Home Assistant integration:
 - Service call execution
 - Automation management
 - Error log viewing
+- Configuration management (encrypted storage)
 """
 
 from __future__ import annotations
@@ -14,15 +15,19 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from barnabeenet.config import get_settings
 from barnabeenet.services.homeassistant.client import HomeAssistantClient
+from barnabeenet.services.secrets import SecretsService, get_secrets_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/homeassistant", tags=["Home Assistant"])
+
+# Redis keys for HA config
+HA_CONFIG_KEY = "barnabeenet:ha:config"
 
 
 # =============================================================================
@@ -194,23 +199,95 @@ class ServiceCallResponse(BaseModel):
 
 # Global client instance (lazy initialization)
 _ha_client: HomeAssistantClient | None = None
+_ha_config_cache: dict[str, str] = {}  # Cached config from Redis
 
 
-async def get_ha_client() -> HomeAssistantClient | None:
-    """Get or create the Home Assistant client."""
+async def get_ha_config_from_redis(request: Request) -> dict[str, str]:
+    """Get HA config from Redis (saved via dashboard)."""
+    global _ha_config_cache
+
+    try:
+        redis = getattr(request.app.state, "redis", None)
+        if redis:
+            import json
+
+            config_json = await redis.get(HA_CONFIG_KEY)
+            if config_json:
+                config = json.loads(config_json)
+                # Decrypt token if we have secrets service
+                secrets_service = await get_secrets_service(request)
+                if secrets_service and "token_encrypted" in config:
+                    try:
+                        config["token"] = await secrets_service.get_secret("ha_token")
+                    except Exception:
+                        config["token"] = ""
+                _ha_config_cache = config
+                return config
+    except Exception as e:
+        logger.warning("Failed to get HA config from Redis: %s", e)
+
+    return _ha_config_cache
+
+
+async def get_ha_client_with_request(request: Request) -> HomeAssistantClient | None:
+    """Get or create the Home Assistant client using Redis config."""
     global _ha_client
 
     settings = get_settings()
 
+    # First try Redis config (saved via dashboard)
+    redis_config = await get_ha_config_from_redis(request)
+    ha_url = redis_config.get("url") or settings.homeassistant.url
+    ha_token = redis_config.get("token") or settings.homeassistant.token
+
     # Check if HA is configured
-    if not settings.homeassistant.url or not settings.homeassistant.token:
+    if not ha_url or not ha_token:
+        return None
+
+    # Check if config changed - need to recreate client
+    if _ha_client is not None:
+        if _ha_client.url != ha_url:
+            await close_ha_client()
+
+    # Create client if not exists
+    if _ha_client is None:
+        _ha_client = HomeAssistantClient(
+            url=ha_url,
+            token=ha_token,
+            timeout=10.0,
+            verify_ssl=settings.homeassistant.verify_ssl,
+        )
+
+    # Connect if not connected
+    if not _ha_client.connected:
+        try:
+            await _ha_client.connect()
+        except Exception as e:
+            logger.error("Failed to connect to Home Assistant: %s", e)
+            return _ha_client  # Return anyway for status check
+
+    return _ha_client
+
+
+async def get_ha_client() -> HomeAssistantClient | None:
+    """Get or create the Home Assistant client (fallback without request)."""
+    global _ha_client
+
+    settings = get_settings()
+
+    # Use cached config or env settings
+    ha_url = _ha_config_cache.get("url") or settings.homeassistant.url
+    ha_token = _ha_config_cache.get("token") or settings.homeassistant.token
+
+    # Check if HA is configured
+    if not ha_url or not ha_token:
         return None
 
     # Create client if not exists
     if _ha_client is None:
         _ha_client = HomeAssistantClient(
-            url=settings.homeassistant.url,
-            token=settings.homeassistant.token,
+            url=ha_url,
+            token=ha_token,
             timeout=10.0,
             verify_ssl=settings.homeassistant.verify_ssl,
         )
@@ -240,35 +317,40 @@ async def close_ha_client() -> None:
 
 
 @router.get("/status", response_model=HAConnectionStatus)
-async def get_connection_status() -> HAConnectionStatus:
+async def get_connection_status(request: Request) -> HAConnectionStatus:
     """Get Home Assistant connection status.
 
     Returns current connection state, HA version, and any errors.
     """
     settings = get_settings()
 
+    # Get config from Redis first, fall back to env
+    redis_config = await get_ha_config_from_redis(request)
+    ha_url = redis_config.get("url") or settings.homeassistant.url
+    ha_token = redis_config.get("token") or settings.homeassistant.token
+
     # Check if configured
-    if not settings.homeassistant.url:
+    if not ha_url or ha_url == "http://homeassistant.local:8123":
         return HAConnectionStatus(
             connected=False,
-            url=None,
-            error="Home Assistant URL not configured",
+            url=ha_url if ha_url != "http://homeassistant.local:8123" else None,
+            error="Home Assistant URL not configured. Go to Configuration → Home Assistant.",
         )
 
-    if not settings.homeassistant.token:
+    if not ha_token:
         return HAConnectionStatus(
             connected=False,
-            url=settings.homeassistant.url,
-            error="Home Assistant token not configured",
+            url=ha_url,
+            error="Home Assistant token not configured. Go to Configuration → Home Assistant.",
         )
 
     # Try to connect and get config
-    client = await get_ha_client()
+    client = await get_ha_client_with_request(request)
     if not client or not client.connected:
         return HAConnectionStatus(
             connected=False,
-            url=settings.homeassistant.url,
-            error="Unable to connect to Home Assistant",
+            url=ha_url,
+            error="Unable to connect to Home Assistant. Check URL and token.",
         )
 
     # Get HA config for version info
@@ -288,14 +370,14 @@ async def get_connection_status() -> HAConnectionStatus:
 
 
 @router.get("/overview", response_model=HAOverview)
-async def get_overview() -> HAOverview:
+async def get_overview(request: Request) -> HAOverview:
     """Get complete Home Assistant overview for dashboard.
 
     Includes connection status, snapshot summary, and domain counts.
     """
-    status = await get_connection_status()
+    status = await get_connection_status(request)
 
-    client = await get_ha_client()
+    client = await get_ha_client_with_request(request)
     if not client or not client.connected:
         return HAOverview(
             connection=status,
@@ -717,3 +799,208 @@ async def toggle_entity(entity_id: str) -> ServiceCallResponse:
             entity_id=entity_id,
             message=f"Toggle failed: {e}",
         )
+
+
+# =============================================================================
+# Configuration Endpoints
+# =============================================================================
+
+
+class HAConfigRequest(BaseModel):
+    """Request to save HA configuration."""
+
+    url: str = Field(description="Home Assistant URL (e.g., http://192.168.1.100:8123)")
+    token: str = Field(description="Long-lived access token")
+
+
+class HAConfigResponse(BaseModel):
+    """Response for HA config operations."""
+
+    success: bool
+    message: str
+    url: str | None = None
+    connected: bool = False
+    version: str | None = None
+
+
+class HATestResponse(BaseModel):
+    """Response for connection test."""
+
+    success: bool
+    message: str
+    version: str | None = None
+    location_name: str | None = None
+    entity_count: int = 0
+    latency_ms: float | None = None
+
+
+@router.get("/config")
+async def get_ha_config(request: Request) -> dict[str, Any]:
+    """Get current HA configuration (URL only, token masked)."""
+    settings = get_settings()
+    redis_config = await get_ha_config_from_redis(request)
+
+    ha_url = redis_config.get("url") or settings.homeassistant.url
+    has_token = bool(redis_config.get("token") or settings.homeassistant.token)
+
+    return {
+        "url": ha_url if ha_url != "http://homeassistant.local:8123" else "",
+        "has_token": has_token,
+        "source": "redis" if redis_config.get("url") else "environment",
+    }
+
+
+@router.post("/config", response_model=HAConfigResponse)
+async def save_ha_config(
+    request: Request,
+    config: HAConfigRequest,
+    secrets_service: SecretsService = Depends(get_secrets_service),
+) -> HAConfigResponse:
+    """Save Home Assistant configuration.
+
+    URL is stored in Redis, token is encrypted.
+    """
+    import json
+
+    try:
+        redis = getattr(request.app.state, "redis", None)
+        if not redis:
+            raise HTTPException(status_code=503, detail="Redis not available")
+
+        # Validate URL format
+        url = config.url.rstrip("/")
+        if not url.startswith(("http://", "https://")):
+            return HAConfigResponse(
+                success=False,
+                message="Invalid URL format. Must start with http:// or https://",
+            )
+
+        # Store token encrypted
+        await secrets_service.set_secret(
+            key_name="ha_token",
+            value=config.token,
+            provider="homeassistant",
+        )
+
+        # Store URL and flag in Redis
+        config_data = {
+            "url": url,
+            "token_encrypted": True,
+        }
+        await redis.set(HA_CONFIG_KEY, json.dumps(config_data))
+
+        # Update cache
+        global _ha_config_cache
+        _ha_config_cache = {"url": url, "token": config.token}
+
+        # Close existing client to force reconnect with new config
+        await close_ha_client()
+
+        logger.info("HA config saved: %s", url)
+
+        # Try to connect with new config
+        client = await get_ha_client_with_request(request)
+        if client and client.connected:
+            ha_config = await client.get_config()
+            return HAConfigResponse(
+                success=True,
+                message="Configuration saved and connected successfully!",
+                url=url,
+                connected=True,
+                version=ha_config.get("version") if ha_config else None,
+            )
+        else:
+            return HAConfigResponse(
+                success=True,
+                message="Configuration saved, but connection failed. Check URL and token.",
+                url=url,
+                connected=False,
+            )
+
+    except Exception as e:
+        logger.error("Failed to save HA config: %s", e)
+        return HAConfigResponse(
+            success=False,
+            message=f"Failed to save configuration: {e}",
+        )
+
+
+@router.post("/config/test", response_model=HATestResponse)
+async def test_ha_connection(
+    request: Request,
+    config: HAConfigRequest,
+) -> HATestResponse:
+    """Test Home Assistant connection without saving.
+
+    Useful for validating credentials before saving.
+    """
+    import time
+
+    url = config.url.rstrip("/")
+
+    # Validate URL format
+    if not url.startswith(("http://", "https://")):
+        return HATestResponse(
+            success=False,
+            message="Invalid URL format. Must start with http:// or https://",
+        )
+
+    try:
+        start_time = time.perf_counter()
+
+        # Create temporary client
+        test_client = HomeAssistantClient(
+            url=url,
+            token=config.token,
+            timeout=10.0,
+            verify_ssl=True,
+        )
+
+        await test_client.connect()
+
+        if not test_client.connected:
+            return HATestResponse(
+                success=False,
+                message="Could not establish connection. Check URL.",
+            )
+
+        # Get config
+        ha_config = await test_client.get_config()
+        entity_count = len(test_client.entities) if test_client.entities else 0
+
+        latency_ms = (time.perf_counter() - start_time) * 1000
+
+        await test_client.close()
+
+        return HATestResponse(
+            success=True,
+            message=f"Connected successfully! Found {entity_count} entities.",
+            version=ha_config.get("version") if ha_config else None,
+            location_name=ha_config.get("location_name") if ha_config else None,
+            entity_count=entity_count,
+            latency_ms=latency_ms,
+        )
+
+    except Exception as e:
+        logger.error("HA connection test failed: %s", e)
+        error_msg = str(e)
+        if "401" in error_msg or "Unauthorized" in error_msg:
+            return HATestResponse(
+                success=False,
+                message="Authentication failed. Check your access token.",
+            )
+        elif "Connection refused" in error_msg:
+            return HATestResponse(
+                success=False,
+                message="Connection refused. Check if Home Assistant is running.",
+            )
+        elif "timeout" in error_msg.lower():
+            return HATestResponse(
+                success=False,
+                message="Connection timed out. Check URL and network.",
+            )
+        else:
+            return HATestResponse(
+                success=False,
+                message=f"Connection failed: {error_msg}",
+            )

@@ -402,11 +402,11 @@
             </div>
         </div>
 
-        <!-- Entities Page -->
+        <!-- Entities Page (Home Assistant Dashboard) -->
         <div id="page-entities" class="page">
             <div class="page-header">
-                <h1>🏠 Home Assistant Entities</h1>
-                <p>View and control connected devices</p>
+                <h1>🏠 Home Assistant</h1>
+                <p>Browse entities, devices, areas, automations, and logs</p>
             </div>
 
             <!-- Connection Status Banner -->
@@ -420,37 +420,88 @@
                 <div id="ha-snapshot-summary"></div>
             </div>
 
-            <!-- Entity Browser -->
-            <div class="entities-toolbar">
-                <input type="text" id="entity-search" class="form-control" placeholder="🔍 Search entities...">
-                <select id="entity-type-filter" class="filter-select">
-                    <option value="">All Types</option>
-                    <option value="light">Lights</option>
-                    <option value="switch">Switches</option>
-                    <option value="climate">Climate</option>
-                    <option value="sensor">Sensors</option>
-                    <option value="media_player">Media Players</option>
-                </select>
-                <select id="entity-area-filter" class="filter-select">
-                    <option value="">All Areas</option>
-                </select>
-                <button class="btn" id="refresh-entities">🔄 Refresh</button>
+            <!-- HA Tab Navigation -->
+            <div class="ha-tabs">
+                <button class="ha-tab-btn active" data-ha-tab="entities">💡 Entities</button>
+                <button class="ha-tab-btn" data-ha-tab="areas">🗺️ Areas</button>
+                <button class="ha-tab-btn" data-ha-tab="devices">📱 Devices</button>
+                <button class="ha-tab-btn" data-ha-tab="automations">⚙️ Automations</button>
+                <button class="ha-tab-btn" data-ha-tab="logs">📜 Logs</button>
             </div>
 
-            <div class="entities-grid" id="entities-list">
-                <div class="empty-state">
-                    <p class="text-muted">Loading entities...</p>
+            <!-- Entities Tab -->
+            <div id="ha-tab-entities" class="ha-tab-content active">
+                <div class="entities-toolbar">
+                    <input type="text" id="entity-search" class="form-control" placeholder="🔍 Search entities...">
+                    <select id="entity-type-filter" class="filter-select">
+                        <option value="">All Types</option>
+                        <option value="light">Lights</option>
+                        <option value="switch">Switches</option>
+                        <option value="climate">Climate</option>
+                        <option value="sensor">Sensors</option>
+                        <option value="binary_sensor">Binary Sensors</option>
+                        <option value="media_player">Media Players</option>
+                        <option value="cover">Covers</option>
+                        <option value="fan">Fans</option>
+                        <option value="lock">Locks</option>
+                    </select>
+                    <select id="entity-area-filter" class="filter-select">
+                        <option value="">All Areas</option>
+                    </select>
+                    <button class="btn" id="refresh-entities">🔄 Refresh</button>
+                </div>
+
+                <div class="entities-grid" id="entities-list">
+                    <div class="empty-state">
+                        <p class="text-muted">Loading entities...</p>
+                    </div>
+                </div>
+
+                <!-- Domain Overview -->
+                <div class="card full-width">
+                    <div class="card-header">
+                        <h3>📊 Domains Overview</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="domain-counts" id="ha-domain-counts">
+                            <p class="text-muted">Connect to Home Assistant to see domain statistics</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Domain Overview -->
-            <div class="card full-width">
-                <div class="card-header">
-                    <h3>📊 Domains Overview</h3>
+            <!-- Areas Tab -->
+            <div id="ha-tab-areas" class="ha-tab-content">
+                <div class="areas-grid" id="ha-areas-list">
+                    <div class="empty-state">
+                        <p class="text-muted">Loading areas...</p>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="domain-counts" id="ha-domain-counts">
-                        <p class="text-muted">Connect to Home Assistant to see domain statistics</p>
+            </div>
+
+            <!-- Devices Tab -->
+            <div id="ha-tab-devices" class="ha-tab-content">
+                <div class="devices-grid" id="ha-devices-list">
+                    <div class="empty-state">
+                        <p class="text-muted">Loading devices...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Automations Tab -->
+            <div id="ha-tab-automations" class="ha-tab-content">
+                <div class="automations-list" id="ha-automations-list">
+                    <div class="empty-state">
+                        <p class="text-muted">Loading automations...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs Tab -->
+            <div id="ha-tab-logs" class="ha-tab-content">
+                <div class="logs-container" id="ha-logs-list">
+                    <div class="empty-state">
+                        <p class="text-muted">Loading logs...</p>
                     </div>
                 </div>
             </div>
@@ -613,18 +664,20 @@
                         <div class="ha-config-status" id="ha-config-connection-status">
                             <div class="ha-status-disconnected">
                                 <span class="status-indicator disconnected"></span>
-                                <span class="status-text">Checking connection...</span>
+                                <span class="status-text">Not Configured</span>
                             </div>
                         </div>
 
                         <div class="form-group">
                             <label>Home Assistant URL</label>
-                            <input type="text" id="ha-url-input" class="form-control" placeholder="http://homeassistant.local:8123">
-                            <small class="form-text">The URL of your Home Assistant instance</small>
+                            <input type="text" id="ha-url-input" class="form-control"
+                                placeholder="http://192.168.1.100:8123">
+                            <small class="form-text">The URL of your Home Assistant instance (e.g., http://192.168.86.50:8123)</small>
                         </div>
                         <div class="form-group">
                             <label>Long-Lived Access Token</label>
-                            <input type="password" id="ha-token-input" class="form-control" placeholder="••••••••••••••••">
+                            <input type="password" id="ha-token-input" class="form-control"
+                                placeholder="Paste your token here...">
                             <small class="form-text">Generate in Home Assistant: Profile → Long-Lived Access Tokens</small>
                         </div>
                         <div class="form-actions">
@@ -637,18 +690,15 @@
 
                         <h4>📋 Setup Instructions</h4>
                         <ol class="setup-steps">
-                            <li>In Home Assistant, go to your <strong>Profile</strong> (click your name in sidebar)</li>
+                            <li>Open your Home Assistant instance in a browser</li>
+                            <li>Click your <strong>Profile</strong> (your name in the bottom left)</li>
                             <li>Scroll down to <strong>Long-Lived Access Tokens</strong></li>
-                            <li>Click <strong>Create Token</strong>, name it "BarnabeeNet"</li>
-                            <li>Copy the token and paste it above</li>
-                            <li>Set <code>HA_URL</code> and <code>HA_TOKEN</code> environment variables</li>
+                            <li>Click <strong>Create Token</strong></li>
+                            <li>Name it "BarnabeeNet" and click <strong>OK</strong></li>
+                            <li>Copy the token and paste it in the field above</li>
+                            <li>Click <strong>Test Connection</strong> to verify</li>
+                            <li>Click <strong>Save</strong> to store the configuration</li>
                         </ol>
-
-                        <div class="info-box">
-                            <strong>Note:</strong> Home Assistant connection is configured via environment variables. Set these in your .env file:
-                            <pre>HA_URL=http://homeassistant.local:8123
-HA_TOKEN=your_long_lived_access_token</pre>
-                        </div>
                     </div>
                     <div id="config-memory" class="config-section">
                         <h3>Memory Settings</h3>

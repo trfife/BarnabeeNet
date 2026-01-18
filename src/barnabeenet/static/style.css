@@ -2216,3 +2216,532 @@ body {
 .empty-state .btn {
     margin-top: 16px;
 }
+
+/* ============================================
+   HOME ASSISTANT TABS
+   ============================================ */
+
+.ha-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 16px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+}
+
+.ha-tab-btn {
+    padding: 10px 20px;
+    background: transparent;
+    border: none;
+    border-radius: 8px 8px 0 0;
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ha-tab-btn:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.ha-tab-btn.active {
+    background: var(--bg-primary);
+    color: var(--accent-primary);
+    border-bottom: 2px solid var(--accent-primary);
+}
+
+.ha-tab-btn .count {
+    background: var(--bg-tertiary);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+}
+
+.ha-tab-btn.active .count {
+    background: var(--accent-primary);
+    color: white;
+}
+
+.ha-tab-content {
+    display: none;
+    padding: 20px;
+    animation: fadeIn 0.2s ease;
+}
+
+.ha-tab-content.active {
+    display: block;
+}
+
+/* ============================================
+   HA AREAS
+   ============================================ */
+
+.areas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.area-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.2s ease;
+}
+
+.area-card:hover {
+    border-color: var(--accent-primary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.area-card .area-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+}
+
+.area-card .area-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.area-card .area-stats {
+    display: flex;
+    gap: 16px;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.area-card .area-stats span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ============================================
+   HA DEVICES
+   ============================================ */
+
+.devices-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+}
+
+.device-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    transition: all 0.2s ease;
+}
+
+.device-card:hover {
+    border-color: var(--accent-primary);
+}
+
+.device-card .device-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.device-card .device-icon {
+    font-size: 24px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+}
+
+.device-card .device-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.device-card .device-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.device-card .device-manufacturer {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.device-card .device-area {
+    font-size: 12px;
+    color: var(--accent-primary);
+    background: var(--accent-primary-alpha);
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-top: 8px;
+}
+
+.device-card .device-entities {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+/* ============================================
+   HA AUTOMATIONS
+   ============================================ */
+
+.automations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.automation-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.2s ease;
+}
+
+.automation-card:hover {
+    border-color: var(--accent-primary);
+}
+
+.automation-card .automation-toggle {
+    flex-shrink: 0;
+}
+
+.automation-card .automation-toggle input[type="checkbox"] {
+    width: 44px;
+    height: 24px;
+    appearance: none;
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.automation-card .automation-toggle input[type="checkbox"]::before {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: white;
+    top: 2px;
+    left: 2px;
+    transition: all 0.2s ease;
+}
+
+.automation-card .automation-toggle input[type="checkbox"]:checked {
+    background: var(--accent-success);
+}
+
+.automation-card .automation-toggle input[type="checkbox"]:checked::before {
+    left: 22px;
+}
+
+.automation-card .automation-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.automation-card .automation-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.automation-card .automation-description {
+    font-size: 13px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.automation-card .automation-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 8px;
+}
+
+.automation-card .automation-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.automation-card .btn-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    border: none;
+    border-radius: 8px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.automation-card .btn-icon:hover {
+    background: var(--accent-primary);
+    color: white;
+}
+
+/* ============================================
+   HA LOGS
+   ============================================ */
+
+.ha-logs-container {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.ha-logs-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.ha-logs-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.ha-logs-filters {
+    display: flex;
+    gap: 8px;
+}
+
+.ha-logs-filters select {
+    padding: 6px 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.ha-logs-list {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.log-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 13px;
+    transition: background 0.15s ease;
+}
+
+.log-entry:hover {
+    background: var(--bg-secondary);
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
+.log-entry .log-level {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.log-entry .log-level.debug {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+}
+
+.log-entry .log-level.info {
+    background: #1e3a5f;
+    color: #60a5fa;
+}
+
+.log-entry .log-level.warning {
+    background: #78350f;
+    color: #fbbf24;
+}
+
+.log-entry .log-level.error {
+    background: #7f1d1d;
+    color: #f87171;
+}
+
+.log-entry .log-time {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.log-entry .log-source {
+    flex-shrink: 0;
+    color: var(--accent-primary);
+    font-weight: 500;
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.log-entry .log-message {
+    flex: 1;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+/* ============================================
+   HA CONFIG STATUS
+   ============================================ */
+
+.ha-config-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.ha-config-status .status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.ha-config-status .status-indicator.connected {
+    background: var(--accent-success);
+    box-shadow: 0 0 8px var(--accent-success);
+}
+
+.ha-config-status .status-indicator.disconnected {
+    background: var(--accent-error);
+}
+
+.ha-config-status .status-text {
+    flex: 1;
+    font-size: 14px;
+}
+
+.ha-config-status .status-text strong {
+    color: var(--text-primary);
+}
+
+.ha-config-status .status-text span {
+    color: var(--text-muted);
+    margin-left: 8px;
+}
+
+/* Connection test result */
+.connection-test-result {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+.connection-test-result.success {
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid var(--accent-success);
+    color: var(--accent-success);
+}
+
+.connection-test-result.error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--accent-error);
+    color: var(--accent-error);
+}
+
+/* ============================================
+   ACTIVITY FEED HA FILTER
+   ============================================ */
+
+.activity-filters {
+    display: flex;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.activity-filter-btn {
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.activity-filter-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--text-primary);
+}
+
+.activity-filter-btn.active {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+}
+
+.activity-item.ha-event {
+    border-left: 3px solid #51bfdb;
+}
+
+.activity-item .activity-source {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    margin-left: 8px;
+}
+
+.activity-item .activity-source.ha {
+    background: rgba(81, 191, 219, 0.2);
+    color: #51bfdb;
+}

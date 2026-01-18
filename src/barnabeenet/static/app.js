@@ -1614,12 +1614,21 @@ function initHomeAssistant() {
     // Refresh button
     document.getElementById('refresh-entities')?.addEventListener('click', refreshHAData);
 
+    // HA Tab navigation
+    document.querySelectorAll('.ha-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tab = btn.dataset.haTab;
+            switchHATab(tab);
+        });
+    });
+
     // Load when page is shown
     document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', () => {
             if (link.dataset.page === 'entities') {
                 loadHAStatus();
                 loadHAEntities();
+                loadHAAreas();
             }
         });
     });
@@ -1629,6 +1638,7 @@ function initHomeAssistant() {
         item.addEventListener('click', () => {
             if (item.dataset.config === 'homeassistant') {
                 loadHAStatus();
+                loadHAConfigStatus();
             }
         });
     });
@@ -1638,6 +1648,37 @@ function initHomeAssistant() {
 
     // Save HA config button
     document.getElementById('save-ha-config')?.addEventListener('click', saveHAConfig);
+}
+
+function switchHATab(tab) {
+    // Update tab buttons
+    document.querySelectorAll('.ha-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.haTab === tab);
+    });
+
+    // Show tab content
+    document.querySelectorAll('.ha-tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === `ha-tab-${tab}`);
+    });
+
+    // Load content for tab
+    switch (tab) {
+        case 'entities':
+            loadHAEntities();
+            break;
+        case 'areas':
+            loadHAAreasTab();
+            break;
+        case 'devices':
+            loadHADevicesTab();
+            break;
+        case 'automations':
+            loadHAAutomationsTab();
+            break;
+        case 'logs':
+            loadHALogsTab();
+            break;
+    }
 }
 
 function debounce(func, wait) {
@@ -1790,6 +1831,145 @@ async function loadHAAreas() {
     } catch (e) {
         console.error('Failed to load areas:', e);
     }
+}
+
+async function loadHAAreasTab() {
+    const container = document.getElementById('ha-areas-list');
+    if (!container) return;
+
+    container.innerHTML = '<div class="loading-spinner">Loading areas...</div>';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/areas`);
+        const data = await response.json();
+
+        if (data.areas.length === 0) {
+            container.innerHTML = '<div class="empty-state"><p class="text-muted">No areas defined</p></div>';
+            return;
+        }
+
+        container.innerHTML = data.areas.map(area => `
+            <div class="area-card">
+                <div class="area-icon">${area.icon || '🏠'}</div>
+                <div class="area-info">
+                    <div class="area-name">${escapeHtml(area.name)}</div>
+                    <div class="area-stats">
+                        <span>${area.device_count} devices</span>
+                        <span>${area.entity_count} entities</span>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        container.innerHTML = `<div class="empty-state"><p class="text-muted">Failed to load areas: ${e.message}</p></div>`;
+    }
+}
+
+async function loadHADevicesTab() {
+    const container = document.getElementById('ha-devices-list');
+    if (!container) return;
+
+    container.innerHTML = '<div class="loading-spinner">Loading devices...</div>';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/devices`);
+        const data = await response.json();
+
+        if (data.devices.length === 0) {
+            container.innerHTML = '<div class="empty-state"><p class="text-muted">No devices found</p></div>';
+            return;
+        }
+
+        container.innerHTML = data.devices.map(device => `
+            <div class="device-card ${device.is_enabled ? '' : 'disabled'}">
+                <div class="device-info">
+                    <div class="device-name">${escapeHtml(device.name)}</div>
+                    <div class="device-model">
+                        ${device.manufacturer ? escapeHtml(device.manufacturer) : ''}
+                        ${device.model ? ' ' + escapeHtml(device.model) : ''}
+                    </div>
+                </div>
+                <div class="device-meta">
+                    ${device.area_name ? `<span class="device-area">${escapeHtml(device.area_name)}</span>` : ''}
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        container.innerHTML = `<div class="empty-state"><p class="text-muted">Failed to load devices: ${e.message}</p></div>`;
+    }
+}
+
+async function loadHAAutomationsTab() {
+    const container = document.getElementById('ha-automations-list');
+    if (!container) return;
+
+    container.innerHTML = '<div class="loading-spinner">Loading automations...</div>';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/automations`);
+        const data = await response.json();
+
+        if (data.automations.length === 0) {
+            container.innerHTML = '<div class="empty-state"><p class="text-muted">No automations found</p></div>';
+            return;
+        }
+
+        container.innerHTML = data.automations.map(auto => `
+            <div class="automation-card ${auto.state === 'on' ? 'enabled' : 'disabled'}">
+                <div class="automation-header">
+                    <span class="automation-status ${auto.state}">${auto.state === 'on' ? '🟢' : '⚫'}</span>
+                    <div class="automation-name">${escapeHtml(auto.name)}</div>
+                </div>
+                ${auto.description ? `<div class="automation-desc">${escapeHtml(auto.description)}</div>` : ''}
+                <div class="automation-meta">
+                    <span class="automation-mode">Mode: ${auto.mode}</span>
+                    ${auto.last_triggered ? `<span class="automation-triggered">Last: ${formatDate(auto.last_triggered)}</span>` : ''}
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        container.innerHTML = `<div class="empty-state"><p class="text-muted">Failed to load automations: ${e.message}</p></div>`;
+    }
+}
+
+async function loadHALogsTab() {
+    const container = document.getElementById('ha-logs-list');
+    if (!container) return;
+
+    container.innerHTML = '<div class="loading-spinner">Loading logs...</div>';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/logs?limit=100`);
+        const data = await response.json();
+
+        if (data.entries.length === 0) {
+            container.innerHTML = '<div class="empty-state"><p class="text-muted">No log entries</p></div>';
+            return;
+        }
+
+        container.innerHTML = data.entries.map(entry => `
+            <div class="log-entry log-${entry.level.toLowerCase()}">
+                <span class="log-time">${formatLogTime(entry.timestamp)}</span>
+                <span class="log-level">${entry.level}</span>
+                <span class="log-source">${escapeHtml(entry.source)}</span>
+                <span class="log-message">${escapeHtml(entry.message)}</span>
+            </div>
+        `).join('');
+    } catch (e) {
+        container.innerHTML = `<div class="empty-state"><p class="text-muted">Failed to load logs: ${e.message}</p></div>`;
+    }
+}
+
+function formatDate(isoString) {
+    if (!isoString) return 'Never';
+    const date = new Date(isoString);
+    return date.toLocaleString();
+}
+
+function formatLogTime(isoString) {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleTimeString();
 }
 
 function updateDomainFilter(domains) {
@@ -2032,7 +2212,22 @@ async function refreshHAData() {
 }
 
 async function testHAConnection() {
+    const urlInput = document.getElementById('ha-url-input');
+    const tokenInput = document.getElementById('ha-token-input');
     const result = document.getElementById('ha-test-result');
+
+    const url = urlInput?.value?.trim();
+    const token = tokenInput?.value?.trim();
+
+    if (!url || !token) {
+        if (result) {
+            result.className = 'test-result error';
+            result.textContent = '✗ Please enter both URL and token';
+            result.style.display = 'block';
+        }
+        return;
+    }
+
     if (result) {
         result.className = 'test-result loading';
         result.textContent = 'Testing connection...';
@@ -2040,18 +2235,25 @@ async function testHAConnection() {
     }
 
     try {
-        const response = await fetch(`${API_BASE}/api/v1/homeassistant/status`);
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/config/test`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, token })
+        });
         const data = await response.json();
 
-        if (data.connected) {
+        if (data.success) {
             if (result) {
                 result.className = 'test-result success';
-                result.textContent = `✓ Connected! Version: ${data.version || 'Unknown'}`;
+                result.innerHTML = `✓ Connected to ${data.location_name || 'Home Assistant'}!<br>
+                    Version: ${data.version || 'Unknown'}<br>
+                    Entities: ${data.entity_count || 0}<br>
+                    Latency: ${data.latency_ms?.toFixed(0) || 'N/A'}ms`;
             }
         } else {
             if (result) {
                 result.className = 'test-result error';
-                result.textContent = `✗ ${data.error || 'Connection failed'}`;
+                result.textContent = `✗ ${data.message}`;
             }
         }
     } catch (e) {
@@ -2063,7 +2265,105 @@ async function testHAConnection() {
 }
 
 async function saveHAConfig() {
-    // Note: This would require a backend endpoint to save HA config
-    // For now, HA is configured via environment variables
-    alert('Home Assistant configuration is managed via environment variables (HA_URL, HA_TOKEN).\nSee the documentation for setup instructions.');
+    const urlInput = document.getElementById('ha-url-input');
+    const tokenInput = document.getElementById('ha-token-input');
+    const result = document.getElementById('ha-test-result');
+    const saveBtn = document.getElementById('save-ha-config');
+
+    const url = urlInput?.value?.trim();
+    const token = tokenInput?.value?.trim();
+
+    if (!url || !token) {
+        if (result) {
+            result.className = 'test-result error';
+            result.textContent = '✗ Please enter both URL and token';
+            result.style.display = 'block';
+        }
+        return;
+    }
+
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = '💾 Saving...';
+    }
+
+    if (result) {
+        result.className = 'test-result loading';
+        result.textContent = 'Saving configuration...';
+        result.style.display = 'block';
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/config`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, token })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            if (result) {
+                result.className = 'test-result success';
+                result.innerHTML = `✓ ${data.message}`;
+                if (data.connected && data.version) {
+                    result.innerHTML += `<br>Version: ${data.version}`;
+                }
+            }
+            // Clear token field for security
+            if (tokenInput) tokenInput.value = '';
+
+            // Reload status displays
+            await loadHAStatus();
+            await loadHAConfigStatus();
+        } else {
+            if (result) {
+                result.className = 'test-result error';
+                result.textContent = `✗ ${data.message}`;
+            }
+        }
+    } catch (e) {
+        if (result) {
+            result.className = 'test-result error';
+            result.textContent = `✗ Error: ${e.message}`;
+        }
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = '💾 Save';
+        }
+    }
+}
+
+async function loadHAConfigStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/config`);
+        const data = await response.json();
+
+        const urlInput = document.getElementById('ha-url-input');
+        if (urlInput && data.url) {
+            urlInput.value = data.url;
+        }
+
+        // Update config status display
+        const configStatus = document.getElementById('ha-config-connection-status');
+        if (configStatus) {
+            if (data.has_token && data.url) {
+                configStatus.innerHTML = `
+                    <div class="ha-status-configured">
+                        <span class="status-indicator connected"></span>
+                        <span class="status-text">Configured (${data.source})</span>
+                    </div>
+                `;
+            } else {
+                configStatus.innerHTML = `
+                    <div class="ha-status-not-configured">
+                        <span class="status-indicator disconnected"></span>
+                        <span class="status-text">Not Configured</span>
+                    </div>
+                `;
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load HA config:', e);
+    }
 }
