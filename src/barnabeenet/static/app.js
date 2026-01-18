@@ -1847,14 +1847,18 @@ async function loadHAOverviewTab() {
         document.getElementById('ha-last-sync').textContent = status.connected
             ? new Date().toLocaleTimeString()
             : 'Not connected';
-        document.getElementById('ha-entity-count').textContent = overview.total_entities || 0;
-        document.getElementById('ha-area-count').textContent = overview.total_areas || 0;
-        document.getElementById('ha-device-count').textContent = overview.total_devices || 0;
+        
+        // Get counts from snapshot
+        const snapshot = overview.snapshot || {};
+        document.getElementById('ha-entity-count').textContent = snapshot.entities_count || 0;
+        document.getElementById('ha-area-count').textContent = snapshot.areas_count > 0 ? snapshot.areas_count : 'N/A*';
+        document.getElementById('ha-device-count').textContent = snapshot.devices_count > 0 ? snapshot.devices_count : 'N/A*';
 
         // Update domain counts
         const domainCountsEl = document.getElementById('ha-domain-counts');
-        if (overview.domains && Object.keys(overview.domains).length > 0) {
-            domainCountsEl.innerHTML = Object.entries(overview.domains)
+        const domainCounts = overview.domain_counts || {};
+        if (Object.keys(domainCounts).length > 0) {
+            domainCountsEl.innerHTML = Object.entries(domainCounts)
                 .sort((a, b) => b[1] - a[1])
                 .map(([domain, count]) => `
                     <div class="domain-count-item">
@@ -1863,6 +1867,8 @@ async function loadHAOverviewTab() {
                         <span class="domain-count">${count}</span>
                     </div>
                 `).join('');
+        } else {
+            domainCountsEl.innerHTML = '<p class="text-muted">Connect to Home Assistant to see domain statistics</p>';
         }
 
         // Load recent HA activity from the main activity feed (filter for HA actions)
@@ -2003,7 +2009,13 @@ async function loadHAAreasTab() {
         const data = await response.json();
 
         if (data.areas.length === 0) {
-            container.innerHTML = '<div class="empty-state"><p class="text-muted">No areas defined in Home Assistant</p></div>';
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p class="text-muted">🏠 No areas loaded yet</p>
+                    <p class="text-muted">Home Assistant's Area Registry requires WebSocket API access.</p>
+                    <p class="text-muted">Areas will be available in a future update.</p>
+                </div>
+            `;
             return;
         }
 
@@ -2039,7 +2051,13 @@ async function loadHADevicesTab() {
         const data = await response.json();
 
         if (data.devices.length === 0) {
-            container.innerHTML = '<div class="empty-state"><p class="text-muted">No devices found</p></div>';
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p class="text-muted">📱 No devices loaded yet</p>
+                    <p class="text-muted">Home Assistant's Device Registry requires WebSocket API access.</p>
+                    <p class="text-muted">Devices will be available in a future update.</p>
+                </div>
+            `;
             return;
         }
 
