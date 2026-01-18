@@ -271,7 +271,6 @@ class SmartEntityResolver:
         Returns:
             ResolvedTarget with matched entities
         """
-        result = ResolvedTarget()
         entity_name = entity_name.strip()
 
         # Check for batch patterns first
@@ -422,17 +421,6 @@ class SmartEntityResolver:
                 or singular in id_lower
             )
 
-        for dom in all_domains:
-            if target_area_ids:
-                # First try: Get entities by area_id
-                for area_id in target_area_ids:
-                    entities = self._ha.entities.get_by_area(area_id)
-                    for entity in entities:
-                        if entity.domain == dom:
-                            if entity_matches_device_type(entity, device_type, dom):
-                                if entity not in result.entities:
-                                    result.entities.append(entity)
-
         # Helper to check if a term appears as a whole word or phrase in text
         def term_matches_in_text(term: str, text: str) -> bool:
             """Check if term appears as a whole word/phrase in text.
@@ -451,6 +439,9 @@ class SmartEntityResolver:
             return bool(re.search(pattern, text_lower))
 
         for dom in all_domains:
+            # Track entities found for THIS domain via area_id
+            found_for_domain_by_area_id = False
+
             if target_area_ids:
                 # First try: Get entities by area_id
                 for area_id in target_area_ids:
@@ -460,10 +451,11 @@ class SmartEntityResolver:
                             if entity_matches_device_type(entity, device_type, dom):
                                 if entity not in result.entities:
                                     result.entities.append(entity)
+                                    found_for_domain_by_area_id = True
 
-                # If no entities found by area_id, fall back to name matching
+                # If no entities found by area_id FOR THIS DOMAIN, fall back to name matching
                 # Many entities have area in their name but area_id not set
-                if not result.entities and name_search_terms:
+                if not found_for_domain_by_area_id and name_search_terms:
                     entities = self._ha.entities.get_by_domain(dom)
                     for entity in entities:
                         # Skip if doesn't match device type (for alternative domains)
