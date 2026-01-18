@@ -99,6 +99,42 @@ class PerformanceSettings(BaseSettings):
     tts_cache_max_size: int = 100
 
 
+class LLMSettings(BaseSettings):
+    """LLM/OpenRouter settings for agent system."""
+
+    model_config = SettingsConfigDict(env_prefix="LLM_")
+
+    # OpenRouter API
+    openrouter_api_key: str = ""
+    openrouter_site_url: str = "https://barnabeenet.local"
+    openrouter_site_name: str = "BarnabeeNet"
+
+    # Model defaults per agent type (can be overridden in YAML config)
+    meta_model: str = "deepseek/deepseek-chat"
+    meta_temperature: float = 0.3
+    meta_max_tokens: int = 200
+
+    instant_model: str = "deepseek/deepseek-chat"
+    instant_temperature: float = 0.5
+    instant_max_tokens: int = 300
+
+    action_model: str = "openai/gpt-4o-mini"
+    action_temperature: float = 0.3
+    action_max_tokens: int = 500
+
+    interaction_model: str = "anthropic/claude-3.5-sonnet"
+    interaction_temperature: float = 0.7
+    interaction_max_tokens: int = 1500
+
+    memory_model: str = "openai/gpt-4o-mini"
+    memory_temperature: float = 0.3
+    memory_max_tokens: int = 800
+
+    # Signal logging
+    signal_retention_days: int = 30
+    signal_stream_max_len: int = 10000
+
+
 class Settings(BaseSettings):
     """Main application settings."""
 
@@ -130,6 +166,7 @@ class Settings(BaseSettings):
     tts: TTSSettings = Field(default_factory=TTSSettings)
     audio: AudioSettings = Field(default_factory=AudioSettings)
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
+    llm: LLMSettings = Field(default_factory=LLMSettings)
 
     @field_validator("data_dir", "models_dir", mode="before")
     @classmethod

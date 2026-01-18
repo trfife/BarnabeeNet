@@ -1,0 +1,96 @@
+# BarnabeeNet LLM Configuration
+# Based on SkyrimNet's multi-model agent pattern
+#
+# Each agent type uses a different model optimized for its task:
+# - meta: High-frequency routing decisions (fast, cheap)
+# - instant: Simple pattern-matched responses (fast, cheap)
+# - action: Device control decisions (medium quality)
+# - interaction: Complex conversations (high quality)
+# - memory: Summarization for memory generation (good quality)
+
+# OpenRouter API settings
+openrouter:
+  # API key is loaded from environment: LLM_OPENROUTER_API_KEY
+  site_url: "https://barnabeenet.local"
+  site_name: "BarnabeeNet"
+
+# Agent model configurations
+agents:
+  # Meta Agent: Routes requests to appropriate agent
+  # Runs on EVERY request, so use fast/cheap model
+  meta:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.3
+    max_tokens: 200
+    description: "Fast routing decisions for every request"
+
+  # Instant Agent: Quick pattern-matched responses
+  # Weather, time, simple status queries
+  instant:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.5
+    max_tokens: 300
+    description: "Fast responses for simple queries"
+
+  # Action Agent: Device control decisions
+  # Needs good judgment but not creative writing
+  action:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.3
+    max_tokens: 500
+    description: "Device control and home automation"
+
+  # Interaction Agent: Complex conversations
+  # Quality matters here - this is the "personality"
+  interaction:
+    model: "anthropic/claude-3.5-sonnet"
+    temperature: 0.7
+    max_tokens: 1500
+    description: "Complex conversations, advice, personality"
+
+  # Memory Agent: Summarization for memory storage
+  # Good at compression and extraction
+  memory:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.3
+    max_tokens: 800
+    description: "Memory generation and summarization"
+
+# Model pricing reference (USD per 1M tokens)
+# Used for cost estimation in dashboard
+pricing:
+  "anthropic/claude-3.5-sonnet":
+    input: 3.0
+    output: 15.0
+  "anthropic/claude-3-haiku":
+    input: 0.25
+    output: 1.25
+  "openai/gpt-4o":
+    input: 2.5
+    output: 10.0
+  "openai/gpt-4o-mini":
+    input: 0.15
+    output: 0.6
+  "deepseek/deepseek-chat":
+    input: 0.14
+    output: 0.28
+  "deepseek/deepseek-reasoner":
+    input: 0.55
+    output: 2.19
+  "google/gemini-2.0-flash-001":
+    input: 0.1
+    output: 0.4
+  "meta-llama/llama-3.3-70b-instruct":
+    input: 0.3
+    output: 0.3
+
+# Signal logging settings
+signals:
+  # How long to keep LLM signals in Redis
+  retention_days: 30
+  # Max signals in real-time stream
+  stream_max_length: 10000
+  # Log full prompts (can be disabled for privacy)
+  log_full_prompts: true
+  # Log injected context (home state, memories, etc.)
+  log_injected_context: true

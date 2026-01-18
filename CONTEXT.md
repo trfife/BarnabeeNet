@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-17 (after voice pipeline integration)
+2026-01-17 (after OpenRouter client + signal logging)
 
 ## Current Phase
-**Phase 1: Core Services** - Steps 1-9 Complete, comprehensive test suite
+**Phase 1: Core Services** - Steps 1-9 Complete + Agent foundation started
 
 ## Development Workflow
 
@@ -40,8 +40,11 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 - [x] Message bus (Redis Streams)
 - [x] Voice pipeline integration
+- [x] **OpenRouter LLM client** - Multi-agent model config, full signal logging
+- [x] **Signal logging system** - Every LLM call logged for dashboard visibility
 
 ### In Progress
+- [ ] Agent implementations (meta, instant, action, interaction)
 
 ### Not Started
 - [ ] Agent implementations
@@ -66,7 +69,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Agent implementations ← NEXT
+1. Agent implementations (meta, instant, action, interaction) ← NEXT
 
 2. Memory system
 
@@ -95,6 +98,9 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-01-17 | OpenRouter for LLM API | Multi-model support, good pricing, reliable |
+| 2026-01-17 | Multi-agent model config | Different models per agent type (SkyrimNet pattern) |
+| 2026-01-17 | Signal logging to Redis | Full observability for dashboard request inspector |
 | 2026-01-17 | Parakeet TDT 0.6B v2 for GPU STT | 45ms latency, 53x faster than CPU |
 | 2026-01-17 | Separate .venv-gpu for GPU worker | Isolate heavy NeMo deps from main venv |
 | 2026-01-17 | Hybrid Claude+Copilot workflow | Claude for planning, Copilot for execution |
