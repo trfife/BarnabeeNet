@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after LLM Provider Configuration System)
+2026-01-17 (after Provider Config VM Deployment)
 
 ## Current Phase
-**Phase 1: Core Services** - LLM PROVIDER CONFIG SYSTEM COMPLETE
+**Phase 1: Core Services** - PROVIDER CONFIG DEPLOYED TO VM
 
 ## Development Workflow
 
@@ -62,6 +62,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Text Process Endpoint** - `/api/v1/voice/process` for text-only pipeline testing without audio (used by dashboard and E2E tests)
 - [x] **E2E Testing Deployed to VM** - E2E endpoints accessible at http://192.168.86.51:8000/api/v1/e2e/, quick test runs successfully, results show assertions and agent routing. Tests fail without LLM API key (expected behavior - MetaAgent needs key for intent classification).
 - [x] **LLM Provider Configuration System** - Dashboard-based provider config (not hardcoded). Encrypted secrets storage (Fernet encryption with master key). Support for 12 providers: OpenRouter, OpenAI, Anthropic, Azure, Google, xAI, DeepSeek, HuggingFace, Bedrock, Together, Mistral, Groq. Each provider has setup instructions, docs links, API key generation URLs. Config persisted in Redis (AOF enabled). API at /api/v1/config/providers, /api/v1/config/secrets. Dashboard UI in Configuration page.
+- [x] **Provider Config Deployed to VM** - Master key generated and stored in .env, app restarted with encryption enabled. All 12 providers visible in /api/v1/config/providers/status endpoint. Ready to configure API keys via dashboard.
 
 ### In Progress
 - [ ] None currently
@@ -106,7 +107,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Deploy provider config to VM and test with real API key ← NEXT
+1. Configure OpenRouter API key via dashboard and test E2E ← NEXT
 2. Home Assistant entity discovery
 3. Family profile system
 
