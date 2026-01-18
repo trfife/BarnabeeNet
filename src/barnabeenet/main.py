@@ -139,6 +139,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Start GPU worker health check task
     app_state._health_check_task = asyncio.create_task(_gpu_worker_health_check_loop())
 
+    # Start WebSocket signal streamer
+    try:
+        from barnabeenet.api.routes.websocket import start_signal_streamer
+
+        await start_signal_streamer()
+        logger.info("WebSocket signal streamer started")
+    except Exception as e:
+        logger.error("Signal streamer startup failed", error=str(e))
+
     logger.info(
         "BarnabeeNet started",
         host=settings.host,
@@ -149,6 +158,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # --- Shutdown ---
     logger.info("Shutting down BarnabeeNet")
+
+    # Stop WebSocket signal streamer
+    try:
+        from barnabeenet.api.routes.websocket import stop_signal_streamer
+
+        await stop_signal_streamer()
+    except Exception as e:
+        logger.warning("Signal streamer shutdown error", error=str(e))
 
     # Shutdown orchestrator
     if app_state.orchestrator:
@@ -271,12 +288,13 @@ def create_app() -> FastAPI:
 
 def _register_routes(app: FastAPI) -> None:
     """Register API routes."""
-    from barnabeenet.api.routes import dashboard, health, metrics, voice
+    from barnabeenet.api.routes import dashboard, health, metrics, voice, websocket
 
     app.include_router(health.router, tags=["Health"])
     app.include_router(voice.router, prefix="/api/v1", tags=["Voice"])
     app.include_router(dashboard.router, prefix="/api/v1", tags=["Dashboard"])
     app.include_router(metrics.router, tags=["Metrics"])
+    app.include_router(websocket.router, prefix="/api/v1", tags=["WebSocket"])
 
 
 # Create app instance

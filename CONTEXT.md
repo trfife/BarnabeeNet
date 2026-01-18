@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-17 (after Dashboard Phase 1)
+2026-01-17 (after Dashboard Phase 2)
 
 ## Current Phase
-**Phase 1: Core Services** - DASHBOARD PHASE 1 COMPLETE
+**Phase 1: Core Services** - DASHBOARD PHASE 2 COMPLETE
 
 ## Development Workflow
 
@@ -52,12 +52,13 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Memory Storage System** - EmbeddingService (all-MiniLM-L6-v2), MemoryStorage with Redis + in-memory fallback, vector similarity search
 - [x] **Home Assistant Integration** - HomeAssistantClient with REST API, EntityRegistry with fuzzy name matching, service call execution
 - [x] **Dashboard Phase 1** - Dashboard API endpoints (activity feed, signal details, stats), Prometheus metrics, Grafana + Prometheus compose config
+- [x] **Dashboard Phase 2** - WebSocket endpoint (/ws/activity) for real-time signal streaming, ConnectionManager with filtering, SignalStreamer background task reading from Redis Streams
 
 ### In Progress
-- [ ] Dashboard Phase 2 (WebSocket live updates)
+- [ ] End-to-end voice testing
 
 ### Not Started
-- [ ] Dashboard Phase 2 (WebSocket live updates)
+- [ ] End-to-end voice testing
 
 ---
 
@@ -77,7 +78,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Dashboard Phase 2 (WebSocket live updates) ← NEXT
+1. End-to-end voice testing ← NEXT
 
 ---
 
