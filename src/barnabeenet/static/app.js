@@ -3931,9 +3931,15 @@ async function sendChatMessage() {
             const assistantMessage = data.response || data.text || 'I received your message but have no response.';
             const agent = data.agent_used || data.agent || null;
             const intent = data.intent || null;
+            const traceId = data.trace_id || null;
 
-            addChatMessage('assistant', assistantMessage, { agent, intent, fullResponse: data });
+            addChatMessage('assistant', assistantMessage, { agent, intent, fullResponse: data, traceId });
             updateChatStatus('Ready to chat');
+
+            // Fetch and display agent chain if we have a trace_id
+            if (traceId) {
+                setTimeout(() => fetchAndDisplayAgentChain(traceId), 100);
+            }
         } else {
             // Error response
             const errorMsg = data.detail || data.error || 'Something went wrong';
@@ -4069,6 +4075,73 @@ function clearChat() {
     updateChatStatus('Ready to chat');
     showToast('Conversation cleared');
 }
+
+async function fetchAndDisplayAgentChain(traceId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/activity/traces/${traceId}`);
+        if (!response.ok) return;
+
+        const trace = await response.json();
+        if (!trace.steps || trace.steps.length === 0) return;
+
+        // Find the last assistant message and add the agent chain
+        const messages = document.querySelectorAll('.chat-message.assistant');
+        const lastMessage = messages[messages.length - 1];
+        if (!lastMessage) return;
+
+        // Create agent chain element
+        const chainEl = document.createElement('div');
+        chainEl.className = 'agent-chain';
+
+        let chainHtml = `
+            <div class="agent-chain-header" onclick="this.parentElement.classList.toggle('expanded')">
+                <span class="chain-toggle">▶</span>
+                <span class="chain-title">🔗 Agent Chain (${trace.steps.length} steps)</span>
+                <span class="chain-duration">${trace.total_duration_ms?.toFixed(0) || '?'}ms</span>
+            </div>
+            <div class="agent-chain-steps">
+        `;
+
+        trace.steps.forEach((step, index) => {
+            const icon = getAgentIcon(step.agent);
+            const durationStr = step.duration_ms ? `${step.duration_ms.toFixed(0)}ms` : '';
+            chainHtml += `
+                <div class="chain-step">
+                    <span class="step-number">${index + 1}</span>
+                    <span class="step-icon">${icon}</span>
+                    <span class="step-agent">${step.agent}</span>
+                    <span class="step-action">${step.action}</span>
+                    <span class="step-summary">${escapeHtml(step.summary || '')}</span>
+                    ${durationStr ? `<span class="step-duration">${durationStr}</span>` : ''}
+                </div>
+            `;
+        });
+
+        chainHtml += '</div>';
+        chainEl.innerHTML = chainHtml;
+
+        // Add after the message content
+        const messageContent = lastMessage.querySelector('.message-content');
+        if (messageContent) {
+            messageContent.appendChild(chainEl);
+        }
+    } catch (e) {
+        console.warn('Failed to fetch agent chain:', e);
+    }
+}
+
+function getAgentIcon(agent) {
+    const icons = {
+        'meta': '🧠',
+        'instant': '⚡',
+        'action': '🎯',
+        'interaction': '💬',
+        'memory': '📝',
+        'orchestrator': '🎭'
+    };
+    return icons[agent?.toLowerCase()] || '🔧';
+}
+
 function showChatResponseDetails(data) {
     // Create modal overlay
     const modal = document.createElement('div');

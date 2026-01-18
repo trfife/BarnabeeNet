@@ -4311,6 +4311,116 @@ body {
     margin-top: 4px;
 }
 
+/* Agent Chain Display */
+.agent-chain {
+    margin-top: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-primary);
+    overflow: hidden;
+}
+
+.agent-chain-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    cursor: pointer;
+    user-select: none;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.agent-chain-header:hover {
+    background: var(--bg-hover);
+}
+
+.chain-toggle {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+.agent-chain.expanded .chain-toggle {
+    transform: rotate(90deg);
+}
+
+.chain-title {
+    flex: 1;
+    font-weight: 500;
+}
+
+.chain-duration {
+    font-size: 11px;
+    color: var(--accent-primary);
+}
+
+.agent-chain-steps {
+    display: none;
+    padding: 8px;
+}
+
+.agent-chain.expanded .agent-chain-steps {
+    display: block;
+}
+
+.chain-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+}
+
+.chain-step:hover {
+    background: var(--bg-hover);
+}
+
+.step-number {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+.step-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.step-agent {
+    font-weight: 600;
+    color: var(--accent-secondary);
+    text-transform: capitalize;
+    flex-shrink: 0;
+}
+
+.step-action {
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.step-summary {
+    flex: 1;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.step-duration {
+    color: var(--accent-primary);
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
 /* Chat clickable message */
 .message-bubble.clickable:hover {
     background: var(--bg-hover);
