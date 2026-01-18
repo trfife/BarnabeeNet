@@ -146,14 +146,6 @@ async def list_providers(
     )
 
 
-@router.get("/providers/{provider_type}", response_model=ProviderInfo)
-async def get_provider(provider_type: ProviderType) -> ProviderInfo:
-    """Get detailed information about a specific provider."""
-    if provider_type not in PROVIDER_REGISTRY:
-        raise HTTPException(status_code=404, detail=f"Provider not found: {provider_type}")
-    return get_provider_info(provider_type)
-
-
 @router.get("/providers/status", response_model=ProviderStatusResponse)
 async def get_providers_status(
     request: Request,
@@ -192,6 +184,14 @@ async def get_providers_status(
         )
 
     return ProviderStatusResponse(statuses=statuses)
+
+
+@router.get("/providers/{provider_type}", response_model=ProviderInfo)
+async def get_provider(provider_type: ProviderType) -> ProviderInfo:
+    """Get detailed information about a specific provider."""
+    if provider_type not in PROVIDER_REGISTRY:
+        raise HTTPException(status_code=404, detail=f"Provider not found: {provider_type}")
+    return get_provider_info(provider_type)
 
 
 # =============================================================================
