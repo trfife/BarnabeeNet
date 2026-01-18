@@ -1517,6 +1517,110 @@ body {
     color: var(--text-muted);
 }
 
+.models-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-auto {
+    background: linear-gradient(135deg, rgba(138, 43, 226, 0.3), rgba(0, 255, 157, 0.3));
+    border: 1px solid rgba(138, 43, 226, 0.5);
+}
+
+.btn-auto:hover {
+    background: linear-gradient(135deg, rgba(138, 43, 226, 0.5), rgba(0, 255, 157, 0.5));
+}
+
+/* Model Health Status Panel */
+.model-health-status {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.health-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+.btn-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.btn-close:hover {
+    color: var(--text-primary);
+}
+
+.health-checking {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+}
+
+.health-summary {
+    display: flex;
+    gap: 16px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.health-working {
+    color: var(--accent-primary);
+}
+
+.health-failed {
+    color: var(--accent-error);
+}
+
+.health-results {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.health-result {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.health-result.working {
+    border-left: 3px solid var(--accent-primary);
+}
+
+.health-result.failed {
+    border-left: 3px solid var(--accent-error);
+    opacity: 0.8;
+}
+
+.health-latency {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.health-error {
+    font-size: 11px;
+    color: var(--accent-error);
+    display: block;
+}
+
 .activities-list {
     display: flex;
     flex-direction: column;

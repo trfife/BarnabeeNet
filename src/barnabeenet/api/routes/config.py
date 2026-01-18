@@ -700,7 +700,441 @@ async def refresh_models_cache(
     if cache_key in _models_cache:
         del _models_cache[cache_key]
 
+    # Also clear health cache
+    global _model_health_cache
+    _model_health_cache = {}
+
     return {"success": True, "message": f"Cache cleared for {provider}"}
+
+
+# =============================================================================
+# Model Health Check Endpoints
+# =============================================================================
+
+# Cache for model health status: model_id -> (working: bool, last_check: datetime, error: str|None)
+_model_health_cache: dict[str, tuple[bool, datetime, str | None]] = {}
+MODEL_HEALTH_CACHE_TTL_SECONDS = 600  # 10 minutes
+
+
+class ModelHealthResponse(BaseModel):
+    """Health status of a model."""
+
+    model_id: str
+    working: bool
+    last_checked: datetime | None
+    error: str | None = None
+    latency_ms: float | None = None
+
+
+class ModelHealthBatchResponse(BaseModel):
+    """Batch health check results."""
+
+    checked: int
+    working: int
+    failed: int
+    results: list[ModelHealthResponse]
+
+
+@router.post("/models/health-check/{model_id:path}")
+async def check_model_health(
+    model_id: str,
+    request: Request,
+    force: bool = False,
+    secrets: SecretsService = Depends(get_secrets),
+) -> ModelHealthResponse:
+    """Check if a specific model is working by making a minimal test call.
+
+    Results are cached for 10 minutes unless force=True.
+    """
+    import time
+
+    # Check cache
+    if not force and model_id in _model_health_cache:
+        working, last_check, error = _model_health_cache[model_id]
+        if (datetime.now(UTC) - last_check).total_seconds() < MODEL_HEALTH_CACHE_TTL_SECONDS:
+            return ModelHealthResponse(
+                model_id=model_id,
+                working=working,
+                last_checked=last_check,
+                error=error,
+            )
+
+    # Get API key
+    provider_secrets = await secrets.get_secrets_for_provider("openrouter")
+    api_key = provider_secrets.get("openrouter_api_key")
+
+    if not api_key:
+        return ModelHealthResponse(
+            model_id=model_id,
+            working=False,
+            last_checked=datetime.now(UTC),
+            error="No OpenRouter API key configured",
+        )
+
+    # Make minimal test call
+    start_time = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model_id,
+                    "messages": [{"role": "user", "content": "Say OK"}],
+                    "max_tokens": 5,
+                },
+            )
+
+            latency_ms = (time.perf_counter() - start_time) * 1000
+
+            if response.status_code == 200:
+                _model_health_cache[model_id] = (True, datetime.now(UTC), None)
+                return ModelHealthResponse(
+                    model_id=model_id,
+                    working=True,
+                    last_checked=datetime.now(UTC),
+                    latency_ms=latency_ms,
+                )
+            else:
+                error_msg = f"HTTP {response.status_code}"
+                try:
+                    error_data = response.json()
+                    if "error" in error_data:
+                        error_msg = error_data["error"].get("message", error_msg)
+                except Exception:
+                    pass
+
+                _model_health_cache[model_id] = (False, datetime.now(UTC), error_msg)
+                return ModelHealthResponse(
+                    model_id=model_id,
+                    working=False,
+                    last_checked=datetime.now(UTC),
+                    error=error_msg,
+                    latency_ms=latency_ms,
+                )
+
+    except Exception as e:
+        error_msg = str(e)
+        _model_health_cache[model_id] = (False, datetime.now(UTC), error_msg)
+        return ModelHealthResponse(
+            model_id=model_id,
+            working=False,
+            last_checked=datetime.now(UTC),
+            error=error_msg,
+        )
+
+
+@router.post("/models/health-check-free")
+async def check_free_models_health(
+    request: Request,
+    limit: int = 10,
+    secrets: SecretsService = Depends(get_secrets),
+) -> ModelHealthBatchResponse:
+    """Check health of top free models and return working ones.
+
+    This helps identify which free models are actually usable.
+    """
+    # Get current free models
+    models_response = await list_models(request, "openrouter", secrets)
+    free_models = [m for m in models_response.models if m.is_free][:limit]
+
+    results = []
+    working_count = 0
+    failed_count = 0
+
+    for model in free_models:
+        result = await check_model_health(model.id, request, force=False, secrets=secrets)
+        results.append(result)
+        if result.working:
+            working_count += 1
+        else:
+            failed_count += 1
+
+    return ModelHealthBatchResponse(
+        checked=len(results),
+        working=working_count,
+        failed=failed_count,
+        results=results,
+    )
+
+
+@router.get("/models/health-status")
+async def get_model_health_status() -> dict[str, Any]:
+    """Get cached health status for all checked models."""
+    statuses = {}
+    for model_id, (working, last_check, error) in _model_health_cache.items():
+        statuses[model_id] = {
+            "working": working,
+            "last_checked": last_check.isoformat(),
+            "error": error,
+        }
+
+    return {
+        "total_checked": len(statuses),
+        "working": sum(1 for s in statuses.values() if s["working"]),
+        "failed": sum(1 for s in statuses.values() if not s["working"]),
+        "models": statuses,
+    }
+
+
+# =============================================================================
+# AI-Powered Model Auto-Selection
+# =============================================================================
+
+
+class AutoSelectRequest(BaseModel):
+    """Request for AI auto-selection."""
+
+    free_only: bool = True
+    prefer_speed: bool = False
+    prefer_quality: bool = False
+
+
+class AutoSelectResponse(BaseModel):
+    """Response from AI auto-selection."""
+
+    success: bool
+    recommendations: dict[str, str]  # activity -> model
+    reasoning: dict[str, str]  # activity -> why this model
+    applied: bool = False
+    error: str | None = None
+
+
+@router.post("/activities/auto-select")
+async def auto_select_models(
+    request: Request,
+    params: AutoSelectRequest,
+    secrets: SecretsService = Depends(get_secrets),
+) -> AutoSelectResponse:
+    """Use AI to intelligently select optimal models for each activity.
+
+    Analyzes each activity's requirements (speed, accuracy, quality, context length)
+    and matches them to the best available models.
+    """
+    import json
+
+    from barnabeenet.services.llm.activities import DEFAULT_ACTIVITY_CONFIGS
+
+    # Get available models with health status
+    models_response = await list_models(request, "openrouter", secrets)
+
+    if params.free_only:
+        available_models = [m for m in models_response.models if m.is_free]
+    else:
+        available_models = models_response.models
+
+    if not available_models:
+        return AutoSelectResponse(
+            success=False,
+            recommendations={},
+            reasoning={},
+            error="No models available" + (" (free only)" if params.free_only else ""),
+        )
+
+    # Filter to only working models if we have health data
+    working_models = []
+    for m in available_models:
+        if m.id in _model_health_cache:
+            working, _, _ = _model_health_cache[m.id]
+            if working:
+                working_models.append(m)
+        else:
+            # Include unchecked models
+            working_models.append(m)
+
+    if not working_models:
+        working_models = available_models  # Fall back to all if none verified
+
+    # Build model summary for AI
+    model_summary = []
+    for m in working_models[:30]:  # Limit to top 30
+        health_note = ""
+        if m.id in _model_health_cache:
+            working, _, _ = _model_health_cache[m.id]
+            health_note = " [VERIFIED WORKING]" if working else " [FAILED]"
+
+        model_summary.append(
+            f"- {m.id}: {m.name}, context={m.context_length}, "
+            f"{'FREE' if m.is_free else f'${m.pricing_prompt}/1M in, ${m.pricing_completion}/1M out'}"
+            f"{health_note}"
+        )
+
+    # Build activity summary
+    activity_summary = []
+    for activity_name, config in DEFAULT_ACTIVITY_CONFIGS.items():
+        activity_summary.append(
+            f"- {activity_name}: {config['description']}, "
+            f"priority={config['priority']}, max_tokens={config['max_tokens']}"
+        )
+
+    # Create prompt for AI
+    system_prompt = """You are an expert at selecting LLM models for different tasks.
+Given a list of available models and activities that need models assigned, select the BEST model for each activity.
+
+Consider:
+1. Activity PRIORITY: "speed" needs fast models, "accuracy" needs reliable models, "quality" needs best output, "balanced" is flexible
+2. MAX_TOKENS: Ensure model context length can handle the task
+3. Model capabilities: Some models are better at certain tasks (coding, conversation, analysis)
+4. If a model is marked [VERIFIED WORKING], prefer it over unchecked ones
+5. NEVER select a model marked [FAILED]
+
+Respond with ONLY a JSON object mapping activity names to model IDs, like:
+{"meta.classify_intent": "model/id", "interaction.respond": "other/model", ...}
+
+Include ALL activities listed."""
+
+    user_prompt = f"""Available Models:
+{chr(10).join(model_summary)}
+
+Activities needing models:
+{chr(10).join(activity_summary)}
+
+Preferences:
+- Free models only: {params.free_only}
+- Prefer speed: {params.prefer_speed}
+- Prefer quality: {params.prefer_quality}
+
+Select the best model for EACH activity. Return ONLY the JSON mapping."""
+
+    # Get API key and make call
+    provider_secrets = await secrets.get_secrets_for_provider("openrouter")
+    api_key = provider_secrets.get("openrouter_api_key")
+
+    if not api_key:
+        return AutoSelectResponse(
+            success=False,
+            recommendations={},
+            reasoning={},
+            error="No OpenRouter API key configured",
+        )
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            # Use a reliable model for the selection
+            selector_model = "qwen/qwen3-coder:free" if params.free_only else "anthropic/claude-3.5-sonnet"
+
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": selector_model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "max_tokens": 1000,
+                    "temperature": 0.3,
+                },
+            )
+
+            if response.status_code != 200:
+                return AutoSelectResponse(
+                    success=False,
+                    recommendations={},
+                    reasoning={},
+                    error=f"AI call failed: HTTP {response.status_code}",
+                )
+
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+
+            # Parse JSON from response
+            # Handle potential markdown code blocks
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0]
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0]
+
+            recommendations = json.loads(content.strip())
+
+            # Validate recommendations
+            valid_recs = {}
+            reasoning = {}
+            valid_model_ids = {m.id for m in available_models}
+
+            for activity, model_id in recommendations.items():
+                if activity in DEFAULT_ACTIVITY_CONFIGS:
+                    if model_id in valid_model_ids:
+                        valid_recs[activity] = model_id
+                        priority = DEFAULT_ACTIVITY_CONFIGS[activity]["priority"]
+                        reasoning[activity] = f"Selected for {priority} priority task"
+                    else:
+                        # Model not in our list, use a fallback
+                        fallback = working_models[0].id if working_models else available_models[0].id
+                        valid_recs[activity] = fallback
+                        reasoning[activity] = f"Fallback (requested {model_id} not available)"
+
+            # Fill any missing activities
+            for activity in DEFAULT_ACTIVITY_CONFIGS:
+                if activity not in valid_recs:
+                    valid_recs[activity] = working_models[0].id if working_models else available_models[0].id
+                    reasoning[activity] = "Default fallback"
+
+            return AutoSelectResponse(
+                success=True,
+                recommendations=valid_recs,
+                reasoning=reasoning,
+            )
+
+    except json.JSONDecodeError as e:
+        return AutoSelectResponse(
+            success=False,
+            recommendations={},
+            reasoning={},
+            error=f"Failed to parse AI response: {e}",
+        )
+    except Exception as e:
+        return AutoSelectResponse(
+            success=False,
+            recommendations={},
+            reasoning={},
+            error=f"AI selection failed: {e}",
+        )
+
+
+@router.post("/activities/auto-select/apply")
+async def apply_auto_selection(
+    request: Request,
+    params: AutoSelectRequest,
+    secrets: SecretsService = Depends(get_secrets),
+) -> AutoSelectResponse:
+    """Auto-select models AND apply them to all activities."""
+    import json
+
+    from barnabeenet.services.llm.activities import get_activity_config_manager
+
+    # First get recommendations
+    result = await auto_select_models(request, params, secrets)
+
+    if not result.success:
+        return result
+
+    # Apply recommendations
+    redis = request.app.state.redis
+    manager = get_activity_config_manager()
+
+    for activity_name, model in result.recommendations.items():
+        # Store in Redis
+        override = {"model": model}
+        await redis.hset(ACTIVITY_CONFIGS_KEY, activity_name, json.dumps(override))
+
+        # Update in-memory
+        try:
+            config = manager.get(activity_name)
+            config.model = model
+        except Exception:
+            pass
+
+    logger.info(f"Applied auto-selection: {len(result.recommendations)} activities updated")
+
+    result.applied = True
+    return result
 
 
 # =============================================================================

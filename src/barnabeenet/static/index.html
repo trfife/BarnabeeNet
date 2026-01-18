@@ -923,7 +923,26 @@
                                 </label>
                                 <span class="models-count" id="models-count-display">Loading models...</span>
                             </div>
-                            <button class="btn btn-small" id="refresh-models">🔄 Refresh Models</button>
+                            <div class="models-actions">
+                                <button class="btn btn-small btn-auto" id="auto-select-models" title="Use AI to select optimal models for each activity">
+                                    🤖 Auto-Select
+                                </button>
+                                <button class="btn btn-small" id="check-model-health" title="Test which models are currently working">
+                                    🩺 Health Check
+                                </button>
+                                <button class="btn btn-small" id="refresh-models">🔄 Refresh</button>
+                            </div>
+                        </div>
+
+                        <!-- Model Health Status (hidden by default) -->
+                        <div class="model-health-status" id="model-health-status" style="display: none;">
+                            <div class="health-header">
+                                <span>Model Health Status</span>
+                                <button class="btn-close" id="close-health-status">&times;</button>
+                            </div>
+                            <div class="health-content" id="health-content">
+                                Checking models...
+                            </div>
                         </div>
 
                         <div class="activities-list" id="activities-list">

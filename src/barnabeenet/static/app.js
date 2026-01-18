@@ -1547,6 +1547,131 @@ function initModeToggle() {
     document.getElementById('mode-production')?.addEventListener('click', () => switchMode('production'));
 }
 
+// =============================================================================
+// Model Health Check
+// =============================================================================
+
+let modelHealthCache = {};
+
+async function checkModelHealth() {
+    const btn = document.getElementById('check-model-health');
+    const statusDiv = document.getElementById('model-health-status');
+    const contentDiv = document.getElementById('health-content');
+
+    btn.disabled = true;
+    btn.textContent = '🩺 Checking...';
+    statusDiv.style.display = 'block';
+    contentDiv.innerHTML = '<div class="health-checking">Checking free models health...</div>';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/config/models/health-check-free`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+
+        // Update cache
+        data.results.forEach(r => {
+            modelHealthCache[r.model_id] = r;
+        });
+
+        // Render results
+        let html = `
+            <div class="health-summary">
+                <span class="health-working">✅ ${data.working} working</span>
+                <span class="health-failed">❌ ${data.failed} failed</span>
+                of ${data.checked} checked
+            </div>
+            <div class="health-results">
+        `;
+
+        data.results.forEach(r => {
+            const icon = r.working ? '✅' : '❌';
+            const latency = r.latency_ms ? `${r.latency_ms.toFixed(0)}ms` : '';
+            const error = r.error ? `<span class="health-error">${r.error}</span>` : '';
+            html += `
+                <div class="health-result ${r.working ? 'working' : 'failed'}">
+                    ${icon} ${r.model_id.split('/').pop()}
+                    ${latency ? `<span class="health-latency">${latency}</span>` : ''}
+                    ${error}
+                </div>
+            `;
+        });
+
+        html += '</div>';
+        contentDiv.innerHTML = html;
+
+        // Refresh activities to update model status badges
+        await loadActivities();
+
+    } catch (e) {
+        contentDiv.innerHTML = `<div class="health-error">Health check failed: ${e.message}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🩺 Health Check';
+    }
+}
+
+// =============================================================================
+// AI-Powered Auto-Selection
+// =============================================================================
+
+async function autoSelectModels() {
+    const btn = document.getElementById('auto-select-models');
+
+    if (!confirm('Use AI to automatically select the best model for each activity?\n\nThis will analyze each activity\'s requirements and pick optimal models from available free models.')) {
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '🤖 Selecting...';
+
+    const container = document.querySelector('.activities-list');
+    if (container) {
+        container.classList.add('mode-switching');
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/config/activities/auto-select/apply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                free_only: true,
+                prefer_speed: false,
+                prefer_quality: false
+            })
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Show success notification
+            const count = Object.keys(data.recommendations).length;
+            alert(`✅ Auto-selection complete!\n\n${count} activities updated with optimal models.`);
+
+            // Reload activities to show new models
+            await loadActivities();
+        } else {
+            throw new Error(data.error || 'Auto-selection failed');
+        }
+
+    } catch (e) {
+        alert(`❌ Auto-selection failed: ${e.message}`);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🤖 Auto-Select';
+        if (container) {
+            container.classList.remove('mode-switching');
+        }
+    }
+}
+
 
 function initModelSelection() {
     // Initialize mode toggle
@@ -1572,6 +1697,15 @@ function initModelSelection() {
         // Reload activities to refresh price badges
         await loadActivities();
     });
+
+    // Health Check button
+    document.getElementById('check-model-health')?.addEventListener('click', checkModelHealth);
+    document.getElementById('close-health-status')?.addEventListener('click', () => {
+        document.getElementById('model-health-status').style.display = 'none';
+    });
+
+    // Auto-Select button
+    document.getElementById('auto-select-models')?.addEventListener('click', autoSelectModels);
 
     // Load when models config section is shown
     document.querySelectorAll('.config-nav li').forEach(item => {
