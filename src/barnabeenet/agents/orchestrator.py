@@ -4,7 +4,8 @@ The orchestrator handles the complete flow from voice input to response:
 1. MetaAgent classifies intent and evaluates context
 2. Routes to appropriate agent (Instant, Action, Interaction)
 3. MemoryAgent retrieves relevant context and stores new memories
-4. Generates final response for TTS
+4. Executes device actions via Home Assistant
+5. Generates final response for TTS
 
 This is the "brain" that connects all agents into a coherent system.
 """
@@ -16,9 +17,12 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from barnabeenet.agents.action import ActionAgent
+
+if TYPE_CHECKING:
+    from barnabeenet.services.homeassistant.client import HomeAssistantClient
 from barnabeenet.agents.instant import InstantAgent
 from barnabeenet.agents.interaction import InteractionAgent
 from barnabeenet.agents.memory import MemoryAgent, MemoryOperation
@@ -89,7 +93,8 @@ class AgentOrchestrator:
        - CONVERSATION/QUERY → InteractionAgent (LLM conversation)
        - MEMORY → MemoryAgent (direct memory operations)
     4. MemoryAgent: Store relevant facts from interaction
-    5. Return response for TTS
+    5. Execute device actions via Home Assistant
+    6. Return response for TTS
     """
 
     def __init__(
@@ -97,6 +102,7 @@ class AgentOrchestrator:
         llm_client: OpenRouterClient | None = None,
         config: OrchestratorConfig | None = None,
         pipeline_logger: PipelineLogger | None = None,
+        ha_client: HomeAssistantClient | None = None,
     ) -> None:
         """Initialize the orchestrator.
 
@@ -104,10 +110,12 @@ class AgentOrchestrator:
             llm_client: Shared LLM client for all agents.
             config: Optional configuration overrides.
             pipeline_logger: Logger for pipeline signals (for dashboard).
+            ha_client: Home Assistant client for action execution.
         """
         self.config = config or OrchestratorConfig()
         self._llm_client = llm_client
         self._pipeline_logger = pipeline_logger
+        self._ha_client: HomeAssistantClient | None = ha_client
 
         # Agents (initialized lazily or via init())
         self._meta_agent: MetaAgent | None = None
@@ -461,15 +469,36 @@ class AgentOrchestrator:
             agent_name = "action"
             # Track device actions
             if ctx.agent_response.get("action"):
-                ctx.actions_taken.append(ctx.agent_response["action"])
+                action_spec = ctx.agent_response["action"]
+                ctx.actions_taken.append(action_spec)
+
+                # Execute the action via Home Assistant
+                execution_result = await self._execute_ha_action(action_spec, ctx)
+
+                # Update response based on execution result
+                if execution_result.get("executed"):
+                    if not execution_result.get("success"):
+                        # Action failed to execute
+                        ctx.agent_response["response"] = execution_result.get(
+                            "error", "Sorry, I couldn't complete that action."
+                        )
+                    # Add execution info to action
+                    action_spec["executed"] = execution_result.get("executed", False)
+                    action_spec["execution_message"] = execution_result.get("message", "")
+
                 # Log HA action
                 if self._pipeline_logger:
                     await self._pipeline_logger.log_signal(
                         trace_id=ctx.trace_id,
-                        signal_type=SignalType.HA_ACTION,
-                        summary=f"Action: {ctx.agent_response['action'].get('service', 'unknown')}",
-                        success=True,
-                        extra_data=ctx.agent_response["action"],
+                        signal_type=SignalType.HA_SERVICE_CALL
+                        if execution_result.get("executed")
+                        else SignalType.HA_ACTION,
+                        summary=f"Action: {action_spec.get('service', 'unknown')} - {'Executed' if execution_result.get('success') else 'Not executed'}",
+                        success=execution_result.get("success", False),
+                        extra_data={
+                            **action_spec,
+                            "execution_result": execution_result,
+                        },
                     )
 
         elif intent == IntentCategory.MEMORY:
@@ -566,6 +595,103 @@ class AgentOrchestrator:
             logger.warning(f"Memory storage failed: {e}")
 
         ctx.stage_timings["memory_storage"] = (time.perf_counter() - start) * 1000
+
+    async def _execute_ha_action(
+        self, action_spec: dict[str, Any], ctx: RequestContext
+    ) -> dict[str, Any]:
+        """Execute an action via Home Assistant.
+
+        Args:
+            action_spec: Action specification from ActionAgent
+            ctx: Request context for logging
+
+        Returns:
+            Dict with execution result (success, executed, message, error)
+        """
+        # Check if HA client is available
+        if self._ha_client is None:
+            # Try to get the global HA client
+            try:
+                from barnabeenet.api.routes.homeassistant import get_ha_client
+
+                self._ha_client = await get_ha_client()
+            except Exception as e:
+                logger.warning("Could not get HA client: %s", e)
+
+        if self._ha_client is None or not self._ha_client.connected:
+            logger.info("Home Assistant not connected, action not executed")
+            return {
+                "executed": False,
+                "success": False,
+                "message": "Home Assistant not connected",
+            }
+
+        # Get service and entity info from action spec
+        service = action_spec.get("service")
+        entity_name = action_spec.get("entity_name", "")
+        entity_id = action_spec.get("entity_id")
+        service_data = action_spec.get("service_data", {})
+
+        if not service:
+            logger.warning("No service specified in action")
+            return {
+                "executed": False,
+                "success": False,
+                "message": "No service specified",
+            }
+
+        # Resolve entity_id if not provided
+        if not entity_id and entity_name:
+            domain = action_spec.get("domain")
+            entity = self._ha_client.resolve_entity(entity_name, domain)
+            if entity:
+                entity_id = entity.entity_id
+                logger.info("Resolved '%s' to entity_id: %s", entity_name, entity_id)
+            else:
+                logger.warning("Could not resolve entity: %s", entity_name)
+                return {
+                    "executed": False,
+                    "success": False,
+                    "message": f"Could not find device: {entity_name}",
+                    "error": f"No entity matching '{entity_name}' found",
+                }
+
+        # Execute the service call
+        try:
+            logger.info(
+                "Executing HA service: %s on %s with data %s",
+                service,
+                entity_id,
+                service_data,
+            )
+            result = await self._ha_client.call_service(
+                service, entity_id=entity_id, **service_data
+            )
+
+            if result.success:
+                logger.info("HA service call successful: %s on %s", service, entity_id)
+                return {
+                    "executed": True,
+                    "success": True,
+                    "message": result.message,
+                    "entity_id": entity_id,
+                }
+            else:
+                logger.warning("HA service call failed: %s", result.message)
+                return {
+                    "executed": True,
+                    "success": False,
+                    "message": result.message,
+                    "error": result.message,
+                }
+        except Exception as e:
+            logger.exception("HA service call error: %s", e)
+            return {
+                "executed": True,
+                "success": False,
+                "message": f"Error executing action: {e}",
+                "error": str(e),
+            }
 
     def _build_response(self, ctx: RequestContext) -> dict[str, Any]:
         """Build the final response dict."""
