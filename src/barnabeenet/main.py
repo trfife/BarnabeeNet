@@ -9,12 +9,14 @@ import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from barnabeenet import __version__
 from barnabeenet.config import get_settings
@@ -23,6 +25,8 @@ from barnabeenet.models.schemas import ErrorDetail, ErrorResponse
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
+# Static files directory
+STATIC_DIR = Path(__file__).parent / "static"
 # =============================================================================
 # Logging Setup
 # =============================================================================
@@ -290,10 +294,14 @@ def _register_routes(app: FastAPI) -> None:
     """Register API routes."""
     from barnabeenet.api.routes import dashboard, health, metrics, voice, websocket
 
-    # Root endpoint - redirect to docs or show info
+    # Root endpoint - serve dashboard
     @app.get("/", include_in_schema=False)
     async def root():
-        """Root endpoint - shows API info."""
+        """Serve the dashboard."""
+        index_path = STATIC_DIR / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        # Fallback to API info if no dashboard
         return {
             "name": "BarnabeeNet",
             "version": __version__,
@@ -308,11 +316,16 @@ def _register_routes(app: FastAPI) -> None:
             },
         }
 
+    # API routes
     app.include_router(health.router, tags=["Health"])
     app.include_router(voice.router, prefix="/api/v1", tags=["Voice"])
     app.include_router(dashboard.router, prefix="/api/v1", tags=["Dashboard"])
     app.include_router(metrics.router, tags=["Metrics"])
     app.include_router(websocket.router, prefix="/api/v1", tags=["WebSocket"])
+
+    # Mount static files (must be after routes to not override them)
+    if STATIC_DIR.exists():
+        app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 # Create app instance
