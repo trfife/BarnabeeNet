@@ -1292,7 +1292,10 @@ async def auto_select_models(
     # Get current mode to determine free_only setting
     redis = request.app.state.redis
     mode_bytes = await redis.get(MODE_KEY)
-    current_mode = mode_bytes.decode() if mode_bytes else "testing"
+    if mode_bytes is None:
+        current_mode = "testing"
+    else:
+        current_mode = mode_bytes.decode() if isinstance(mode_bytes, bytes) else mode_bytes
 
     # In testing mode, always use free models only
     # In production mode, use the params.free_only setting
