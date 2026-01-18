@@ -15,6 +15,8 @@ from barnabeenet.models.schemas import (
     STTEngine,
     SynthesizeRequest,
     SynthesizeResponse,
+    TextProcessRequest,
+    TextProcessResponse,
     TranscribeRequest,
     TranscribeResponse,
     VoicePipelineRequest,
@@ -228,3 +230,110 @@ async def voice_pipeline(request: VoicePipelineRequest) -> VoicePipelineResponse
     Keeps the router thin and moves pipeline logic into services for reuse.
     """
     return await VoicePipelineService.run(request)
+
+
+# =============================================================================
+# Text-Only Processing (for dashboard testing)
+# =============================================================================
+
+
+@router.post("/voice/process", response_model=TextProcessResponse)
+async def text_process(request: TextProcessRequest) -> TextProcessResponse:
+    """Process text through the agent orchestrator (no audio).
+
+    This endpoint is useful for:
+    - Dashboard testing without audio
+    - API integrations that don't need TTS output
+    - End-to-end testing of the AI pipeline
+
+    Goes through the full pipeline including:
+    - Intent classification (MetaAgent)
+    - Memory retrieval
+    - Agent routing (Instant/Action/Interaction/Memory)
+    - Memory storage
+
+    All processing is logged to the dashboard via pipeline signals.
+    """
+    from barnabeenet.agents.orchestrator import get_orchestrator
+    from barnabeenet.services.pipeline_signals import get_pipeline_logger
+
+    start_time = time.perf_counter()
+    pipeline_logger = get_pipeline_logger()
+
+    # Start trace for dashboard visibility
+    trace_id = pipeline_logger.start_trace(
+        input_text=request.text,
+        input_type="text",
+        speaker=request.speaker,
+        room=request.room,
+    )
+
+    try:
+        # Process through orchestrator
+        orchestrator = get_orchestrator()
+        orchestrator_resp = await orchestrator.process(
+            text=request.text,
+            speaker=request.speaker,
+            room=request.room,
+            conversation_id=request.conversation_id,
+        )
+
+        response_text = orchestrator_resp.get("response", "")
+        agent_used = orchestrator_resp.get("agent", "unknown")
+        intent = orchestrator_resp.get("intent", "unknown")
+
+        processing_time = (time.perf_counter() - start_time) * 1000
+
+        logger.info(
+            "Text processing complete",
+            trace_id=trace_id[:8],
+            agent=agent_used,
+            intent=intent,
+            latency_ms=f"{processing_time:.2f}",
+        )
+
+        # Complete trace
+        await pipeline_logger.complete_trace(
+            trace_id=trace_id,
+            response_text=response_text,
+            success=True,
+        )
+
+        return TextProcessResponse(
+            text=request.text,
+            response=response_text,
+            intent=intent,
+            agent_used=agent_used,
+            trace_id=trace_id,
+            conversation_id=request.conversation_id,
+            latency_ms=processing_time,
+            total_latency_ms=processing_time,
+            memories_retrieved=orchestrator_resp.get("memories_retrieved", 0),
+            memories_stored=orchestrator_resp.get("memories_stored", 0),
+        )
+
+    except Exception as e:
+        processing_time = (time.perf_counter() - start_time) * 1000
+
+        logger.error(
+            "Text processing failed",
+            trace_id=trace_id[:8],
+            error=str(e),
+        )
+
+        # Complete trace with error
+        await pipeline_logger.complete_trace(
+            trace_id=trace_id,
+            response_text="",
+            success=False,
+            error=str(e),
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=ErrorDetail(
+                code="PROCESSING_ERROR",
+                message="Failed to process text",
+                details={"error": str(e)},
+            ).model_dump(),
+        ) from e

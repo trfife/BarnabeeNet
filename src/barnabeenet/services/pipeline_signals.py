@@ -71,6 +71,13 @@ class SignalType(str, Enum):
     REQUEST_START = "request_start"
     REQUEST_COMPLETE = "request_complete"
 
+    # E2E Testing signals
+    E2E_TEST_START = "e2e_test_start"
+    E2E_TEST_COMPLETE = "e2e_test_complete"
+    E2E_TEST_STEP = "e2e_test_step"
+    E2E_ASSERTION_PASS = "e2e_assertion_pass"
+    E2E_ASSERTION_FAIL = "e2e_assertion_fail"
+
 
 class PipelineSignal(BaseModel):
     """A single event in the processing pipeline."""

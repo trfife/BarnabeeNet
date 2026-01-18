@@ -219,6 +219,52 @@ class VoicePipelineRequest(BaseModel):
         }
 
 
+class TextProcessRequest(BaseModel):
+    """Request for text-only processing (no audio)."""
+
+    text: str = Field(..., description="Input text to process")
+    speaker: str | None = Field(default=None, description="Speaker identifier")
+    room: str | None = Field(default=None, description="Room context")
+    conversation_id: str | None = Field(default=None, description="Conversation ID for context")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "text": "What's the weather like?",
+                "speaker": "thom",
+                "room": "living_room",
+            }
+        }
+
+
+class TextProcessResponse(BaseModel):
+    """Response from text-only processing."""
+
+    text: str = Field(..., description="Input text that was processed")
+    response: str = Field(..., description="Response text")
+    intent: str = Field(default="unknown", description="Classified intent category")
+    agent_used: str = Field(default="unknown", description="Agent that handled request")
+    trace_id: str | None = Field(default=None, description="Pipeline trace ID for debugging")
+    conversation_id: str | None = Field(default=None, description="Conversation ID")
+    latency_ms: float = Field(..., description="Processing time in milliseconds")
+    total_latency_ms: float = Field(..., description="Total latency including overhead")
+    memories_retrieved: int = Field(default=0, description="Number of memories retrieved")
+    memories_stored: int = Field(default=0, description="Number of new memories stored")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "text": "What's the weather like?",
+                "response": "I don't have access to weather data yet.",
+                "intent": "question_weather",
+                "agent_used": "interaction",
+                "trace_id": "abc123",
+                "latency_ms": 850.5,
+                "total_latency_ms": 852.1,
+            }
+        }
+
+
 class VoicePipelineResponse(BaseModel):
     """Response from full voice pipeline."""
 

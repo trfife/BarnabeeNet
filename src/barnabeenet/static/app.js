@@ -364,6 +364,10 @@ function initTestButtons() {
     document.getElementById('test-llm').addEventListener('click', testLLM);
     document.getElementById('test-stt').addEventListener('click', testSTT);
     document.getElementById('test-pipeline').addEventListener('click', testPipeline);
+
+    // E2E Test buttons
+    document.getElementById('e2e-quick-test').addEventListener('click', runQuickE2ETest);
+    document.getElementById('e2e-run-suite').addEventListener('click', runE2ETestSuite);
 }
 
 async function testTTS() {
@@ -728,3 +732,133 @@ function renderPipelineSignal(sig) {
         </div>
     `;
 }
+
+// =============================================================================
+// E2E Testing
+// =============================================================================
+
+async function runQuickE2ETest() {
+    const statusEl = document.getElementById('e2e-status');
+    const resultsEl = document.getElementById('e2e-results');
+
+    statusEl.style.display = 'block';
+    resultsEl.style.display = 'none';
+    document.getElementById('e2e-progress-text').textContent = 'Running quick tests...';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/e2e/quick`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        displayE2EResults(data);
+    } catch (e) {
+        console.error('E2E quick test failed:', e);
+        document.getElementById('e2e-progress-text').textContent = `Error: ${e.message}`;
+    }
+}
+
+async function runE2ETestSuite() {
+    const statusEl = document.getElementById('e2e-status');
+    const resultsEl = document.getElementById('e2e-results');
+
+    // Get selected categories
+    const categories = [];
+    if (document.getElementById('e2e-cat-instant').checked) categories.push('instant');
+    if (document.getElementById('e2e-cat-action').checked) categories.push('action');
+    if (document.getElementById('e2e-cat-interaction').checked) categories.push('interaction');
+
+    if (categories.length === 0) {
+        alert('Please select at least one test category');
+        return;
+    }
+
+    statusEl.style.display = 'block';
+    resultsEl.style.display = 'none';
+    document.getElementById('e2e-progress-text').textContent = 'Starting test suite...';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/e2e/run`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                suite_name: 'dashboard_run',
+                categories: categories,
+                include_llm_tests: categories.includes('interaction'),
+                delay_between_tests_ms: 100
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        displayE2EResults(data);
+    } catch (e) {
+        console.error('E2E test suite failed:', e);
+        document.getElementById('e2e-progress-text').textContent = `Error: ${e.message}`;
+    }
+}
+
+function displayE2EResults(data) {
+    const statusEl = document.getElementById('e2e-status');
+    const resultsEl = document.getElementById('e2e-results');
+    const testListEl = document.getElementById('e2e-test-list');
+
+    statusEl.style.display = 'none';
+    resultsEl.style.display = 'block';
+
+    // Update summary stats
+    document.getElementById('e2e-passed').textContent = data.passed || 0;
+    document.getElementById('e2e-failed').textContent = data.failed || 0;
+    document.getElementById('e2e-latency').textContent = Math.round(data.total_latency_ms || 0);
+
+    // Render test results
+    if (!data.test_results || data.test_results.length === 0) {
+        testListEl.innerHTML = '<p class="text-muted">No test results</p>';
+        return;
+    }
+
+    testListEl.innerHTML = data.test_results.map(test => {
+        const resultClass = test.result === 'pass' ? 'passed' : 
+                           test.result === 'fail' ? 'failed' : 'error';
+        const resultIcon = test.result === 'pass' ? '✓' : 
+                          test.result === 'fail' ? '✗' : '⚠';
+
+        const assertionsHtml = test.assertions.map(a => {
+            const aClass = a.passed ? 'passed' : 'failed';
+            const aIcon = a.passed ? '✓' : '✗';
+            return `<div class="e2e-assertion ${aClass}">
+                <span class="e2e-assertion-icon">${aIcon}</span>
+                <span class="e2e-assertion-type">${a.type}</span>
+                <span class="e2e-assertion-msg">${escapeHtml(a.message)}</span>
+            </div>`;
+        }).join('');
+
+        return `
+            <div class="e2e-test-item ${resultClass}">
+                <div class="e2e-test-header">
+                    <span class="e2e-test-icon">${resultIcon}</span>
+                    <span class="e2e-test-name">${escapeHtml(test.name)}</span>
+                    <span class="e2e-test-category">${test.category}</span>
+                    <span class="e2e-test-latency">${test.latency_ms.toFixed(0)}ms</span>
+                </div>
+                <div class="e2e-test-input">"${escapeHtml(test.input_text)}"</div>
+                <div class="e2e-test-response">
+                    <strong>${test.agent_used}</strong>: "${escapeHtml(test.response_text || '')}"
+                </div>
+                <div class="e2e-assertions">${assertionsHtml}</div>
+                ${test.error ? `<div class="e2e-test-error">Error: ${escapeHtml(test.error)}</div>` : ''}
+            </div>
+        `;
+    }).join('');
+
+    // Also refresh traces to show new test traces
+    loadTraces();
+}
+

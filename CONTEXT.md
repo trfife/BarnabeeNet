@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after Activity-Based LLM Configuration)
+2026-01-18 (after E2E Testing Framework)
 
 ## Current Phase
-**Phase 1: Core Services** - DASHBOARD OBSERVABILITY COMPLETE
+**Phase 1: Core Services** - E2E TESTING FRAMEWORK COMPLETE
 
 ## Development Workflow
 
@@ -58,12 +58,15 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Pipeline Signal Logging** - Full request tracing with PipelineLogger, SignalType enum (25+ types), RequestTrace model
 - [x] **Dashboard Trace Visualization** - Request traces list, expandable trace details showing complete data flow (input → classify → agent → response)
 - [x] **Activity-Based LLM Configuration** - Granular model selection per activity (16+ activities like meta.classify_intent, interaction.respond, memory.generate). Configurable via YAML (config/llm.yaml), environment variables (LLM_ACTIVITY_*), or defaults. Different models for classification vs conversation vs memory tasks.
+- [x] **E2E Testing Framework** - Complete end-to-end test suite with API endpoints, dashboard integration, signal logging. Tests for InstantAgent (time, date, math, greetings), ActionAgent (device control), InteractionAgent (LLM conversations). Results visible in dashboard activity feed and trace inspector.
+- [x] **Text Process Endpoint** - `/api/v1/voice/process` for text-only pipeline testing without audio (used by dashboard and E2E tests)
 
 ### In Progress
-- [ ] End-to-end voice testing
+- [ ] None currently
 
 ### Not Started
-- [ ] End-to-end voice testing
+- [ ] Home Assistant entity discovery
+- [ ] Family profile system
 
 ---
 
@@ -100,7 +103,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. End-to-end voice testing ← NEXT (test full voice pipeline from VM)
+1. Deploy E2E testing to VM and verify dashboard integration ← NEXT
 2. Home Assistant entity discovery
 3. Family profile system
 
@@ -127,6 +130,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-01-18 | E2E testing framework | Automated pipeline validation with dashboard visibility |
 | 2026-01-18 | Activity-based LLM config | Granular control: fast/cheap models for classification, quality models for conversation |
 | 2026-01-17 | OpenRouter for LLM API | Multi-model support, good pricing, reliable |
 | 2026-01-17 | Multi-agent model config | Different models per agent type (SkyrimNet pattern) |

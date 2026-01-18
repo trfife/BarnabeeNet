@@ -1013,3 +1013,250 @@ body {
     white-space: pre-wrap;
     word-break: break-all;
 }
+
+/* =============================================================================
+   E2E Testing Styles
+   ============================================================================= */
+
+.e2e-controls {
+    margin-bottom: 20px;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    accent-color: var(--accent-primary);
+    width: 16px;
+    height: 16px;
+}
+
+.e2e-status {
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.e2e-progress {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+    transition: width 0.3s ease;
+}
+
+.e2e-results {
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+}
+
+.e2e-summary {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.e2e-stat {
+    text-align: center;
+}
+
+.e2e-stat-value {
+    display: block;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.e2e-stat.passed .e2e-stat-value {
+    color: var(--accent-primary);
+}
+
+.e2e-stat.failed .e2e-stat-value {
+    color: var(--accent-error);
+}
+
+.e2e-stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.e2e-test-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.e2e-test-item {
+    background: var(--bg-card);
+    border-radius: 8px;
+    padding: 12px;
+    border-left: 4px solid var(--border-color);
+}
+
+.e2e-test-item.passed {
+    border-left-color: var(--accent-primary);
+}
+
+.e2e-test-item.failed {
+    border-left-color: var(--accent-error);
+}
+
+.e2e-test-item.error {
+    border-left-color: var(--accent-warning);
+}
+
+.e2e-test-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.e2e-test-icon {
+    font-size: 18px;
+}
+
+.e2e-test-item.passed .e2e-test-icon {
+    color: var(--accent-primary);
+}
+
+.e2e-test-item.failed .e2e-test-icon,
+.e2e-test-item.error .e2e-test-icon {
+    color: var(--accent-error);
+}
+
+.e2e-test-name {
+    font-weight: 600;
+    flex: 1;
+}
+
+.e2e-test-category {
+    font-size: 11px;
+    padding: 2px 8px;
+    background: var(--bg-hover);
+    border-radius: 10px;
+    color: var(--text-muted);
+}
+
+.e2e-test-latency {
+    color: var(--accent-secondary);
+    font-size: 12px;
+}
+
+.e2e-test-input {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    font-style: italic;
+}
+
+.e2e-test-response {
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.e2e-assertions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.e2e-assertion {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    padding: 4px 8px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+
+.e2e-assertion.passed {
+    background: rgba(0, 255, 157, 0.1);
+}
+
+.e2e-assertion.failed {
+    background: rgba(255, 71, 87, 0.1);
+}
+
+.e2e-assertion-icon {
+    font-size: 10px;
+}
+
+.e2e-assertion.passed .e2e-assertion-icon {
+    color: var(--accent-primary);
+}
+
+.e2e-assertion.failed .e2e-assertion-icon {
+    color: var(--accent-error);
+}
+
+.e2e-assertion-type {
+    color: var(--text-muted);
+}
+
+.e2e-assertion-msg {
+    color: var(--text-secondary);
+}
+
+.e2e-test-error {
+    margin-top: 8px;
+    padding: 8px;
+    background: rgba(255, 71, 87, 0.1);
+    border-radius: 4px;
+    color: var(--accent-error);
+    font-size: 12px;
+}
+
+/* E2E signal type badges */
+.pipeline-signal-badge.e2e_test_start,
+.pipeline-signal-badge.e2e_test_complete {
+    background: #c026d3;
+}
+
+.pipeline-signal-badge.e2e_test_step {
+    background: #a855f7;
+}
+
+.pipeline-signal-badge.e2e_assertion_pass {
+    background: #22c55e;
+}
+
+.pipeline-signal-badge.e2e_assertion_fail {
+    background: #ef4444;
+}
+
