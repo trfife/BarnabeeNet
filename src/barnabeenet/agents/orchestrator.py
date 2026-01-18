@@ -640,11 +640,12 @@ class AgentOrchestrator:
                 "message": "No service specified",
             }
 
-        # Resolve entity_id if not provided
-        if not entity_id and entity_name:
-            domain = action_spec.get("domain")
+        # Always try to resolve entity_id - ActionAgent may have guessed wrong
+        # We have access to the actual HA entity registry
+        domain = action_spec.get("domain")
+        if entity_name:
             entity = self._ha_client.resolve_entity(entity_name, domain)
-            
+
             # If not found, try alternative domains
             # Lights are often controlled by switches, and vice versa
             if not entity:

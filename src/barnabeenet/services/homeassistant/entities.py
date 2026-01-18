@@ -110,9 +110,10 @@ class Entity:
         """
         query_lower = query.lower().strip()
         name_lower = self.friendly_name.lower()
+        entity_id_lower = self.entity_id.lower()
 
         # Exact match = perfect score
-        if query_lower == name_lower or query_lower == self.entity_id.lower():
+        if query_lower == name_lower or query_lower == entity_id_lower:
             return 1.0
 
         # Name starts with query = high score
@@ -127,6 +128,33 @@ class Entity:
         # Query appears in name = moderate score
         if query_lower in name_lower:
             return 0.5 + (len(query_lower) / len(name_lower)) * 0.3
+
+        # Check if all query words appear in name (allows words in between)
+        # "office light" matches "Office Switch Light" because both words present
+        query_words = query_lower.split()
+        if len(query_words) > 1:
+            name_words = set(name_lower.split())
+            matching_words = sum(1 for w in query_words if w in name_words)
+            if matching_words == len(query_words):
+                # All words match - good score (but less than substring match)
+                return 0.7
+            elif matching_words >= len(query_words) - 1:
+                # Most words match - moderate score
+                return 0.4 + (matching_words / len(query_words)) * 0.2
+
+        # Check entity_id for matches (e.g., switch.office_switch_light)
+        entity_name_part = entity_id_lower.split(".")[-1] if "." in entity_id_lower else entity_id_lower
+        if query_lower in entity_name_part:
+            return 0.4 + (len(query_lower) / len(entity_name_part)) * 0.2
+
+        # Check if query words appear in entity_id
+        if len(query_words) > 1:
+            entity_words = set(entity_name_part.replace("_", " ").split())
+            matching_words = sum(1 for w in query_words if w in entity_words)
+            if matching_words == len(query_words):
+                return 0.6
+            elif matching_words > 0:
+                return 0.3 + (matching_words / len(query_words)) * 0.2
 
         return 0.0
 
