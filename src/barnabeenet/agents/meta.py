@@ -160,7 +160,9 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
 ]
 
 ACTION_PATTERNS: list[tuple[str, str]] = [
-    (r"^(turn|switch) (on|off) .*$", "switch"),
+    (r"^(turn|trun|tunr|switch|swtich) (on|off|of) .*$", "switch"),  # Common typos
+    (r"^(on|off) .*(light|lamp|switch|fan).*$", "switch"),  # "off the light"
+    (r".*(turn|trun|switch) (on|off|of) (the |my |a )?.*$", "switch"),  # Mid-sentence
     (r"^(set|change) .* to .*$", "set"),
     (r"^(dim|brighten) .*$", "light"),
     (r"^(lock|unlock) .*$", "lock"),
@@ -182,6 +184,9 @@ MEMORY_PATTERNS: list[tuple[str, str]] = [
     (r"^(do you remember|what do you know about) .*$", "recall"),
     (r"^forget .*$", "forget"),
     (r"^(when|what) did (i|we) .*$", "recall"),
+    (r".*(last thing|previously|earlier|before).*(ask|say|tell|said|told).*$", "recall"),
+    (r".*(what|when) (was|were|have|had) (i|we) .*$", "recall"),
+    (r"^what (was|were) (my|our) last .*$", "recall"),
 ]
 
 GESTURE_PATTERNS: list[tuple[str, str]] = [

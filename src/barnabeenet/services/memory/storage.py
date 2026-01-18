@@ -637,9 +637,21 @@ class MemoryStorage:
 _memory_storage: MemoryStorage | None = None
 
 
-def get_memory_storage() -> MemoryStorage:
-    """Get the global memory storage instance."""
+def get_memory_storage(redis_client: redis.Redis | None = None) -> MemoryStorage:
+    """Get the global memory storage instance.
+
+    Args:
+        redis_client: Optional Redis client. If provided on first call, will be used.
+    """
     global _memory_storage
     if _memory_storage is None:
-        _memory_storage = MemoryStorage()
+        # Try to get redis from app state if not provided
+        if redis_client is None:
+            try:
+                from barnabeenet.main import app_state
+
+                redis_client = app_state.redis_client
+            except Exception:
+                pass
+        _memory_storage = MemoryStorage(redis_client=redis_client)
     return _memory_storage
