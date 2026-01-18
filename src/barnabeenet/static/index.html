@@ -20,6 +20,7 @@
         <div class="nav-links">
             <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
             <a href="#" class="nav-link" data-page="logs">Logs</a>
+            <a href="#" class="nav-link" data-page="prompts">Prompts</a>
             <a href="#" class="nav-link" data-page="setup">Setup & Test</a>
             <a href="#" class="nav-link" data-page="family">Family</a>
             <a href="#" class="nav-link" data-page="entities">Entities</a>
@@ -278,6 +279,69 @@
                             <span class="log-level info">INFO</span>
                             <span class="log-component">system</span>
                             <span class="log-message">Connecting to log stream...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Prompts Page -->
+        <div id="page-prompts" class="page">
+            <div class="page-header">
+                <h1>🤖 Agent System Prompts</h1>
+                <p>View and edit the prompts that define each agent's behavior</p>
+            </div>
+
+            <!-- Agent Cards Grid -->
+            <div class="prompts-grid" id="prompts-grid">
+                <div class="loading-indicator">Loading prompts...</div>
+            </div>
+
+            <!-- Prompt Editor Modal -->
+            <div id="prompt-modal" class="modal" style="display: none;">
+                <div class="modal-content modal-large">
+                    <div class="modal-header">
+                        <div class="modal-title">
+                            <span id="prompt-agent-icon">🎯</span>
+                            <div>
+                                <h3 id="prompt-agent-name">Agent Prompt</h3>
+                                <span class="text-muted" id="prompt-agent-description">Description</span>
+                            </div>
+                        </div>
+                        <div class="modal-actions">
+                            <button class="btn btn-small btn-secondary" id="prompt-history-btn">📜 History</button>
+                            <button class="btn btn-small" id="close-prompt-modal">✕</button>
+                        </div>
+                    </div>
+                    <div class="modal-body">
+                        <div class="prompt-editor-container">
+                            <div class="editor-toolbar">
+                                <span class="editor-info">
+                                    <span id="prompt-char-count">0</span> characters
+                                    | Version <span id="prompt-version">1</span>
+                                </span>
+                                <div class="editor-actions">
+                                    <button class="btn btn-small btn-secondary" id="prompt-reset-btn">↩️ Reset</button>
+                                    <button class="btn btn-small btn-primary" id="prompt-save-btn">💾 Save</button>
+                                </div>
+                            </div>
+                            <textarea id="prompt-editor" class="prompt-editor"
+                                placeholder="Enter prompt content..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prompt History Modal -->
+            <div id="prompt-history-modal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>📜 Prompt History</h3>
+                        <button class="btn btn-small" id="close-history-modal">✕</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="history-list" id="prompt-history-list">
+                            <p class="text-muted">No history available</p>
                         </div>
                     </div>
                 </div>

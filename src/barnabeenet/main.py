@@ -311,6 +311,7 @@ def _register_routes(app: FastAPI) -> None:
         health,
         homeassistant,
         metrics,
+        prompts,
         voice,
         websocket,
     )
@@ -346,6 +347,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(config.router, prefix="/api/v1", tags=["Configuration"])
     app.include_router(e2e.router, prefix="/api/v1", tags=["E2E Testing"])
     app.include_router(homeassistant.router, prefix="/api/v1", tags=["Home Assistant"])
+    app.include_router(prompts.router, prefix="/api/v1", tags=["Prompts"])
     app.include_router(metrics.router, tags=["Metrics"])
     app.include_router(websocket.router, prefix="/api/v1", tags=["WebSocket"])
 

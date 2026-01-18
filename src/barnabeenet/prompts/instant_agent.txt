@@ -1,0 +1,25 @@
+# Instant Agent - Pattern-Based Responses
+
+The Instant Agent provides zero-latency responses using pattern matching, not LLM calls.
+
+## Handled Query Types
+
+1. **Time queries**: "what time is it", "what's the time"
+2. **Date queries**: "what's the date", "what day is it"
+3. **Greetings**: "hello", "good morning", "hi there"
+4. **Status queries**: "how are you", "are you there"
+5. **Simple math**: "what's 5 + 3", "calculate 10 * 4"
+6. **Thanks responses**: "thank you", "thanks"
+
+## Response Templates
+
+Time responses: "It's {time}.", "The time is {time}.", "Right now it's {time}."
+
+Date responses: "Today is {date}.", "It's {date}.", "The date is {date}."
+
+Greeting responses vary by time of day (morning, afternoon, evening, night).
+
+## No LLM Usage
+
+This agent uses pre-defined patterns and templates for sub-millisecond responses.
+It does not call any LLM API.

@@ -2675,15 +2675,325 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
+// =============================================================================
+// PROMPTS PAGE - Agent System Prompts Management
+// =============================================================================
+
+const AGENT_INFO = {
+    meta_agent: { displayName: 'MetaAgent', description: 'Intent classification and routing', icon: '🎯' },
+    instant_agent: { displayName: 'InstantAgent', description: 'Zero-latency pattern responses (no LLM)', icon: '⚡' },
+    action_agent: { displayName: 'ActionAgent', description: 'Device control and action parsing', icon: '🎮' },
+    interaction_agent: { displayName: 'InteractionAgent', description: 'Complex conversations with Barnabee persona', icon: '💬' },
+    memory_agent: { displayName: 'MemoryAgent', description: 'Memory storage and retrieval', icon: '🧠' }
+};
+
+let promptsLoaded = false;
+let currentPrompt = null;
+let originalPromptContent = '';
+
+async function initPromptsPage() {
+    if (promptsLoaded) return;
+    promptsLoaded = true;
+
+    await loadPrompts();
+    setupPromptEventListeners();
+}
+
+async function loadPrompts() {
+    const grid = document.getElementById('prompts-grid');
+
+    try {
+        const response = await fetch('/api/v1/prompts/');
+        if (!response.ok) throw new Error('Failed to load prompts');
+
+        const prompts = await response.json();
+
+        grid.innerHTML = prompts.map(prompt => {
+            const info = AGENT_INFO[prompt.agent_name] || {
+                displayName: prompt.agent_name,
+                description: 'Agent prompt',
+                icon: '🤖'
+            };
+
+            return `
+                <div class="prompt-card" data-agent="${prompt.agent_name}">
+                    <div class="prompt-card-header">
+                        <span class="prompt-card-icon">${info.icon}</span>
+                        <div class="prompt-card-title">
+                            <h3>${info.displayName}</h3>
+                            <small>${info.description}</small>
+                        </div>
+                    </div>
+                    <div class="prompt-card-preview">${escapeHtml(prompt.preview)}</div>
+                    <div class="prompt-card-footer">
+                        <span class="prompt-card-version">v${prompt.version}</span>
+                        <span class="prompt-card-modified">${prompt.last_modified ? formatRelativeTime(prompt.last_modified) : 'Never modified'}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Add click handlers
+        grid.querySelectorAll('.prompt-card').forEach(card => {
+            card.addEventListener('click', () => openPromptEditor(card.dataset.agent));
+        });
+
+    } catch (error) {
+        console.error('Failed to load prompts:', error);
+        grid.innerHTML = '<div class="loading-indicator">❌ Failed to load prompts</div>';
+    }
+}
+
+async function openPromptEditor(agentName) {
+    const modal = document.getElementById('prompt-modal');
+    const editor = document.getElementById('prompt-editor');
+
+    try {
+        const response = await fetch(`/api/v1/prompts/${agentName}`);
+        if (!response.ok) throw new Error('Failed to load prompt');
+
+        currentPrompt = await response.json();
+        originalPromptContent = currentPrompt.content;
+
+        const info = AGENT_INFO[agentName] || { displayName: agentName, description: '', icon: '🤖' };
+
+        // Update modal header
+        document.getElementById('prompt-agent-icon').textContent = info.icon;
+        document.getElementById('prompt-agent-name').textContent = info.displayName;
+        document.getElementById('prompt-agent-description').textContent = info.description;
+
+        // Update editor
+        editor.value = currentPrompt.content;
+        document.getElementById('prompt-version').textContent = currentPrompt.version;
+        updateCharCount();
+
+        modal.style.display = 'flex';
+    } catch (error) {
+        console.error('Failed to open prompt editor:', error);
+        alert('Failed to load prompt: ' + error.message);
+    }
+}
+
+function updateCharCount() {
+    const editor = document.getElementById('prompt-editor');
+    const count = editor.value.length;
+    document.getElementById('prompt-char-count').textContent = count.toLocaleString();
+}
+
+async function savePrompt() {
+    if (!currentPrompt) return;
+
+    const editor = document.getElementById('prompt-editor');
+    const content = editor.value;
+
+    if (content.length < 10) {
+        alert('Prompt must be at least 10 characters');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/v1/prompts/${currentPrompt.agent_name}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+        });
+
+        if (!response.ok) throw new Error('Failed to save prompt');
+
+        const result = await response.json();
+
+        // Update version display
+        document.getElementById('prompt-version').textContent = result.version;
+        originalPromptContent = content;
+
+        // Show success
+        const saveBtn = document.getElementById('prompt-save-btn');
+        const originalText = saveBtn.textContent;
+        saveBtn.textContent = '✅ Saved!';
+        saveBtn.disabled = true;
+        setTimeout(() => {
+            saveBtn.textContent = originalText;
+            saveBtn.disabled = false;
+        }, 2000);
+
+        // Refresh cards
+        await loadPrompts();
+
+    } catch (error) {
+        console.error('Failed to save prompt:', error);
+        alert('Failed to save prompt: ' + error.message);
+    }
+}
+
+function resetPrompt() {
+    if (!currentPrompt) return;
+
+    if (confirm('Reset to original content? This will discard unsaved changes.')) {
+        document.getElementById('prompt-editor').value = originalPromptContent;
+        updateCharCount();
+    }
+}
+
+async function showPromptHistory() {
+    if (!currentPrompt) return;
+
+    const historyModal = document.getElementById('prompt-history-modal');
+    const historyList = document.getElementById('prompt-history-list');
+
+    try {
+        const response = await fetch(`/api/v1/prompts/${currentPrompt.agent_name}/history`);
+        if (!response.ok) throw new Error('Failed to load history');
+
+        const history = await response.json();
+
+        if (history.length === 0) {
+            historyList.innerHTML = '<p class="text-muted">No history available. Prompts are saved with version history when edited.</p>';
+        } else {
+            historyList.innerHTML = history.map(item => `
+                <div class="history-item" data-version="${item.version}">
+                    <div class="history-item-header">
+                        <span class="history-item-version">Version ${item.version}</span>
+                        <span class="history-item-date">${formatRelativeTime(item.updated_at)}</span>
+                    </div>
+                    <div class="history-item-preview">${escapeHtml(item.content.slice(0, 200))}${item.content.length > 200 ? '...' : ''}</div>
+                    <div class="history-item-actions">
+                        <button class="btn btn-small btn-secondary restore-version-btn">↩️ Restore</button>
+                    </div>
+                </div>
+            `).join('');
+
+            // Add restore handlers
+            historyList.querySelectorAll('.restore-version-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const item = e.target.closest('.history-item');
+                    const version = parseInt(item.dataset.version);
+
+                    if (confirm(`Restore version ${version}? Current content will be saved as a new version.`)) {
+                        await restorePromptVersion(version);
+                    }
+                });
+            });
+        }
+
+        historyModal.style.display = 'flex';
+
+    } catch (error) {
+        console.error('Failed to load history:', error);
+        alert('Failed to load history: ' + error.message);
+    }
+}
+
+async function restorePromptVersion(version) {
+    if (!currentPrompt) return;
+
+    try {
+        const response = await fetch(`/api/v1/prompts/${currentPrompt.agent_name}/restore/${version}`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) throw new Error('Failed to restore version');
+
+        // Reload the prompt
+        await openPromptEditor(currentPrompt.agent_name);
+
+        // Close history modal
+        document.getElementById('prompt-history-modal').style.display = 'none';
+
+        // Refresh cards
+        await loadPrompts();
+
+        alert(`Restored version ${version}`);
+
+    } catch (error) {
+        console.error('Failed to restore version:', error);
+        alert('Failed to restore version: ' + error.message);
+    }
+}
+
+function formatRelativeTime(dateStr) {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+}
+
+function setupPromptEventListeners() {
+    // Close buttons
+    document.getElementById('close-prompt-modal')?.addEventListener('click', () => {
+        document.getElementById('prompt-modal').style.display = 'none';
+        currentPrompt = null;
+    });
+
+    document.getElementById('close-history-modal')?.addEventListener('click', () => {
+        document.getElementById('prompt-history-modal').style.display = 'none';
+    });
+
+    // Editor actions
+    document.getElementById('prompt-save-btn')?.addEventListener('click', savePrompt);
+    document.getElementById('prompt-reset-btn')?.addEventListener('click', resetPrompt);
+    document.getElementById('prompt-history-btn')?.addEventListener('click', showPromptHistory);
+
+    // Character count
+    document.getElementById('prompt-editor')?.addEventListener('input', updateCharCount);
+
+    // Close modals on backdrop click
+    document.getElementById('prompt-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'prompt-modal') {
+            document.getElementById('prompt-modal').style.display = 'none';
+            currentPrompt = null;
+        }
+    });
+
+    document.getElementById('prompt-history-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'prompt-history-modal') {
+            document.getElementById('prompt-history-modal').style.display = 'none';
+        }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (document.getElementById('prompt-history-modal').style.display !== 'none') {
+                document.getElementById('prompt-history-modal').style.display = 'none';
+            } else if (document.getElementById('prompt-modal').style.display !== 'none') {
+                document.getElementById('prompt-modal').style.display = 'none';
+                currentPrompt = null;
+            }
+        }
+
+        // Ctrl/Cmd + S to save
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            if (document.getElementById('prompt-modal').style.display !== 'none' && currentPrompt) {
+                e.preventDefault();
+                savePrompt();
+            }
+        }
+    });
+}
+
 // Initialize logs page when navigating to it
 document.addEventListener('DOMContentLoaded', () => {
-    // Watch for navigation to logs page
+    // Watch for navigation to logs and prompts pages
     document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', () => {
             if (link.dataset.page === 'logs') {
                 // Initialize on first visit
                 if (!sttChart) {
                     initLogsPage();
+                }
+            }
+            if (link.dataset.page === 'prompts') {
+                // Initialize prompts page on first visit
+                if (!promptsLoaded) {
+                    initPromptsPage();
                 }
             }
         });

@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after Home Assistant dashboard config management + tabbed UI)
+2026-01-18 (after Dashboard Phases 1-3: Infrastructure, Logging, Prompts)
 
 ## Current Phase
-**Phase 1: Core Services** - FULL PIPELINE WORKING + MODEL CONFIG UI
+**Phase 1: Core Services** - FULL PIPELINE WORKING + DASHBOARD ENHANCEMENT
 
 ## Development Workflow
 
@@ -72,6 +72,9 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Testing/Production Mode Toggle** - One-click switch between Testing mode (all free models - Gemini 2.0 Flash) and Production mode (quality models - Claude, GPT-4o, DeepSeek). Mode persists in Redis. API: GET/POST /api/v1/config/mode.
 - [x] **Home Assistant Dashboard UI + API** - Full dashboard integration at `/api/v1/homeassistant/`. Endpoints for: connection status, overview, entities (with search/filter/pagination), devices, areas, automations, integrations, logs, service calls, entity toggle. Dashboard Entities page with real-time entity cards, domain icons, state badges, toggle controls. Configuration page with HA setup instructions.
 - [x] **Home Assistant Config Management** - Dashboard-based HA configuration (URL + token). Config saved to Redis, token encrypted via SecretsService. Tab-based UI for HA views: Entities, Areas, Devices, Automations, Logs. Test connection before saving. Config can also fall back to env vars (HA_URL, HA_TOKEN) for backwards compatibility.
+- [x] **Dashboard Infrastructure (Phase 1)** - DashboardService central hub for data aggregation. MetricsStore with rolling window latency storage (p50/p95/p99). Enhanced WebSocket (/ws/dashboard) for real-time push of metrics/activity/tests.
+- [x] **Logging Dashboard (Phase 2)** - Logs page with Chart.js performance graphs (STT/TTS/LLM/Pipeline latency). Real-time log stream with filtering by level (ERROR/WARN/INFO/DEBUG) and text search. Metrics API endpoints (GET/POST /api/v1/dashboard/metrics/*).
+- [x] **Agent Prompts Page (Phase 3)** - Extracted all agent prompts to text files in /src/barnabeenet/prompts/ (meta_agent, instant_agent, action_agent, interaction_agent, memory_agent). Prompts API with version history (/api/v1/prompts/*). Dashboard UI for viewing/editing prompts with syntax highlighting, Ctrl+S save, history viewer, version restore.
 
 ### In Progress
 - [ ] Connect to actual Home Assistant instance - configure via dashboard
@@ -116,10 +119,16 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Connect to actual Home Assistant instance - configure via dashboard ← NEXT
-2. HA activity feed integration (filter by HA vs other activities)
-3. Home Assistant intelligent log filtering agent
-4. Family profile system
+1. Dashboard Phase 4: HA Control Panel - device toggle, service calls, area commands ← NEXT
+2. Dashboard Phase 5: AI Chat tab - text-to-Barnabee with real-time streaming
+3. Dashboard Phase 6: Testing Dashboard enhancements - E2E runner, mock HA
+4. Dashboard Phase 7: Memory Dashboard - view/search memories, conversation history
+5. Dashboard Phase 8: Polish - loading states, error handling, responsive design
+6. Dashboard Phase 9: Integration - tie everything together
+7. Connect to actual Home Assistant instance - configure via dashboard
+8. HA activity feed integration (filter by HA vs other activities)
+9. Home Assistant intelligent log filtering agent
+10. Family profile system
 
 ---
 
