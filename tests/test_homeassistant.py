@@ -4,10 +4,13 @@ Tests cover:
 - HomeAssistantClient connection and service calls
 - EntityRegistry name matching and search
 - Entity state handling
+- Device/Area/Automation/Integration models
+- Extended registry fetching
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -20,6 +23,15 @@ from barnabeenet.services.homeassistant.entities import (
     Entity,
     EntityRegistry,
     EntityState,
+)
+from barnabeenet.services.homeassistant.models import (
+    Area,
+    Automation,
+    AutomationState,
+    Device,
+    HADataSnapshot,
+    Integration,
+    LogEntry,
 )
 
 # =============================================================================
@@ -532,3 +544,513 @@ class TestServiceCallResult:
         )
         assert result.success is False
         assert "Connection refused" in result.message
+
+
+# =============================================================================
+# Device Model Tests
+# =============================================================================
+
+
+class TestDevice:
+    """Tests for Device model."""
+
+    def test_display_name_uses_name(self) -> None:
+        """Should use name for display."""
+        device = Device(
+            id="abc123",
+            name="Living Room Lamp",
+            manufacturer="Philips",
+            model="Hue Bulb",
+        )
+        assert device.display_name == "Living Room Lamp"
+
+    def test_display_name_falls_back_to_model(self) -> None:
+        """Should fall back to manufacturer + model."""
+        device = Device(
+            id="abc123",
+            name=None,
+            manufacturer="Philips",
+            model="Hue Bulb",
+        )
+        assert device.display_name == "Philips Hue Bulb"
+
+    def test_display_name_falls_back_to_id(self) -> None:
+        """Should fall back to ID if no name or model."""
+        device = Device(
+            id="abc123",
+            name=None,
+            manufacturer=None,
+            model=None,
+        )
+        assert device.display_name == "abc123"
+
+    def test_is_enabled(self) -> None:
+        """Should check if device is enabled."""
+        enabled = Device(id="1", name="Test", disabled_by=None)
+        disabled = Device(id="2", name="Test", disabled_by="user")
+
+        assert enabled.is_enabled is True
+        assert disabled.is_enabled is False
+
+
+# =============================================================================
+# Area Model Tests
+# =============================================================================
+
+
+class TestArea:
+    """Tests for Area model."""
+
+    def test_matches_name_exact(self) -> None:
+        """Should match exact name."""
+        area = Area(id="living_room", name="Living Room")
+        assert area.matches_name("Living Room") is True
+        assert area.matches_name("living room") is True
+
+    def test_matches_name_id(self) -> None:
+        """Should match by ID."""
+        area = Area(id="living_room", name="Living Room")
+        assert area.matches_name("living_room") is True
+
+    def test_matches_name_alias(self) -> None:
+        """Should match by alias."""
+        area = Area(id="living_room", name="Living Room", aliases=["Lounge", "Den"])
+        assert area.matches_name("Lounge") is True
+        assert area.matches_name("den") is True
+
+    def test_matches_name_no_match(self) -> None:
+        """Should return False for no match."""
+        area = Area(id="living_room", name="Living Room")
+        assert area.matches_name("Bedroom") is False
+
+
+# =============================================================================
+# Automation Model Tests
+# =============================================================================
+
+
+class TestAutomation:
+    """Tests for Automation model."""
+
+    def test_is_on(self) -> None:
+        """Should check if automation is enabled."""
+        on_auto = Automation(
+            entity_id="automation.test",
+            name="Test",
+            state=AutomationState.ON,
+        )
+        off_auto = Automation(
+            entity_id="automation.test2",
+            name="Test 2",
+            state=AutomationState.OFF,
+        )
+
+        assert on_auto.is_on is True
+        assert off_auto.is_on is False
+
+    def test_automation_id(self) -> None:
+        """Should extract automation ID from entity_id."""
+        auto = Automation(
+            entity_id="automation.turn_on_lights",
+            name="Turn On Lights",
+            state=AutomationState.ON,
+        )
+        assert auto.automation_id == "turn_on_lights"
+
+
+# =============================================================================
+# Integration Model Tests
+# =============================================================================
+
+
+class TestIntegration:
+    """Tests for Integration model."""
+
+    def test_is_loaded(self) -> None:
+        """Should check if integration is loaded."""
+        loaded = Integration(
+            entry_id="1",
+            domain="hue",
+            title="Philips Hue",
+            state="loaded",
+        )
+        unloaded = Integration(
+            entry_id="2",
+            domain="zwave",
+            title="Z-Wave",
+            state="not_loaded",
+        )
+
+        assert loaded.is_loaded is True
+        assert unloaded.is_loaded is False
+
+    def test_is_enabled(self) -> None:
+        """Should check if integration is enabled."""
+        enabled = Integration(
+            entry_id="1",
+            domain="hue",
+            title="Philips Hue",
+            state="loaded",
+            disabled_by=None,
+        )
+        disabled = Integration(
+            entry_id="2",
+            domain="zwave",
+            title="Z-Wave",
+            state="loaded",
+            disabled_by="user",
+        )
+
+        assert enabled.is_enabled is True
+        assert disabled.is_enabled is False
+
+    def test_has_error(self) -> None:
+        """Should detect error states."""
+        error = Integration(
+            entry_id="1",
+            domain="hue",
+            title="Philips Hue",
+            state="setup_error",
+        )
+        ok = Integration(
+            entry_id="2",
+            domain="zwave",
+            title="Z-Wave",
+            state="loaded",
+        )
+
+        assert error.has_error is True
+        assert ok.has_error is False
+
+
+# =============================================================================
+# LogEntry Model Tests
+# =============================================================================
+
+
+class TestLogEntry:
+    """Tests for LogEntry model."""
+
+    def test_is_error(self) -> None:
+        """Should detect error-level logs."""
+        error = LogEntry(
+            timestamp=datetime.now(),
+            level="ERROR",
+            source="test",
+            message="Something broke",
+        )
+        warning = LogEntry(
+            timestamp=datetime.now(),
+            level="WARNING",
+            source="test",
+            message="Something might break",
+        )
+
+        assert error.is_error is True
+        assert warning.is_error is False
+
+    def test_is_warning(self) -> None:
+        """Should detect warning-level logs."""
+        warning = LogEntry(
+            timestamp=datetime.now(),
+            level="WARNING",
+            source="test",
+            message="Watch out",
+        )
+        info = LogEntry(
+            timestamp=datetime.now(),
+            level="INFO",
+            source="test",
+            message="All good",
+        )
+
+        assert warning.is_warning is True
+        assert info.is_warning is False
+
+
+# =============================================================================
+# HADataSnapshot Tests
+# =============================================================================
+
+
+class TestHADataSnapshot:
+    """Tests for HADataSnapshot model."""
+
+    def test_to_dict(self) -> None:
+        """Should convert to dict for API response."""
+        now = datetime.now()
+        snapshot = HADataSnapshot(
+            entities_count=100,
+            devices_count=20,
+            areas_count=5,
+            automations_count=10,
+            integrations_count=15,
+            last_refresh={"entities": now},
+        )
+        result = snapshot.to_dict()
+
+        assert result["entities_count"] == 100
+        assert result["devices_count"] == 20
+        assert "entities" in result["last_refresh"]
+
+
+# =============================================================================
+# Extended HomeAssistantClient Tests
+# =============================================================================
+
+
+class TestHomeAssistantClientExtended:
+    """Tests for extended HomeAssistantClient functionality."""
+
+    @pytest.fixture
+    def client(self) -> HomeAssistantClient:
+        """Create a HomeAssistantClient instance."""
+        return HomeAssistantClient(
+            url="http://homeassistant.local:8123",
+            token="test_token",
+        )
+
+    async def test_refresh_devices_success(self, client: HomeAssistantClient) -> None:
+        """Should parse and store devices from API response."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {
+                "id": "device1",
+                "name": "Living Room Lamp",
+                "manufacturer": "Philips",
+                "model": "Hue Bulb",
+                "area_id": "living_room",
+                "config_entries": ["entry1"],
+                "disabled_by": None,
+            },
+            {
+                "id": "device2",
+                "name": "Kitchen Switch",
+                "manufacturer": "Shelly",
+                "model": "1PM",
+                "area_id": "kitchen",
+                "config_entries": ["entry2"],
+                "disabled_by": None,
+            },
+        ]
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        client._client = mock_client
+
+        count = await client.refresh_devices()
+
+        assert count == 2
+        assert len(client.devices) == 2
+        assert "device1" in client.devices
+        assert client.devices["device1"].name == "Living Room Lamp"
+
+    async def test_refresh_devices_not_found(self, client: HomeAssistantClient) -> None:
+        """Should handle 404 gracefully."""
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        client._client = mock_client
+
+        count = await client.refresh_devices()
+        assert count == 0
+
+    async def test_refresh_areas_success(self, client: HomeAssistantClient) -> None:
+        """Should parse and store areas from API response."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {
+                "area_id": "living_room",
+                "name": "Living Room",
+                "aliases": ["Lounge"],
+            },
+            {
+                "area_id": "kitchen",
+                "name": "Kitchen",
+                "aliases": [],
+            },
+        ]
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        client._client = mock_client
+
+        count = await client.refresh_areas()
+
+        assert count == 2
+        assert len(client.areas) == 2
+        assert "living_room" in client.areas
+        assert client.areas["living_room"].name == "Living Room"
+
+    async def test_refresh_automations_success(self, client: HomeAssistantClient) -> None:
+        """Should parse automations from states."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {
+                "entity_id": "automation.morning_lights",
+                "state": "on",
+                "attributes": {
+                    "friendly_name": "Morning Lights",
+                    "last_triggered": "2026-01-18T07:00:00+00:00",
+                    "mode": "single",
+                },
+            },
+            {
+                "entity_id": "automation.night_mode",
+                "state": "off",
+                "attributes": {
+                    "friendly_name": "Night Mode",
+                    "mode": "single",
+                },
+            },
+            {
+                "entity_id": "light.living_room",  # Not an automation
+                "state": "on",
+                "attributes": {"friendly_name": "Living Room"},
+            },
+        ]
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        client._client = mock_client
+
+        count = await client.refresh_automations()
+
+        assert count == 2  # Only automations
+        assert len(client.automations) == 2
+        assert "automation.morning_lights" in client.automations
+        assert client.automations["automation.morning_lights"].is_on is True
+
+    async def test_refresh_integrations_success(self, client: HomeAssistantClient) -> None:
+        """Should parse and store integrations."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {
+                "entry_id": "entry1",
+                "domain": "hue",
+                "title": "Philips Hue",
+                "state": "loaded",
+                "source": "user",
+                "disabled_by": None,
+            },
+            {
+                "entry_id": "entry2",
+                "domain": "zwave_js",
+                "title": "Z-Wave JS",
+                "state": "setup_error",
+                "source": "user",
+                "disabled_by": None,
+            },
+        ]
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        client._client = mock_client
+
+        count = await client.refresh_integrations()
+
+        assert count == 2
+        assert len(client.integrations) == 2
+        assert "entry1" in client.integrations
+        assert client.integrations["entry1"].is_loaded is True
+        assert client.integrations["entry2"].has_error is True
+
+    async def test_get_error_log_success(self, client: HomeAssistantClient) -> None:
+        """Should parse error log entries."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """2026-01-18 10:00:00 ERROR (MainThread) [homeassistant.core] Test error
+2026-01-18 10:01:00 WARNING (MainThread) [homeassistant.components.hue] Connection lost
+2026-01-18 10:02:00 INFO (MainThread) [homeassistant.core] Starting Home Assistant"""
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        client._client = mock_client
+
+        entries = await client.get_error_log()
+
+        assert len(entries) == 3
+        assert entries[0].level == "ERROR"
+        assert entries[1].level == "WARNING"
+        assert entries[2].level == "INFO"
+
+    async def test_refresh_all(self, client: HomeAssistantClient) -> None:
+        """Should refresh all registries."""
+
+        # Create mock that returns different data for different endpoints
+        def mock_get_side_effect(url: str) -> MagicMock:
+            response = MagicMock()
+            response.status_code = 200
+            response.raise_for_status = MagicMock()
+
+            if "device_registry" in url:
+                response.json.return_value = [{"id": "d1", "name": "Device"}]
+            elif "area_registry" in url:
+                response.json.return_value = [{"area_id": "a1", "name": "Area"}]
+            elif "config_entries" in url:
+                response.json.return_value = [
+                    {"entry_id": "e1", "domain": "test", "title": "Test", "state": "loaded"}
+                ]
+            else:  # /api/states
+                response.json.return_value = [
+                    {
+                        "entity_id": "light.test",
+                        "state": "on",
+                        "attributes": {"friendly_name": "Test Light"},
+                    },
+                    {
+                        "entity_id": "automation.test",
+                        "state": "on",
+                        "attributes": {"friendly_name": "Test Auto"},
+                    },
+                ]
+            return response
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=mock_get_side_effect)
+        client._client = mock_client
+
+        snapshot = await client.refresh_all()
+
+        assert snapshot.entities_count >= 1
+        assert snapshot.devices_count == 1
+        assert snapshot.areas_count == 1
+        assert snapshot.automations_count == 1
+        assert snapshot.integrations_count == 1
+
+    def test_find_area_by_name(self, client: HomeAssistantClient) -> None:
+        """Should find area by name."""
+        client._areas = {
+            "living_room": Area(id="living_room", name="Living Room"),
+            "kitchen": Area(id="kitchen", name="Kitchen"),
+        }
+
+        result = client.find_area_by_name("Living Room")
+        assert result is not None
+        assert result.id == "living_room"
+
+        result = client.find_area_by_name("Bedroom")
+        assert result is None
+
+    def test_get_devices_in_area(self, client: HomeAssistantClient) -> None:
+        """Should get devices in specific area."""
+        client._devices = {
+            "d1": Device(id="d1", name="Lamp", area_id="living_room"),
+            "d2": Device(id="d2", name="TV", area_id="living_room"),
+            "d3": Device(id="d3", name="Oven", area_id="kitchen"),
+        }
+
+        devices = client.get_devices_in_area("living_room")
+        assert len(devices) == 2
+        assert all(d.area_id == "living_room" for d in devices)

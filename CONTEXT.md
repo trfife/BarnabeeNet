@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after Dashboard Model Selection UI)
+2026-01-18 (after Home Assistant entity discovery expansion)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + MODEL CONFIG UI
@@ -51,6 +51,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Voice Pipeline + Orchestrator Integration** - Full voice-to-voice with multi-agent AI
 - [x] **Memory Storage System** - EmbeddingService (all-MiniLM-L6-v2), MemoryStorage with Redis + in-memory fallback, vector similarity search
 - [x] **Home Assistant Integration** - HomeAssistantClient with REST API, EntityRegistry with fuzzy name matching, service call execution
+- [x] **Home Assistant Extended Discovery** - Device registry, Area registry, Automation states, Integration (config entry) listing, Error log fetching. Models for Device, Area, Automation, Integration, LogEntry. HADataSnapshot for cache summary. Methods: refresh_devices(), refresh_areas(), refresh_automations(), refresh_integrations(), refresh_all(), get_error_log().
 - [x] **Dashboard Phase 1** - Dashboard API endpoints (activity feed, signal details, stats), Prometheus metrics, Grafana + Prometheus compose config
 - [x] **Dashboard Phase 2** - WebSocket endpoint (/ws/activity) for real-time signal streaming, ConnectionManager with filtering, SignalStreamer background task reading from Redis Streams
 - [x] **VM Deployment** - BarnabeeNet running on VM (192.168.86.51:8000), NixOS firewall configured, all services healthy
@@ -71,9 +72,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Testing/Production Mode Toggle** - One-click switch between Testing mode (all free models - Gemini 2.0 Flash) and Production mode (quality models - Claude, GPT-4o, DeepSeek). Mode persists in Redis. API: GET/POST /api/v1/config/mode.
 
 ### In Progress
-- [ ] Home Assistant entity discovery
+- [ ] Home Assistant dashboard UI + API endpoints
 
 ### Not Started
+- [ ] Home Assistant intelligent log filtering agent
 - [ ] Family profile system
 
 ---
@@ -111,8 +113,9 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Home Assistant entity discovery ← NEXT
-2. Family profile system
+1. Home Assistant dashboard UI + API endpoints ← NEXT
+2. Home Assistant intelligent log filtering agent
+3. Family profile system
 
 ---
 
