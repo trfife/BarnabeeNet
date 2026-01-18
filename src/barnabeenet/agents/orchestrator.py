@@ -601,6 +601,8 @@ class AgentOrchestrator:
     ) -> dict[str, Any]:
         """Execute an action via Home Assistant.
 
+        Supports both single entity and batch (multi-entity) operations.
+
         Args:
             action_spec: Action specification from ActionAgent
             ctx: Request context for logging
@@ -625,6 +627,143 @@ class AgentOrchestrator:
                 "success": False,
                 "message": "Home Assistant not connected",
             }
+
+        # Check if this is a batch operation
+        is_batch = action_spec.get("is_batch", False)
+        if is_batch:
+            return await self._execute_batch_action(action_spec, ctx)
+
+        # Single entity operation
+        return await self._execute_single_action(action_spec, ctx)
+
+    async def _execute_batch_action(
+        self, action_spec: dict[str, Any], ctx: RequestContext
+    ) -> dict[str, Any]:
+        """Execute a batch action on multiple entities.
+
+        Args:
+            action_spec: Action specification with target_area and device type
+            ctx: Request context for logging
+
+        Returns:
+            Dict with execution results for all entities
+        """
+        from barnabeenet.services.homeassistant.smart_resolver import SmartEntityResolver
+
+        # HA client is guaranteed to be connected at this point
+        assert self._ha_client is not None
+
+        resolver = SmartEntityResolver(self._ha_client)
+
+        # Get action details
+        entity_name = action_spec.get("entity_name", "")  # device type like "lights", "blinds"
+        target_area = action_spec.get("target_area")
+        service = action_spec.get("service")
+        service_data = action_spec.get("service_data", {})
+        domain = action_spec.get("domain")
+
+        # Build the query for the resolver
+        if target_area:
+            query = f"{entity_name} in {target_area}"
+        else:
+            query = f"all {entity_name}"
+
+        logger.info("Resolving batch action: %s", query)
+
+        # Use smart resolver to find matching entities
+        resolved = resolver.resolve(query, domain)
+
+        if not resolved.entities:
+            error_msg = resolved.error or f"No {entity_name} found"
+            if target_area:
+                error_msg += f" in {target_area}"
+            logger.warning("Batch resolution failed: %s", error_msg)
+            return {
+                "executed": False,
+                "success": False,
+                "message": error_msg,
+                "error": error_msg,
+            }
+
+        # Execute action on each entity
+        results = []
+        success_count = 0
+        fail_count = 0
+
+        for entity in resolved.entities:
+            # Adapt service to entity's actual domain if needed
+            entity_domain = entity.entity_id.split(".")[0]
+            adapted_service = self._adapt_service_to_domain(service or "", entity_domain)
+
+            try:
+                result = await self._ha_client.call_service(
+                    adapted_service,
+                    entity_id=entity.entity_id,
+                    **service_data,
+                )
+                if result.success:
+                    success_count += 1
+                    results.append({
+                        "entity_id": entity.entity_id,
+                        "success": True,
+                    })
+                else:
+                    fail_count += 1
+                    results.append({
+                        "entity_id": entity.entity_id,
+                        "success": False,
+                        "error": result.message,
+                    })
+            except Exception as e:
+                fail_count += 1
+                results.append({
+                    "entity_id": entity.entity_id,
+                    "success": False,
+                    "error": str(e),
+                })
+
+        # Build response
+        total = len(resolved.entities)
+        if success_count == total:
+            message = f"Successfully controlled {total} {entity_name}"
+            if target_area:
+                message += f" in {target_area}"
+        elif success_count > 0:
+            message = f"Controlled {success_count}/{total} {entity_name}"
+            if target_area:
+                message += f" in {target_area}"
+        else:
+            message = f"Failed to control {entity_name}"
+            if target_area:
+                message += f" in {target_area}"
+
+        logger.info("Batch action complete: %s/%s successful", success_count, total)
+
+        return {
+            "executed": True,
+            "success": success_count > 0,
+            "message": message,
+            "total_entities": total,
+            "success_count": success_count,
+            "fail_count": fail_count,
+            "entity_ids": [e.entity_id for e in resolved.entities],
+            "results": results,
+        }
+
+    async def _execute_single_action(
+        self, action_spec: dict[str, Any], ctx: RequestContext
+    ) -> dict[str, Any]:
+        """Execute an action on a single entity.
+
+        Args:
+            action_spec: Action specification from ActionAgent
+            ctx: Request context for logging
+
+        Returns:
+            Dict with execution result (success, executed, message, error)
+        """
+        # HA client is guaranteed to be connected at this point
+        assert self._ha_client is not None
 
         # Get service and entity info from action spec
         service = action_spec.get("service")

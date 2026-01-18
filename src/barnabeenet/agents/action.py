@@ -79,6 +79,11 @@ class ActionSpec:
     confidence: float = 0.0
     requires_confirmation: bool = False
     spoken_response: str = ""
+    # Batch/area support
+    is_batch: bool = False  # True if targeting multiple entities
+    target_area: str | None = None  # Area/room name (e.g., "living room")
+    target_floor: str | None = None  # Floor name (e.g., "downstairs")
+    entity_ids: list[str] = field(default_factory=list)  # Multiple entity IDs for batch
 
 
 @dataclass
@@ -94,7 +99,19 @@ class ActionResult:
 # Patterns for rule-based action parsing
 # NOTE: Order matters! More specific patterns should come before generic ones.
 ACTION_PATTERNS: list[tuple[str, ActionType, DeviceDomain | None]] = [
-    # On/Off patterns
+    # Batch on/off patterns - MUST come before single entity patterns
+    # "turn off all the lights downstairs", "turn on lights in living room"
+    (
+        r"^turn (on|off) all (?:the |of the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))?$",
+        ActionType.TURN_ON,
+        None,
+    ),
+    (
+        r"^turn (on|off) (?:the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))$",
+        ActionType.TURN_ON,
+        None,
+    ),
+    # Standard on/off patterns
     (r"^turn (on|off) (?:the )?(.+)$", ActionType.TURN_ON, None),
     (r"^switch (on|off) (?:the )?(.+)$", ActionType.TURN_ON, None),
     (r"^(enable|disable) (?:the )?(.+)$", ActionType.TURN_ON, None),
@@ -119,7 +136,19 @@ ACTION_PATTERNS: list[tuple[str, ActionType, DeviceDomain | None]] = [
     ),
     # Lock patterns
     (r"^(lock|unlock) (?:the )?(.+)$", ActionType.LOCK, DeviceDomain.LOCK),
-    # Cover patterns
+    # Batch cover patterns - MUST come before single cover patterns
+    # "close all the blinds in living room", "open blinds in the kitchen"
+    (
+        r"^(open|close) all (?:the |of the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))?$",
+        ActionType.OPEN,
+        DeviceDomain.COVER,
+    ),
+    (
+        r"^(open|close) (?:the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))$",
+        ActionType.OPEN,
+        DeviceDomain.COVER,
+    ),
+    # Single cover patterns
     (r"^(open|close) (?:the )?(.+)$", ActionType.OPEN, DeviceDomain.COVER),
     # Media patterns
     (
@@ -309,12 +338,28 @@ class ActionAgent(Agent):
         entity_name = ""
         target_value = None
         actual_action = action_type
+        target_area: str | None = None
+        is_batch = False
 
         if action_type == ActionType.TURN_ON:
-            # Groups: (on/off, entity_name)
+            # Handle batch patterns: (on/off, device_type, area?)
+            # e.g., "turn off all the lights in living room"
             state = groups[0].lower()
-            entity_name = groups[1] if len(groups) > 1 else ""
             actual_action = ActionType.TURN_ON if state in ("on", "enable") else ActionType.TURN_OFF
+
+            # Check if this is a batch command (has area/location)
+            if len(groups) >= 3 and groups[2]:
+                # Batch with location: (on/off, device_type, location)
+                entity_name = groups[1] if groups[1] else ""
+                target_area = groups[2].strip() if groups[2] else None
+                is_batch = True
+            else:
+                # Single entity: (on/off, entity_name)
+                entity_name = groups[1] if len(groups) > 1 else ""
+                # Check if entity_name contains batch keywords
+                if self._is_batch_reference(entity_name):
+                    is_batch = True
+                    entity_name, target_area = self._parse_batch_reference(entity_name)
 
         elif action_type == ActionType.SET_VALUE:
             if default_domain == DeviceDomain.LIGHT:
@@ -351,10 +396,23 @@ class ActionAgent(Agent):
             actual_action = ActionType.LOCK if lock_action == "lock" else ActionType.UNLOCK
 
         elif action_type in (ActionType.OPEN, ActionType.CLOSE):
-            # (open/close, entity)
+            # Handle batch patterns: (open/close, device_type, area?)
             cover_action = groups[0].lower()
-            entity_name = groups[1] if len(groups) > 1 else ""
             actual_action = ActionType.OPEN if cover_action == "open" else ActionType.CLOSE
+
+            # Check if this is a batch command (has area/location)
+            if len(groups) >= 3 and groups[2]:
+                # Batch with location: (open/close, device_type, location)
+                entity_name = groups[1] if groups[1] else ""
+                target_area = groups[2].strip() if groups[2] else None
+                is_batch = True
+            else:
+                # Single entity: (open/close, entity_name)
+                entity_name = groups[1] if len(groups) > 1 else ""
+                # Check if entity_name contains batch keywords
+                if self._is_batch_reference(entity_name):
+                    is_batch = True
+                    entity_name, target_area = self._parse_batch_reference(entity_name)
 
         elif action_type in (ActionType.PLAY, ActionType.PAUSE, ActionType.STOP, ActionType.SKIP):
             # (play/pause/stop/skip, entity?)
@@ -395,19 +453,23 @@ class ActionAgent(Agent):
         requires_confirmation = (actual_action, domain) in HIGH_RISK_ACTIONS
 
         # Generate spoken response
-        spoken_response = self._generate_response(actual_action, entity_name, target_value, domain)
+        spoken_response = self._generate_response(
+            actual_action, entity_name, target_value, domain, target_area, is_batch
+        )
 
         return ActionSpec(
             action_type=actual_action,
             domain=domain,
             entity_name=entity_name,
-            entity_id=self._resolve_entity_id(entity_name, domain),
+            entity_id=self._resolve_entity_id(entity_name, domain) if not is_batch else None,
             service=service,
             service_data=service_data,
             target_value=target_value,
             confidence=0.9,
             requires_confirmation=requires_confirmation,
             spoken_response=spoken_response,
+            is_batch=is_batch,
+            target_area=target_area,
         )
 
     def _infer_domain(self, entity_name: str, action_type: ActionType) -> DeviceDomain:
@@ -479,9 +541,17 @@ class ActionAgent(Agent):
         entity_name: str,
         target_value: Any,
         domain: DeviceDomain,
+        target_area: str | None = None,
+        is_batch: bool = False,
     ) -> str:
         """Generate natural language response for action."""
-        entity_display = entity_name or "the device"
+        # Build entity description
+        if is_batch and target_area:
+            entity_display = f"{entity_name} in {target_area}"
+        elif is_batch:
+            entity_display = f"all {entity_name}"
+        else:
+            entity_display = entity_name or "the device"
 
         responses = {
             ActionType.TURN_ON: f"Turning on {entity_display}.",
@@ -489,7 +559,7 @@ class ActionAgent(Agent):
             ActionType.TOGGLE: f"Toggling {entity_display}.",
             ActionType.LOCK: f"Locking {entity_display}.",
             ActionType.UNLOCK: f"unlock {entity_display}",  # For confirmation prompt
-            ActionType.OPEN: f"open {entity_display}",  # For confirmation prompt
+            ActionType.OPEN: f"Opening {entity_display}.",
             ActionType.CLOSE: f"Closing {entity_display}.",
             ActionType.PLAY: f"Playing on {entity_display}.",
             ActionType.PAUSE: f"Pausing {entity_display}.",
@@ -507,6 +577,50 @@ class ActionAgent(Agent):
                 return f"Setting {entity_display} to {target_value}."
 
         return responses.get(action_type, f"Executing action on {entity_display}.")
+
+    def _is_batch_reference(self, text: str) -> bool:
+        """Check if text refers to multiple devices (batch operation)."""
+        text_lower = text.lower()
+        # Keywords that indicate batch operations
+        batch_keywords = [
+            "all ", "every ", "all the ", "every the ",
+            " downstairs", " upstairs", " floor",
+        ]
+        for keyword in batch_keywords:
+            if keyword in text_lower or text_lower.startswith(keyword.strip()):
+                return True
+        # Check for plural device types followed by location
+        # e.g., "lights in kitchen", "blinds in living room"
+        if re.search(r"\b(lights|blinds|switches|fans|covers)\s+(in|on)\s+", text_lower):
+            return True
+        return False
+
+    def _parse_batch_reference(self, text: str) -> tuple[str, str | None]:
+        """Parse batch reference into device type and area.
+
+        Returns:
+            Tuple of (device_type, area_name or None)
+        """
+        text_lower = text.lower()
+
+        # Remove "all" prefix
+        text_lower = re.sub(r"^all\s+(?:the\s+)?", "", text_lower)
+
+        # Check for floor references
+        floor_patterns = [
+            (r"(.+?)\s+(downstairs|upstairs|first floor|second floor)$", True),
+            (r"(.+?)\s+(?:in|on)\s+(?:the\s+)?(.+)$", False),
+        ]
+
+        for pattern, _is_floor in floor_patterns:
+            match = re.match(pattern, text_lower)
+            if match:
+                device_type = match.group(1).strip()
+                location = match.group(2).strip()
+                return device_type, location
+
+        # No location found, return whole text as device type
+        return text_lower.strip(), None
 
     async def _llm_parse(self, text: str, context: dict) -> ActionSpec | None:
         """Use LLM to parse complex action requests."""
@@ -566,7 +680,7 @@ If you cannot parse the request, respond with:
 
     def _action_to_dict(self, action: ActionSpec) -> dict[str, Any]:
         """Convert ActionSpec to dictionary for response."""
-        return {
+        result = {
             "action_type": action.action_type.value,
             "domain": action.domain.value,
             "entity_name": action.entity_name,
@@ -577,6 +691,13 @@ If you cannot parse the request, respond with:
             "confidence": action.confidence,
             "requires_confirmation": action.requires_confirmation,
         }
+        # Add batch-related fields if present
+        if action.is_batch:
+            result["is_batch"] = True
+            result["target_area"] = action.target_area
+            result["target_floor"] = action.target_floor
+            result["entity_ids"] = action.entity_ids
+        return result
 
 
 __all__ = [
