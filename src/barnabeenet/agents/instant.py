@@ -1,0 +1,320 @@
+"""Instant Response Agent - Zero-latency pattern-matched responses.
+
+The Instant Agent handles simple, predictable queries that don't require
+LLM processing. This provides sub-millisecond response times for common
+interactions like time, date, greetings, and simple math.
+"""
+
+from __future__ import annotations
+
+import logging
+import random
+import re
+import time
+from datetime import datetime
+from typing import Any
+
+from barnabeenet.agents.base import Agent
+
+logger = logging.getLogger(__name__)
+
+
+class InstantAgent(Agent):
+    """Agent for instant, pattern-matched responses with no LLM latency.
+
+    Handles:
+    - Time queries ("what time is it")
+    - Date queries ("what's the date")
+    - Greetings ("hello", "good morning")
+    - Status queries ("how are you")
+    - Simple math ("what's 5 + 3")
+    - Thanks responses
+    """
+
+    name = "instant"
+
+    # Response templates for variety
+    TIME_RESPONSES = [
+        "It's {time}.",
+        "The time is {time}.",
+        "Right now it's {time}.",
+    ]
+
+    DATE_RESPONSES = [
+        "Today is {date}.",
+        "It's {date}.",
+        "The date is {date}.",
+    ]
+
+    GREETING_RESPONSES = {
+        "morning": [
+            "Good morning{name}! How can I help you today?",
+            "Morning{name}! What can I do for you?",
+            "Good morning{name}! Ready to help.",
+        ],
+        "afternoon": [
+            "Good afternoon{name}! How can I help?",
+            "Hello{name}! What can I do for you?",
+            "Afternoon{name}! How may I assist?",
+        ],
+        "evening": [
+            "Good evening{name}! What can I do for you?",
+            "Evening{name}! How can I help?",
+            "Good evening{name}! How may I assist?",
+        ],
+        "night": [
+            "Good night{name}! Anything I can help with before bed?",
+            "Night{name}! Need anything?",
+        ],
+        "default": [
+            "Hello{name}! How can I help you?",
+            "Hey{name}! What do you need?",
+            "Hi{name}! What can I do for you?",
+        ],
+    }
+
+    STATUS_RESPONSES = [
+        "I'm doing great, thanks for asking!",
+        "All systems are running smoothly.",
+        "I'm here and ready to help!",
+        "Doing well! How about you?",
+        "Everything's working perfectly.",
+    ]
+
+    THANKS_RESPONSES = [
+        "You're welcome!",
+        "Happy to help!",
+        "Anytime!",
+        "My pleasure!",
+        "Glad I could help!",
+    ]
+
+    FALLBACK_RESPONSES = [
+        "I'm not sure how to respond to that.",
+        "Let me think about that for a moment...",
+        "Hmm, I'll need to process that.",
+    ]
+
+    def __init__(self) -> None:
+        """Initialize the Instant Agent."""
+        self._math_pattern: re.Pattern[str] | None = None
+
+    async def init(self) -> None:
+        """Initialize patterns and resources."""
+        # Compile math pattern
+        self._math_pattern = re.compile(
+            r"(?:what(?:'s| is) )?(\d+(?:\.\d+)?)\s*([\+\-\*\/])\s*(\d+(?:\.\d+)?)",
+            re.IGNORECASE,
+        )
+        logger.info("InstantAgent initialized")
+
+    async def shutdown(self) -> None:
+        """Clean up resources."""
+        self._math_pattern = None
+
+    async def handle_input(self, text: str, context: dict | None = None) -> dict[str, Any]:
+        """Handle an instant response request.
+
+        Args:
+            text: The input text to process
+            context: Optional context with speaker info, sub_category, etc.
+
+        Returns:
+            Response dictionary with text, agent, and latency_ms
+        """
+        start_time = time.perf_counter()
+        context = context or {}
+        text = text.strip()
+        text_lower = text.lower()
+
+        # Get sub_category hint from MetaAgent if available
+        sub_category = context.get("sub_category")
+        speaker = context.get("speaker")
+
+        # Determine response based on category or content
+        response: str
+        response_type: str
+
+        if sub_category == "time" or self._is_time_query(text_lower):
+            response = self._handle_time()
+            response_type = "time"
+        elif sub_category == "date" or self._is_date_query(text_lower):
+            response = self._handle_date()
+            response_type = "date"
+        elif sub_category == "greeting" or self._is_greeting(text_lower):
+            response = self._handle_greeting(text_lower, speaker)
+            response_type = "greeting"
+        elif sub_category == "status" or self._is_status_query(text_lower):
+            response = self._handle_status()
+            response_type = "status"
+        elif sub_category == "thanks" or self._is_thanks(text_lower):
+            response = self._handle_thanks()
+            response_type = "thanks"
+        elif sub_category == "math" or (math_result := self._try_math(text)):
+            if sub_category == "math":
+                math_result = self._try_math(text)
+            if math_result:
+                response = math_result
+                response_type = "math"
+            else:
+                response = random.choice(self.FALLBACK_RESPONSES)
+                response_type = "fallback"
+        else:
+            response = random.choice(self.FALLBACK_RESPONSES)
+            response_type = "fallback"
+
+        latency_ms = (time.perf_counter() - start_time) * 1000
+
+        logger.debug(
+            "InstantAgent handled '%s' as %s in %.2fms",
+            text[:50],
+            response_type,
+            latency_ms,
+        )
+
+        return {
+            "response": response,
+            "agent": self.name,
+            "response_type": response_type,
+            "latency_ms": latency_ms,
+        }
+
+    # =========================================================================
+    # Query Detection Methods
+    # =========================================================================
+
+    def _is_time_query(self, text: str) -> bool:
+        """Check if query is about time."""
+        time_keywords = ["time", "what time", "clock", "o'clock"]
+        return any(kw in text for kw in time_keywords)
+
+    def _is_date_query(self, text: str) -> bool:
+        """Check if query is about date."""
+        date_keywords = ["date", "what day", "today", "what's today"]
+        return any(kw in text for kw in date_keywords)
+
+    def _is_greeting(self, text: str) -> bool:
+        """Check if text is a greeting."""
+        greetings = [
+            "hello",
+            "hey",
+            "hi",
+            "good morning",
+            "good afternoon",
+            "good evening",
+            "good night",
+        ]
+        return any(text.startswith(g) or text == g for g in greetings)
+
+    def _is_status_query(self, text: str) -> bool:
+        """Check if asking about status."""
+        status_keywords = ["how are you", "you okay", "are you there", "you alright"]
+        return any(kw in text for kw in status_keywords)
+
+    def _is_thanks(self, text: str) -> bool:
+        """Check if expressing thanks."""
+        thanks_keywords = ["thank", "thanks", "cheers", "appreciate"]
+        return any(kw in text for kw in thanks_keywords)
+
+    # =========================================================================
+    # Response Handlers
+    # =========================================================================
+
+    def _handle_time(self) -> str:
+        """Generate time response."""
+        now = datetime.now()
+        time_str = now.strftime("%I:%M %p").lstrip("0")  # Remove leading zero
+        template = random.choice(self.TIME_RESPONSES)
+        return template.format(time=time_str)
+
+    def _handle_date(self) -> str:
+        """Generate date response."""
+        now = datetime.now()
+        date_str = now.strftime("%A, %B %d, %Y")
+        template = random.choice(self.DATE_RESPONSES)
+        return template.format(date=date_str)
+
+    def _handle_greeting(self, text: str, speaker: str | None) -> str:
+        """Generate contextual greeting based on time of day."""
+        now = datetime.now()
+        hour = now.hour
+
+        # Check for explicit time-of-day greeting
+        if "morning" in text:
+            time_key = "morning"
+        elif "afternoon" in text:
+            time_key = "afternoon"
+        elif "evening" in text:
+            time_key = "evening"
+        elif "night" in text:
+            time_key = "night"
+        # Otherwise determine from current time
+        elif 5 <= hour < 12:
+            time_key = "morning"
+        elif 12 <= hour < 17:
+            time_key = "afternoon"
+        elif 17 <= hour < 22:
+            time_key = "evening"
+        else:
+            time_key = "default"
+
+        template = random.choice(self.GREETING_RESPONSES[time_key])
+
+        # Personalize if speaker known
+        name_str = ""
+        if speaker and speaker.lower() not in ("guest", "unknown"):
+            name_str = f", {speaker.title()}"
+
+        return template.format(name=name_str)
+
+    def _handle_status(self) -> str:
+        """Generate status response."""
+        return random.choice(self.STATUS_RESPONSES)
+
+    def _handle_thanks(self) -> str:
+        """Generate thanks response."""
+        return random.choice(self.THANKS_RESPONSES)
+
+    def _try_math(self, text: str) -> str | None:
+        """Try to evaluate simple math expressions.
+
+        Supports: +, -, *, /
+        Examples: "what's 5 + 3", "5 * 7", "10 / 2"
+        """
+        if self._math_pattern is None:
+            return None
+
+        match = self._math_pattern.search(text)
+        if not match:
+            return None
+
+        try:
+            a = float(match.group(1))
+            op = match.group(2)
+            b = float(match.group(3))
+
+            operations = {
+                "+": lambda x, y: x + y,
+                "-": lambda x, y: x - y,
+                "*": lambda x, y: x * y,
+                "/": lambda x, y: x / y if y != 0 else None,
+            }
+
+            result = operations[op](a, b)
+
+            if result is None:
+                return "That's undefined - you can't divide by zero!"
+
+            # Format nicely
+            if result == int(result):
+                result_str = str(int(result))
+            else:
+                result_str = f"{result:.2f}".rstrip("0").rstrip(".")
+
+            return f"That's {result_str}."
+
+        except (ValueError, KeyError, ZeroDivisionError):
+            return None
+
+
+__all__ = ["InstantAgent"]

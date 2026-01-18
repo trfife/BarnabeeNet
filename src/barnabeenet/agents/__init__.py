@@ -3,6 +3,7 @@
 Contains agent interfaces, simple local agents, and manager.
 """
 
+from .instant import InstantAgent
 from .manager import AgentManager
 from .meta import (
     ClassificationResult,
@@ -20,6 +21,7 @@ __all__ = [
     "ClassificationResult",
     "ContextEvaluation",
     "EmotionalTone",
+    "InstantAgent",
     "IntentCategory",
     "MemoryQuerySet",
     "MetaAgent",
