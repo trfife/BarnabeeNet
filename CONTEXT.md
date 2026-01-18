@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after Dashboard Phases 1-3: Infrastructure, Logging, Prompts)
+2026-01-18 (after Dashboard Phase 4: HA Control Panel)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + DASHBOARD ENHANCEMENT
@@ -75,6 +75,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Dashboard Infrastructure (Phase 1)** - DashboardService central hub for data aggregation. MetricsStore with rolling window latency storage (p50/p95/p99). Enhanced WebSocket (/ws/dashboard) for real-time push of metrics/activity/tests.
 - [x] **Logging Dashboard (Phase 2)** - Logs page with Chart.js performance graphs (STT/TTS/LLM/Pipeline latency). Real-time log stream with filtering by level (ERROR/WARN/INFO/DEBUG) and text search. Metrics API endpoints (GET/POST /api/v1/dashboard/metrics/*).
 - [x] **Agent Prompts Page (Phase 3)** - Extracted all agent prompts to text files in /src/barnabeenet/prompts/ (meta_agent, instant_agent, action_agent, interaction_agent, memory_agent). Prompts API with version history (/api/v1/prompts/*). Dashboard UI for viewing/editing prompts with syntax highlighting, Ctrl+S save, history viewer, version restore.
+- [x] **HA Control Panel (Phase 4)** - Enhanced entity cards with brightness sliders, color temperature controls, climate temperature adjustment, cover position sliders, media player controls. Area quick actions (all lights on/off). Service call dialog for advanced control. Entity context menu with details view. Toast notifications.
 
 ### In Progress
 - [ ] Connect to actual Home Assistant instance - configure via dashboard
@@ -119,16 +120,15 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Dashboard Phase 4: HA Control Panel - device toggle, service calls, area commands ← NEXT
-2. Dashboard Phase 5: AI Chat tab - text-to-Barnabee with real-time streaming
-3. Dashboard Phase 6: Testing Dashboard enhancements - E2E runner, mock HA
-4. Dashboard Phase 7: Memory Dashboard - view/search memories, conversation history
-5. Dashboard Phase 8: Polish - loading states, error handling, responsive design
-6. Dashboard Phase 9: Integration - tie everything together
-7. Connect to actual Home Assistant instance - configure via dashboard
-8. HA activity feed integration (filter by HA vs other activities)
-9. Home Assistant intelligent log filtering agent
-10. Family profile system
+1. Dashboard Phase 5: AI Chat tab - text-to-Barnabee with real-time streaming ← NEXT
+2. Dashboard Phase 6: Testing Dashboard enhancements - E2E runner, mock HA
+3. Dashboard Phase 7: Memory Dashboard - view/search memories, conversation history
+4. Dashboard Phase 8: Polish - loading states, error handling, responsive design
+5. Dashboard Phase 9: Integration - tie everything together
+6. Connect to actual Home Assistant instance - configure via dashboard
+7. HA activity feed integration (filter by HA vs other activities)
+8. Home Assistant intelligent log filtering agent
+9. Family profile system
 
 ---
 

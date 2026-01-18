@@ -1849,14 +1849,27 @@ async function loadHAAreasTab() {
         }
 
         container.innerHTML = data.areas.map(area => `
-            <div class="area-card">
-                <div class="area-icon">${area.icon || '🏠'}</div>
-                <div class="area-info">
-                    <div class="area-name">${escapeHtml(area.name)}</div>
-                    <div class="area-stats">
-                        <span>${area.device_count} devices</span>
-                        <span>${area.entity_count} entities</span>
+            <div class="area-card" data-area-id="${area.area_id}">
+                <div class="area-header">
+                    <div class="area-icon">${area.icon || '🏠'}</div>
+                    <div class="area-info">
+                        <div class="area-name">${escapeHtml(area.name)}</div>
+                        <div class="area-stats">
+                            <span>${area.device_count} devices</span>
+                            <span>${area.entity_count} entities</span>
+                        </div>
                     </div>
+                </div>
+                <div class="area-quick-actions">
+                    <button class="btn btn-small" onclick="areaLightsOn('${area.area_id}')" title="All lights on">
+                        💡 On
+                    </button>
+                    <button class="btn btn-small" onclick="areaLightsOff('${area.area_id}')" title="All lights off">
+                        🌙 Off
+                    </button>
+                    <button class="btn btn-small" onclick="showAreaEntities('${area.area_id}', '${escapeHtml(area.name)}')" title="View entities">
+                        📋 View
+                    </button>
                 </div>
             </div>
         `).join('');
@@ -2034,6 +2047,131 @@ function renderEntityCard(entity) {
     const stateClass = getStateClass(entity);
     const icon = getDomainIcon(entity.domain);
     const isControllable = ['light', 'switch', 'fan', 'cover', 'lock', 'input_boolean'].includes(entity.domain);
+    const attrs = entity.attributes || {};
+
+    // Build control section based on domain
+    let controls = '';
+    if (isControllable) {
+        controls = `
+            <div class="entity-controls">
+                <button class="btn btn-small btn-toggle ${entity.is_on ? 'on' : 'off'}" 
+                        onclick="toggleEntity('${entity.entity_id}')">
+                    ${entity.is_on ? '🔴 Off' : '🟢 On'}
+                </button>
+        `;
+
+        // Add brightness slider for dimmable lights
+        if (entity.domain === 'light' && entity.is_on && attrs.supported_features) {
+            const brightness = attrs.brightness || 255;
+            const percent = Math.round((brightness / 255) * 100);
+            controls += `
+                <div class="brightness-control">
+                    <span class="brightness-icon">☀️</span>
+                    <input type="range" class="brightness-slider" 
+                           min="1" max="100" value="${percent}"
+                           data-entity="${entity.entity_id}"
+                           onchange="setBrightness('${entity.entity_id}', this.value)">
+                    <span class="brightness-value">${percent}%</span>
+                </div>
+            `;
+        }
+
+        // Add color temp for lights that support it
+        if (entity.domain === 'light' && entity.is_on && attrs.color_temp_kelvin) {
+            const kelvin = attrs.color_temp_kelvin;
+            const minK = attrs.min_color_temp_kelvin || 2000;
+            const maxK = attrs.max_color_temp_kelvin || 6500;
+            controls += `
+                <div class="color-temp-control">
+                    <span class="color-temp-icon" title="Color Temperature">🔆</span>
+                    <input type="range" class="color-temp-slider"
+                           min="${minK}" max="${maxK}" value="${kelvin}"
+                           data-entity="${entity.entity_id}"
+                           onchange="setColorTemp('${entity.entity_id}', this.value)">
+                    <span class="color-temp-value">${kelvin}K</span>
+                </div>
+            `;
+        }
+
+        controls += '</div>';
+    }
+
+    // Climate controls
+    if (entity.domain === 'climate') {
+        const currentTemp = attrs.current_temperature || '--';
+        const targetTemp = attrs.temperature || '--';
+        const hvacMode = entity.state || 'off';
+        controls = `
+            <div class="entity-controls climate-controls">
+                <div class="climate-display">
+                    <div class="climate-current">
+                        <span class="temp-value">${currentTemp}°</span>
+                        <span class="temp-label">Current</span>
+                    </div>
+                    <div class="climate-target">
+                        <button class="btn btn-tiny" onclick="adjustClimate('${entity.entity_id}', -0.5)">−</button>
+                        <span class="temp-value">${targetTemp}°</span>
+                        <button class="btn btn-tiny" onclick="adjustClimate('${entity.entity_id}', 0.5)">+</button>
+                        <span class="temp-label">Target</span>
+                    </div>
+                </div>
+                <div class="climate-modes">
+                    <select class="hvac-mode-select" onchange="setHvacMode('${entity.entity_id}', this.value)">
+                        ${(attrs.hvac_modes || ['off', 'heat', 'cool', 'auto']).map(mode => 
+                            `<option value="${mode}" ${mode === hvacMode ? 'selected' : ''}>${mode}</option>`
+                        ).join('')}
+                    </select>
+                </div>
+            </div>
+        `;
+    }
+
+    // Cover controls (blinds, garage doors)
+    if (entity.domain === 'cover') {
+        const position = attrs.current_position;
+        controls = `
+            <div class="entity-controls cover-controls">
+                <div class="cover-buttons">
+                    <button class="btn btn-small" onclick="callService('cover.open_cover', '${entity.entity_id}')" title="Open">▲</button>
+                    <button class="btn btn-small" onclick="callService('cover.stop_cover', '${entity.entity_id}')" title="Stop">⬛</button>
+                    <button class="btn btn-small" onclick="callService('cover.close_cover', '${entity.entity_id}')" title="Close">▼</button>
+                </div>
+                ${position !== undefined ? `
+                    <div class="cover-position">
+                        <input type="range" class="cover-slider" min="0" max="100" value="${position}"
+                               onchange="setCoverPosition('${entity.entity_id}', this.value)">
+                        <span class="cover-value">${position}%</span>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    // Media player controls
+    if (entity.domain === 'media_player') {
+        const mediaTitle = attrs.media_title || '';
+        const mediaArtist = attrs.media_artist || '';
+        controls = `
+            <div class="entity-controls media-controls">
+                ${mediaTitle ? `<div class="media-info">${escapeHtml(mediaTitle)}${mediaArtist ? ` - ${escapeHtml(mediaArtist)}` : ''}</div>` : ''}
+                <div class="media-buttons">
+                    <button class="btn btn-tiny" onclick="callService('media_player.media_previous_track', '${entity.entity_id}')" title="Previous">⏮</button>
+                    <button class="btn btn-small" onclick="callService('media_player.media_play_pause', '${entity.entity_id}')" title="Play/Pause">
+                        ${entity.state === 'playing' ? '⏸' : '▶'}
+                    </button>
+                    <button class="btn btn-tiny" onclick="callService('media_player.media_next_track', '${entity.entity_id}')" title="Next">⏭</button>
+                </div>
+                ${attrs.volume_level !== undefined ? `
+                    <div class="volume-control">
+                        <span>🔊</span>
+                        <input type="range" class="volume-slider" min="0" max="100" 
+                               value="${Math.round(attrs.volume_level * 100)}"
+                               onchange="setVolume('${entity.entity_id}', this.value)">
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
 
     return `
         <div class="entity-card ${stateClass}" data-entity-id="${entity.entity_id}">
@@ -2043,18 +2181,13 @@ function renderEntityCard(entity) {
                     <div class="entity-name">${escapeHtml(entity.friendly_name)}</div>
                     <div class="entity-id">${entity.entity_id}</div>
                 </div>
+                <button class="btn btn-tiny entity-menu-btn" onclick="showEntityMenu('${entity.entity_id}', event)" title="More options">⋮</button>
             </div>
             <div class="entity-state">
                 <span class="state-badge ${stateClass}">${formatState(entity)}</span>
                 ${entity.area_name ? `<span class="entity-area">${escapeHtml(entity.area_name)}</span>` : ''}
             </div>
-            ${isControllable ? `
-                <div class="entity-controls">
-                    <button class="btn btn-small" onclick="toggleEntity('${entity.entity_id}')">
-                        ${entity.is_on ? '🔴 Turn Off' : '🟢 Turn On'}
-                    </button>
-                </div>
-            ` : ''}
+            ${controls}
         </div>
     `;
 }
@@ -2182,6 +2315,418 @@ async function toggleEntity(entityId) {
         console.error('Toggle failed:', e);
         alert(`Toggle failed: ${e.message}`);
     }
+}
+
+// Generic service call function
+async function callService(service, entityId, data = {}) {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/services/call`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                service: service,
+                entity_id: entityId,
+                data: data
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // Refresh after service call
+            setTimeout(loadHAEntities, 500);
+        } else {
+            console.error(`Service call failed: ${result.message}`);
+        }
+        return result;
+    } catch (e) {
+        console.error('Service call failed:', e);
+        return { success: false, message: e.message };
+    }
+}
+
+// Brightness control for lights
+async function setBrightness(entityId, percent) {
+    const brightness = Math.round((parseInt(percent) / 100) * 255);
+    await callService('light.turn_on', entityId, { brightness: brightness });
+    
+    // Update display immediately
+    const slider = document.querySelector(`[data-entity="${entityId}"].brightness-slider`);
+    if (slider) {
+        const valueSpan = slider.parentElement.querySelector('.brightness-value');
+        if (valueSpan) valueSpan.textContent = `${percent}%`;
+    }
+}
+
+// Color temperature control
+async function setColorTemp(entityId, kelvin) {
+    await callService('light.turn_on', entityId, { color_temp_kelvin: parseInt(kelvin) });
+    
+    // Update display
+    const slider = document.querySelector(`[data-entity="${entityId}"].color-temp-slider`);
+    if (slider) {
+        const valueSpan = slider.parentElement.querySelector('.color-temp-value');
+        if (valueSpan) valueSpan.textContent = `${kelvin}K`;
+    }
+}
+
+// Climate temperature adjustment
+async function adjustClimate(entityId, delta) {
+    try {
+        // First get current temperature
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/entities/${entityId}`);
+        const entity = await response.json();
+        
+        const currentTarget = entity.attributes?.temperature || 20;
+        const newTarget = currentTarget + delta;
+        
+        await callService('climate.set_temperature', entityId, { temperature: newTarget });
+    } catch (e) {
+        console.error('Climate adjustment failed:', e);
+    }
+}
+
+// Set HVAC mode
+async function setHvacMode(entityId, mode) {
+    await callService('climate.set_hvac_mode', entityId, { hvac_mode: mode });
+}
+
+// Cover position control
+async function setCoverPosition(entityId, position) {
+    await callService('cover.set_cover_position', entityId, { position: parseInt(position) });
+}
+
+// Volume control for media players
+async function setVolume(entityId, percent) {
+    const volume = parseInt(percent) / 100;
+    await callService('media_player.volume_set', entityId, { volume_level: volume });
+}
+
+// Show entity context menu
+function showEntityMenu(entityId, event) {
+    event.stopPropagation();
+    
+    // Remove any existing menu
+    document.querySelectorAll('.entity-context-menu').forEach(m => m.remove());
+    
+    const menu = document.createElement('div');
+    menu.className = 'entity-context-menu';
+    menu.innerHTML = `
+        <button onclick="showEntityDetails('${entityId}')">📋 Details</button>
+        <button onclick="showServiceCallDialog('${entityId}')">⚙️ Call Service</button>
+        <button onclick="copyEntityId('${entityId}')">📋 Copy ID</button>
+    `;
+    
+    // Position near the button
+    const rect = event.target.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.top = `${rect.bottom + 5}px`;
+    menu.style.right = `${window.innerWidth - rect.right}px`;
+    
+    document.body.appendChild(menu);
+    
+    // Close on click outside
+    setTimeout(() => {
+        document.addEventListener('click', function closeMenu() {
+            menu.remove();
+            document.removeEventListener('click', closeMenu);
+        }, { once: true });
+    }, 10);
+}
+
+// Copy entity ID to clipboard
+function copyEntityId(entityId) {
+    navigator.clipboard.writeText(entityId).then(() => {
+        // Brief toast notification
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = `Copied: ${entityId}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+    });
+}
+
+// Show entity details in a modal
+async function showEntityDetails(entityId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/entities/${entityId}`);
+        const entity = await response.json();
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>${getDomainIcon(entity.domain)} ${entity.friendly_name}</h3>
+                    <button class="btn btn-small close-modal">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="entity-detail-grid">
+                        <div class="detail-row">
+                            <span class="detail-label">Entity ID:</span>
+                            <span class="detail-value">${entity.entity_id}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">State:</span>
+                            <span class="detail-value state-badge ${getStateClass(entity)}">${entity.state}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Domain:</span>
+                            <span class="detail-value">${entity.domain}</span>
+                        </div>
+                        ${entity.area_name ? `
+                            <div class="detail-row">
+                                <span class="detail-label">Area:</span>
+                                <span class="detail-value">${entity.area_name}</span>
+                            </div>
+                        ` : ''}
+                        ${entity.device_name ? `
+                            <div class="detail-row">
+                                <span class="detail-label">Device:</span>
+                                <span class="detail-value">${entity.device_name}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <h4>Attributes</h4>
+                    <pre class="attributes-json">${JSON.stringify(entity.attributes || {}, null, 2)}</pre>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        modal.querySelector('.close-modal').addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    } catch (e) {
+        console.error('Failed to load entity details:', e);
+        alert(`Failed to load details: ${e.message}`);
+    }
+}
+
+// Show service call dialog
+function showServiceCallDialog(entityId) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚙️ Call Service</h3>
+                <button class="btn btn-small close-modal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Entity ID:</label>
+                    <input type="text" class="form-control" id="service-entity-id" value="${entityId}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Service:</label>
+                    <input type="text" class="form-control" id="service-name" placeholder="e.g., light.turn_on">
+                    <div class="service-suggestions">
+                        <button class="btn btn-tiny" onclick="document.getElementById('service-name').value='light.turn_on'">light.turn_on</button>
+                        <button class="btn btn-tiny" onclick="document.getElementById('service-name').value='light.turn_off'">light.turn_off</button>
+                        <button class="btn btn-tiny" onclick="document.getElementById('service-name').value='switch.turn_on'">switch.turn_on</button>
+                        <button class="btn btn-tiny" onclick="document.getElementById('service-name').value='switch.turn_off'">switch.turn_off</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Data (JSON):</label>
+                    <textarea class="form-control" id="service-data" rows="4" placeholder='{"brightness": 255}'>{}</textarea>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" onclick="executeServiceCall()">▶️ Execute</button>
+                </div>
+                <div id="service-call-result"></div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    modal.querySelector('.close-modal').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+}
+
+// Execute service call from dialog
+async function executeServiceCall() {
+    const entityId = document.getElementById('service-entity-id').value;
+    const service = document.getElementById('service-name').value;
+    const dataStr = document.getElementById('service-data').value;
+    const resultDiv = document.getElementById('service-call-result');
+    
+    if (!service) {
+        resultDiv.innerHTML = '<div class="test-result error">Please enter a service name</div>';
+        return;
+    }
+    
+    let data = {};
+    try {
+        data = JSON.parse(dataStr);
+    } catch (e) {
+        resultDiv.innerHTML = '<div class="test-result error">Invalid JSON data</div>';
+        return;
+    }
+    
+    resultDiv.innerHTML = '<div class="test-result">Calling service...</div>';
+    
+    const result = await callService(service, entityId, data);
+    
+    if (result.success) {
+        resultDiv.innerHTML = `<div class="test-result success">✓ ${result.message || 'Service called successfully'}</div>`;
+    } else {
+        resultDiv.innerHTML = `<div class="test-result error">✗ ${result.message}</div>`;
+    }
+}
+
+// =============================================================================
+// Area Quick Actions
+// =============================================================================
+
+// Turn all lights on in an area
+async function areaLightsOn(areaId) {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳';
+    
+    try {
+        // Get all entities in this area
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/entities?area=${areaId}`);
+        const data = await response.json();
+        
+        // Filter for lights
+        const lights = data.entities.filter(e => e.domain === 'light');
+        
+        // Turn them all on
+        for (const light of lights) {
+            await callService('light.turn_on', light.entity_id);
+        }
+        
+        // Show success toast
+        showToast(`💡 Turned on ${lights.length} lights`);
+    } catch (e) {
+        console.error('Failed to turn on area lights:', e);
+        showToast('❌ Failed to turn on lights', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '💡 On';
+    }
+}
+
+// Turn all lights off in an area
+async function areaLightsOff(areaId) {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳';
+    
+    try {
+        // Get all entities in this area
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/entities?area=${areaId}`);
+        const data = await response.json();
+        
+        // Filter for lights
+        const lights = data.entities.filter(e => e.domain === 'light');
+        
+        // Turn them all off
+        for (const light of lights) {
+            await callService('light.turn_off', light.entity_id);
+        }
+        
+        // Show success toast
+        showToast(`🌙 Turned off ${lights.length} lights`);
+    } catch (e) {
+        console.error('Failed to turn off area lights:', e);
+        showToast('❌ Failed to turn off lights', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🌙 Off';
+    }
+}
+
+// Show entities in a specific area
+async function showAreaEntities(areaId, areaName) {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/entities?area=${areaId}`);
+        const data = await response.json();
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.display = 'flex';
+        
+        let entitiesHtml = '';
+        if (data.entities.length === 0) {
+            entitiesHtml = '<p class="text-muted">No entities in this area</p>';
+        } else {
+            // Group by domain
+            const byDomain = {};
+            data.entities.forEach(e => {
+                if (!byDomain[e.domain]) byDomain[e.domain] = [];
+                byDomain[e.domain].push(e);
+            });
+            
+            for (const [domain, entities] of Object.entries(byDomain)) {
+                entitiesHtml += `
+                    <div class="area-domain-group">
+                        <h4>${getDomainIcon(domain)} ${getDomainName(domain)} (${entities.length})</h4>
+                        <div class="area-entities-list">
+                            ${entities.map(e => `
+                                <div class="area-entity-item ${e.is_on ? 'state-on' : 'state-off'}">
+                                    <span class="entity-name">${escapeHtml(e.friendly_name)}</span>
+                                    <span class="state-badge ${getStateClass(e)}">${e.state}</span>
+                                    ${['light', 'switch', 'fan'].includes(domain) ? `
+                                        <button class="btn btn-tiny" onclick="toggleEntity('${e.entity_id}')">
+                                            ${e.is_on ? '🔴' : '🟢'}
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        modal.innerHTML = `
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h3>🏠 ${areaName}</h3>
+                    <button class="btn btn-small close-modal">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="area-actions">
+                        <button class="btn" onclick="areaLightsOn('${areaId}')">💡 All Lights On</button>
+                        <button class="btn" onclick="areaLightsOff('${areaId}')">🌙 All Lights Off</button>
+                    </div>
+                    <div class="area-entities-content">
+                        ${entitiesHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        modal.querySelector('.close-modal').addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    } catch (e) {
+        console.error('Failed to load area entities:', e);
+        showToast(`Failed to load area entities: ${e.message}`, 'error');
+    }
+}
+
+// Toast notification helper
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
 }
 
 async function refreshHAData() {
