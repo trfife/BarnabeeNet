@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (after MetaAgent Classification Fix)
+2026-01-18 (after MetaAgent Classification Verified on VM)
 
 ## Current Phase
-**Phase 1: Core Services** - INTENT CLASSIFICATION WORKING
+**Phase 1: Core Services** - FULL PIPELINE WORKING
 
 ## Development Workflow
 
@@ -66,9 +66,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **OpenRouter API Key Configured** - API key set via dashboard Configuration page. Test connection succeeded. Orchestrator reads API key from encrypted provider config (SecretsService).
 - [x] **LLM Working End-to-End** - Barnabee responds with personality! InteractionAgent calls LLM successfully. E2E tests show LLM responses like "Today is Wednesday, January 3rd, 2024. *adjusts pocket watch* Lovely winter day we're having, isn't it?"
 - [x] **MetaAgent Classification Fixed** - Orchestrator now calls MetaAgent.classify() directly (was incorrectly calling handle_input and missing the ClassificationResult). Intent routing should now work correctly for instant/action/memory intents.
+- [x] **MetaAgent Classification Verified on VM** - Deployed and tested on VM. E2E tests confirm: time/date/greeting queries route to InstantAgent (instant intent), conversation queries route to InteractionAgent (conversation intent). LLM responses working with Barnabee personality. Fixed restart.sh to load .env for master key persistence.
 
 ### In Progress
-- [ ] Verify MetaAgent intent classification working on VM
+- [ ] Home Assistant entity discovery
 
 ### Not Started
 - [ ] Home Assistant entity discovery
@@ -109,9 +110,8 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Verify MetaAgent classification on VM (deploy & run E2E tests) ← NEXT
-2. Home Assistant entity discovery
-3. Family profile system
+1. Home Assistant entity discovery ← NEXT
+2. Family profile system
 
 ---
 
