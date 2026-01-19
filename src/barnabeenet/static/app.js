@@ -4860,18 +4860,12 @@ async function processVoiceRecording(audioBlob) {
     const sendBtn = document.getElementById('chat-send-btn');
 
     try {
-        // Convert audio to WAV format for server compatibility
-        let wavBlob;
-        try {
-            wavBlob = await convertToWav(audioBlob);
-            console.log('Converted to WAV:', wavBlob.size, 'bytes');
-        } catch (convError) {
-            console.warn('WAV conversion failed, sending original:', convError);
-            wavBlob = audioBlob;
-        }
+        // Send audio directly - server handles format conversion
+        // This is much faster than browser-side WebM->WAV conversion
+        console.log('Sending audio:', audioBlob.size, 'bytes,', audioBlob.type);
         
         // Convert blob to base64
-        const arrayBuffer = await wavBlob.arrayBuffer();
+        const arrayBuffer = await audioBlob.arrayBuffer();
         const base64Audio = btoa(
             new Uint8Array(arrayBuffer)
                 .reduce((data, byte) => data + String.fromCharCode(byte), '')
@@ -4923,11 +4917,11 @@ async function processVoiceRecording(audioBlob) {
                 }
             }
 
-            // Add assistant response
-            const assistantMessage = data.response || data.output_text || 'I heard you, but I have no response.';
-            const agent = data.agent_used || data.agent || null;
+            // Add assistant response - voice pipeline uses response_text
+            const assistantMessage = data.response_text || data.response || data.output_text || 'I heard you, but I have no response.';
+            const agent = data.agent || data.agent_used || null;
             const intent = data.intent || null;
-            const traceId = data.trace_id || null;
+            const traceId = data.trace_id || data.request_id || null;
 
             addChatMessage('assistant', assistantMessage, {
                 agent,
