@@ -17,7 +17,6 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from barnabeenet.main import app_state
 from barnabeenet.services.memory.storage import MemoryStorage, StoredMemory
 
 logger = logging.getLogger(__name__)
@@ -137,6 +136,8 @@ class SearchMemoryResponse(BaseModel):
 
 def _get_memory_storage() -> MemoryStorage:
     """Get memory storage instance."""
+    from barnabeenet.main import app_state
+
     if not hasattr(app_state, "memory_storage") or app_state.memory_storage is None:
         raise HTTPException(status_code=503, detail="Memory storage not initialized")
     return app_state.memory_storage
@@ -460,6 +461,7 @@ Write your diary entry now:"""
 
     # Try to use LLM for generation
     try:
+        from barnabeenet.main import app_state
         from barnabeenet.services.llm.openrouter import ChatMessage, OpenRouterClient
         from barnabeenet.services.secrets import get_secrets_service
 

@@ -19,7 +19,6 @@ import redis.asyncio as redis
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from barnabeenet.main import app_state
 from barnabeenet.models.profiles import (
     CreateProfileRequest,
     DiffEntry,
@@ -315,7 +314,9 @@ async def generate_profile_update(member_id: str):
         # Still allow manual generation
         triggers = ["manual_request"]
 
-    # Get dependencies
+    # Get dependencies (late import to avoid circular import)
+    from barnabeenet.main import app_state
+
     llm_client = getattr(app_state, "llm_client", None)
     memory_storage = getattr(app_state, "memory_storage", None)
 
