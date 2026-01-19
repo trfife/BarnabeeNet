@@ -5267,7 +5267,7 @@ function renderMemoryCard(memory) {
     const participants = memory.participants?.join(', ') || '-';
     const importance = memory.importance ? `${Math.round(memory.importance * 100)}%` : '-';
 
-    const tags = (memory.tags || []).map(tag => 
+    const tags = (memory.tags || []).map(tag =>
         `<span class="memory-tag">${escapeHtml(tag)}</span>`
     ).join('');
 
@@ -5479,7 +5479,7 @@ function escapeHtml(text) {
 
 // Hook into page navigation to initialize memory when shown
 const origShowPage = window.showPage || showPage;
-window.showPage = function(pageId) {
+window.showPage = function (pageId) {
     origShowPage(pageId);
     if (pageId === 'memory') {
         initMemory();

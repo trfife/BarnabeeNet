@@ -5767,3 +5767,746 @@ body {
     color: var(--text-secondary);
     margin-bottom: 8px;
 }
+/* ===============================================
+   Mobile Responsive Styles - Galaxy Z Fold 6 Optimized
+   Cover screen: ~420px, Unfolded: ~820px
+   =============================================== */
+
+/* Tablet and Unfolded Fold (600px - 900px) */
+@media (max-width: 900px) {
+    .navbar {
+        padding: 0 16px;
+        height: 56px;
+    }
+
+    .brand-name {
+        font-size: 16px;
+    }
+
+    .nav-links {
+        gap: 4px;
+    }
+
+    .nav-link {
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+
+    .main-content {
+        padding: 16px;
+    }
+
+    .page-header h1 {
+        font-size: 22px;
+    }
+
+    .chat-container {
+        height: calc(100vh - 72px);
+        border-radius: 8px;
+    }
+
+    .chat-header {
+        padding: 16px;
+    }
+
+    .chat-avatar {
+        font-size: 36px;
+        width: 48px;
+        height: 48px;
+    }
+
+    .chat-info h2 {
+        font-size: 20px;
+    }
+
+    .welcome-avatar {
+        font-size: 60px;
+    }
+
+    .chat-welcome h3 {
+        font-size: 22px;
+    }
+
+    .memory-tabs {
+        gap: 6px;
+    }
+
+    .memory-tab {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+}
+
+/* Mobile - Folded Phone (max-width: 600px) */
+@media (max-width: 600px) {
+    /* Navigation - Hamburger style bottom nav on mobile */
+    .navbar {
+        flex-direction: column;
+        height: auto;
+        padding: 8px 12px;
+        gap: 8px;
+    }
+
+    .nav-brand {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .brand-name {
+        font-size: 14px;
+    }
+
+    .logo {
+        font-size: 22px;
+    }
+
+    .nav-links {
+        width: 100%;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        padding-bottom: 4px;
+        justify-content: flex-start;
+    }
+
+    .nav-links::-webkit-scrollbar {
+        display: none;
+    }
+
+    .nav-link {
+        padding: 8px 12px;
+        font-size: 11px;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .nav-status {
+        display: none;
+    }
+
+    /* Main Content */
+    .main-content {
+        padding: 12px;
+    }
+
+    .page-header {
+        margin-bottom: 16px;
+    }
+
+    .page-header h1 {
+        font-size: 20px;
+    }
+
+    .page-header p {
+        font-size: 12px;
+    }
+
+    /* Dashboard Grid */
+    .dashboard-grid {
+        gap: 12px;
+    }
+
+    .card {
+        border-radius: 8px;
+    }
+
+    .card-header {
+        padding: 12px 14px;
+    }
+
+    .card-header h3 {
+        font-size: 14px;
+    }
+
+    .card-body {
+        padding: 12px 14px;
+    }
+
+    /* Stats */
+    .stats-grid {
+        gap: 8px;
+    }
+
+    .stat-item {
+        padding: 10px 8px;
+    }
+
+    .stat-value {
+        font-size: 18px;
+    }
+
+    .stat-label {
+        font-size: 10px;
+    }
+
+    /* Chat Page - Critical for mobile */
+    .chat-container {
+        height: calc(100vh - 100px);
+        height: calc(100dvh - 100px);
+        border-radius: 0;
+        margin: -12px;
+        width: calc(100% + 24px);
+    }
+
+    .chat-header {
+        padding: 12px;
+        gap: 10px;
+    }
+
+    .chat-avatar {
+        font-size: 28px;
+        width: 40px;
+        height: 40px;
+        border-width: 2px;
+    }
+
+    .chat-info h2 {
+        font-size: 16px;
+    }
+
+    .chat-status {
+        font-size: 11px;
+    }
+
+    .chat-actions {
+        gap: 4px;
+    }
+
+    .chat-actions .btn {
+        padding: 6px 10px;
+        font-size: 11px;
+    }
+
+    .chat-messages {
+        padding: 12px;
+        gap: 12px;
+    }
+
+    .chat-welcome {
+        padding: 20px 12px;
+    }
+
+    .welcome-avatar {
+        font-size: 48px;
+        margin-bottom: 12px;
+    }
+
+    .chat-welcome h3 {
+        font-size: 18px;
+    }
+
+    .chat-welcome p {
+        font-size: 13px;
+        margin-bottom: 16px;
+    }
+
+    .welcome-suggestions {
+        gap: 8px;
+    }
+
+    .suggestion-chip {
+        padding: 8px 14px;
+        font-size: 12px;
+    }
+
+    .chat-message {
+        max-width: 90%;
+        gap: 8px;
+    }
+
+    .message-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 16px;
+    }
+
+    .message-bubble {
+        padding: 10px 14px;
+        font-size: 14px;
+        border-radius: 14px;
+    }
+
+    .message-meta {
+        font-size: 10px;
+    }
+
+    /* Chat Input - Touch optimized */
+    .chat-input-container {
+        padding: 12px;
+    }
+
+    .chat-input-wrapper {
+        padding: 4px 4px 4px 14px;
+        border-radius: 24px;
+        gap: 8px;
+    }
+
+    .chat-input {
+        font-size: 15px;
+        min-height: 24px;
+    }
+
+    .chat-send-btn,
+    .chat-mic-btn {
+        width: 40px;
+        height: 40px;
+    }
+
+    .send-icon,
+    .mic-icon {
+        font-size: 16px;
+    }
+
+    .chat-input-hint {
+        display: none;
+    }
+
+    .chat-voice-indicator {
+        margin-top: 8px;
+        padding: 10px;
+        border-radius: 8px;
+    }
+
+    /* Memory Page */
+    .memory-stats-row {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .memory-stats-row .stat-card {
+        padding: 14px 10px;
+    }
+
+    .memory-stats-row .stat-icon {
+        font-size: 20px;
+    }
+
+    .memory-stats-row .stat-value {
+        font-size: 22px;
+    }
+
+    .memory-stats-row .stat-label {
+        font-size: 10px;
+    }
+
+    .memory-tabs {
+        overflow-x: auto;
+        scrollbar-width: none;
+        flex-wrap: nowrap;
+        padding-bottom: 4px;
+    }
+
+    .memory-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .memory-tab {
+        padding: 8px 12px;
+        font-size: 11px;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .memory-filters {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .memory-filters .form-control {
+        min-width: 100%;
+    }
+
+    .memory-card {
+        padding: 12px;
+    }
+
+    .memory-type-badge {
+        font-size: 10px;
+        padding: 3px 8px;
+    }
+
+    .memory-content {
+        font-size: 13px;
+    }
+
+    .memory-meta {
+        font-size: 10px;
+        gap: 10px;
+    }
+
+    .memory-search-form,
+    .memory-add-form {
+        padding: 14px;
+    }
+
+    .search-input-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .search-input-row .btn {
+        width: 100%;
+    }
+
+    .memory-add-form .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .memory-category-intro {
+        padding: 12px;
+    }
+
+    .diary-entry {
+        padding: 14px;
+    }
+
+    .diary-date {
+        font-size: 14px;
+    }
+
+    /* Logs Page */
+    .logs-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .logs-filters {
+        flex-wrap: wrap;
+    }
+
+    /* Config Page */
+    .provider-setup-grid,
+    .setup-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .config-section .card-body {
+        padding: 12px;
+    }
+
+    .model-dropdown {
+        font-size: 12px;
+    }
+
+    /* Modals */
+    .modal-content {
+        width: 95%;
+        max-width: none;
+        margin: 10px;
+        max-height: 90vh;
+        border-radius: 12px;
+    }
+
+    .modal-header {
+        padding: 14px;
+    }
+
+    .modal-body {
+        padding: 14px;
+    }
+
+    .modal-footer {
+        padding: 12px 14px;
+    }
+
+    /* Tables */
+    .entity-table {
+        font-size: 12px;
+    }
+
+    .entity-table th,
+    .entity-table td {
+        padding: 8px 6px;
+    }
+
+    /* Buttons */
+    .btn {
+        padding: 8px 14px;
+        font-size: 12px;
+    }
+
+    .btn-small {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    /* Agent chain in chat */
+    .agent-chain {
+        font-size: 11px;
+        padding: 8px;
+    }
+
+    .chain-step {
+        padding: 6px;
+    }
+}
+
+/* Extra small screens - Cover screen on Fold 6 (~420px) */
+@media (max-width: 420px) {
+    .navbar {
+        padding: 6px 8px;
+    }
+
+    .nav-brand {
+        gap: 8px;
+    }
+
+    .brand-name {
+        font-size: 12px;
+    }
+
+    .logo {
+        font-size: 18px;
+    }
+
+    .nav-link {
+        padding: 6px 10px;
+        font-size: 10px;
+    }
+
+    .main-content {
+        padding: 8px;
+    }
+
+    .page-header h1 {
+        font-size: 18px;
+    }
+
+    .chat-container {
+        height: calc(100vh - 90px);
+        height: calc(100dvh - 90px);
+    }
+
+    .chat-header {
+        padding: 10px;
+    }
+
+    .chat-avatar {
+        font-size: 24px;
+        width: 36px;
+        height: 36px;
+    }
+
+    .chat-info h2 {
+        font-size: 14px;
+    }
+
+    .chat-messages {
+        padding: 10px;
+    }
+
+    .message-avatar {
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+    }
+
+    .message-bubble {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+
+    .chat-input-container {
+        padding: 8px;
+    }
+
+    .chat-input-wrapper {
+        padding: 3px 3px 3px 12px;
+    }
+
+    .chat-send-btn,
+    .chat-mic-btn {
+        width: 36px;
+        height: 36px;
+    }
+
+    .welcome-suggestions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .suggestion-chip {
+        text-align: center;
+    }
+
+    .memory-stats-row {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .memory-stats-row .stat-card {
+        padding: 10px 8px;
+    }
+
+    .memory-stats-row .stat-value {
+        font-size: 18px;
+    }
+
+    .memory-tab {
+        padding: 6px 10px;
+        font-size: 10px;
+    }
+
+    .card-header h3 {
+        font-size: 13px;
+    }
+}
+
+/* Landscape mode optimization for foldables */
+@media (max-height: 500px) and (orientation: landscape) {
+    .navbar {
+        height: 44px;
+        padding: 0 12px;
+    }
+
+    .nav-brand {
+        gap: 8px;
+    }
+
+    .brand-name {
+        font-size: 14px;
+    }
+
+    .logo {
+        font-size: 20px;
+    }
+
+    .nav-link {
+        padding: 6px 10px;
+        font-size: 11px;
+    }
+
+    .main-content {
+        padding: 8px 16px;
+    }
+
+    .page-header {
+        margin-bottom: 8px;
+    }
+
+    .page-header h1 {
+        font-size: 18px;
+    }
+
+    .chat-container {
+        height: calc(100vh - 52px);
+        height: calc(100dvh - 52px);
+    }
+
+    .chat-header {
+        padding: 8px 12px;
+    }
+
+    .chat-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 20px;
+    }
+
+    .chat-info h2 {
+        font-size: 14px;
+    }
+
+    .chat-messages {
+        padding: 8px 12px;
+        gap: 8px;
+    }
+
+    .chat-welcome {
+        padding: 10px;
+    }
+
+    .welcome-avatar {
+        font-size: 36px;
+        margin-bottom: 8px;
+    }
+
+    .chat-welcome h3 {
+        font-size: 16px;
+        margin-bottom: 4px;
+    }
+
+    .chat-welcome p {
+        font-size: 12px;
+        margin-bottom: 12px;
+    }
+
+    .welcome-suggestions {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .suggestion-chip {
+        padding: 6px 12px;
+        font-size: 11px;
+    }
+
+    .chat-input-container {
+        padding: 8px 12px;
+    }
+}
+
+/* Touch-friendly tap targets */
+@media (pointer: coarse) {
+    .nav-link,
+    .btn,
+    .suggestion-chip,
+    .memory-tab,
+    .chat-send-btn,
+    .chat-mic-btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    .nav-link {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .memory-action-btn {
+        min-height: 36px;
+        min-width: 36px;
+        padding: 8px;
+    }
+
+    /* Larger checkboxes and inputs on touch */
+    input[type="checkbox"],
+    input[type="radio"] {
+        min-width: 20px;
+        min-height: 20px;
+    }
+
+    select.form-control,
+    input.form-control,
+    textarea.form-control {
+        min-height: 44px;
+        font-size: 16px; /* Prevents iOS zoom */
+    }
+}
+
+/* Safe area insets for notched/folded phones */
+@supports (padding: env(safe-area-inset-top)) {
+    .navbar {
+        padding-top: env(safe-area-inset-top);
+        padding-left: max(12px, env(safe-area-inset-left));
+        padding-right: max(12px, env(safe-area-inset-right));
+    }
+
+    .main-content {
+        padding-left: max(12px, env(safe-area-inset-left));
+        padding-right: max(12px, env(safe-area-inset-right));
+    }
+
+    .chat-input-container {
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
+}
+
+/* Dark mode color scheme hint */
+@media (prefers-color-scheme: dark) {
+    :root {
+        color-scheme: dark;
+    }
+}
