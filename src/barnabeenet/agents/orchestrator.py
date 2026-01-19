@@ -342,11 +342,31 @@ class AgentOrchestrator:
             intent_val = ctx.classification.intent.value if ctx.classification else None
             confidence = ctx.classification.confidence if ctx.classification else None
 
+            # Extract error details from agent response
+            error_info = ctx.agent_response.get("error") if ctx.agent_response else None
+            has_error = error_info is not None
+            error_str = None
+            if error_info:
+                # Format error string with all relevant details
+                error_parts = []
+                if error_info.get("agent"):
+                    error_parts.append(f"Agent: {error_info['agent']}")
+                if error_info.get("model"):
+                    error_parts.append(f"Model: {error_info['model']}")
+                if error_info.get("type"):
+                    error_parts.append(f"Error: {error_info['type']}")
+                if error_info.get("status_code"):
+                    error_parts.append(f"Status: {error_info['status_code']}")
+                if error_info.get("message"):
+                    error_parts.append(f"Details: {error_info['message'][:200]}")
+                error_str = " | ".join(error_parts)
+
             await self._pipeline_logger.complete_trace(
                 trace_id=ctx.trace_id,
                 response_text=ctx.response_text,
                 response_type="tts",
-                success=not ctx.agent_response or "error" not in ctx.agent_response,
+                success=not has_error,
+                error=error_str,
                 agent_used=agent_name,
                 intent=intent_val,
                 intent_confidence=confidence,
@@ -355,10 +375,22 @@ class AgentOrchestrator:
             )
 
         # Complete activity trace
+        error_info = ctx.agent_response.get("error") if ctx.agent_response else None
+        error_str = None
+        if error_info:
+            if isinstance(error_info, dict):
+                # Structured error from agents like InteractionAgent
+                error_parts = [f"{k}: {v}" for k, v in error_info.items() if v is not None]
+                error_str = " | ".join(error_parts)
+            else:
+                # Simple string error
+                error_str = str(error_info)
+
         await activity_logger.complete_trace(
             trace_id=trace_id,
             response=ctx.response_text,
-            success=not ctx.agent_response or "error" not in ctx.agent_response,
+            success=error_info is None,
+            error=error_str,
         )
 
         # Record pipeline latency for metrics graphs

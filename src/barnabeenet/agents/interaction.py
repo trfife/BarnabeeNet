@@ -207,12 +207,21 @@ class InteractionAgent(Agent):
 
         # Generate response
         llm_details = None
+        error_info = None
         if self._llm_client:
             llm_result = await self._generate_llm_response(text, conv_ctx, ctx)
             response_text = llm_result["text"]
             llm_details = llm_result.get("llm_details")
+            error_info = llm_result.get("error")  # LLM call error if any
         else:
             response_text = self._generate_fallback_response(text, conv_ctx)
+            error_info = {
+                "type": "ConfigurationError",
+                "message": "No LLM API key configured",
+                "status_code": None,
+                "model": None,
+                "agent": "interaction",
+            }
 
         # Add assistant response to history
         conv_ctx.history.append(ConversationTurn(role="assistant", content=response_text))
@@ -230,10 +239,11 @@ class InteractionAgent(Agent):
             "conversation_id": conv_ctx.conversation_id,
             "speaker": conv_ctx.speaker,
             "turn_count": len([t for t in conv_ctx.history if t.role == "user"]),
-            "used_llm": self._llm_client is not None,
+            "used_llm": self._llm_client is not None and error_info is None,
             "child_mode": children_present,
             "latency_ms": latency_ms,
             "llm_details": llm_details,
+            "error": error_info,
         }
 
     def _get_or_create_context(self, ctx: dict[str, Any]) -> ConversationContext:
@@ -398,7 +408,26 @@ class InteractionAgent(Agent):
 
         except Exception as e:
             logger.error(f"LLM request failed: {e}")
-            return {"text": self._generate_fallback_response(text, conv_ctx), "llm_details": None}
+            error_type = type(e).__name__
+            error_detail = str(e)
+            # Extract HTTP status if available
+            status_code = getattr(e, "status_code", None) or getattr(
+                getattr(e, "response", None), "status_code", None
+            )
+
+            return {
+                "text": self._generate_llm_error_response(error_type, error_detail, status_code),
+                "llm_details": None,
+                "error": {
+                    "type": error_type,
+                    "message": error_detail,
+                    "status_code": status_code,
+                    "model": self._llm_client.model_config.interaction.model
+                    if self._llm_client
+                    else None,
+                    "agent": "interaction",
+                },
+            }
 
     def _truncate_for_children(self, text: str) -> str:
         """Truncate response for child-appropriate length."""
@@ -417,6 +446,33 @@ class InteractionAgent(Agent):
                     return truncated[: last_idx + 1]
 
         return truncated + "..."
+
+    def _generate_llm_error_response(
+        self, error_type: str, error_detail: str, status_code: int | None
+    ) -> str:
+        """Generate a user-friendly error message for LLM failures."""
+        model_name = (
+            self._llm_client.model_config.interaction.model if self._llm_client else "unknown"
+        )
+
+        if status_code == 401:
+            return f"LLM authentication failed - your API key may be invalid. Model: {model_name}"
+        elif status_code == 402:
+            return f"LLM billing error - check your account balance. Model: {model_name}"
+        elif status_code == 403:
+            return f"LLM access denied - API key may not have access to {model_name}"
+        elif status_code == 404:
+            return f"LLM model not found: {model_name}. Check if the model name is correct."
+        elif status_code == 429:
+            return f"LLM rate limit exceeded. Try again in a moment. Model: {model_name}"
+        elif status_code and status_code >= 500:
+            return f"LLM service error ({status_code}). The provider may be having issues. Model: {model_name}"
+        elif "timeout" in error_detail.lower():
+            return f"LLM request timed out. Model: {model_name}"
+        elif "connection" in error_detail.lower():
+            return f"Could not connect to LLM provider. Check your network. Model: {model_name}"
+        else:
+            return f"LLM error: {error_type} - {error_detail[:100]}. Model: {model_name}"
 
     def _generate_fallback_response(self, text: str, conv_ctx: ConversationContext) -> str:
         """Generate a fallback response when LLM is unavailable."""
