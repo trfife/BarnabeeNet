@@ -162,7 +162,7 @@ async def transcribe(request: TranscribeRequest) -> TranscribeResponse:
     # Load audio - try soundfile first, fall back to ffmpeg for WebM/Opus
     audio_data = None
     sample_rate = 16000
-    
+
     try:
         audio_buffer = io.BytesIO(audio_bytes)
         audio_data, sample_rate = sf.read(audio_buffer)
@@ -173,35 +173,35 @@ async def transcribe(request: TranscribeRequest) -> TranscribeResponse:
         try:
             import subprocess
             import tempfile
-            
+
             # Write input to temp file
             with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as f:
                 f.write(audio_bytes)
                 input_path = f.name
-            
+
             output_path = input_path.replace('.webm', '.wav')
-            
+
             # Use ffmpeg to convert to WAV (16kHz mono)
             result = subprocess.run([
                 'ffmpeg', '-y', '-i', input_path,
                 '-ar', '16000', '-ac', '1', '-f', 'wav',
                 output_path
             ], capture_output=True, timeout=5)
-            
+
             if result.returncode != 0:
                 raise ValueError(f"ffmpeg failed: {result.stderr.decode()[:200]}")
-            
+
             # Read the converted WAV
             audio_data, sample_rate = sf.read(output_path)
             logger.debug(f"Decoded audio with ffmpeg: {len(audio_data)} samples at {sample_rate}Hz")
-            
+
             # Cleanup temp files
             os.unlink(input_path)
             os.unlink(output_path)
-            
+
         except Exception as ffmpeg_error:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Could not decode audio: soundfile={sf_error}, ffmpeg={ffmpeg_error}"
             ) from ffmpeg_error
 
@@ -209,20 +209,17 @@ async def transcribe(request: TranscribeRequest) -> TranscribeResponse:
     if len(audio_data.shape) > 1:
         audio_data = audio_data.mean(axis=1)
 
-        # Ensure float32
-        audio_data = audio_data.astype(np.float32)
+    # Ensure float32
+    audio_data = audio_data.astype(np.float32)
 
-        # Resample to 16kHz if needed
-        if sample_rate != 16000:
-            import torchaudio.functional as F
+    # Resample to 16kHz if needed
+    if sample_rate != 16000:
+        import torchaudio.functional as F
 
-            audio_tensor = torch.from_numpy(audio_data).unsqueeze(0)
-            audio_tensor = F.resample(audio_tensor, sample_rate, 16000)
-            audio_data = audio_tensor.squeeze().numpy()
-            sample_rate = 16000
-
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid audio format: {e}") from e
+        audio_tensor = torch.from_numpy(audio_data).unsqueeze(0)
+        audio_tensor = F.resample(audio_tensor, sample_rate, 16000)
+        audio_data = audio_tensor.squeeze().numpy()
+        sample_rate = 16000
 
     # Save to temp file (NeMo requires file path)
     temp_file = f"/tmp/stt_input_{time.time_ns()}.wav"

@@ -4745,7 +4745,7 @@ async function startVoiceRecording() {
         } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
             mimeType = 'audio/webm;codecs=opus';
         }
-        
+
         console.log('Recording with mimeType:', mimeType);
 
         voiceRecorder = new MediaRecorder(mediaStream, { mimeType });
@@ -4863,7 +4863,7 @@ async function processVoiceRecording(audioBlob) {
         // Send audio directly - server handles format conversion
         // This is much faster than browser-side WebM->WAV conversion
         console.log('Sending audio:', audioBlob.size, 'bytes,', audioBlob.type);
-        
+
         // Convert blob to base64
         const arrayBuffer = await audioBlob.arrayBuffer();
         const base64Audio = btoa(
@@ -4946,15 +4946,15 @@ async function processVoiceRecording(audioBlob) {
             // Error response - handle both string and object errors
             let errorMsg = 'Voice processing failed';
             if (data.detail) {
-                errorMsg = typeof data.detail === 'string' ? data.detail : 
-                           (data.detail.message || data.detail.error || JSON.stringify(data.detail));
+                errorMsg = typeof data.detail === 'string' ? data.detail :
+                    (data.detail.message || data.detail.error || JSON.stringify(data.detail));
             } else if (data.error) {
                 errorMsg = typeof data.error === 'string' ? data.error :
-                           (data.error.message || JSON.stringify(data.error));
+                    (data.error.message || JSON.stringify(data.error));
             } else if (data.message) {
                 errorMsg = data.message;
             }
-            
+
             // Update user message to show error
             const userMessages = document.querySelectorAll('.chat-message.user');
             const lastUserMessage = userMessages[userMessages.length - 1];
@@ -5017,14 +5017,14 @@ async function convertToWav(audioBlob) {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)({
         sampleRate: 16000
     });
-    
+
     const arrayBuffer = await audioBlob.arrayBuffer();
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    
+
     // Get mono channel data
     const channelData = audioBuffer.getChannelData(0);
     const sampleRate = audioBuffer.sampleRate;
-    
+
     // Resample to 16kHz if needed
     let samples = channelData;
     if (sampleRate !== 16000) {
@@ -5039,17 +5039,17 @@ async function convertToWav(audioBlob) {
             samples[i] = channelData[srcIndexFloor] * (1 - t) + channelData[srcIndexCeil] * t;
         }
     }
-    
+
     // Convert to 16-bit PCM
     const pcmData = new Int16Array(samples.length);
     for (let i = 0; i < samples.length; i++) {
         const s = Math.max(-1, Math.min(1, samples[i]));
         pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
     }
-    
+
     // Create WAV file
     const wavBuffer = createWavBuffer(pcmData, 16000);
-    
+
     audioContext.close();
     return new Blob([wavBuffer], { type: 'audio/wav' });
 }
@@ -5062,15 +5062,15 @@ function createWavBuffer(pcmData, sampleRate) {
     const blockAlign = numChannels * (bitsPerSample / 8);
     const dataSize = pcmData.length * (bitsPerSample / 8);
     const bufferSize = 44 + dataSize;
-    
+
     const buffer = new ArrayBuffer(bufferSize);
     const view = new DataView(buffer);
-    
+
     // RIFF header
     writeString(view, 0, 'RIFF');
     view.setUint32(4, bufferSize - 8, true);
     writeString(view, 8, 'WAVE');
-    
+
     // fmt chunk
     writeString(view, 12, 'fmt ');
     view.setUint32(16, 16, true); // chunk size
@@ -5080,17 +5080,17 @@ function createWavBuffer(pcmData, sampleRate) {
     view.setUint32(28, byteRate, true);
     view.setUint16(32, blockAlign, true);
     view.setUint16(34, bitsPerSample, true);
-    
+
     // data chunk
     writeString(view, 36, 'data');
     view.setUint32(40, dataSize, true);
-    
+
     // PCM data
     const pcmOffset = 44;
     for (let i = 0; i < pcmData.length; i++) {
         view.setInt16(pcmOffset + i * 2, pcmData[i], true);
     }
-    
+
     return buffer;
 }
 
