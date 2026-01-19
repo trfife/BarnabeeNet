@@ -555,6 +555,63 @@ class AgentOrchestrator:
             logger.warning(f"Failed to get profile context for {speaker}: {e}")
             return None
 
+    async def _get_mentioned_profiles(
+        self, text: str, speaker: str | None
+    ) -> list[dict[str, Any]] | None:
+        """Look up profiles for any family members mentioned in the text.
+
+        This allows Barnabee to answer questions about family members
+        using their profile data.
+
+        Args:
+            text: The user's input text
+            speaker: Current speaker (excluded from results)
+
+        Returns:
+            List of profile summaries for mentioned family members
+        """
+        try:
+            from barnabeenet.services.profiles import get_profile_service
+
+            profile_service = await get_profile_service()
+
+            # Get all profiles
+            all_profiles = await profile_service.get_all_profiles()
+            if not all_profiles:
+                return None
+
+            # Find mentions in the text (case-insensitive)
+            text_lower = text.lower()
+            mentioned = []
+
+            for profile in all_profiles:
+                member_id = profile.member_id.lower()
+                name = profile.name.lower()
+
+                # Skip the speaker (we already have their context)
+                if speaker and member_id == speaker.lower():
+                    continue
+
+                # Check if member is mentioned by ID or name
+                if member_id in text_lower or name in text_lower:
+                    # Create a public-only summary for mentioned people
+                    mentioned.append(
+                        {
+                            "member_id": profile.member_id,
+                            "name": profile.name,
+                            "relationship": profile.relationship_to_primary,
+                            "communication_style": profile.public.communication_style,
+                            "interests": profile.public.interests,
+                            "preferences": profile.public.preferences,
+                        }
+                    )
+
+            return mentioned if mentioned else None
+
+        except Exception as e:
+            logger.warning(f"Failed to get mentioned profiles: {e}")
+            return None
+
     async def _route_and_handle(self, ctx: RequestContext) -> None:
         """Stage 3: Route to appropriate agent and handle."""
         start = time.perf_counter()
@@ -589,6 +646,11 @@ class AgentOrchestrator:
             profile_context = await self._get_profile_context(ctx.speaker, ctx.room)
             if profile_context:
                 agent_context["profile"] = profile_context
+
+        # Look up profiles for any family members mentioned in the text
+        mentioned_profiles = await self._get_mentioned_profiles(ctx.text, ctx.speaker)
+        if mentioned_profiles:
+            agent_context["mentioned_profiles"] = mentioned_profiles
 
         # Log routing decision
         if self._pipeline_logger:

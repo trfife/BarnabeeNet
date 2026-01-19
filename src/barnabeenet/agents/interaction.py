@@ -302,6 +302,11 @@ class InteractionAgent(Agent):
         if profile:
             parts.append(self._build_profile_section(profile))
 
+        # Mentioned family members (for answering questions about them)
+        mentioned_profiles = user_ctx.get("mentioned_profiles")
+        if mentioned_profiles:
+            parts.append(self._build_mentioned_profiles_section(mentioned_profiles))
+
         # Child mode
         if conv_ctx.children_present:
             parts.append(
@@ -400,6 +405,45 @@ class InteractionAgent(Agent):
             avoid = private.get("topics_to_avoid", [])
             if avoid:
                 parts.append(f"- Topics to handle carefully: {', '.join(avoid[:3])}")
+
+        return "\n".join(parts)
+
+    def _build_mentioned_profiles_section(self, profiles: list[dict[str, Any]]) -> str:
+        """Build section with info about mentioned family members.
+
+        This allows Barnabee to answer questions about family members
+        using their profile data.
+
+        Args:
+            profiles: List of profile dicts for mentioned family members
+
+        Returns:
+            Formatted section for system prompt
+        """
+        parts = ["\n## Family Member Information"]
+        parts.append("The following family members were mentioned. Use this information to answer:")
+
+        for profile in profiles:
+            name = profile.get("name", profile.get("member_id", "Unknown"))
+            parts.append(f"\n### {name}")
+
+            relationship = profile.get("relationship")
+            if relationship:
+                parts.append(f"- Relationship: {relationship}")
+
+            comm_style = profile.get("communication_style")
+            if comm_style:
+                parts.append(f"- Communication style: {comm_style}")
+
+            interests = profile.get("interests", [])
+            if interests:
+                parts.append(f"- Interests: {', '.join(interests)}")
+
+            prefs = profile.get("preferences", {})
+            if prefs:
+                pref_items = [f"{k}: {v}" for k, v in list(prefs.items())[:5]]
+                if pref_items:
+                    parts.append(f"- Preferences: {'; '.join(pref_items)}")
 
         return "\n".join(parts)
 
