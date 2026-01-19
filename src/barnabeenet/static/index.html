@@ -208,14 +208,23 @@
                 <!-- Chat Input -->
                 <div class="chat-input-container">
                     <div class="chat-input-wrapper">
+                        <button id="chat-mic-btn" class="chat-mic-btn" title="Hold to speak">
+                            <span class="mic-icon">🎤</span>
+                        </button>
                         <input type="text" id="chat-input" class="chat-input"
-                            placeholder="Type a message to Barnabee..." autocomplete="off">
+                            placeholder="Type or hold 🎤 to speak..." autocomplete="off">
                         <button id="chat-send-btn" class="chat-send-btn" title="Send message">
                             <span class="send-icon">➤</span>
                         </button>
                     </div>
+                    <div class="chat-voice-indicator" id="chat-voice-indicator">
+                        <div class="voice-wave">
+                            <span></span><span></span><span></span><span></span><span></span>
+                        </div>
+                        <span class="voice-status">Listening...</span>
+                    </div>
                     <div class="chat-input-hint">
-                        Press <kbd>Enter</kbd> to send • Barnabee responds with personality!
+                        Press <kbd>Enter</kbd> to send • Hold <kbd>🎤</kbd> to speak • Barnabee responds with personality!
                     </div>
                 </div>
             </div>

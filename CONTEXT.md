@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (Typo Handling + Memory System Fixes)
+2026-01-18 (Voice Input in Chat Tab)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + COMPREHENSIVE LOGGING
@@ -95,9 +95,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Detailed Error Messages** - InteractionAgent now tracks structured error info (agent, model, status_code, type, message) and returns user-friendly messages for HTTP errors (401=auth, 402=payment, 403=forbidden, 404=model unavailable, 429=rate limit, 5xx=server error). Error details propagated to conversation traces.
 - [x] **HA Auto-Reconnect** - HomeAssistantClient `ensure_connected()` method pings HA before actions and auto-reconnects if stale. Orchestrator calls this before executing HA service calls. Connection marked failed on network/auth errors.
 - [x] **Secrets Singleton Pattern** - Orchestrator uses `get_secrets_service()` singleton to ensure consistent encryption across all callers. Fixed issue where HA token was encrypted with random key before stable master key existed.
+- [x] **Dashboard Voice Input (Phase 6)** - Microphone button in Chat tab for voice-to-voice conversations. Hold-to-record interaction with visual recording indicator (animated wave). WebM/Opus audio capture at 16kHz, sent to `/api/v1/voice/pipeline` for full STT→Agent→TTS processing. Auto-plays audio response when available. Mobile touch event support. Graceful fallback for unsupported browsers.
 
 ### In Progress
-- [ ] Dashboard Phase 6: Voice input in Chat tab (microphone)
+- [ ] Dashboard Phase 7: Testing Dashboard enhancements - E2E runner, mock HA
 
 ### Not Started
 - [ ] HA activity feed integration (filter by HA vs other activities)
@@ -139,15 +140,14 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Dashboard Phase 5: AI Chat tab - text-to-Barnabee with real-time streaming ← NEXT
-2. Dashboard Phase 6: Testing Dashboard enhancements - E2E runner, mock HA
-3. Dashboard Phase 7: Memory Dashboard - view/search memories, conversation history
-4. Dashboard Phase 8: Polish - loading states, error handling, responsive design
-5. Dashboard Phase 9: Integration - tie everything together
-6. Connect to actual Home Assistant instance - configure via dashboard
-7. HA activity feed integration (filter by HA vs other activities)
-8. Home Assistant intelligent log filtering agent
-9. Family profile system
+1. Dashboard Phase 7: Testing Dashboard enhancements - E2E runner, mock HA ← NEXT
+2. Dashboard Phase 8: Memory Dashboard - view/search memories, conversation history
+3. Dashboard Phase 9: Polish - loading states, error handling, responsive design
+4. Dashboard Phase 10: Integration - tie everything together
+5. Connect to actual Home Assistant instance - configure via dashboard
+6. HA activity feed integration (filter by HA vs other activities)
+7. Home Assistant intelligent log filtering agent
+8. Family profile system
 
 ---
 
