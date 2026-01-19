@@ -6,7 +6,7 @@ import base64
 import time
 
 import structlog
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 
 from barnabeenet.config import get_settings
 from barnabeenet.models.schemas import (
@@ -371,3 +371,328 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
                 details={"error": str(e)},
             ).model_dump(),
         ) from e
+
+
+# =============================================================================
+# Quick Input Endpoints
+# =============================================================================
+
+
+@router.post("/input/text")
+async def quick_text_input(
+    text: str,
+    speaker: str = "api",
+    room: str | None = None,
+    conversation_id: str | None = None,
+) -> dict:
+    """Simple text input - send text, get response.
+
+    This is a convenience endpoint for quick text interactions.
+    Returns a simplified response compared to /voice/process.
+    """
+    from barnabeenet.agents.orchestrator import get_orchestrator
+
+    start_time = time.perf_counter()
+    orchestrator = get_orchestrator()
+
+    result = await orchestrator.process(
+        text=text,
+        speaker=speaker,
+        room=room,
+        conversation_id=conversation_id,
+    )
+
+    latency_ms = (time.perf_counter() - start_time) * 1000
+
+    return {
+        "text": text,
+        "response": result.get("response", ""),
+        "intent": result.get("intent", "unknown"),
+        "agent": result.get("agent", "unknown"),
+        "conversation_id": result.get("conversation_id"),
+        "latency_ms": latency_ms,
+    }
+
+
+@router.post("/input/audio")
+async def quick_audio_input(
+    audio: UploadFile,
+    mode: str = "command",
+    engine: str = "auto",
+    speaker: str = "api",
+    room: str | None = None,
+    conversation_id: str | None = None,
+) -> dict:
+    """Simple audio input - upload file, get transcription + response.
+
+    Accepts audio file upload (WAV, WebM, OGG) and returns both
+    the transcription and the AI response.
+
+    Query parameters:
+    - mode: "command" (single utterance), "realtime", "ambient"
+    - engine: "auto", "parakeet" (GPU), "whisper" (CPU), "azure" (cloud)
+    """
+    from barnabeenet.agents.orchestrator import get_orchestrator
+    from barnabeenet.models.stt_modes import STTEngine as STTEngineEnum
+    from barnabeenet.models.stt_modes import STTMode as STTModeEnum
+    from barnabeenet.services.stt.router import STTRouter
+
+    start_time = time.perf_counter()
+
+    # Parse mode and engine
+    try:
+        stt_mode = STTModeEnum(mode)
+    except ValueError:
+        stt_mode = STTModeEnum.COMMAND
+
+    try:
+        stt_engine = STTEngineEnum(engine)
+    except ValueError:
+        stt_engine = STTEngineEnum.AUTO
+
+    # Read audio data
+    audio_data = await audio.read()
+
+    # Transcribe
+    settings = get_settings()
+    stt_router = STTRouter(
+        gpu_worker_url=f"http://{settings.stt.gpu_worker_host}:{settings.stt.gpu_worker_port}",
+    )
+
+    try:
+        await stt_router.initialize()
+        stt_result = await stt_router.transcribe(
+            audio_data=audio_data,
+            sample_rate=settings.audio.input_sample_rate,
+            language="en",
+            engine=stt_engine,
+            mode=stt_mode,
+        )
+    finally:
+        await stt_router.shutdown()
+
+    # Process through orchestrator
+    orchestrator = get_orchestrator()
+    ai_result = await orchestrator.process(
+        text=stt_result.text,
+        speaker=speaker,
+        room=room,
+        conversation_id=conversation_id,
+    )
+
+    total_time = (time.perf_counter() - start_time) * 1000
+
+    return {
+        "transcription": stt_result.text,
+        "transcription_confidence": stt_result.confidence,
+        "stt_engine": stt_result.backend.value,
+        "stt_latency_ms": stt_result.latency_ms,
+        "response": ai_result.get("response", ""),
+        "intent": ai_result.get("intent", "unknown"),
+        "agent": ai_result.get("agent", "unknown"),
+        "conversation_id": ai_result.get("conversation_id"),
+        "total_latency_ms": total_time,
+    }
+
+
+# =============================================================================
+# WebSocket Streaming Transcription
+# =============================================================================
+
+
+@router.websocket("/ws/transcribe")
+async def websocket_transcribe(websocket: WebSocket) -> None:
+    """WebSocket endpoint for streaming audio transcription.
+
+    Client sends: binary audio chunks (16kHz PCM or WebM/Opus)
+    Server sends: JSON with partial/final transcription results
+
+    Connection flow:
+    1. Client connects to /ws/transcribe
+    2. Client sends config message: {"engine": "auto", "language": "en-US"}
+    3. Client sends binary audio chunks
+    4. Server sends partial results: {"type": "partial", "text": "Hello my", "is_final": false}
+    5. Server sends final results: {"type": "final", "text": "Hello my name is", "is_final": true}
+    6. Client sends {"type": "end"} to signal end of audio
+    7. Server sends final result and closes
+
+    Messages from client:
+    - JSON config: {"type": "config", "engine": "auto", "language": "en-US"}
+    - Binary audio: raw PCM 16-bit mono 16kHz
+    - JSON end: {"type": "end"}
+
+    Messages from server:
+    - {"type": "ready", "message": "Ready for audio"}
+    - {"type": "partial", "text": "...", "is_final": false}
+    - {"type": "final", "text": "...", "is_final": true, "confidence": 0.95, "engine": "parakeet"}
+    - {"type": "error", "message": "..."}
+    """
+    import asyncio
+    import json
+
+    from barnabeenet.models.stt_modes import STTEngine as STTEngineEnum
+    from barnabeenet.services.stt.router import STTRouter
+
+    await websocket.accept()
+
+    settings = get_settings()
+    stt_router = STTRouter(
+        gpu_worker_url=f"http://{settings.stt.gpu_worker_host}:{settings.stt.gpu_worker_port}",
+    )
+
+    try:
+        await stt_router.initialize()
+
+        # Send ready message
+        await websocket.send_json(
+            {
+                "type": "ready",
+                "message": "Ready for audio",
+                "engines": stt_router.get_status()["engines"],
+            }
+        )
+
+        # Wait for config message or start receiving audio
+        engine = STTEngineEnum.AUTO
+        language = "en-US"
+        audio_queue: asyncio.Queue[bytes | None] = asyncio.Queue()
+        streaming_task = None
+
+        async def audio_generator():
+            """Generate audio chunks from queue."""
+            while True:
+                chunk = await audio_queue.get()
+                if chunk is None:
+                    break
+                yield chunk
+
+        async def process_streaming():
+            """Process streaming transcription."""
+            async for result in stt_router.transcribe_streaming(
+                audio_stream=audio_generator(),
+                sample_rate=settings.audio.input_sample_rate,
+                language=language,
+                engine=engine,
+            ):
+                await websocket.send_json(
+                    {
+                        "type": "final" if result.is_final else "partial",
+                        "text": result.text,
+                        "is_final": result.is_final,
+                        "confidence": result.confidence,
+                        "engine": result.backend.value,
+                        "latency_ms": result.latency_ms,
+                    }
+                )
+
+        # Main message loop
+        while True:
+            try:
+                message = await websocket.receive()
+
+                if message["type"] == "websocket.disconnect":
+                    break
+
+                if "bytes" in message:
+                    # Binary audio data
+                    if streaming_task is None:
+                        streaming_task = asyncio.create_task(process_streaming())
+
+                    await audio_queue.put(message["bytes"])
+
+                elif "text" in message:
+                    # JSON message
+                    data = json.loads(message["text"])
+                    msg_type = data.get("type", "")
+
+                    if msg_type == "config":
+                        # Update config
+                        try:
+                            engine = STTEngineEnum(data.get("engine", "auto"))
+                        except ValueError:
+                            engine = STTEngineEnum.AUTO
+                        language = data.get("language", "en-US")
+
+                        await websocket.send_json(
+                            {
+                                "type": "config_ack",
+                                "engine": engine.value,
+                                "language": language,
+                            }
+                        )
+
+                    elif msg_type == "end":
+                        # End of audio stream
+                        await audio_queue.put(None)
+
+                        if streaming_task:
+                            await streaming_task
+
+                        await websocket.send_json(
+                            {
+                                "type": "complete",
+                                "message": "Transcription complete",
+                            }
+                        )
+                        break
+
+            except WebSocketDisconnect:
+                break
+            except Exception as e:
+                logger.error("WebSocket error", error=str(e))
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "message": str(e),
+                    }
+                )
+                break
+
+    except Exception as e:
+        logger.error("WebSocket transcription error", error=str(e))
+        try:
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "message": f"Server error: {str(e)}",
+                }
+            )
+        except Exception:
+            pass
+    finally:
+        await stt_router.shutdown()
+
+
+# =============================================================================
+# STT Status Endpoint
+# =============================================================================
+
+
+@router.get("/stt/status")
+async def get_stt_status() -> dict:
+    """Get current STT engine status and availability.
+
+    Returns information about all available STT engines:
+    - parakeet (GPU): Fastest, requires GPU worker
+    - azure (cloud): Good for mobile/remote
+    - whisper (CPU): Always available fallback
+    """
+    from barnabeenet.services.stt.router import STTRouter
+
+    settings = get_settings()
+    stt_router = STTRouter(
+        gpu_worker_url=f"http://{settings.stt.gpu_worker_host}:{settings.stt.gpu_worker_port}",
+    )
+
+    try:
+        await stt_router.initialize()
+        status = stt_router.get_status()
+
+        return {
+            "status": "ok",
+            "default_mode": settings.stt.default_mode,
+            "default_engine": settings.stt.default_engine,
+            **status,
+        }
+    finally:
+        await stt_router.shutdown()
