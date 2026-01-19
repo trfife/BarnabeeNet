@@ -1,0 +1,198 @@
+# BarnabeeNet Routing Rules
+# Maps intents to agents and defines routing priorities
+# Editable via dashboard - changes hot-reload without restart
+
+version: "1.0"
+last_modified: "2026-01-20"
+
+# =============================================================================
+# DEFAULT ROUTING - Intent category to agent mapping
+# =============================================================================
+defaults:
+  # Default agent when intent is unknown
+  unknown_intent: "interaction"
+  
+  # Default model for LLM classification fallback
+  llm_fallback_model: "deepseek/deepseek-chat"
+  
+  # Maximum time for pattern matching before LLM fallback (ms)
+  pattern_match_timeout_ms: 50
+
+# =============================================================================
+# INTENT TO AGENT MAPPING
+# =============================================================================
+intent_routing:
+  instant:
+    agent: "instant"
+    description: "Fast responses - time, date, greetings, math"
+    priority: 10
+    requires_llm: false
+    timeout_ms: 100
+
+  action:
+    agent: "action"
+    description: "Device control - lights, switches, covers, media"
+    priority: 9
+    requires_llm: false  # Uses rule-based parsing, LLM fallback
+    timeout_ms: 2000
+
+  query:
+    agent: "interaction"
+    description: "Information queries routed to conversation"
+    priority: 7
+    requires_llm: true
+    timeout_ms: 5000
+
+  conversation:
+    agent: "interaction"
+    description: "Complex dialogue and conversations"
+    priority: 5
+    requires_llm: true
+    timeout_ms: 5000
+
+  memory:
+    agent: "memory"
+    description: "Remember/recall/forget operations"
+    priority: 8
+    requires_llm: false
+    timeout_ms: 1000
+
+  emergency:
+    agent: "action"
+    description: "Safety-critical - immediate action required"
+    priority: 10
+    requires_llm: false
+    timeout_ms: 500
+    special_handling: "emergency_mode"
+
+  gesture:
+    agent: "instant"
+    description: "Physical input from wearables"
+    priority: 9
+    requires_llm: false
+    timeout_ms: 100
+
+  unknown:
+    agent: "interaction"
+    description: "Fallback to conversation agent"
+    priority: 1
+    requires_llm: true
+    timeout_ms: 5000
+
+# =============================================================================
+# PRIORITY RULES
+# Priority is calculated based on: base priority + urgency + context modifiers
+# Higher priority = processed first, shorter timeouts
+# =============================================================================
+priority_rules:
+  base_priorities:
+    emergency: 10
+    instant: 9
+    action: 8
+    memory: 7
+    query: 5
+    conversation: 5
+    gesture: 9
+    unknown: 1
+
+  urgency_modifiers:
+    emergency: +3  # Always highest
+    high: +2
+    medium: +1
+    low: 0
+
+  context_modifiers:
+    # Boost priority if user is stressed or frustrated
+    stressed_user: +1
+    # Boost if this is a follow-up to previous request
+    continuation: +1
+    # Reduce priority for casual conversation
+    small_talk: -1
+
+# =============================================================================
+# SPECIAL ROUTING RULES
+# Conditions that override normal intent-based routing
+# =============================================================================
+special_rules:
+  # If emergency patterns match, always route to action with emergency mode
+  emergency_override:
+    condition: "intent == emergency"
+    target_agent: "action"
+    special_mode: "emergency"
+    priority: 10
+    enabled: true
+
+  # If user asks about remembered information during conversation
+  memory_in_conversation:
+    condition: "intent == conversation AND contains_memory_trigger"
+    target_agent: "memory"
+    fallback_to: "interaction"
+    enabled: true
+
+  # Gesture input always goes to instant for fast response
+  gesture_fast_path:
+    condition: "input_type == gesture"
+    target_agent: "instant"
+    priority: 9
+    enabled: true
+
+# =============================================================================
+# CLASSIFICATION CONFIDENCE THRESHOLDS
+# =============================================================================
+confidence_thresholds:
+  # Minimum confidence for pattern match to be accepted
+  pattern_match: 0.85
+  
+  # Minimum confidence for heuristic classification
+  heuristic: 0.70
+  
+  # Below this, use LLM for classification
+  llm_fallback: 0.60
+  
+  # If LLM confidence also below this, default to interaction
+  minimum_usable: 0.40
+
+# =============================================================================
+# MEMORY RETRIEVAL SETTINGS
+# When to retrieve memories for context
+# =============================================================================
+memory_retrieval:
+  # Enable memory retrieval for these intents
+  enabled_for:
+    - "conversation"
+    - "query"
+    - "memory"
+  
+  # Disable for fast-path intents
+  disabled_for:
+    - "instant"
+    - "gesture"
+    - "emergency"
+  
+  # Maximum memories to retrieve
+  max_memories: 5
+  
+  # Minimum relevance score for memory inclusion
+  min_relevance: 0.6
+  
+  # Maximum age for working memory (minutes)
+  working_memory_ttl: 30
+
+# =============================================================================
+# RESPONSE GENERATION SETTINGS
+# =============================================================================
+response_settings:
+  # Include personality in responses
+  include_personality: true
+  
+  # Personality style
+  personality_style: "barnabee"  # warm, helpful, slightly whimsical
+  
+  # Adjust response tone based on context
+  adapt_tone_to_context: true
+  
+  # Maximum response length (characters)
+  max_response_length: 500
+  
+  # Include empathy phrases when user is stressed
+  empathy_enabled: true

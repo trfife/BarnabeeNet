@@ -1,0 +1,613 @@
+# BarnabeeNet Pattern Definitions
+# All patterns used for intent classification and action parsing
+# Editable via dashboard - changes hot-reload without restart
+#
+# Pattern Format:
+#   name: unique identifier
+#   pattern: regex pattern (Python re syntax)
+#   sub_category: classification sub-type
+#   confidence: default confidence when matched (0.0-1.0)
+#   enabled: whether pattern is active
+#   description: human-readable explanation
+#   examples: example inputs that should match
+#   typo_variants: common typos this pattern handles
+
+version: "1.0"
+last_modified: "2026-01-20"
+
+# =============================================================================
+# EMERGENCY PATTERNS - Highest priority, safety-critical
+# =============================================================================
+emergency:
+  fire:
+    pattern: ".*(fire|smoke|burning|flames).*"
+    sub_category: "fire"
+    confidence: 0.99
+    enabled: true
+    description: "Fire or smoke emergency detection"
+    examples:
+      - "there's a fire in the kitchen"
+      - "I smell smoke"
+      - "something is burning"
+
+  emergency_help:
+    pattern: ".*(help|emergency|911|ambulance).*"
+    sub_category: "emergency"
+    confidence: 0.99
+    enabled: true
+    description: "General emergency or help requests"
+    examples:
+      - "help me"
+      - "call 911"
+      - "I need an ambulance"
+
+  security:
+    pattern: ".*(intruder|break.?in|someone.?in.?the.?house).*"
+    sub_category: "security"
+    confidence: 0.99
+    enabled: true
+    description: "Security breach or intruder detection"
+    examples:
+      - "there's an intruder"
+      - "someone broke in"
+      - "someone is in the house"
+
+  medical:
+    pattern: ".*(fall|fallen|can'?t get up|hurt).*"
+    sub_category: "medical"
+    confidence: 0.95
+    enabled: true
+    description: "Medical emergency - falls or injuries"
+    examples:
+      - "I've fallen"
+      - "I can't get up"
+      - "grandma fell down"
+
+# =============================================================================
+# INSTANT PATTERNS - Fast responses, no LLM needed
+# =============================================================================
+instant:
+  time_query:
+    pattern: "^(what('s| is) (the )?)?(current )?time(\\?)?$"
+    sub_category: "time"
+    confidence: 0.95
+    enabled: true
+    description: "Current time queries"
+    examples:
+      - "what time is it"
+      - "what's the time"
+      - "time?"
+
+  time_query_alt:
+    pattern: "^what time is it(\\?)?$"
+    sub_category: "time"
+    confidence: 0.95
+    enabled: true
+    description: "Alternative time query format"
+    examples:
+      - "what time is it"
+      - "what time is it?"
+
+  date_query:
+    pattern: "^(what('s| is) (the )?)?(today'?s? )?date(\\?)?$"
+    sub_category: "date"
+    confidence: 0.95
+    enabled: true
+    description: "Current date queries"
+    examples:
+      - "what's the date"
+      - "what is today's date"
+      - "date?"
+
+  greeting_hello:
+    pattern: "^(hello|hey|hi)( barnabee)?(\\?)?$"
+    sub_category: "greeting"
+    confidence: 0.95
+    enabled: true
+    description: "Simple hello greetings"
+    examples:
+      - "hello"
+      - "hey barnabee"
+      - "hi"
+
+  greeting_time_of_day:
+    pattern: "^good (morning|afternoon|evening|night)$"
+    sub_category: "greeting"
+    confidence: 0.95
+    enabled: true
+    description: "Time-of-day greetings"
+    examples:
+      - "good morning"
+      - "good afternoon"
+      - "good evening"
+
+  math_expression:
+    pattern: "^(what('s| is) )?(\\d+)\\s*[\\+\\-\\*\\/]\\s*(\\d+)(\\?)?$"
+    sub_category: "math"
+    confidence: 0.95
+    enabled: true
+    description: "Simple math calculations"
+    examples:
+      - "5 + 3"
+      - "what's 10 * 4"
+      - "12 / 3"
+
+  status_check:
+    pattern: "^(how are you|you okay)(\\?)?$"
+    sub_category: "status"
+    confidence: 0.90
+    enabled: true
+    description: "Status check on Barnabee"
+    examples:
+      - "how are you"
+      - "you okay?"
+
+  thanks:
+    pattern: "^thank(s| you).*$"
+    sub_category: "thanks"
+    confidence: 0.95
+    enabled: true
+    description: "Thank you expressions"
+    examples:
+      - "thanks"
+      - "thank you"
+      - "thanks barnabee"
+
+  mic_check:
+    pattern: "^(can you hear me|do you hear me|are you there|testing)(\\?)?$"
+    sub_category: "mic_check"
+    confidence: 0.95
+    enabled: true
+    description: "Microphone and connection tests"
+    examples:
+      - "can you hear me"
+      - "testing"
+      - "are you there"
+
+  mic_check_alt:
+    pattern: "^test(ing)?( 1 2 3)?(\\?)?$"
+    sub_category: "mic_check"
+    confidence: 0.90
+    enabled: true
+    description: "Testing 123 pattern"
+    examples:
+      - "test"
+      - "testing"
+      - "testing 1 2 3"
+
+  mic_check_working:
+    pattern: "^(is this|this is|am i) (working|on)(\\?)?$"
+    sub_category: "mic_check"
+    confidence: 0.90
+    enabled: true
+    description: "Is this working queries"
+    examples:
+      - "is this working"
+      - "am i on"
+
+# =============================================================================
+# ACTION PATTERNS - Device control commands
+# Typo handling: trun/tunr → turn, swtich/swich → switch, of → off
+# =============================================================================
+action:
+  switch_control:
+    pattern: "^(turn|trun|tunr|switch|swtich|swich) (on|off|of) .*$"
+    sub_category: "switch"
+    confidence: 0.95
+    enabled: true
+    description: "Turn on/off devices"
+    typo_variants:
+      - "trun"
+      - "tunr"
+      - "swtich"
+      - "swich"
+    examples:
+      - "turn on the kitchen light"
+      - "turn off the fan"
+      - "switch on the lamp"
+
+  switch_control_reversed:
+    pattern: "^(on|off) .*(light|lamp|switch|fan).*$"
+    sub_category: "switch"
+    confidence: 0.90
+    enabled: true
+    description: "Reversed order: 'off the light'"
+    examples:
+      - "off the light"
+      - "on the fan"
+
+  switch_control_mid_sentence:
+    pattern: ".*(turn|trun|tunr|switch|swtich|swich) (on|off|of) (the |my |a )?.*$"
+    sub_category: "switch"
+    confidence: 0.85
+    enabled: true
+    description: "Mid-sentence device control"
+    examples:
+      - "can you turn on the office light"
+      - "please switch off the bedroom fan"
+
+  set_value:
+    pattern: "^(set|change) .* to .*$"
+    sub_category: "set"
+    confidence: 0.90
+    enabled: true
+    description: "Set value commands"
+    examples:
+      - "set temperature to 72"
+      - "change brightness to 50%"
+
+  light_adjust:
+    pattern: "^(dim|brighten) .*$"
+    sub_category: "light"
+    confidence: 0.90
+    enabled: true
+    description: "Dim or brighten lights"
+    examples:
+      - "dim the living room lights"
+      - "brighten the bedroom"
+
+  lock_control:
+    pattern: "^(lock|unlock) .*$"
+    sub_category: "lock"
+    confidence: 0.95
+    enabled: true
+    description: "Lock/unlock commands"
+    examples:
+      - "lock the front door"
+      - "unlock the garage"
+
+  cover_control:
+    pattern: "^(open|close) .*$"
+    sub_category: "cover"
+    confidence: 0.90
+    enabled: true
+    description: "Open/close covers, blinds, garage doors"
+    examples:
+      - "open the blinds"
+      - "close the garage door"
+
+  media_control:
+    pattern: "^(play|pause|stop|skip) .*$"
+    sub_category: "media"
+    confidence: 0.90
+    enabled: true
+    description: "Media playback control"
+    examples:
+      - "play music"
+      - "pause the TV"
+      - "skip this song"
+
+  scene_activate:
+    pattern: "^activate .*$"
+    sub_category: "scene"
+    confidence: 0.90
+    enabled: true
+    description: "Activate scenes"
+    examples:
+      - "activate movie mode"
+      - "activate bedtime"
+
+  mode_control:
+    pattern: "^(start|stop) .* mode$"
+    sub_category: "mode"
+    confidence: 0.90
+    enabled: true
+    description: "Start/stop modes"
+    examples:
+      - "start party mode"
+      - "stop vacation mode"
+
+# =============================================================================
+# QUERY PATTERNS - Information requests
+# =============================================================================
+query:
+  sensor_query:
+    pattern: "^(what('s| is) the )?(temperature|weather|humidity) .*$"
+    sub_category: "sensor"
+    confidence: 0.90
+    enabled: true
+    description: "Sensor value queries"
+    examples:
+      - "what's the temperature outside"
+      - "what is the humidity"
+
+  state_query:
+    pattern: "^(is|are) .* (on|off|open|closed|locked|unlocked)(\\?)?$"
+    sub_category: "state"
+    confidence: 0.90
+    enabled: true
+    description: "Device state queries"
+    examples:
+      - "is the light on"
+      - "are the blinds open"
+      - "is the door locked"
+
+  what_query:
+    pattern: "^(what|how much|how many) .*$"
+    sub_category: "query"
+    confidence: 0.70
+    enabled: true
+    description: "General what/how much queries"
+    examples:
+      - "what is the status"
+      - "how much energy was used"
+
+  when_where_query:
+    pattern: "^(when|where) .*$"
+    sub_category: "query"
+    confidence: 0.70
+    enabled: true
+    description: "When/where queries"
+    examples:
+      - "when did the door open"
+      - "where is my phone"
+
+# =============================================================================
+# MEMORY PATTERNS - Remember/recall operations
+# =============================================================================
+memory:
+  # Explicit store commands
+  remember_explicit:
+    pattern: "^remember (that )?.*$"
+    sub_category: "store"
+    confidence: 0.95
+    enabled: true
+    description: "Explicit remember command"
+    examples:
+      - "remember my birthday is March 15th"
+      - "remember that I like pizza"
+
+  store_explicit:
+    pattern: "^(please )?(store|save|keep|note) (that )?.*$"
+    sub_category: "store"
+    confidence: 0.95
+    enabled: true
+    description: "Explicit store/save command"
+    examples:
+      - "store my wifi password"
+      - "save that for later"
+
+  store_polite:
+    pattern: "^(can you |could you |will you |would you )?(please )?(remember|store|save|keep|note) (that )?.*$"
+    sub_category: "store"
+    confidence: 0.95
+    enabled: true
+    description: "Polite store requests"
+    examples:
+      - "can you remember my anniversary"
+      - "could you please save this"
+
+  make_note:
+    pattern: "^make a note (that )?.*$"
+    sub_category: "store"
+    confidence: 0.95
+    enabled: true
+    description: "Make a note requests"
+    examples:
+      - "make a note that I need to call mom"
+      - "make a note of this"
+
+  dont_forget:
+    pattern: "^don'?t forget (that )?.*$"
+    sub_category: "store"
+    confidence: 0.95
+    enabled: true
+    description: "Don't forget requests (implicit store)"
+    examples:
+      - "don't forget I have a meeting at 3"
+      - "dont forget to remind me"
+
+  # Implicit factual stores
+  favorite_statement:
+    pattern: "^(my|our|\\w+'s) (favorite|favourite) .+ (is|are) .+$"
+    sub_category: "store"
+    confidence: 0.90
+    enabled: true
+    description: "Favorite statements"
+    examples:
+      - "my favorite color is blue"
+      - "dad's favorite movie is Star Wars"
+
+  secret_statement:
+    pattern: "^(the )?(secret|password|code|pin) (word )?(is|are) .+$"
+    sub_category: "store"
+    confidence: 0.95
+    enabled: true
+    description: "Secret/password storage"
+    examples:
+      - "the wifi password is abc123"
+      - "the code is 1234"
+
+  personal_fact:
+    pattern: "^(my|our|\\w+'s) .+ (is|are) .+$"
+    sub_category: "store"
+    confidence: 0.80
+    enabled: true
+    description: "Personal facts"
+    examples:
+      - "my birthday is June 5th"
+      - "thom's car is a Tesla"
+
+  preference_statement:
+    pattern: "^(i|we) (like|love|prefer|hate|dislike|enjoy) .+$"
+    sub_category: "store"
+    confidence: 0.85
+    enabled: true
+    description: "Preference statements"
+    examples:
+      - "I like jazz music"
+      - "we prefer the lights dim"
+
+  identity_statement:
+    pattern: "^(i|we) (am|are) .+$"
+    sub_category: "store"
+    confidence: 0.80
+    enabled: true
+    description: "Identity statements"
+    examples:
+      - "I am allergic to peanuts"
+      - "we are vegetarian"
+
+  # Recall patterns
+  recall_do_you_remember:
+    pattern: "^(do you remember|what do you know about) .*$"
+    sub_category: "recall"
+    confidence: 0.95
+    enabled: true
+    description: "Do you remember queries"
+    examples:
+      - "do you remember my favorite color"
+      - "what do you know about my schedule"
+
+  recall_tell_me:
+    pattern: "^(can you |could you |will you |would you )?(tell me )?(what|who|when|where).*(you remember|you know|stored|saved).*$"
+    sub_category: "recall"
+    confidence: 0.95
+    enabled: true
+    description: "Tell me what you remember"
+    examples:
+      - "tell me what you remember about mom"
+      - "can you tell me what you know"
+
+  recall_when_did:
+    pattern: "^(when|what) did (i|we) .*$"
+    sub_category: "recall"
+    confidence: 0.90
+    enabled: true
+    description: "When did I queries"
+    examples:
+      - "when did I last water the plants"
+      - "what did we talk about yesterday"
+
+  recall_previous:
+    pattern: ".*(last thing|previously|earlier|before).*(ask|say|tell|said|told).*$"
+    sub_category: "recall"
+    confidence: 0.85
+    enabled: true
+    description: "Previous conversation recall"
+    examples:
+      - "what was the last thing I said"
+      - "what did I ask before"
+
+  recall_what_was:
+    pattern: ".*(what|when) (was|were|have|had) (i|we) .*$"
+    sub_category: "recall"
+    confidence: 0.85
+    enabled: true
+    description: "What was I queries"
+    examples:
+      - "what was I supposed to do"
+      - "when was I last here"
+
+  recall_last:
+    pattern: "^what (was|were) (my|our) last .*$"
+    sub_category: "recall"
+    confidence: 0.90
+    enabled: true
+    description: "What was my last queries"
+    examples:
+      - "what was my last command"
+      - "what were our last requests"
+
+  recall_stored:
+    pattern: ".*(asked|told) (you to |you )?(remember|store|save).*$"
+    sub_category: "recall"
+    confidence: 0.90
+    enabled: true
+    description: "What I asked you to remember"
+    examples:
+      - "I asked you to remember something"
+      - "what did I tell you to store"
+
+  recall_what_remember:
+    pattern: ".*what.*(remember|stored|saved).*$"
+    sub_category: "recall"
+    confidence: 0.85
+    enabled: true
+    description: "General recall queries"
+    examples:
+      - "what do you remember"
+      - "what have you stored"
+
+  recall_favorite:
+    pattern: "^what('s| is| are) (my|our|\\w+'s) (favorite|favourite) .+$"
+    sub_category: "recall"
+    confidence: 0.95
+    enabled: true
+    description: "Favorite recall"
+    examples:
+      - "what's my favorite color"
+      - "what is dad's favorite food"
+
+  recall_secret:
+    pattern: "^what('s| is) the (secret|password|code|pin).*$"
+    sub_category: "recall"
+    confidence: 0.95
+    enabled: true
+    description: "Secret/password recall"
+    examples:
+      - "what's the wifi password"
+      - "what is the code"
+
+  recall_recollect:
+    pattern: "^(do you |can you )?(recall|recollect) .*$"
+    sub_category: "recall"
+    confidence: 0.90
+    enabled: true
+    description: "Recall/recollect queries"
+    examples:
+      - "can you recall what I said"
+      - "do you recollect my request"
+
+  # Forget patterns
+  forget:
+    pattern: "^forget .*$"
+    sub_category: "forget"
+    confidence: 0.95
+    enabled: true
+    description: "Forget/delete memory"
+    examples:
+      - "forget my password"
+      - "forget what I told you"
+
+# =============================================================================
+# GESTURE PATTERNS - Physical input from wearables
+# =============================================================================
+gesture:
+  crown_twist:
+    pattern: "^crown_twist_(yes|no|up|down)$"
+    sub_category: "choice"
+    confidence: 0.95
+    enabled: true
+    description: "Watch crown twist gestures"
+    examples:
+      - "crown_twist_yes"
+      - "crown_twist_no"
+
+  button_click:
+    pattern: "^button_click_(confirm|cancel)$"
+    sub_category: "confirm"
+    confidence: 0.95
+    enabled: true
+    description: "Button click gestures"
+    examples:
+      - "button_click_confirm"
+      - "button_click_cancel"
+
+  motion_shake:
+    pattern: "^motion_shake$"
+    sub_category: "dismiss"
+    confidence: 0.95
+    enabled: true
+    description: "Shake to dismiss"
+    examples:
+      - "motion_shake"
+
+  double_tap:
+    pattern: "^double_tap$"
+    sub_category: "quick_action"
+    confidence: 0.95
+    enabled: true
+    description: "Double tap for quick action"
+    examples:
+      - "double_tap"

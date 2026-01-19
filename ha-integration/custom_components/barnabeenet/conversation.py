@@ -91,9 +91,13 @@ class BarnabeeNetConversationAgent(conversation.ConversationEntity):
                 room=room,
                 conversation_id=conversation_id,
             )
-        except Exception as err:
-            _LOGGER.error("Error calling BarnabeeNet: %s", err)
+        except aiohttp.ClientError as err:
+            _LOGGER.error("Network error calling BarnabeeNet: %s", err)
             response_text = "Sorry, I couldn't reach BarnabeeNet right now."
+            new_conversation_id = conversation_id
+        except Exception as err:
+            _LOGGER.exception("Unexpected error calling BarnabeeNet: %s", err)
+            response_text = "Sorry, something went wrong."
             new_conversation_id = conversation_id
 
         # Build response
@@ -127,14 +131,20 @@ class BarnabeeNetConversationAgent(conversation.ConversationEntity):
 
     async def _get_device_area(self, device_id: str) -> str | None:
         """Get the area name for a device."""
-        device_registry = self.hass.helpers.device_registry.async_get(self.hass)
-        device = device_registry.async_get(device_id)
+        try:
+            from homeassistant.helpers import area_registry as ar
+            from homeassistant.helpers import device_registry as dr
 
-        if device and device.area_id:
-            area_registry = self.hass.helpers.area_registry.async_get(self.hass)
-            area = area_registry.async_get_area(device.area_id)
-            if area:
-                return area.name.lower().replace(" ", "_")
+            device_registry = dr.async_get(self.hass)
+            device = device_registry.async_get(device_id)
+
+            if device and device.area_id:
+                area_registry = ar.async_get(self.hass)
+                area = area_registry.async_get_area(device.area_id)
+                if area:
+                    return area.name.lower().replace(" ", "_")
+        except Exception as err:
+            _LOGGER.debug("Could not get device area: %s", err)
 
         return None
 

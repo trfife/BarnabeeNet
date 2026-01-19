@@ -6829,3 +6829,521 @@ function showToast(message, type = 'info') {
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
+
+// =============================================================================
+// Logic Browser Page
+// =============================================================================
+
+let logicData = {
+    patterns: {},
+    routing: {},
+    overrides: {},
+    aliases: []
+};
+let currentEditPattern = null;
+
+function initLogicPage() {
+    // Tab switching
+    document.querySelectorAll('.logic-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabName = tab.dataset.tab;
+            
+            // Update active tab
+            document.querySelectorAll('.logic-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            // Show corresponding content
+            document.querySelectorAll('.logic-tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`logic-tab-${tabName}`).classList.add('active');
+        });
+    });
+    
+    // Pattern group filter
+    const groupFilter = document.getElementById('pattern-group-filter');
+    if (groupFilter) {
+        groupFilter.addEventListener('change', () => renderPatternGroups());
+    }
+    
+    // Show disabled toggle
+    const showDisabled = document.getElementById('show-disabled-patterns');
+    if (showDisabled) {
+        showDisabled.addEventListener('change', () => renderPatternGroups());
+    }
+    
+    // Refresh button
+    const refreshBtn = document.getElementById('patterns-refresh-btn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', loadLogicData);
+    }
+    
+    // Pattern test button
+    const testBtn = document.getElementById('run-pattern-test');
+    if (testBtn) {
+        testBtn.addEventListener('click', runPatternTest);
+    }
+    
+    // Pattern test on enter key
+    const testInput = document.getElementById('pattern-test-input');
+    if (testInput) {
+        testInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') runPatternTest();
+        });
+    }
+    
+    // Save pattern button
+    const saveBtn = document.getElementById('save-pattern-btn');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', savePatternEdit);
+    }
+    
+    // Modal close buttons
+    document.querySelectorAll('#pattern-modal .modal-close-btn').forEach(btn => {
+        btn.addEventListener('click', closePatternModal);
+    });
+    
+    // Close modal on outside click
+    const modal = document.getElementById('pattern-modal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closePatternModal();
+        });
+    }
+    
+    // Load initial data
+    loadLogicData();
+}
+
+async function loadLogicData() {
+    try {
+        const [patternsRes, routingRes, overridesRes, aliasesRes] = await Promise.all([
+            fetch('/api/v1/logic/patterns'),
+            fetch('/api/v1/logic/routing'),
+            fetch('/api/v1/logic/overrides'),
+            fetch('/api/v1/logic/aliases')
+        ]);
+        
+        if (patternsRes.ok) logicData.patterns = await patternsRes.json();
+        if (routingRes.ok) logicData.routing = await routingRes.json();
+        if (overridesRes.ok) logicData.overrides = await overridesRes.json();
+        if (aliasesRes.ok) logicData.aliases = await aliasesRes.json();
+        
+        updateLogicStats();
+        renderPatternGroups();
+        renderRoutingRules();
+        renderOverrides();
+        renderAliases();
+    } catch (error) {
+        console.error('Failed to load logic data:', error);
+        showToast('Failed to load logic data', 'error');
+    }
+}
+
+function updateLogicStats() {
+    // Count patterns
+    let patternCount = 0;
+    if (logicData.patterns.groups) {
+        Object.values(logicData.patterns.groups).forEach(group => {
+            patternCount += group.patterns ? group.patterns.length : 0;
+        });
+    }
+    document.getElementById('logic-patterns-count').textContent = patternCount;
+    
+    // Count routing rules
+    let routingCount = 0;
+    if (logicData.routing.intent_routing) {
+        routingCount = Object.keys(logicData.routing.intent_routing).length;
+    }
+    document.getElementById('logic-routing-count').textContent = routingCount;
+    
+    // Count overrides
+    let overridesCount = 0;
+    if (logicData.overrides.user_overrides) overridesCount += Object.keys(logicData.overrides.user_overrides).length;
+    if (logicData.overrides.room_overrides) overridesCount += Object.keys(logicData.overrides.room_overrides).length;
+    if (logicData.overrides.time_overrides) overridesCount += logicData.overrides.time_overrides.length;
+    document.getElementById('logic-overrides-count').textContent = overridesCount;
+    
+    // Count aliases
+    const aliasCount = logicData.aliases.aliases ? logicData.aliases.aliases.length : 0;
+    document.getElementById('logic-aliases-count').textContent = aliasCount;
+}
+
+function renderPatternGroups() {
+    const container = document.getElementById('pattern-groups');
+    const filterValue = document.getElementById('pattern-group-filter')?.value || '';
+    const showDisabled = document.getElementById('show-disabled-patterns')?.checked || false;
+    
+    if (!logicData.patterns.groups) {
+        container.innerHTML = '<div class="text-muted">No patterns loaded</div>';
+        return;
+    }
+    
+    const groupIcons = {
+        emergency: '🚨',
+        instant: '⚡',
+        action: '🎯',
+        memory: '📝',
+        query: '❓',
+        gesture: '👋'
+    };
+    
+    let html = '';
+    
+    Object.entries(logicData.patterns.groups).forEach(([groupName, group]) => {
+        // Filter by group if selected
+        if (filterValue && groupName !== filterValue) return;
+        
+        const patterns = group.patterns || [];
+        const visiblePatterns = showDisabled ? patterns : patterns.filter(p => p.enabled !== false);
+        
+        if (visiblePatterns.length === 0) return;
+        
+        const icon = groupIcons[groupName] || '📋';
+        
+        html += `
+            <div class="pattern-group" data-group="${groupName}">
+                <div class="pattern-group-header" onclick="togglePatternGroup('${groupName}')">
+                    <div class="pattern-group-title">
+                        <span>${icon}</span>
+                        <h3>${capitalizeFirst(groupName)} Patterns</h3>
+                        <span class="pattern-group-count">${visiblePatterns.length} patterns</span>
+                    </div>
+                    <span class="pattern-group-toggle">▼</span>
+                </div>
+                <div class="pattern-group-content">
+                    <div class="pattern-list">
+                        ${visiblePatterns.map(p => renderPatternCard(groupName, p)).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html || '<div class="text-muted">No patterns match the filter</div>';
+}
+
+function renderPatternCard(group, pattern) {
+    const confidenceClass = pattern.confidence >= 0.9 ? 'confidence-high' : 
+                           pattern.confidence >= 0.7 ? 'confidence-medium' : 'confidence-low';
+    const disabledClass = pattern.enabled === false ? 'disabled' : '';
+    
+    const examples = pattern.examples || [];
+    const examplesHtml = examples.slice(0, 3).map(ex => 
+        `<span class="pattern-example">"${escapeHtml(ex)}"</span>`
+    ).join('');
+    
+    return `
+        <div class="pattern-card ${disabledClass}" data-pattern="${escapeHtml(pattern.name)}">
+            <div class="pattern-card-header">
+                <span class="pattern-name">${escapeHtml(pattern.name)}</span>
+                <span class="pattern-badge ${confidenceClass}">${(pattern.confidence * 100).toFixed(0)}% confidence</span>
+            </div>
+            <div class="pattern-regex">${escapeHtml(pattern.pattern)}</div>
+            ${pattern.description ? `<div class="pattern-description">${escapeHtml(pattern.description)}</div>` : ''}
+            ${examples.length > 0 ? `<div class="pattern-examples">${examplesHtml}</div>` : ''}
+            <div class="pattern-actions">
+                <button class="btn btn-small btn-secondary" onclick="openPatternEditor('${group}', '${escapeHtml(pattern.name)}')">
+                    ✏️ Edit
+                </button>
+                <button class="btn btn-small ${pattern.enabled === false ? 'btn-primary' : 'btn-secondary'}" 
+                        onclick="togglePattern('${group}', '${escapeHtml(pattern.name)}', ${pattern.enabled === false})">
+                    ${pattern.enabled === false ? '✓ Enable' : '✕ Disable'}
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function togglePatternGroup(groupName) {
+    const group = document.querySelector(`.pattern-group[data-group="${groupName}"]`);
+    if (group) {
+        group.classList.toggle('expanded');
+    }
+}
+
+function capitalizeFirst(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function openPatternEditor(group, patternName) {
+    const groupData = logicData.patterns.groups?.[group];
+    if (!groupData) return;
+    
+    const pattern = groupData.patterns?.find(p => p.name === patternName);
+    if (!pattern) return;
+    
+    currentEditPattern = { group, name: patternName };
+    
+    document.getElementById('edit-pattern-name').value = pattern.name;
+    document.getElementById('edit-pattern-regex').value = pattern.pattern;
+    document.getElementById('edit-pattern-subcategory').value = pattern.sub_category || '';
+    document.getElementById('edit-pattern-confidence').value = pattern.confidence || 0.9;
+    document.getElementById('edit-pattern-description').value = pattern.description || '';
+    document.getElementById('edit-pattern-enabled').checked = pattern.enabled !== false;
+    document.getElementById('edit-pattern-reason').value = '';
+    
+    document.getElementById('pattern-modal').style.display = 'flex';
+}
+
+function closePatternModal() {
+    document.getElementById('pattern-modal').style.display = 'none';
+    currentEditPattern = null;
+}
+
+async function savePatternEdit() {
+    if (!currentEditPattern) return;
+    
+    const updates = {
+        pattern: document.getElementById('edit-pattern-regex').value,
+        sub_category: document.getElementById('edit-pattern-subcategory').value,
+        confidence: parseFloat(document.getElementById('edit-pattern-confidence').value),
+        description: document.getElementById('edit-pattern-description').value,
+        enabled: document.getElementById('edit-pattern-enabled').checked,
+        reason: document.getElementById('edit-pattern-reason').value || 'Dashboard edit'
+    };
+    
+    try {
+        const response = await fetch(`/api/v1/logic/patterns/${currentEditPattern.group}/${currentEditPattern.name}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to save pattern');
+        }
+        
+        showToast('Pattern updated successfully', 'success');
+        closePatternModal();
+        await loadLogicData();
+    } catch (error) {
+        console.error('Failed to save pattern:', error);
+        showToast(error.message, 'error');
+    }
+}
+
+async function togglePattern(group, patternName, currentlyDisabled) {
+    try {
+        const response = await fetch(`/api/v1/logic/patterns/${group}/${patternName}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                enabled: currentlyDisabled,
+                reason: currentlyDisabled ? 'Enabled from dashboard' : 'Disabled from dashboard'
+            })
+        });
+        
+        if (!response.ok) throw new Error('Failed to toggle pattern');
+        
+        showToast(`Pattern ${currentlyDisabled ? 'enabled' : 'disabled'}`, 'success');
+        await loadLogicData();
+    } catch (error) {
+        console.error('Failed to toggle pattern:', error);
+        showToast('Failed to toggle pattern', 'error');
+    }
+}
+
+function renderRoutingRules() {
+    const container = document.getElementById('routing-rules');
+    
+    if (!logicData.routing.intent_routing) {
+        container.innerHTML = '<div class="text-muted">No routing rules loaded</div>';
+        return;
+    }
+    
+    const priorityRules = logicData.routing.priority_rules || {};
+    
+    let html = '';
+    Object.entries(logicData.routing.intent_routing).forEach(([intent, config]) => {
+        const agent = config.agent || config;
+        const priority = priorityRules[intent]?.priority || 'normal';
+        
+        html += `
+            <div class="routing-rule-card">
+                <div class="routing-rule-header">
+                    <div>
+                        <span class="routing-intent">${intent}</span>
+                        <span class="routing-arrow">→</span>
+                        <span class="routing-agent">${agent}</span>
+                    </div>
+                    <span class="routing-priority">${priority}</span>
+                </div>
+                ${config.fallback ? `<div class="text-muted">Fallback: ${config.fallback}</div>` : ''}
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html || '<div class="text-muted">No routing rules configured</div>';
+}
+
+function renderOverrides() {
+    const container = document.getElementById('overrides-list');
+    let html = '';
+    
+    // User overrides
+    if (logicData.overrides.user_overrides) {
+        Object.entries(logicData.overrides.user_overrides).forEach(([user, config]) => {
+            html += `
+                <div class="override-card">
+                    <span class="override-type user">👤 User Override</span>
+                    <div class="override-condition">User: ${escapeHtml(user)}</div>
+                    <div class="override-action">${formatOverrideConfig(config)}</div>
+                </div>
+            `;
+        });
+    }
+    
+    // Room overrides
+    if (logicData.overrides.room_overrides) {
+        Object.entries(logicData.overrides.room_overrides).forEach(([room, config]) => {
+            html += `
+                <div class="override-card">
+                    <span class="override-type room">🏠 Room Override</span>
+                    <div class="override-condition">Room: ${escapeHtml(room)}</div>
+                    <div class="override-action">${formatOverrideConfig(config)}</div>
+                </div>
+            `;
+        });
+    }
+    
+    // Time overrides
+    if (logicData.overrides.time_overrides) {
+        logicData.overrides.time_overrides.forEach(config => {
+            html += `
+                <div class="override-card">
+                    <span class="override-type time">🕐 Time Override</span>
+                    <div class="override-condition">${escapeHtml(config.start_time || '')} - ${escapeHtml(config.end_time || '')}</div>
+                    <div class="override-action">${formatOverrideConfig(config)}</div>
+                </div>
+            `;
+        });
+    }
+    
+    container.innerHTML = html || '<div class="text-muted">No overrides configured</div>';
+}
+
+function formatOverrideConfig(config) {
+    const parts = [];
+    if (config.voice_profile) parts.push(`Voice: ${config.voice_profile}`);
+    if (config.response_style) parts.push(`Style: ${config.response_style}`);
+    if (config.default_agent) parts.push(`Agent: ${config.default_agent}`);
+    if (config.tts_volume) parts.push(`Volume: ${config.tts_volume}`);
+    if (config.quiet_mode) parts.push('🔇 Quiet Mode');
+    if (config.whisper_mode) parts.push('🤫 Whisper Mode');
+    return parts.length > 0 ? parts.join(' • ') : 'No specific overrides';
+}
+
+function renderAliases() {
+    const container = document.getElementById('aliases-list');
+    const aliases = logicData.aliases.aliases || [];
+    
+    if (aliases.length === 0) {
+        container.innerHTML = '<div class="text-muted">No entity aliases configured</div>';
+        return;
+    }
+    
+    let html = '';
+    aliases.forEach(alias => {
+        const names = alias.aliases || [];
+        html += `
+            <div class="alias-card">
+                <div class="alias-names">
+                    ${names.map(n => `<span class="alias-name">${escapeHtml(n)}</span>`).join('')}
+                </div>
+                <div class="alias-target">${escapeHtml(alias.entity_id)}</div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+async function runPatternTest() {
+    const input = document.getElementById('pattern-test-input').value.trim();
+    if (!input) {
+        showToast('Please enter text to test', 'warning');
+        return;
+    }
+    
+    const resultsDiv = document.getElementById('pattern-test-results');
+    const summaryDiv = document.getElementById('test-summary');
+    const matchesDiv = document.getElementById('test-matches');
+    
+    resultsDiv.style.display = 'block';
+    summaryDiv.innerHTML = '<div class="loading">Testing patterns...</div>';
+    matchesDiv.innerHTML = '';
+    
+    try {
+        const response = await fetch('/api/v1/logic/patterns/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: input })
+        });
+        
+        if (!response.ok) throw new Error('Pattern test failed');
+        
+        const result = await response.json();
+        
+        if (result.matches && result.matches.length > 0) {
+            const bestMatch = result.matches[0];
+            summaryDiv.className = 'test-summary matched';
+            summaryDiv.innerHTML = `
+                <h4>✓ Best Match: ${escapeHtml(bestMatch.pattern_name)}</h4>
+                <p>Group: <strong>${bestMatch.group}</strong> • Confidence: <strong>${(bestMatch.confidence * 100).toFixed(0)}%</strong></p>
+            `;
+            
+            if (result.matches.length > 1) {
+                matchesDiv.innerHTML = `
+                    <div class="test-matches-title">All Matches (${result.matches.length})</div>
+                    <div class="test-match-list">
+                        ${result.matches.map(m => `
+                            <div class="test-match-item">
+                                <div>
+                                    <span class="test-match-name">${escapeHtml(m.pattern_name)}</span>
+                                    <span class="test-match-group">${m.group}</span>
+                                </div>
+                                <span class="test-match-confidence pattern-badge ${m.confidence >= 0.9 ? 'confidence-high' : m.confidence >= 0.7 ? 'confidence-medium' : 'confidence-low'}">
+                                    ${(m.confidence * 100).toFixed(0)}%
+                                </span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+        } else {
+            summaryDiv.className = 'test-summary no-match';
+            summaryDiv.innerHTML = `
+                <h4>✗ No patterns matched</h4>
+                <p>The input did not match any configured patterns. It would be routed to the Interaction agent for LLM processing.</p>
+            `;
+        }
+    } catch (error) {
+        console.error('Pattern test failed:', error);
+        summaryDiv.className = 'test-summary no-match';
+        summaryDiv.innerHTML = `<h4>Error</h4><p>${error.message}</p>`;
+    }
+}
+
+// Initialize logic page when navigating to it
+document.addEventListener('DOMContentLoaded', () => {
+    // Watch for navigation to logic page
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                const logicPage = document.getElementById('page-logic');
+                if (logicPage && logicPage.classList.contains('active')) {
+                    // Initialize if not already
+                    if (!logicPage.dataset.initialized) {
+                        initLogicPage();
+                        logicPage.dataset.initialized = 'true';
+                    }
+                }
+            }
+        });
+    });
+    
+    const logicPage = document.getElementById('page-logic');
+    if (logicPage) {
+        observer.observe(logicPage, { attributes: true });
+    }
+});

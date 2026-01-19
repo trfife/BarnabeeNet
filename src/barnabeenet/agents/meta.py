@@ -7,6 +7,8 @@ Responsibilities:
 1. Intent Classification & Routing - Determine request type and target agent
 2. Context & Mood Evaluation - Analyze emotional tone, urgency, empathy needs
 3. Memory Query Generation - Generate semantic search queries for memory retrieval
+
+Now uses LogicRegistry for pattern definitions (editable via dashboard).
 """
 
 from __future__ import annotations
@@ -16,10 +18,13 @@ import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from barnabeenet.agents.base import Agent
 from barnabeenet.services.llm.openrouter import OpenRouterClient
+
+if TYPE_CHECKING:
+    from barnabeenet.core.logic_registry import LogicRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -254,6 +259,10 @@ class MetaAgent(Agent):
     The Meta Agent is the cognitive pre-processor that evaluates every request.
     It classifies intent, evaluates context/mood, and routes to the appropriate
     specialized agent.
+
+    Supports two modes:
+    1. LogicRegistry mode (new): Patterns loaded from config/patterns.yaml
+    2. Legacy mode: Patterns from hardcoded lists (backward compatible)
     """
 
     name = "meta"
@@ -262,22 +271,63 @@ class MetaAgent(Agent):
         self,
         llm_client: OpenRouterClient | None = None,
         config: MetaAgentConfig | None = None,
+        logic_registry: LogicRegistry | None = None,
     ) -> None:
         self._llm_client = llm_client
         self._config = config or MetaAgentConfig()
+        self._logic_registry = logic_registry
         self._compiled_patterns: dict[str, list[tuple[re.Pattern[str], str]]] = {}
+        self._use_registry = False  # Will be set during init
 
     async def init(self) -> None:
-        """Initialize the Meta Agent - compile patterns."""
-        self._compiled_patterns = {
-            "emergency": [(re.compile(p, re.IGNORECASE), c) for p, c in EMERGENCY_PATTERNS],
-            "instant": [(re.compile(p, re.IGNORECASE), c) for p, c in INSTANT_PATTERNS],
-            "gesture": [(re.compile(p, re.IGNORECASE), c) for p, c in GESTURE_PATTERNS],
-            "action": [(re.compile(p, re.IGNORECASE), c) for p, c in ACTION_PATTERNS],
-            "memory": [(re.compile(p, re.IGNORECASE), c) for p, c in MEMORY_PATTERNS],
-            "query": [(re.compile(p, re.IGNORECASE), c) for p, c in QUERY_PATTERNS],
-        }
-        logger.info("MetaAgent initialized with %d pattern groups", len(self._compiled_patterns))
+        """Initialize the Meta Agent - load patterns from registry or compile hardcoded."""
+        # Try to use LogicRegistry if provided or available
+        if self._logic_registry is None:
+            try:
+                from barnabeenet.core.logic_registry import get_logic_registry
+
+                self._logic_registry = await get_logic_registry()
+                self._use_registry = True
+                logger.info("MetaAgent using LogicRegistry for patterns")
+            except Exception as e:
+                logger.debug("LogicRegistry not available, using hardcoded patterns: %s", e)
+                self._use_registry = False
+
+        if self._use_registry and self._logic_registry:
+            # Load patterns from registry
+            for group_name in ["emergency", "instant", "gesture", "action", "memory", "query"]:
+                patterns = self._logic_registry.get_patterns_as_tuples(group_name)
+                self._compiled_patterns[group_name] = [
+                    (re.compile(p, re.IGNORECASE), c) for p, c in patterns
+                ]
+            logger.info(
+                "MetaAgent initialized from LogicRegistry with %d pattern groups",
+                len(self._compiled_patterns),
+            )
+        else:
+            # Use hardcoded patterns (backward compatibility)
+            self._compiled_patterns = {
+                "emergency": [(re.compile(p, re.IGNORECASE), c) for p, c in EMERGENCY_PATTERNS],
+                "instant": [(re.compile(p, re.IGNORECASE), c) for p, c in INSTANT_PATTERNS],
+                "gesture": [(re.compile(p, re.IGNORECASE), c) for p, c in GESTURE_PATTERNS],
+                "action": [(re.compile(p, re.IGNORECASE), c) for p, c in ACTION_PATTERNS],
+                "memory": [(re.compile(p, re.IGNORECASE), c) for p, c in MEMORY_PATTERNS],
+                "query": [(re.compile(p, re.IGNORECASE), c) for p, c in QUERY_PATTERNS],
+            }
+            logger.info(
+                "MetaAgent initialized with hardcoded patterns (%d groups)",
+                len(self._compiled_patterns),
+            )
+
+    async def reload_patterns(self) -> None:
+        """Reload patterns from LogicRegistry (for hot-reload)."""
+        if self._logic_registry and self._use_registry:
+            for group_name in ["emergency", "instant", "gesture", "action", "memory", "query"]:
+                patterns = self._logic_registry.get_patterns_as_tuples(group_name)
+                self._compiled_patterns[group_name] = [
+                    (re.compile(p, re.IGNORECASE), c) for p, c in patterns
+                ]
+            logger.info("MetaAgent patterns reloaded from LogicRegistry")
 
     async def shutdown(self) -> None:
         """Clean up resources."""

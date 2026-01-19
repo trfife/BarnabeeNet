@@ -1,0 +1,317 @@
+# BarnabeeNet Override Rules
+# Rules that modify normal behavior based on context
+# User-specific, room-specific, and time-based overrides
+# Editable via dashboard - changes hot-reload without restart
+
+version: "1.0"
+last_modified: "2026-01-20"
+
+# =============================================================================
+# USER OVERRIDES
+# Behavior modifications for specific users
+# =============================================================================
+user_overrides:
+  # Example: Kids have restricted control
+  kids_restricted:
+    name: "Kids Restricted Mode"
+    description: "Limit device control for children"
+    enabled: false
+    users:
+      - "penelope"
+      - "xander"
+      - "viola"
+    rules:
+      # Kids can't control locks
+      - action: "block"
+        domain: "lock"
+        message: "Ask a parent to help with locks."
+      
+      # Kids can't change thermostat
+      - action: "block"
+        domain: "climate"
+        message: "Ask a parent to adjust the temperature."
+      
+      # Kids can only control lights in their rooms
+      - action: "restrict_area"
+        domain: "light"
+        allowed_areas:
+          - "boys_room"
+          - "girls_room"
+          - "playroom"
+        message: "You can only control lights in your room."
+
+  # Example: Guest limitations
+  guest_mode:
+    name: "Guest Mode"
+    description: "Limited access for guests"
+    enabled: false
+    users:
+      - "guest"
+    rules:
+      - action: "block"
+        domain: "lock"
+        message: "Guests cannot control door locks."
+      
+      - action: "block"
+        domain: "alarm"
+        message: "Please ask your host for help with the alarm."
+      
+      - action: "allow_only"
+        domains:
+          - "light"
+          - "media_player"
+        areas:
+          - "living_room"
+          - "guest_room"
+
+# =============================================================================
+# ROOM OVERRIDES
+# Behavior modifications for specific rooms
+# =============================================================================
+room_overrides:
+  # Bedroom quiet hours
+  bedroom_quiet:
+    name: "Bedroom Quiet Mode"
+    description: "Quieter TTS responses in bedrooms at night"
+    enabled: true
+    rooms:
+      - "master_bedroom"
+      - "boys_room"
+      - "girls_room"
+    time_range:
+      start: "21:00"
+      end: "07:00"
+    rules:
+      - action: "modify_response"
+        setting: "tts_volume"
+        value: 0.5  # 50% volume
+      
+      - action: "modify_response"
+        setting: "tts_speed"
+        value: 0.9  # Slightly slower, calmer
+
+  # Office focus mode
+  office_focus:
+    name: "Office Focus Mode"
+    description: "Minimal responses when working"
+    enabled: false
+    rooms:
+      - "office"
+    time_range:
+      start: "09:00"
+      end: "17:00"
+      weekdays_only: true
+    rules:
+      - action: "modify_response"
+        setting: "response_style"
+        value: "brief"  # Short, efficient responses
+      
+      - action: "modify_response"
+        setting: "skip_pleasantries"
+        value: true
+
+# =============================================================================
+# TIME-BASED OVERRIDES
+# Behavior modifications based on time of day/week
+# =============================================================================
+time_overrides:
+  # Bedtime mode for kids
+  kids_bedtime:
+    name: "Kids Bedtime"
+    description: "Remind kids it's bedtime after 8pm"
+    enabled: false
+    time_range:
+      start: "20:00"
+      end: "06:00"
+    rules:
+      - action: "prepend_message"
+        users:
+          - "penelope"
+          - "xander"
+          - "viola"
+        message: "It's past bedtime! "
+        
+      - action: "block"
+        users:
+          - "penelope"
+          - "xander"
+          - "viola"
+        domain: "media_player"
+        message: "No screens after bedtime. Time to sleep!"
+
+  # Morning routine
+  morning_mode:
+    name: "Morning Mode"
+    description: "Cheerful morning responses"
+    enabled: true
+    time_range:
+      start: "06:00"
+      end: "10:00"
+    rules:
+      - action: "modify_response"
+        setting: "tone"
+        value: "cheerful"
+      
+      - action: "context_inject"
+        context_key: "time_of_day"
+        context_value: "morning"
+
+  # Late night mode
+  late_night:
+    name: "Late Night Mode"
+    description: "Quieter, calmer responses late at night"
+    enabled: true
+    time_range:
+      start: "23:00"
+      end: "05:00"
+    rules:
+      - action: "modify_response"
+        setting: "tts_volume"
+        value: 0.6
+      
+      - action: "modify_response"
+        setting: "tone"
+        value: "calm"
+
+# =============================================================================
+# ENTITY ALIASES
+# Map natural language names to specific entities
+# =============================================================================
+entity_aliases:
+  # Room-specific light aliases
+  lights:
+    "the light":
+      resolve_by: "current_room"
+      fallback: "ask_which"
+    
+    "main light":
+      resolve_by: "current_room"
+      prefer_attribute: "is_ceiling"
+    
+    "lamp":
+      resolve_by: "current_room"
+      prefer_attribute: "is_lamp"
+    
+    "all the lights":
+      resolve_to: "all_lights_in_room"
+    
+    "all lights":
+      resolve_to: "all_lights_in_room"
+
+  # Specific entity mappings
+  specific:
+    "living room lamp":
+      entity_id: "light.living_room_lamp"
+      priority: "high"
+    
+    "office light":
+      entity_id: "light.office_light"
+      priority: "high"
+    
+    "dining table light":
+      entity_id: "light.dining_table_light"
+      priority: "high"
+    
+    "front door":
+      entity_id: "lock.front_door"
+      domain: "lock"
+    
+    "garage door":
+      entity_id: "cover.garage_door"
+      domain: "cover"
+
+  # Device type synonyms
+  synonyms:
+    "blinds": ["cover", "shade", "shades", "blind"]
+    "curtains": ["cover", "drape", "drapes", "curtain"]
+    "ac": ["climate", "air conditioning", "air conditioner", "cooling"]
+    "heat": ["climate", "heating", "heater", "furnace"]
+    "tv": ["media_player", "television"]
+    "speaker": ["media_player", "speakers"]
+
+# =============================================================================
+# PHRASE OVERRIDES
+# Specific phrases that should trigger specific actions
+# =============================================================================
+phrase_overrides:
+  # Movie mode
+  movie_mode:
+    phrases:
+      - "movie time"
+      - "start movie mode"
+      - "we're watching a movie"
+    action: "scene"
+    target: "scene.movie_mode"
+    response: "Enjoy your movie! I've dimmed the lights and closed the blinds."
+    enabled: true
+
+  # Bedtime routine
+  goodnight:
+    phrases:
+      - "goodnight"
+      - "good night"
+      - "going to bed"
+      - "bedtime"
+    action: "scene"
+    target: "scene.goodnight"
+    response: "Goodnight! Sweet dreams."
+    enabled: true
+
+  # Leaving home
+  leaving:
+    phrases:
+      - "I'm leaving"
+      - "we're leaving"
+      - "goodbye"
+      - "leaving the house"
+    action: "scene"
+    target: "scene.away"
+    response: "Goodbye! I'll keep an eye on things."
+    enabled: true
+
+  # Coming home
+  arriving:
+    phrases:
+      - "I'm home"
+      - "we're home"
+      - "I'm back"
+      - "we're back"
+    action: "scene"
+    target: "scene.welcome_home"
+    response: "Welcome home!"
+    enabled: true
+
+# =============================================================================
+# CONFIRMATION OVERRIDES
+# Actions that require confirmation before execution
+# =============================================================================
+confirmation_required:
+  # Always confirm lock operations
+  lock_operations:
+    domains:
+      - "lock"
+    actions:
+      - "unlock"
+    message: "Are you sure you want to unlock {entity_name}?"
+    enabled: true
+
+  # Confirm garage door at night
+  garage_night:
+    domains:
+      - "cover"
+    entity_patterns:
+      - "garage"
+    time_range:
+      start: "22:00"
+      end: "06:00"
+    message: "It's late. Are you sure you want to {action} the garage door?"
+    enabled: true
+
+  # Confirm all-off commands
+  all_off:
+    patterns:
+      - "turn off everything"
+      - "all off"
+      - "shut everything down"
+    message: "This will turn off all devices. Are you sure?"
+    enabled: true

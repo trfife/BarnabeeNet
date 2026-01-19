@@ -117,6 +117,7 @@ See **barnabeenet-project-log.md** for phase details; **CONTEXT.md** for live ch
 | **BarnabeeNet_Technical_Architecture.md** | 📚 Spec (some parts ahead of code) |
 | **BarnabeeNet_Implementation_Guide.md** | 📚 Spec (SQLite, ECAPA, etc. deferred) |
 | **BarnabeeNet_Operations_Runbook.md** | 📚 Ops reference |
+| **docs/BarnabeeNet_Pipeline_Management_Dashboard.md** | 📋 Planned (Phase 7, after HA); implementation spec |
 | **docs/future/MOBILE_STT_CLIENT.md** | 📋 Placeholder |
 
 **Legend:** 📋 Planning/placeholder | 📚 Reference | ✅ Maintained

@@ -218,6 +218,24 @@
 
 ---
 
+## Phase 7: Pipeline Management Dashboard (planned after HA connection work)
+
+**Status:** 📋 Planned  
+**Spec:** [docs/BarnabeeNet_Pipeline_Management_Dashboard.md](docs/BarnabeeNet_Pipeline_Management_Dashboard.md)  
+**Starts:** After Home Assistant connection work in progress is complete.
+
+**Goal:** Make every pipeline decision visible, traceable, and editable without code deploys. Decision Registry + Logic Registry, full trace timeline in the dashboard, AI-assisted correction (“Mark as Wrong” → analyze → suggest → test on history → apply), hot-reload for patterns/routing/overrides.
+
+### Implementation (from spec)
+
+- [ ] **Phase 7.1: Enhanced Decision Logging (Weeks 1–2)** — `DecisionRegistry`, `DecisionContext`, `DecisionLogger`; wire MetaAgent, ActionAgent, InteractionAgent to log all pattern checks, entity resolution, LLM calls, HA actions. Full decision trail per request.
+- [ ] **Phase 7.2: Dashboard Trace View (Weeks 3–4)** — Trace list + filters, trace detail with timeline, decision tree (expandable), pattern/LLM/HA viewers, waterfall.
+- [ ] **Phase 7.3: Logic Registry & Editor (Weeks 5–6)** — `LogicRegistry`, `patterns.yaml` / `routing.yaml` / overrides, pattern and rule editors in dashboard, hot-reload, versioning.
+- [ ] **Phase 7.4: AI Correction Assistant (Weeks 7–8)** — “Mark as Wrong”, AI analysis of decision trail, fix suggestions, diff UI, regression tests against historical traces, apply/revert.
+- [ ] **Phase 7.5: Integration & Polish (Weeks 9–10)** — E2E workflow, perf, mobile-responsive dashboard, backup/restore for logic, correction analytics.
+
+---
+
 ## Deferred / Not Yet Implemented
 
 | Item | Spec / Plan | Current |

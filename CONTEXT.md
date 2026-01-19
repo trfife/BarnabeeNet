@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-20 (Doc sync: README, project-log, QUICK_REFERENCE, architecture, BarnabeeNet_README — as-built)
+2026-01-20 (Logic Browser: YAML patterns, LogicRegistry, DecisionRegistry, API, Dashboard UI)
 
 ## Current Phase
-**Phases 1–4 done; 5–6 partial.** Full pipeline (STT/TTS/agents/HA/memory), dashboard, E2E, VM deploy. Next: ViewAssist, mobile.
+**Phases 1–4 done; 5–6 partial; Phase 7.1 (Logic as Data) complete.** Full pipeline (STT/TTS/agents/HA/memory), dashboard, E2E, VM deploy. Next: ViewAssist, mobile.
 
 ## Development Workflow
 
@@ -120,6 +120,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Simple Chat API** - Dead-simple `/api/v1/chat` endpoint for HA/ViewAssist integration. POST or GET with just `text` parameter, returns `{"response": "..."}`. Integration guide at `docs/INTEGRATION.md` with examples for HA rest_command, shell_command, and ViewAssist.
 - [x] **HA Custom Conversation Agent** - Full Home Assistant custom integration at `ha-integration/custom_components/barnabeenet/`. Registers as a conversation agent in HA's Voice assistants. Auto-detects speaker from logged-in HA user (via person entity). Auto-detects room from device area. Config flow with URL setup. Works with HA Cloud STT on phones.
 - [x] **NixOS Auto-Start Service** - BarnabeeNet now auto-starts on VM boot via systemd. NixOS module at `/etc/nixos/barnabeenet.nix` defines `barnabeenet.service`: Type=simple, User=thom, auto-restarts on failure (RestartSec=5). Service is enabled and running, survives reboots. Uses existing Redis instance on VM.
+- [x] **Logic Browser System (Phase 7.1)** - Complete externalization of BarnabeeNet's decision logic: (1) **YAML Config Files**: `config/patterns.yaml` (all pattern definitions by group: emergency, instant, action, memory, query, gesture), `config/routing.yaml` (intent→agent routing, priority rules, confidence thresholds), `config/overrides.yaml` (user/room/time-based behavior modifications, entity aliases). (2) **LogicRegistry** (`core/logic_registry.py`): Loads/manages YAML patterns, hot-reload support, pattern matching, change tracking with reason logging, API for runtime updates. (3) **DecisionRegistry** (`core/decision_registry.py`): Captures every decision point (pattern match, routing, override) with context manager for tracing, rolling buffer storage, trace_id correlation. (4) **Logic API** (`api/routes/logic.py`): REST endpoints for browsing/editing patterns (GET/PUT /patterns/{group}/{name}), routing rules, overrides, entity aliases, pattern testing (POST /patterns/test), change history. (5) **Dashboard Logic Page**: Stats cards (patterns/routing/overrides/aliases), tabbed UI (Patterns/Routing/Overrides/Aliases/Test), collapsible pattern groups, edit modal with regex/confidence/enabled fields, pattern tester for live classification testing. (6) **MetaAgent Integration**: Backward-compatible - tries LogicRegistry first, falls back to hardcoded patterns. 628 tests pass.
 
 ### In Progress
 None
@@ -171,8 +172,9 @@ None
 
 ## Next Steps (Ordered)
 
-1. ViewAssist Integration - Accept audio/text from ViewAssist Companion App on tablets
-2. Mobile app / remote access
+1. **Pipeline Management Dashboard Phase 7.2** — Decision trace timeline visualization, AI-assisted pattern correction (remaining items from spec)
+2. ViewAssist Integration — Accept audio/text from ViewAssist Companion App on tablets
+3. Mobile app / remote access
 
 ## Voice Architecture Decision
 
@@ -243,6 +245,7 @@ _Use this section for temporary notes during a session. Clear when done._
 | `barnabeenet-project-log.md` | Phases, decisions, deferred; synced to as-built |
 | `docs/QUICK_REFERENCE.md` | Stack, config, latency |
 | `docs/architecture.md` | As-built architecture |
+| `docs/BarnabeeNet_Pipeline_Management_Dashboard.md` | Pipeline Management Dashboard spec (Phase 7, after HA) |
 | `claude-project-rules.md` | Rules for Claude sessions |
 | `.github/copilot-instructions.md` | Rules for Copilot agent |
 | `.copilot/sessions/` | Session plans and results |

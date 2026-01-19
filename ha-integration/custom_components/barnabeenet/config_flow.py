@@ -31,7 +31,7 @@ class BarnabeeNetConfigFlow(ConfigFlow, domain=DOMAIN):
             try:
                 session = async_get_clientsession(self.hass)
                 async with session.get(
-                    f"{url}/api/v1/health",
+                    f"{url}/health",
                     timeout=aiohttp.ClientTimeout(total=10),
                 ) as response:
                     if response.status == 200:

@@ -33,6 +33,7 @@
             <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
             <a href="#" class="nav-link" data-page="chat">Chat</a>
             <a href="#" class="nav-link" data-page="memory">Memory</a>
+            <a href="#" class="nav-link" data-page="logic">Logic</a>
             <a href="#" class="nav-link" data-page="logs">Logs</a>
             <a href="#" class="nav-link" data-page="prompts">Prompts</a>
             <a href="#" class="nav-link" data-page="setup">Setup & Test</a>
@@ -1090,6 +1091,186 @@
                 <div class="ha-analysis-results" id="ha-analysis-results">
                     <div class="empty-state">
                         <p class="text-muted">Click "Analyze Logs" to scan for issues</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logic Browser Page - View/Edit BarnabeeNet's Decision Logic -->
+        <div id="page-logic" class="page">
+            <div class="page-header">
+                <h1>🧩 Logic Browser</h1>
+                <p>View and edit how BarnabeeNet makes decisions - patterns, routing, and overrides</p>
+            </div>
+
+            <!-- Logic Stats Cards -->
+            <div class="logic-stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon">📝</div>
+                    <div class="stat-value" id="logic-patterns-count">0</div>
+                    <div class="stat-label">Total Patterns</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🚦</div>
+                    <div class="stat-value" id="logic-routing-count">0</div>
+                    <div class="stat-label">Routing Rules</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⚙️</div>
+                    <div class="stat-value" id="logic-overrides-count">0</div>
+                    <div class="stat-label">Overrides</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🔗</div>
+                    <div class="stat-value" id="logic-aliases-count">0</div>
+                    <div class="stat-label">Entity Aliases</div>
+                </div>
+            </div>
+
+            <!-- Logic Tabs -->
+            <div class="logic-tabs">
+                <button class="logic-tab active" data-tab="patterns">📝 Patterns</button>
+                <button class="logic-tab" data-tab="routing">🚦 Routing</button>
+                <button class="logic-tab" data-tab="overrides">⚙️ Overrides</button>
+                <button class="logic-tab" data-tab="aliases">🔗 Aliases</button>
+                <button class="logic-tab" data-tab="test">🧪 Test Patterns</button>
+            </div>
+
+            <!-- Tab Content: Patterns -->
+            <div class="logic-tab-content active" id="logic-tab-patterns">
+                <div class="patterns-filters">
+                    <select id="pattern-group-filter" class="form-control">
+                        <option value="">All Groups</option>
+                        <option value="emergency">🚨 Emergency</option>
+                        <option value="instant">⚡ Instant</option>
+                        <option value="action">🎯 Action</option>
+                        <option value="memory">📝 Memory</option>
+                        <option value="query">❓ Query</option>
+                        <option value="gesture">👋 Gesture</option>
+                    </select>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="show-disabled-patterns">
+                        Show disabled
+                    </label>
+                    <button id="patterns-refresh-btn" class="btn btn-secondary">🔄 Refresh</button>
+                </div>
+
+                <!-- Pattern Groups -->
+                <div class="pattern-groups" id="pattern-groups">
+                    <div class="loading-skeleton">
+                        <div class="skeleton-card"></div>
+                        <div class="skeleton-card"></div>
+                        <div class="skeleton-card"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Routing Rules -->
+            <div class="logic-tab-content" id="logic-tab-routing">
+                <div class="routing-header">
+                    <h3>Intent → Agent Routing</h3>
+                    <p class="text-muted">These rules determine which agent handles each intent type</p>
+                </div>
+                <div class="routing-rules" id="routing-rules">
+                    <div class="loading-skeleton">
+                        <div class="skeleton-card"></div>
+                        <div class="skeleton-card"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Overrides -->
+            <div class="logic-tab-content" id="logic-tab-overrides">
+                <div class="overrides-header">
+                    <h3>Behavior Overrides</h3>
+                    <p class="text-muted">Override normal behavior based on user, room, or time</p>
+                </div>
+                <div class="overrides-list" id="overrides-list">
+                    <div class="loading-skeleton">
+                        <div class="skeleton-card"></div>
+                        <div class="skeleton-card"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Entity Aliases -->
+            <div class="logic-tab-content" id="logic-tab-aliases">
+                <div class="aliases-header">
+                    <h3>Entity Aliases</h3>
+                    <p class="text-muted">Map natural language names to Home Assistant entities</p>
+                </div>
+                <div class="aliases-list" id="aliases-list">
+                    <div class="loading-skeleton">
+                        <div class="skeleton-card"></div>
+                        <div class="skeleton-card"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Pattern Tester -->
+            <div class="logic-tab-content" id="logic-tab-test">
+                <div class="pattern-tester">
+                    <h3>🧪 Pattern Tester</h3>
+                    <p class="text-muted">Test how BarnabeeNet would classify your input</p>
+                    
+                    <div class="test-input-group">
+                        <input type="text" id="pattern-test-input" class="form-control" 
+                            placeholder="Type a command to test, e.g. 'turn on the office light'">
+                        <button id="run-pattern-test" class="btn btn-primary">Test Patterns</button>
+                    </div>
+
+                    <div class="test-results" id="pattern-test-results" style="display: none;">
+                        <div class="test-summary" id="test-summary"></div>
+                        <div class="test-matches" id="test-matches"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pattern Edit Modal -->
+            <div id="pattern-modal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>✏️ Edit Pattern</h3>
+                        <button class="btn btn-small modal-close-btn">✕</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>Pattern Name</label>
+                            <input type="text" id="edit-pattern-name" class="form-control" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Regex Pattern</label>
+                            <input type="text" id="edit-pattern-regex" class="form-control font-mono">
+                            <small class="form-text">Python regex syntax. Changes will take effect immediately.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Sub-Category</label>
+                            <input type="text" id="edit-pattern-subcategory" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Confidence (0.0 - 1.0)</label>
+                            <input type="number" id="edit-pattern-confidence" class="form-control" 
+                                min="0" max="1" step="0.05">
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="edit-pattern-description" class="form-control" rows="2"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="edit-pattern-enabled">
+                                Enabled
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label>Reason for Change</label>
+                            <input type="text" id="edit-pattern-reason" class="form-control" 
+                                placeholder="Why are you making this change?">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary modal-close-btn">Cancel</button>
+                        <button class="btn btn-primary" id="save-pattern-btn">💾 Save Changes</button>
                     </div>
                 </div>
             </div>
