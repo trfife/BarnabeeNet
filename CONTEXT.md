@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (Voice Input in Chat Tab)
+2026-01-18 (Voice Input + Anti-Hallucination Fix)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + COMPREHENSIVE LOGGING
@@ -96,6 +96,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **HA Auto-Reconnect** - HomeAssistantClient `ensure_connected()` method pings HA before actions and auto-reconnects if stale. Orchestrator calls this before executing HA service calls. Connection marked failed on network/auth errors.
 - [x] **Secrets Singleton Pattern** - Orchestrator uses `get_secrets_service()` singleton to ensure consistent encryption across all callers. Fixed issue where HA token was encrypted with random key before stable master key existed.
 - [x] **Dashboard Voice Input (Phase 6)** - Microphone button in Chat tab for voice-to-voice conversations. Hold-to-record interaction with visual recording indicator (animated wave). WebM/Opus audio capture at 16kHz, sent to `/api/v1/voice/pipeline` for full STT→Agent→TTS processing. Auto-plays audio response when available. Mobile touch event support. Graceful fallback for unsupported browsers.
+- [x] **Anti-Hallucination for Memory** - Updated InteractionAgent persona to NEVER make up personal information or past conversations. Explicit system prompt warning when no memories retrieved. MemoryAgent returns clearer "I don't have that information stored" response. Prevents LLM from fabricating facts when asked about things it wasn't told.
 
 ### In Progress
 - [ ] Dashboard Phase 7: Testing Dashboard enhancements - E2E runner, mock HA

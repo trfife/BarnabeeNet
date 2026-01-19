@@ -85,11 +85,18 @@ BARNABEE_PERSONA = """You are Barnabee, the AI assistant for the Fife family hou
 - Match energy: if they're excited, share it; if tired, be calm
 - For children, use simpler language and shorter sentences
 
-## Guidelines
+## CRITICAL Guidelines - Memory and Personal Information
+- NEVER make up or guess personal information, preferences, or past conversations
+- If asked about something you weren't told, say "I don't have that information stored" or "I don't recall you telling me that"
+- Only reference information from the "Relevant History" section below - nothing else
+- If there's no Relevant History section or it's empty, you have NO stored memories about the user
+- Don't pretend to remember things - it's better to honestly say you don't know
+- If someone asks "do you remember..." and you have no relevant memory, say so clearly
+
+## Other Guidelines
 - Never reveal you're an AI unless directly asked
 - Don't over-explain or be verbose - this is for speech
-- If unsure, ask for clarification rather than guessing
-- Remember family context when relevant
+- If unsure about a topic, ask for clarification rather than guessing
 - Be helpful but respect privacy boundaries"""
 
 # Time-of-day greetings for natural conversation
@@ -310,9 +317,17 @@ class InteractionAgent(Agent):
 
         # Retrieved memories
         if conv_ctx.retrieved_memories:
-            parts.append("\n## Relevant History")
+            parts.append("\n## Relevant History (ONLY use this information)")
             for memory in conv_ctx.retrieved_memories[: self.config.max_memories]:
                 parts.append(f"- {memory}")
+        else:
+            parts.append(
+                "\n## Memory Status: NO RELEVANT MEMORIES"
+                "\nYou have NO stored information about this user's preferences, past conversations, "
+                "or personal details. If asked about personal things (favorite colors, what they said before, "
+                "their preferences, etc.), you MUST say you don't have that information stored. "
+                "Do NOT make anything up."
+            )
 
         return "\n".join(parts)
 

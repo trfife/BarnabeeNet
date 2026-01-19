@@ -4240,7 +4240,7 @@ function initChatPage() {
         micBtn.addEventListener('mousedown', startVoiceRecording);
         micBtn.addEventListener('mouseup', stopVoiceRecording);
         micBtn.addEventListener('mouseleave', stopVoiceRecording);
-        
+
         // Touch events for mobile
         micBtn.addEventListener('touchstart', (e) => {
             e.preventDefault();
@@ -4721,13 +4721,13 @@ function escapeHtml(text) {
 
 async function startVoiceRecording() {
     if (isRecording) return;
-    
+
     const micBtn = document.getElementById('chat-mic-btn');
     const voiceIndicator = document.getElementById('chat-voice-indicator');
-    
+
     try {
         // Request microphone access
-        mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        mediaStream = await navigator.mediaDevices.getUserMedia({
             audio: {
                 sampleRate: 16000,
                 channelCount: 1,
@@ -4735,29 +4735,29 @@ async function startVoiceRecording() {
                 noiseSuppression: true
             }
         });
-        
+
         // Create MediaRecorder with WebM/Opus (widely supported)
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
-            ? 'audio/webm;codecs=opus' 
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus'
             : 'audio/webm';
-        
+
         voiceRecorder = new MediaRecorder(mediaStream, { mimeType });
         const audioChunks = [];
-        
+
         voiceRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
                 audioChunks.push(event.data);
             }
         };
-        
+
         voiceRecorder.onstop = async () => {
             // Combine chunks
             const audioBlob = new Blob(audioChunks, { type: mimeType });
-            
+
             // Stop all tracks
             mediaStream?.getTracks().forEach(track => track.stop());
             mediaStream = null;
-            
+
             // Only process if we have actual audio data
             if (audioBlob.size > 0) {
                 await processVoiceRecording(audioBlob);
@@ -4767,27 +4767,27 @@ async function startVoiceRecording() {
                 micBtn?.classList.remove('recording', 'processing');
             }
         };
-        
+
         voiceRecorder.onerror = (error) => {
             console.error('Recording error:', error);
             showToast('Recording error: ' + error.message, 'error');
             cleanupRecording();
         };
-        
+
         // Start recording
         voiceRecorder.start(100); // Collect data every 100ms
         isRecording = true;
-        
+
         // Update UI
         micBtn?.classList.add('recording');
         voiceIndicator?.classList.add('active');
         voiceIndicator?.classList.remove('processing');
         const statusEl = voiceIndicator?.querySelector('.voice-status');
         if (statusEl) statusEl.textContent = 'Listening...';
-        
+
         updateChatStatus('Recording...', true);
         console.log('Voice recording started');
-        
+
     } catch (error) {
         console.error('Failed to start recording:', error);
         if (error.name === 'NotAllowedError') {
@@ -4803,10 +4803,10 @@ async function startVoiceRecording() {
 
 function stopVoiceRecording() {
     if (!isRecording || !voiceRecorder) return;
-    
+
     const micBtn = document.getElementById('chat-mic-btn');
     const voiceIndicator = document.getElementById('chat-voice-indicator');
-    
+
     try {
         if (voiceRecorder.state === 'recording') {
             voiceRecorder.stop();
@@ -4814,16 +4814,16 @@ function stopVoiceRecording() {
     } catch (error) {
         console.error('Error stopping recording:', error);
     }
-    
+
     isRecording = false;
-    
+
     // Update UI to processing state
     micBtn?.classList.remove('recording');
     micBtn?.classList.add('processing');
     voiceIndicator?.classList.add('processing');
     const statusEl = voiceIndicator?.querySelector('.voice-status');
     if (statusEl) statusEl.textContent = 'Processing...';
-    
+
     updateChatStatus('Processing voice...', true);
     console.log('Voice recording stopped');
 }
@@ -4831,15 +4831,15 @@ function stopVoiceRecording() {
 function cleanupRecording() {
     const micBtn = document.getElementById('chat-mic-btn');
     const voiceIndicator = document.getElementById('chat-voice-indicator');
-    
+
     isRecording = false;
     voiceRecorder = null;
-    
+
     if (mediaStream) {
         mediaStream.getTracks().forEach(track => track.stop());
         mediaStream = null;
     }
-    
+
     micBtn?.classList.remove('recording', 'processing');
     voiceIndicator?.classList.remove('active', 'processing');
     updateChatStatus('Ready to chat');
@@ -4850,7 +4850,7 @@ async function processVoiceRecording(audioBlob) {
     const voiceIndicator = document.getElementById('chat-voice-indicator');
     const messagesContainer = document.getElementById('chat-messages');
     const sendBtn = document.getElementById('chat-send-btn');
-    
+
     try {
         // Convert blob to base64
         const arrayBuffer = await audioBlob.arrayBuffer();
@@ -4858,22 +4858,22 @@ async function processVoiceRecording(audioBlob) {
             new Uint8Array(arrayBuffer)
                 .reduce((data, byte) => data + String.fromCharCode(byte), '')
         );
-        
+
         // Remove welcome screen if present
         const welcome = messagesContainer?.querySelector('.chat-welcome');
         if (welcome) {
             welcome.remove();
         }
-        
+
         // Add user voice message indicator
         addChatMessage('user', '🎤 Voice message', { isVoice: true });
-        
+
         // Show thinking indicator
         const thinkingId = showThinkingIndicator();
-        
+
         // Disable send button during processing
         if (sendBtn) sendBtn.disabled = true;
-        
+
         // Call the voice pipeline endpoint
         const response = await fetch(`${API_BASE}/api/v1/voice/pipeline`, {
             method: 'POST',
@@ -4888,12 +4888,12 @@ async function processVoiceRecording(audioBlob) {
                 room: 'Dashboard'
             }),
         });
-        
+
         const data = await response.json();
-        
+
         // Remove thinking indicator
         removeThinkingIndicator(thinkingId);
-        
+
         if (response.ok) {
             // Update the user message with transcribed text
             const userMessages = document.querySelectorAll('.chat-message.user');
@@ -4904,28 +4904,28 @@ async function processVoiceRecording(audioBlob) {
                     bubble.textContent = `🎤 "${data.input_text}"`;
                 }
             }
-            
+
             // Add assistant response
             const assistantMessage = data.response || data.output_text || 'I heard you, but I have no response.';
             const agent = data.agent_used || data.agent || null;
             const intent = data.intent || null;
             const traceId = data.trace_id || null;
-            
-            addChatMessage('assistant', assistantMessage, { 
-                agent, 
-                intent, 
-                fullResponse: data, 
+
+            addChatMessage('assistant', assistantMessage, {
+                agent,
+                intent,
+                fullResponse: data,
                 traceId,
                 hasAudio: !!data.audio_base64
             });
-            
+
             // Play audio response if available
             if (data.audio_base64) {
                 playAudioResponse(data.audio_base64);
             }
-            
+
             updateChatStatus('Ready to chat');
-            
+
             // Fetch and display agent chain if we have a trace_id
             if (traceId) {
                 setTimeout(() => fetchAndDisplayAgentChain(traceId), 100);
@@ -4966,10 +4966,10 @@ function playAudioResponse(base64Audio) {
         for (let i = 0; i < audioData.length; i++) {
             audioArray[i] = audioData.charCodeAt(i);
         }
-        
+
         const audioBlob = new Blob([audioArray], { type: 'audio/wav' });
         const audioUrl = URL.createObjectURL(audioBlob);
-        
+
         const audio = new Audio(audioUrl);
         audio.onended = () => {
             URL.revokeObjectURL(audioUrl);
@@ -4978,7 +4978,7 @@ function playAudioResponse(base64Audio) {
             console.warn('Audio playback error:', e);
             URL.revokeObjectURL(audioUrl);
         };
-        
+
         audio.play().catch(err => {
             console.warn('Could not auto-play audio:', err);
             // Show a play button in the chat if autoplay fails

@@ -437,7 +437,10 @@ class MemoryAgent(Agent):
     ) -> str:
         """Format search results into a response."""
         if not results:
-            return "I don't have any relevant memories about that."
+            return (
+                "I'm sorry, I don't have any memories stored about that. "
+                "I only remember things you've explicitly asked me to remember."
+            )
 
         if len(results) == 1:
             return f"I recall: {results[0][0].content}"
