@@ -14,7 +14,11 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from barnabeenet.services.homeassistant.client import ServiceCallResult
+    from barnabeenet.services.homeassistant.entities import Entity
 
 
 @dataclass
@@ -486,10 +490,251 @@ class MockHomeAssistant:
 
 
 # =============================================================================
+# Mock HA Client Adapter (HomeAssistantClient interface)
+# =============================================================================
+
+
+class MockHAClient:
+    """Mock Home Assistant client that provides the HomeAssistantClient interface.
+
+    This adapter wraps MockHomeAssistant and exposes the same methods as
+    the real HomeAssistantClient, allowing it to be used in place of the
+    real client for testing.
+    """
+
+    def __init__(self, mock_ha: MockHomeAssistant | None = None) -> None:
+        """Initialize with a MockHomeAssistant instance."""
+        self._mock_ha = mock_ha or get_mock_ha()
+        self._entity_registry: MockEntityRegistry | None = None
+
+    @property
+    def url(self) -> str:
+        """Get the mock Home Assistant URL."""
+        return "http://mock-ha:8123"
+
+    @property
+    def connected(self) -> bool:
+        """Check if client is connected (always True for mock)."""
+        return self._mock_ha.is_enabled
+
+    @property
+    def entities(self) -> MockEntityRegistry:
+        """Get the entity registry."""
+        if self._entity_registry is None:
+            self._entity_registry = MockEntityRegistry(self._mock_ha)
+        return self._entity_registry
+
+    async def ensure_connected(self) -> bool:
+        """Ensure connection is alive (always True for mock when enabled)."""
+        return self._mock_ha.is_enabled
+
+    async def ping(self) -> bool:
+        """Check if mock HA is reachable."""
+        return self._mock_ha.is_enabled
+
+    async def refresh_entities(self) -> bool:
+        """Refresh entity registry (no-op for mock)."""
+        return True
+
+    async def get_entities(self, domain: str | None = None) -> list[Entity]:
+        """Get all entities, optionally filtered by domain.
+
+        Returns real Entity objects for compatibility with orchestrator.
+        """
+        from barnabeenet.services.homeassistant.entities import Entity, EntityState
+
+        mock_entities = self._mock_ha.get_entities(domain)
+        return [
+            Entity(
+                entity_id=e.entity_id,
+                domain=e.domain,
+                friendly_name=e.friendly_name,
+                area_id=e.area_id,
+                state=EntityState(
+                    state=e.state.state,
+                    attributes=e.state.to_attributes(),
+                ),
+            )
+            for e in mock_entities
+        ]
+
+    def resolve_entity(self, name: str, domain: str | None = None) -> Entity | None:
+        """Resolve a friendly name to an entity.
+
+        Args:
+            name: Friendly name or entity_id to resolve
+            domain: Optional domain hint to narrow search
+
+        Returns:
+            Matching Entity or None.
+        """
+        return self.entities.find_by_name(name, domain)
+
+    async def call_service(
+        self,
+        service: str,
+        entity_id: str | None = None,
+        **service_data: Any,
+    ) -> ServiceCallResult:
+        """Call a Home Assistant service via mock.
+
+        Args:
+            service: Service name in format "domain.service"
+            entity_id: Target entity ID
+            **service_data: Additional service data
+
+        Returns:
+            ServiceCallResult with success status.
+        """
+        from barnabeenet.services.homeassistant.client import ServiceCallResult
+
+        if not self._mock_ha.is_enabled:
+            return ServiceCallResult(
+                success=False,
+                service=service,
+                entity_id=entity_id,
+                message="Mock HA not enabled",
+            )
+
+        result = await self._mock_ha.call_service(
+            service=service,
+            entity_id=entity_id,
+            **service_data,
+        )
+
+        return ServiceCallResult(
+            success=result.success,
+            service=result.service,
+            entity_id=result.entity_id,
+            message=result.message,
+        )
+
+
+class MockEntityRegistry:
+    """Mock entity registry providing EntityRegistry-compatible interface."""
+
+    def __init__(self, mock_ha: MockHomeAssistant) -> None:
+        """Initialize with MockHomeAssistant."""
+        self._mock_ha = mock_ha
+
+    def all(self) -> list[Entity]:
+        """Get all entities as Entity objects."""
+        from barnabeenet.services.homeassistant.entities import Entity, EntityState
+
+        return [
+            Entity(
+                entity_id=e.entity_id,
+                domain=e.domain,
+                friendly_name=e.friendly_name,
+                area_id=e.area_id,
+                state=EntityState(
+                    state=e.state.state,
+                    attributes=e.state.to_attributes(),
+                ),
+            )
+            for e in self._mock_ha.get_entities()
+        ]
+
+    def find_by_name(self, name: str, domain: str | None = None) -> Entity | None:
+        """Find entity by friendly name or entity_id.
+
+        Uses fuzzy matching similar to the real EntityRegistry.
+        """
+        from barnabeenet.services.homeassistant.entities import Entity, EntityState
+
+        name_lower = name.lower().strip()
+
+        # Get entities, optionally filtered by domain
+        mock_entities = self._mock_ha.get_entities(domain)
+
+        # Try exact entity_id match first
+        for e in mock_entities:
+            if e.entity_id.lower() == name_lower:
+                return Entity(
+                    entity_id=e.entity_id,
+                    domain=e.domain,
+                    friendly_name=e.friendly_name,
+                    area_id=e.area_id,
+                    state=EntityState(
+                        state=e.state.state,
+                        attributes=e.state.to_attributes(),
+                    ),
+                )
+
+        # Try exact friendly_name match
+        for e in mock_entities:
+            if e.friendly_name.lower() == name_lower:
+                return Entity(
+                    entity_id=e.entity_id,
+                    domain=e.domain,
+                    friendly_name=e.friendly_name,
+                    area_id=e.area_id,
+                    state=EntityState(
+                        state=e.state.state,
+                        attributes=e.state.to_attributes(),
+                    ),
+                )
+
+        # Try partial match in friendly_name
+        for e in mock_entities:
+            if name_lower in e.friendly_name.lower():
+                return Entity(
+                    entity_id=e.entity_id,
+                    domain=e.domain,
+                    friendly_name=e.friendly_name,
+                    area_id=e.area_id,
+                    state=EntityState(
+                        state=e.state.state,
+                        attributes=e.state.to_attributes(),
+                    ),
+                )
+
+        return None
+
+    def get_by_domain(self, domain: str) -> list[Entity]:
+        """Get all entities in a domain."""
+        from barnabeenet.services.homeassistant.entities import Entity, EntityState
+
+        return [
+            Entity(
+                entity_id=e.entity_id,
+                domain=e.domain,
+                friendly_name=e.friendly_name,
+                area_id=e.area_id,
+                state=EntityState(
+                    state=e.state.state,
+                    attributes=e.state.to_attributes(),
+                ),
+            )
+            for e in self._mock_ha.get_entities(domain)
+        ]
+
+    def get_by_area(self, area_id: str) -> list[Entity]:
+        """Get all entities in an area."""
+        from barnabeenet.services.homeassistant.entities import Entity, EntityState
+
+        return [
+            Entity(
+                entity_id=e.entity_id,
+                domain=e.domain,
+                friendly_name=e.friendly_name,
+                area_id=e.area_id,
+                state=EntityState(
+                    state=e.state.state,
+                    attributes=e.state.to_attributes(),
+                ),
+            )
+            for e in self._mock_ha.get_entities()
+            if e.area_id == area_id
+        ]
+
+
+# =============================================================================
 # Singleton Instance
 # =============================================================================
 
 _mock_ha_instance: MockHomeAssistant | None = None
+_mock_ha_client: MockHAClient | None = None
 
 
 def get_mock_ha() -> MockHomeAssistant:
@@ -498,6 +743,17 @@ def get_mock_ha() -> MockHomeAssistant:
     if _mock_ha_instance is None:
         _mock_ha_instance = MockHomeAssistant()
     return _mock_ha_instance
+
+
+def get_mock_ha_client() -> MockHAClient:
+    """Get a MockHAClient that wraps the singleton MockHomeAssistant.
+
+    Use this to inject into the orchestrator for E2E testing.
+    """
+    global _mock_ha_client
+    if _mock_ha_client is None:
+        _mock_ha_client = MockHAClient(get_mock_ha())
+    return _mock_ha_client
 
 
 def reset_mock_ha() -> None:

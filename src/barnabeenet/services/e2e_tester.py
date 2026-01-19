@@ -42,6 +42,7 @@ class AssertionType(str, Enum):
     RESPONSE_NOT_CONTAINS = "response_not_contains"  # Response excludes text
     LATENCY_UNDER = "latency_under"  # Response time threshold
     NO_ERROR = "no_error"  # Request succeeded
+    ENTITY_STATE = "entity_state"  # Verify mock HA entity state after action
 
 
 class TestResult(str, Enum):
@@ -100,6 +101,10 @@ class TestSuiteConfig(BaseModel):
         default=False, description="Include tests that require LLM calls"
     )
     delay_between_tests_ms: int = Field(default=100, description="Delay between test executions")
+    use_mock_ha: bool = Field(
+        default=True,
+        description="Use mock Home Assistant for action tests (no real HA needed)",
+    )
 
 
 class TestSuiteResult(BaseModel):
@@ -188,24 +193,62 @@ ACTION_TESTS: list[TestCase] = [
     TestCase(
         id="action_light_on",
         name="Turn Light On",
-        description="Light control should route to ActionAgent",
+        description="Light control should route to ActionAgent and turn on living room light",
         category=TestCategory.ACTION,
         input_text="Turn on the living room light",
+        room="living_room",
         assertions=[
             TestAssertion(type=AssertionType.AGENT_USED, expected="action"),
             TestAssertion(type=AssertionType.INTENT, expected="action"),
             TestAssertion(type=AssertionType.NO_ERROR, expected=True),
+            TestAssertion(
+                type=AssertionType.ENTITY_STATE,
+                expected={"entity_id": "light.living_room_main", "state": "on"},
+            ),
         ],
     ),
     TestCase(
         id="action_light_off",
         name="Turn Light Off",
-        description="Light off command should route to ActionAgent",
+        description="Light off command should route to ActionAgent and turn off kitchen light",
         category=TestCategory.ACTION,
-        input_text="Switch off the kitchen lights",
+        input_text="Switch off the kitchen light",
+        room="kitchen",
         assertions=[
             TestAssertion(type=AssertionType.AGENT_USED, expected="action"),
             TestAssertion(type=AssertionType.NO_ERROR, expected=True),
+            TestAssertion(
+                type=AssertionType.ENTITY_STATE,
+                expected={"entity_id": "light.kitchen_main", "state": "off"},
+            ),
+        ],
+    ),
+    TestCase(
+        id="action_lamp_brightness",
+        name="Set Lamp Brightness",
+        description="Brightness control should work via ActionAgent",
+        category=TestCategory.ACTION,
+        input_text="Set the living room lamp to 50 percent",
+        room="living_room",
+        assertions=[
+            TestAssertion(type=AssertionType.AGENT_USED, expected="action"),
+            TestAssertion(type=AssertionType.NO_ERROR, expected=True),
+        ],
+    ),
+    TestCase(
+        id="action_close_blinds",
+        name="Close Blinds",
+        description="Cover control should route to ActionAgent",
+        category=TestCategory.ACTION,
+        input_text="Close the living room blinds",
+        room="living_room",
+        assertions=[
+            TestAssertion(type=AssertionType.AGENT_USED, expected="action"),
+            TestAssertion(type=AssertionType.NO_ERROR, expected=True),
+            TestAssertion(
+                type=AssertionType.ENTITY_STATE,
+                expected={"entity_id": "cover.living_room_blinds", "state": "closed"},
+            ),
         ],
     ),
 ]
@@ -269,6 +312,26 @@ class E2ETestRunner:
         # Select tests based on config
         tests = self._select_tests(config)
 
+        # Set up mock HA if enabled (for action tests without real HA)
+        mock_client = None
+        if config.use_mock_ha:
+            from barnabeenet.agents.orchestrator import get_orchestrator
+            from barnabeenet.services.homeassistant.mock_ha import (
+                enable_mock_ha,
+                get_mock_ha_client,
+                reset_mock_ha,
+            )
+
+            # Reset mock to clean state and enable it
+            reset_mock_ha()
+            enable_mock_ha()
+            mock_client = get_mock_ha_client()
+
+            # Inject mock client into orchestrator
+            orchestrator = get_orchestrator()
+            orchestrator.set_ha_client(mock_client)  # type: ignore[arg-type]
+            logger.info("Mock HA enabled for E2E tests")
+
         suite = TestSuiteResult(
             suite_name=config.suite_name,
             started_at=datetime.now(UTC),
@@ -318,6 +381,17 @@ class E2ETestRunner:
 
         suite.completed_at = datetime.now(UTC)
         self._running = False
+
+        # Clean up mock HA if it was enabled
+        if config.use_mock_ha:
+            from barnabeenet.agents.orchestrator import get_orchestrator
+            from barnabeenet.services.homeassistant.mock_ha import disable_mock_ha
+
+            # Clear the mock client from orchestrator
+            orchestrator = get_orchestrator()
+            orchestrator.set_ha_client(None)
+            disable_mock_ha()
+            logger.info("Mock HA disabled after E2E tests")
 
         # Log test suite completion
         await pipeline_logger.log_signal(
@@ -490,6 +564,31 @@ class E2ETestRunner:
                 assertion.message = (
                     "No error occurred" if assertion.passed else f"Error: {test.error}"
                 )
+
+            elif assertion.type == AssertionType.ENTITY_STATE:
+                # Check mock HA entity state - expected format: {"entity_id": X, "state": Y}
+                from barnabeenet.services.homeassistant.mock_ha import get_mock_ha
+
+                mock_ha = get_mock_ha()
+                expected_data = assertion.expected
+                if isinstance(expected_data, dict):
+                    entity_id = expected_data.get("entity_id", "")
+                    expected_state = expected_data.get("state", "")
+                    entity = mock_ha.get_entity(entity_id)
+                    if entity:
+                        assertion.actual = entity.state.state
+                        assertion.passed = entity.state.state == expected_state
+                        assertion.message = (
+                            f"Entity '{entity_id}' state is '{entity.state.state}' "
+                            f"({'matches' if assertion.passed else 'expected'} '{expected_state}')"
+                        )
+                    else:
+                        assertion.actual = None
+                        assertion.passed = False
+                        assertion.message = f"Entity '{entity_id}' not found in mock HA"
+                else:
+                    assertion.passed = False
+                    assertion.message = "Invalid ENTITY_STATE assertion format"
 
         except Exception as e:
             assertion.passed = False

@@ -1369,6 +1369,16 @@ class AgentOrchestrator:
     def get_memory_agent(self) -> MemoryAgent | None:
         return self._memory_agent
 
+    def set_ha_client(self, ha_client: HomeAssistantClient | None) -> None:
+        """Set the Home Assistant client.
+
+        This is primarily useful for testing with mock clients.
+
+        Args:
+            ha_client: The HA client to use, or None to clear.
+        """
+        self._ha_client = ha_client
+
 
 # Global orchestrator instance
 _global_orchestrator: AgentOrchestrator | None = None
@@ -1380,6 +1390,15 @@ def get_orchestrator() -> AgentOrchestrator:
     if _global_orchestrator is None:
         _global_orchestrator = AgentOrchestrator()
     return _global_orchestrator
+
+
+def reset_orchestrator() -> None:
+    """Reset the global orchestrator instance.
+
+    This is primarily useful for testing to ensure a clean state.
+    """
+    global _global_orchestrator
+    _global_orchestrator = None
 
 
 async def process_request(
@@ -1399,4 +1418,5 @@ __all__ = [
     "RequestContext",
     "get_orchestrator",
     "process_request",
+    "reset_orchestrator",
 ]

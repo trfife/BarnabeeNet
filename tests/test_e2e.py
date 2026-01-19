@@ -347,3 +347,251 @@ class TestTestSuiteConfig:
         assert len(config.categories) == 2
         assert config.include_llm_tests is True
         assert config.delay_between_tests_ms == 200
+
+    def test_use_mock_ha_default(self):
+        """Test that use_mock_ha defaults to True."""
+        config = TestSuiteConfig()
+        assert config.use_mock_ha is True
+
+    def test_use_mock_ha_can_be_disabled(self):
+        """Test that use_mock_ha can be set to False."""
+        config = TestSuiteConfig(use_mock_ha=False)
+        assert config.use_mock_ha is False
+
+
+class TestMockHAClient:
+    """Tests for Mock Home Assistant client integration."""
+
+    def test_mock_ha_client_creation(self):
+        """Test MockHAClient can be created."""
+        from barnabeenet.services.homeassistant.mock_ha import (
+            MockHAClient,
+            get_mock_ha,
+        )
+
+        mock_ha = get_mock_ha()
+        client = MockHAClient(mock_ha)
+
+        assert client is not None
+        assert client.url == "http://mock-ha:8123"
+
+    def test_mock_ha_client_connected_when_enabled(self):
+        """Test MockHAClient reports connected when enabled."""
+        from barnabeenet.services.homeassistant.mock_ha import (
+            MockHAClient,
+            disable_mock_ha,
+            enable_mock_ha,
+            get_mock_ha,
+        )
+
+        mock_ha = get_mock_ha()
+        client = MockHAClient(mock_ha)
+
+        enable_mock_ha()
+        assert client.connected is True
+
+        disable_mock_ha()
+        assert client.connected is False
+
+    def test_mock_ha_client_entities_registry(self):
+        """Test MockHAClient provides entity registry."""
+        from barnabeenet.services.homeassistant.mock_ha import (
+            MockHAClient,
+            enable_mock_ha,
+            get_mock_ha,
+            reset_mock_ha,
+        )
+
+        reset_mock_ha()
+        enable_mock_ha()
+        mock_ha = get_mock_ha()
+        client = MockHAClient(mock_ha)
+
+        entities = client.entities.all()
+        assert len(entities) > 0
+
+        # Check that entities are real Entity objects
+        entity = entities[0]
+        assert hasattr(entity, "entity_id")
+        assert hasattr(entity, "domain")
+        assert hasattr(entity, "friendly_name")
+
+    def test_mock_ha_client_resolve_entity(self):
+        """Test MockHAClient can resolve entities by name."""
+        from barnabeenet.services.homeassistant.mock_ha import (
+            MockHAClient,
+            enable_mock_ha,
+            get_mock_ha,
+            reset_mock_ha,
+        )
+
+        reset_mock_ha()
+        enable_mock_ha()
+        mock_ha = get_mock_ha()
+        client = MockHAClient(mock_ha)
+
+        # Resolve by friendly name
+        entity = client.resolve_entity("Living Room Main Light")
+        assert entity is not None
+        assert entity.entity_id == "light.living_room_main"
+
+        # Resolve by entity_id
+        entity = client.resolve_entity("light.kitchen_main")
+        assert entity is not None
+        assert entity.friendly_name == "Kitchen Light"
+
+    @pytest.mark.asyncio
+    async def test_mock_ha_client_call_service(self):
+        """Test MockHAClient can call services."""
+        from barnabeenet.services.homeassistant.mock_ha import (
+            MockHAClient,
+            enable_mock_ha,
+            get_mock_ha,
+            reset_mock_ha,
+        )
+
+        reset_mock_ha()
+        enable_mock_ha()
+        mock_ha = get_mock_ha()
+        client = MockHAClient(mock_ha)
+
+        # Turn on a light
+        result = await client.call_service(
+            service="light.turn_on",
+            entity_id="light.living_room_main",
+        )
+
+        assert result.success is True
+        assert result.entity_id == "light.living_room_main"
+
+        # Verify state changed
+        entity = mock_ha.get_entity("light.living_room_main")
+        assert entity is not None
+        assert entity.state.state == "on"
+
+    @pytest.mark.asyncio
+    async def test_mock_ha_client_call_service_when_disabled(self):
+        """Test MockHAClient returns failure when mock HA disabled."""
+        from barnabeenet.services.homeassistant.mock_ha import (
+            MockHAClient,
+            disable_mock_ha,
+            get_mock_ha,
+            reset_mock_ha,
+        )
+
+        reset_mock_ha()
+        disable_mock_ha()
+        mock_ha = get_mock_ha()
+        client = MockHAClient(mock_ha)
+
+        result = await client.call_service(
+            service="light.turn_on",
+            entity_id="light.living_room_main",
+        )
+
+        assert result.success is False
+        assert "not enabled" in result.message
+
+
+class TestEntityStateAssertion:
+    """Tests for ENTITY_STATE assertion type."""
+
+    def test_evaluate_entity_state_pass(self):
+        """Test ENTITY_STATE assertion passes when state matches."""
+        from barnabeenet.services.homeassistant.mock_ha import (
+            enable_mock_ha,
+            get_mock_ha,
+            reset_mock_ha,
+        )
+
+        # Set up mock HA
+        reset_mock_ha()
+        enable_mock_ha()
+        mock_ha = get_mock_ha()
+
+        # Set entity to specific state
+        entity = mock_ha.get_entity("light.living_room_main")
+        assert entity is not None  # Entity exists in mock
+        entity.state.state = "on"
+
+        runner = E2ETestRunner()
+        test = TestCase(
+            id="test1",
+            name="Test",
+            description="Test",
+            category=TestCategory.ACTION,
+            input_text="turn on the light",
+        )
+
+        assertion = TestAssertion(
+            type=AssertionType.ENTITY_STATE,
+            expected={"entity_id": "light.living_room_main", "state": "on"},
+        )
+        runner._evaluate_assertion(test, assertion)
+
+        assert assertion.passed is True
+        assert assertion.actual == "on"
+
+    def test_evaluate_entity_state_fail(self):
+        """Test ENTITY_STATE assertion fails when state doesn't match."""
+        from barnabeenet.services.homeassistant.mock_ha import (
+            enable_mock_ha,
+            get_mock_ha,
+            reset_mock_ha,
+        )
+
+        # Set up mock HA
+        reset_mock_ha()
+        enable_mock_ha()
+        mock_ha = get_mock_ha()
+
+        # Entity starts as "off"
+        entity = mock_ha.get_entity("light.living_room_main")
+        assert entity is not None  # Entity exists in mock
+        entity.state.state = "off"
+
+        runner = E2ETestRunner()
+        test = TestCase(
+            id="test1",
+            name="Test",
+            description="Test",
+            category=TestCategory.ACTION,
+            input_text="turn on the light",
+        )
+
+        assertion = TestAssertion(
+            type=AssertionType.ENTITY_STATE,
+            expected={"entity_id": "light.living_room_main", "state": "on"},
+        )
+        runner._evaluate_assertion(test, assertion)
+
+        assert assertion.passed is False
+        assert assertion.actual == "off"
+
+    def test_evaluate_entity_state_missing_entity(self):
+        """Test ENTITY_STATE assertion fails for non-existent entity."""
+        from barnabeenet.services.homeassistant.mock_ha import (
+            enable_mock_ha,
+            reset_mock_ha,
+        )
+
+        reset_mock_ha()
+        enable_mock_ha()
+
+        runner = E2ETestRunner()
+        test = TestCase(
+            id="test1",
+            name="Test",
+            description="Test",
+            category=TestCategory.ACTION,
+            input_text="turn on the light",
+        )
+
+        assertion = TestAssertion(
+            type=AssertionType.ENTITY_STATE,
+            expected={"entity_id": "light.nonexistent", "state": "on"},
+        )
+        runner._evaluate_assertion(test, assertion)
+
+        assert assertion.passed is False
+        assert "not found" in assertion.message
