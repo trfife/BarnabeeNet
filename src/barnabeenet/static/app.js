@@ -4265,10 +4265,18 @@ function initChatPage() {
     });
 
     // Check if browser supports audio recording
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        if (micBtn) {
+    if (micBtn) {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             micBtn.disabled = true;
-            micBtn.title = 'Voice input not supported in this browser';
+            if (!window.isSecureContext) {
+                micBtn.title = 'Voice input requires HTTPS. Try accessing via localhost or enable HTTPS.';
+                console.warn('Microphone disabled: page not served over HTTPS');
+            } else {
+                micBtn.title = 'Voice input not supported in this browser';
+                console.warn('Microphone disabled: getUserMedia not available');
+            }
+        } else {
+            console.log('Microphone API available');
         }
     }
 
