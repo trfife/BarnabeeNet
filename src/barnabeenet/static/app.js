@@ -198,6 +198,15 @@ function showPage(pageId) {
     document.querySelectorAll('.page').forEach(page => {
         page.classList.toggle('active', page.id === `page-${pageId}`);
     });
+    
+    // Initialize Logic page when navigating to it
+    if (pageId === 'logic') {
+        const logicPage = document.getElementById('page-logic');
+        if (logicPage && !logicPage.dataset.initialized) {
+            initLogicPage();
+            logicPage.dataset.initialized = 'true';
+        }
+    }
 }
 
 // =============================================================================
@@ -7324,26 +7333,4 @@ async function runPatternTest() {
     }
 }
 
-// Initialize logic page when navigating to it
-document.addEventListener('DOMContentLoaded', () => {
-    // Watch for navigation to logic page
-    const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                const logicPage = document.getElementById('page-logic');
-                if (logicPage && logicPage.classList.contains('active')) {
-                    // Initialize if not already
-                    if (!logicPage.dataset.initialized) {
-                        initLogicPage();
-                        logicPage.dataset.initialized = 'true';
-                    }
-                }
-            }
-        });
-    });
-    
-    const logicPage = document.getElementById('page-logic');
-    if (logicPage) {
-        observer.observe(logicPage, { attributes: true });
-    }
-});
+// Logic page initialization is now handled in showPage() function
