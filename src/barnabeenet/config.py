@@ -46,8 +46,8 @@ class STTSettings(BaseSettings):
     whisper_compute_type: str = "int8"
     whisper_beam_size: int = 1
 
-    # GPU Worker settings (Parakeet on Man-of-war)
-    gpu_worker_host: str = "192.168.86.100"
+    # GPU Worker settings (Parakeet on Man-of-war via Windows port forward)
+    gpu_worker_host: str = "192.168.86.61"
     gpu_worker_port: int = 8001
     gpu_worker_timeout_ms: int = 100
     gpu_worker_health_interval_sec: int = 3
