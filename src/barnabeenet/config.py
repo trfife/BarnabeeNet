@@ -36,7 +36,11 @@ class STTSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="STT_")
 
-    # Primary engine selection
+    # Default mode and engine
+    default_mode: Literal["ambient", "realtime", "command"] = "command"
+    default_engine: Literal["auto", "parakeet", "whisper", "azure"] = "auto"
+
+    # Primary engine selection (legacy, for backwards compat)
     primary_engine: Literal["parakeet", "distil-whisper"] = "parakeet"
     fallback_engine: Literal["distil-whisper"] = "distil-whisper"
 
@@ -51,6 +55,9 @@ class STTSettings(BaseSettings):
     gpu_worker_port: int = 8001
     gpu_worker_timeout_ms: int = 100
     gpu_worker_health_interval_sec: int = 3
+
+    # Streaming settings
+    streaming_chunk_ms: int = 100  # Chunk size for streaming mode
 
 
 class TTSSettings(BaseSettings):
@@ -153,6 +160,23 @@ class HomeAssistantSettings(BaseSettings):
     enabled: bool = True
 
 
+class AzureSTTSettings(BaseSettings):
+    """Azure Cognitive Services Speech-to-Text settings."""
+
+    model_config = SettingsConfigDict(env_prefix="AZURE_")
+
+    # Enable/disable Azure STT
+    enabled: bool = False
+
+    # Azure credentials
+    speech_key: str = ""
+    speech_region: str = "eastus"
+
+    # Recognition settings
+    language: str = "en-US"
+    profanity_filter: Literal["raw", "masked", "removed"] = "raw"
+
+
 class Settings(BaseSettings):
     """Main application settings."""
 
@@ -186,6 +210,7 @@ class Settings(BaseSettings):
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     homeassistant: HomeAssistantSettings = Field(default_factory=HomeAssistantSettings)
+    azure_stt: AzureSTTSettings = Field(default_factory=AzureSTTSettings)
 
     @field_validator("data_dir", "models_dir", mode="before")
     @classmethod
