@@ -7080,8 +7080,8 @@ function renderDecisionHistory() {
     container.innerHTML = html;
 }
 
-// Open trace detail modal
-async function openTraceDetail(traceId) {
+// Open trace detail modal - exposed globally for onclick handlers
+window.openTraceDetail = async function(traceId) {
     const modal = document.getElementById('trace-modal');
     const body = document.getElementById('trace-modal-body');
     
@@ -7296,7 +7296,8 @@ function renderSignalItem(signal, index) {
     `;
 }
 
-function toggleTraceRaw(element) {
+// Toggle raw JSON display - exposed globally for onclick handlers
+window.toggleTraceRaw = function(element) {
     const rawDiv = element.nextElementSibling;
     const icon = element.querySelector('.toggle-icon');
     if (rawDiv.style.display === 'none') {
@@ -7308,7 +7309,8 @@ function toggleTraceRaw(element) {
     }
 }
 
-function closeTraceModal() {
+// Close trace modal - exposed globally
+window.closeTraceModal = function() {
     const modal = document.getElementById('trace-modal');
     if (modal) modal.style.display = 'none';
 }
@@ -7318,10 +7320,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const traceModal = document.getElementById('trace-modal');
     if (traceModal) {
         traceModal.addEventListener('click', (e) => {
-            if (e.target === traceModal) closeTraceModal();
+            if (e.target === traceModal) window.closeTraceModal();
         });
         traceModal.querySelectorAll('.modal-close-btn').forEach(btn => {
-            btn.addEventListener('click', closeTraceModal);
+            btn.addEventListener('click', window.closeTraceModal);
         });
     }
 });
