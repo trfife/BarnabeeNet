@@ -6960,20 +6960,27 @@ async function loadLogicData() {
     }
 }
 
-// Decision history for Logic Browser
+// Decision history for Logic Browser - uses dashboard traces which have the actual request data
 let decisionHistory = [];
 
 async function loadDecisionHistory() {
     try {
-        const response = await fetch('/api/v1/logic/decisions?limit=50');
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+        // Use dashboard traces endpoint which captures all requests
+        const [tracesResponse, statsResponse] = await Promise.all([
+            fetch('/api/v1/dashboard/traces?limit=50'),
+            fetch('/api/v1/dashboard/stats')
+        ]);
+        
+        if (!tracesResponse.ok || !statsResponse.ok) {
+            throw new Error(`HTTP error`);
         }
         
-        const data = await response.json();
-        decisionHistory = data.decisions || [];
+        const tracesData = await tracesResponse.json();
+        const statsData = await statsResponse.json();
         
-        renderDecisionStats(data.stats || {});
+        decisionHistory = tracesData.traces || [];
+        
+        renderDecisionStats(statsData);
         renderDecisionHistory();
     } catch (error) {
         console.error('Failed to load decision history:', error);
@@ -6988,26 +6995,23 @@ function renderDecisionStats(stats) {
     const container = document.getElementById('history-stats');
     if (!container) return;
     
-    const byType = stats.by_type || {};
-    const byOutcome = stats.by_outcome || {};
-    
     container.innerHTML = `
         <div class="history-stats-grid">
             <div class="stat-mini">
-                <span class="stat-value-small">${stats.total_decisions || 0}</span>
-                <span class="stat-label-small">Total Decisions</span>
+                <span class="stat-value-small">${stats.total_requests_24h || 0}</span>
+                <span class="stat-label-small">Requests (24h)</span>
             </div>
             <div class="stat-mini">
-                <span class="stat-value-small">${byOutcome.match || 0}</span>
-                <span class="stat-label-small">Matches</span>
+                <span class="stat-value-small">${stats.avg_latency_ms ? stats.avg_latency_ms.toFixed(0) : 0}ms</span>
+                <span class="stat-label-small">Avg Latency</span>
             </div>
             <div class="stat-mini">
-                <span class="stat-value-small">${byType.pattern_match || 0}</span>
-                <span class="stat-label-small">Pattern Matches</span>
+                <span class="stat-value-small">${(stats.error_rate_percent || 0).toFixed(1)}%</span>
+                <span class="stat-label-small">Error Rate</span>
             </div>
             <div class="stat-mini">
-                <span class="stat-value-small">${byType.routing || 0}</span>
-                <span class="stat-label-small">Routing Decisions</span>
+                <span class="stat-value-small">$${(stats.total_cost_24h || 0).toFixed(4)}</span>
+                <span class="stat-label-small">LLM Cost (24h)</span>
             </div>
         </div>
     `;
@@ -7018,86 +7022,55 @@ function renderDecisionHistory() {
     if (!container) return;
     
     if (!decisionHistory || decisionHistory.length === 0) {
-        container.innerHTML = '<div class="text-muted">No decision history yet. Try sending some requests to BarnabeeNet!</div>';
+        container.innerHTML = '<div class="text-muted">No request history yet. Try sending some requests to BarnabeeNet!</div>';
         return;
     }
     
-    const typeIcons = {
-        pattern_match: '📝',
-        routing: '🚦',
-        override: '⚙️',
-        llm_call: '🤖',
-        action_selection: '🎯',
-        threshold: '📊',
-        fallback: '↩️'
-    };
-    
-    const outcomeColors = {
-        match: 'var(--success)',
-        no_match: 'var(--secondary)',
-        selected: 'var(--primary)',
-        rejected: 'var(--warning)',
-        skipped: 'var(--secondary)',
-        error: 'var(--danger)',
-        overridden: 'var(--info)',
-        fallback: 'var(--warning)'
+    const agentIcons = {
+        instant: '⚡',
+        action: '🎯',
+        memory: '📝',
+        interaction: '💬',
+        emergency: '🚨'
     };
     
     let html = '';
-    decisionHistory.forEach(decision => {
-        const icon = typeIcons[decision.decision_type] || '❓';
-        const outcomeColor = outcomeColors[decision.result?.outcome] || 'var(--secondary)';
-        const time = decision.started_at ? new Date(decision.started_at).toLocaleTimeString() : '';
-        const duration = decision.duration_ms ? `${decision.duration_ms.toFixed(1)}ms` : '';
+    decisionHistory.forEach(trace => {
+        const icon = agentIcons[trace.agent_used] || '❓';
+        const time = trace.timestamp ? new Date(trace.timestamp).toLocaleTimeString() : '';
+        const duration = trace.total_latency_ms ? `${trace.total_latency_ms.toFixed(1)}ms` : '';
+        const successClass = trace.success ? 'success' : 'error';
+        const successColor = trace.success ? 'var(--success)' : 'var(--danger)';
         
-        // Get input preview
-        let inputPreview = '';
-        if (decision.inputs?.primary) {
-            inputPreview = decision.inputs.primary.substring(0, 100);
-            if (decision.inputs.primary.length > 100) inputPreview += '...';
-        }
-        
-        // Get result value preview
-        let resultPreview = '';
-        if (decision.result?.value) {
-            if (typeof decision.result.value === 'string') {
-                resultPreview = decision.result.value.substring(0, 80);
-            } else if (typeof decision.result.value === 'object') {
-                resultPreview = JSON.stringify(decision.result.value).substring(0, 80);
-            }
-        }
-        
-        // Get logic info
+        // Determine which pattern was matched based on agent and intent
         let logicInfo = '';
-        if (decision.logic) {
-            logicInfo = decision.logic.logic_type;
-            if (decision.logic.logic_source) {
-                logicInfo += ` from ${decision.logic.logic_source}`;
-            }
+        if (trace.intent) {
+            logicInfo = `Intent: ${trace.intent}`;
+        } else if (trace.agent_used) {
+            logicInfo = `Routed to: ${trace.agent_used} agent`;
         }
         
         html += `
             <div class="decision-card">
                 <div class="decision-header">
                     <span class="decision-icon">${icon}</span>
-                    <span class="decision-name">${escapeHtml(decision.decision_name || decision.decision_type)}</span>
-                    <span class="decision-component">${escapeHtml(decision.component || '')}</span>
+                    <span class="decision-name">${trace.agent_used || 'unknown'} agent</span>
+                    <span class="decision-component">${escapeHtml(trace.intent || '')}</span>
                     <span class="decision-time">${time}</span>
                 </div>
                 <div class="decision-body">
-                    ${inputPreview ? `<div class="decision-input"><strong>Input:</strong> "${escapeHtml(inputPreview)}"</div>` : ''}
+                    <div class="decision-input"><strong>Input:</strong> "${escapeHtml(trace.input_preview || '')}"</div>
                     <div class="decision-result">
-                        <span class="decision-outcome" style="color: ${outcomeColor}">
-                            ${decision.result?.outcome || 'pending'}
+                        <span class="decision-outcome" style="color: ${successColor}">
+                            ${trace.success ? 'SUCCESS' : 'ERROR'}
                         </span>
-                        ${resultPreview ? `<span class="decision-value">${escapeHtml(resultPreview)}</span>` : ''}
-                        ${decision.result?.confidence ? `<span class="decision-confidence">${(decision.result.confidence * 100).toFixed(0)}% confidence</span>` : ''}
                     </div>
-                    ${logicInfo ? `<div class="decision-logic"><strong>Logic:</strong> ${escapeHtml(logicInfo)}</div>` : ''}
+                    <div class="decision-response"><strong>Response:</strong> "${escapeHtml(trace.response_preview || '')}"</div>
+                    ${logicInfo ? `<div class="decision-logic">${escapeHtml(logicInfo)}</div>` : ''}
                 </div>
                 <div class="decision-footer">
                     ${duration ? `<span class="decision-duration">${duration}</span>` : ''}
-                    <span class="decision-id" title="${decision.decision_id}">${decision.decision_id?.substring(0, 12) || ''}</span>
+                    <span class="decision-id" title="${trace.trace_id}">${trace.trace_id?.substring(0, 12) || ''}</span>
                 </div>
             </div>
         `;

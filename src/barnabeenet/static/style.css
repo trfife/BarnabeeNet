@@ -8661,6 +8661,12 @@ textarea:focus-visible {
     color: var(--text-secondary);
 }
 
+.decision-response {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
 .decision-footer {
     display: flex;
     justify-content: space-between;
