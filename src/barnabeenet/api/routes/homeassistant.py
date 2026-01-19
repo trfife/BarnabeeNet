@@ -286,13 +286,13 @@ async def get_ha_client_with_request(request: Request) -> HomeAssistantClient | 
 
     # First try Redis config (saved via dashboard)
     redis_config = await get_ha_config_from_redis(request)
-    
+
     # URL resolution: Redis > settings (if not default) > hardcoded fallback
     settings_url = settings.homeassistant.url
     if settings_url == _DEFAULT_HA_URL:
         settings_url = None  # Treat default as unconfigured
     ha_url = redis_config.get("url") or settings_url or _FALLBACK_HA_URL
-    
+
     # Token resolution: Redis > settings (if not empty) > hardcoded fallback
     ha_token = redis_config.get("token") or settings.homeassistant.token or _FALLBACK_HA_TOKEN
 
@@ -346,7 +346,7 @@ async def get_ha_client() -> HomeAssistantClient | None:
     if settings_url == _DEFAULT_HA_URL:
         settings_url = None  # Treat default as unconfigured
     ha_url = _ha_config_cache.get("url") or settings_url or _FALLBACK_HA_URL
-    
+
     # Token resolution: cache > settings (if not empty) > hardcoded fallback
     ha_token = _ha_config_cache.get("token") or settings.homeassistant.token or _FALLBACK_HA_TOKEN
 
