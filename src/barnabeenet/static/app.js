@@ -11,6 +11,136 @@ let ws = null;
 let autoScroll = true;
 let activityFilter = '';
 let activeTraces = new Map(); // trace_id -> signals
+let isOnline = navigator.onLine;
+
+// =============================================================================
+// Toast Notification System
+// =============================================================================
+
+/**
+ * Show a toast notification
+ * @param {Object} options - Toast options
+ * @param {string} options.title - Toast title
+ * @param {string} options.message - Toast message
+ * @param {string} options.type - 'success' | 'error' | 'warning' | 'info'
+ * @param {number} options.duration - Auto-dismiss duration in ms (0 = manual)
+ */
+function showToast({ title, message, type = 'info', duration = 5000 }) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+
+    const icons = {
+        success: '✓',
+        error: '✕',
+        warning: '⚠',
+        info: 'ℹ'
+    };
+
+    toast.innerHTML = `
+        <span class="toast-icon">${icons[type]}</span>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            ${message ? `<div class="toast-message">${message}</div>` : ''}
+        </div>
+        <button class="toast-close" onclick="dismissToast(this.parentElement)">×</button>
+        ${duration > 0 ? `<div class="toast-progress" style="animation-duration: ${duration}ms"></div>` : ''}
+    `;
+
+    container.appendChild(toast);
+
+    // Auto-dismiss
+    if (duration > 0) {
+        setTimeout(() => dismissToast(toast), duration);
+    }
+
+    return toast;
+}
+
+function dismissToast(toast) {
+    if (!toast || toast.classList.contains('toast-exit')) return;
+    toast.classList.add('toast-exit');
+    setTimeout(() => toast.remove(), 300);
+}
+
+// =============================================================================
+// Loading Skeletons
+// =============================================================================
+
+function showCardSkeleton(containerId, rows = 3) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    let html = '<div class="card-loading-content">';
+    for (let i = 0; i < rows; i++) {
+        html += `
+            <div class="skeleton-row">
+                <div class="skeleton skeleton-label"></div>
+                <div class="skeleton skeleton-value"></div>
+            </div>
+        `;
+    }
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function showStatsSkeleton() {
+    const statsIds = ['stat-requests', 'stat-signals', 'stat-memories', 'stat-actions'];
+    statsIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.innerHTML = '<div class="skeleton skeleton-stat"></div>';
+        }
+    });
+}
+
+function showCardError(containerId, message, retryFn) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="card-error">
+            <span class="error-icon">⚠️</span>
+            <div class="error-message">${message}</div>
+            ${retryFn ? `<button class="retry-btn" onclick="${retryFn}()">
+                <span class="retry-icon">↻</span> Retry
+            </button>` : ''}
+        </div>
+    `;
+}
+
+// =============================================================================
+// Offline Detection
+// =============================================================================
+
+function initOfflineDetection() {
+    const banner = document.getElementById('offline-banner');
+
+    function updateOnlineStatus() {
+        isOnline = navigator.onLine;
+        if (isOnline) {
+            banner.classList.remove('visible');
+            document.body.classList.remove('offline');
+            // Reconnect WebSocket if disconnected
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                connectWebSocket();
+            }
+        } else {
+            banner.classList.add('visible');
+            document.body.classList.add('offline');
+            showToast({
+                title: 'Connection Lost',
+                message: 'You appear to be offline',
+                type: 'warning',
+                duration: 0
+            });
+        }
+    }
+
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus();
+}
 
 // =============================================================================
 // Initialization
@@ -23,6 +153,12 @@ document.addEventListener('DOMContentLoaded', () => {
     initConfigNav();
     initTestButtons();
     initTraceModal();
+    initOfflineDetection();
+
+    // Show loading skeletons
+    showCardSkeleton('system-status', 3);
+    showCardSkeleton('services-health', 4);
+    showStatsSkeleton();
 
     // Load initial data
     loadSystemStatus();
@@ -90,14 +226,34 @@ function updateClock() {
 // WebSocket Connection
 // =============================================================================
 
+let wsReconnectAttempts = 0;
+const WS_MAX_RECONNECT_DELAY = 30000;
+
 function connectWebSocket() {
     const statusEl = document.getElementById('ws-status');
+
+    // Don't reconnect if offline
+    if (!isOnline) {
+        statusEl.className = 'status-indicator disconnected';
+        return;
+    }
 
     try {
         ws = new WebSocket(WS_URL);
 
         ws.onopen = () => {
             statusEl.className = 'status-indicator connected';
+            wsReconnectAttempts = 0;
+
+            if (wsReconnectAttempts > 0) {
+                showToast({
+                    title: 'Connected',
+                    message: 'Real-time updates restored',
+                    type: 'success',
+                    duration: 3000
+                });
+            }
+
             addActivityItem({
                 type: 'system',
                 message: 'Connected to activity stream',
@@ -107,13 +263,18 @@ function connectWebSocket() {
 
         ws.onclose = () => {
             statusEl.className = 'status-indicator disconnected';
+            wsReconnectAttempts++;
+
+            // Exponential backoff with max delay
+            const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempts), WS_MAX_RECONNECT_DELAY);
+
             addActivityItem({
                 type: 'error',
-                message: 'Disconnected from activity stream. Reconnecting...',
+                message: `Disconnected. Reconnecting in ${Math.round(delay/1000)}s...`,
                 timestamp: new Date().toISOString()
             });
-            // Reconnect after 5 seconds
-            setTimeout(connectWebSocket, 5000);
+
+            setTimeout(connectWebSocket, delay);
         };
 
         ws.onerror = (error) => {
@@ -132,7 +293,8 @@ function connectWebSocket() {
     } catch (e) {
         console.error('WebSocket connection failed:', e);
         statusEl.className = 'status-indicator disconnected';
-        setTimeout(connectWebSocket, 5000);
+        const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempts), WS_MAX_RECONNECT_DELAY);
+        setTimeout(connectWebSocket, delay);
     }
 }
 
@@ -599,12 +761,15 @@ function renderLLMInspector(modal, signal) {
 async function loadSystemStatus() {
     try {
         const response = await fetch(`${API_BASE}/health`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
         updateSystemStatus(data);
         updateServicesHealth(data.services || []);
     } catch (e) {
         console.error('Failed to load system status:', e);
+        showCardError('system-status', 'Failed to load status', 'loadSystemStatus');
+        showCardError('services-health', 'Failed to load services', 'loadSystemStatus');
     }
 }
 
@@ -659,15 +824,28 @@ function updateServicesHealth(services) {
 async function loadStats() {
     try {
         const response = await fetch(`${API_BASE}/api/v1/dashboard/stats`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
-        document.getElementById('stat-requests').textContent = data.total_requests || '0';
-        document.getElementById('stat-signals').textContent = data.total_signals || '0';
-        document.getElementById('stat-memories').textContent = data.total_memories || '0';
-        document.getElementById('stat-actions').textContent = data.total_actions || '0';
+        document.getElementById('stat-requests').textContent = formatNumber(data.total_requests || 0);
+        document.getElementById('stat-signals').textContent = formatNumber(data.total_signals || 0);
+        document.getElementById('stat-memories').textContent = formatNumber(data.total_memories || 0);
+        document.getElementById('stat-actions').textContent = formatNumber(data.total_actions || 0);
     } catch (e) {
         console.error('Failed to load stats:', e);
+        ['stat-requests', 'stat-signals', 'stat-memories', 'stat-actions'].forEach(id => {
+            document.getElementById(id).textContent = '-';
+        });
     }
+}
+
+/**
+ * Format large numbers with K/M suffix
+ */
+function formatNumber(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
 }
 
 // =============================================================================
