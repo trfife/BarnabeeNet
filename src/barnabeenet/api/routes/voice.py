@@ -7,6 +7,7 @@ import time
 
 import structlog
 from fastapi import APIRouter, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 
 from barnabeenet.config import get_settings
 from barnabeenet.models.schemas import (
@@ -500,36 +501,22 @@ async def quick_audio_input(
 # =============================================================================
 
 
-@router.post("/chat")
-async def chat(
+class ChatRequest(BaseModel):
+    """JSON body for chat endpoint."""
+
+    text: str
+    speaker: str | None = None
+    room: str | None = None
+    conversation_id: str | None = None
+
+
+async def _process_chat(
     text: str,
     speaker: str | None = None,
     room: str | None = None,
     conversation_id: str | None = None,
 ) -> dict:
-    """Dead-simple chat endpoint for Home Assistant integration.
-
-    Send text, get response. That's it.
-
-    Example:
-        POST /api/v1/chat?text=turn%20on%20the%20kitchen%20lights
-
-        Response: {"response": "Done! I've turned on the kitchen lights."}
-
-    For Home Assistant rest_command:
-        rest_command:
-          barnabee_chat:
-            url: "http://192.168.86.51:8000/api/v1/chat"
-            method: POST
-            content_type: "application/x-www-form-urlencoded"
-            payload: "text={{ text }}&speaker={{ speaker }}"
-
-    Query Parameters:
-    - text: The command or question (required)
-    - speaker: Who's speaking (e.g., "thom", "viola") - helps personalization
-    - room: Which room (e.g., "kitchen", "living_room") - helps context
-    - conversation_id: Maintain conversation context across requests
-    """
+    """Internal helper for chat processing."""
     from barnabeenet.agents.orchestrator import get_orchestrator
 
     orchestrator = get_orchestrator()
@@ -548,30 +535,59 @@ async def chat(
     }
 
 
+@router.post("/chat")
+async def chat(
+    request: ChatRequest,
+) -> dict:
+    """Dead-simple chat endpoint for Home Assistant integration.
+
+    Send text, get response. That's it.
+
+    JSON Body Example:
+        POST /api/v1/chat
+        Content-Type: application/json
+        {"text": "turn on the kitchen lights", "speaker": "thom"}
+
+        Response: {"response": "Done! I've turned on the kitchen lights."}
+
+    For Home Assistant rest_command:
+        rest_command:
+          barnabee:
+            url: "http://192.168.86.51:8000/api/v1/chat"
+            method: POST
+            content_type: "application/json"
+            payload: '{"text": "{{ text }}", "speaker": "{{ speaker }}"}'
+
+    Body Fields:
+    - text: The command or question (required)
+    - speaker: Who's speaking (e.g., "thom", "viola") - helps personalization
+    - room: Which room (e.g., "kitchen", "living_room") - helps context
+    - conversation_id: Maintain conversation context across requests
+    """
+    return await _process_chat(
+        text=request.text,
+        speaker=request.speaker,
+        room=request.room,
+        conversation_id=request.conversation_id,
+    )
+
+
 @router.get("/chat")
 async def chat_get(
     text: str,
     speaker: str | None = None,
     room: str | None = None,
 ) -> dict:
-    """GET version for even simpler testing.
+    """GET version for easy browser/curl testing.
 
-    Example: GET /api/v1/chat?text=what%20time%20is%20it
+    Example: GET /api/v1/chat?text=what%20time%20is%20it&speaker=thom
+
+    Query Parameters:
+    - text: The command or question (required)
+    - speaker: Who's speaking (optional)
+    - room: Which room (optional)
     """
-    from barnabeenet.agents.orchestrator import get_orchestrator
-
-    orchestrator = get_orchestrator()
-    result = await orchestrator.process(
-        text=text,
-        speaker=speaker,
-        room=room,
-    )
-
-    return {
-        "response": result.get("response", ""),
-        "intent": result.get("intent"),
-        "agent": result.get("agent"),
-    }
+    return await _process_chat(text=text, speaker=speaker, room=room)
 
 
 # =============================================================================

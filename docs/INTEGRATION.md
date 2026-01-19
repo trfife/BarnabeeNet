@@ -22,13 +22,12 @@ That's it! BarnabeeNet handles intent classification, memory, device control, an
 
 ### 1. Simple Chat (Recommended)
 
-**POST /api/v1/chat** - Send text, get response
+**POST /api/v1/chat** - Send JSON body, get response
 
 ```bash
 curl -X POST "http://192.168.86.51:8000/api/v1/chat" \
-  -d "text=turn on the kitchen lights" \
-  -d "speaker=thom" \
-  -d "room=kitchen"
+  -H "Content-Type: application/json" \
+  -d '{"text": "turn on the kitchen lights", "speaker": "thom", "room": "kitchen"}'
 ```
 
 **Response:**
@@ -41,8 +40,8 @@ curl -X POST "http://192.168.86.51:8000/api/v1/chat" \
 }
 ```
 
-**Parameters:**
-| Parameter | Required | Description |
+**Body Fields:**
+| Field | Required | Description |
 |-----------|----------|-------------|
 | text | ✅ | The command or question |
 | speaker | ❌ | Who's speaking (for personalization) |
@@ -54,7 +53,7 @@ curl -X POST "http://192.168.86.51:8000/api/v1/chat" \
 **GET /api/v1/chat?text=...** - Same as POST, but GET for easy browser testing
 
 ```
-http://192.168.86.51:8000/api/v1/chat?text=what%20time%20is%20it
+http://192.168.86.51:8000/api/v1/chat?text=what%20time%20is%20it&speaker=thom
 ```
 
 ### 3. Full Process (with detailed trace)
@@ -73,7 +72,7 @@ Returns: trace_id, latency breakdown, memory stats, LLM details, etc.
 
 ## Home Assistant Integration
 
-### Option 1: REST Command
+### Option 1: REST Command (Recommended)
 
 Add to `configuration.yaml`:
 
@@ -82,8 +81,8 @@ rest_command:
   barnabee:
     url: "http://192.168.86.51:8000/api/v1/chat"
     method: POST
-    content_type: "application/x-www-form-urlencoded"
-    payload: "text={{ text }}&speaker={{ speaker | default('ha') }}&room={{ room | default('') }}"
+    content_type: "application/json"
+    payload: '{"text": "{{ text }}", "speaker": "{{ speaker | default(''ha'') }}", "room": "{{ room | default('''') }}"}'
 ```
 
 Use in automations:
