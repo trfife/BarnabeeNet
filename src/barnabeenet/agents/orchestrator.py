@@ -1196,6 +1196,61 @@ class AgentOrchestrator:
 
     def _build_response(self, ctx: RequestContext) -> dict[str, Any]:
         """Build the final response dict."""
+        # Generate routing reason for trace details
+        routing_reason = None
+        pattern_matched = None
+        if ctx.classification:
+            from barnabeenet.models.pipeline_trace import generate_routing_reason
+
+            routing_reason = generate_routing_reason(
+                intent=ctx.classification.intent.value,
+                confidence=ctx.classification.confidence,
+                pattern_matched=pattern_matched,
+                sub_category=ctx.classification.sub_category,
+            )
+
+        # Extract context evaluation if available
+        context_evaluation = None
+        if ctx.classification and ctx.classification.context:
+            context_evaluation = {
+                "emotional_tone": ctx.classification.context.emotional_tone.value,
+                "urgency_level": ctx.classification.context.urgency_level.value,
+                "empathy_needed": ctx.classification.context.empathy_needed,
+            }
+
+        # Extract memory queries if available
+        memory_queries = None
+        if ctx.classification and ctx.classification.memory_queries:
+            mq = ctx.classification.memory_queries
+            memory_queries = [mq.primary_query] + mq.secondary_queries
+
+        # Extract parsed segments and service calls from action response
+        parsed_segments = None
+        service_calls = None
+        resolved_targets = None
+        if ctx.agent_response and ctx.agent_response.get("_agent_name") == "action":
+            action_data = ctx.agent_response.get("action")
+            if action_data:
+                # Build service call info
+                service_calls = [
+                    {
+                        "service": action_data.get("service"),
+                        "entity_id": action_data.get("entity_id"),
+                        "area_id": action_data.get("target_area"),
+                        "is_batch": action_data.get("is_batch", False),
+                    }
+                ]
+                # Build resolved targets
+                if action_data.get("entity_id") or action_data.get("entity_ids"):
+                    resolved_targets = [
+                        {
+                            "target_type": "area" if action_data.get("target_area") else "entity",
+                            "area": action_data.get("target_area"),
+                            "entity_id": action_data.get("entity_id"),
+                            "entity_ids": action_data.get("entity_ids"),
+                        }
+                    ]
+
         return {
             "response": ctx.response_text,
             "request_id": ctx.request_id,
@@ -1212,6 +1267,18 @@ class AgentOrchestrator:
             "memories_used": len(ctx.retrieved_memories),
             "timings": ctx.stage_timings,
             "llm_details": ctx.agent_response.get("llm_details") if ctx.agent_response else None,
+            # Trace details for observability
+            "routing_reason": routing_reason,
+            "pattern_matched": pattern_matched,
+            "meta_processing_time_ms": ctx.stage_timings.get("classification"),
+            "context_evaluation": context_evaluation,
+            "memory_queries": memory_queries,
+            "memories_data": [{"content": m} for m in ctx.retrieved_memories]
+            if ctx.retrieved_memories
+            else None,
+            "parsed_segments": parsed_segments,
+            "resolved_targets": resolved_targets,
+            "service_calls": service_calls,
         }
 
     # Convenience methods for direct agent access

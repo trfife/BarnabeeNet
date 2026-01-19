@@ -5213,6 +5213,14 @@ body {
     border-left: 3px solid #1abc9c;
 }
 
+.flow-step.flow-parsing {
+    border-left: 3px solid #e67e22;
+}
+
+.flow-step.flow-timer {
+    border-left: 3px solid #9b59b6;
+}
+
 .flow-action-item {
     font-family: monospace;
     font-size: 10px;
@@ -5220,6 +5228,76 @@ body {
     background: var(--bg-tertiary);
     border-radius: 4px;
     margin-top: 4px;
+}
+
+/* Enhanced trace detail styles */
+.flow-routing-reason {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-style: italic;
+    margin-top: 4px;
+    display: block;
+}
+
+.flow-pattern {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+    display: block;
+}
+
+.flow-timing {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+    display: block;
+}
+
+.flow-memory-queries {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    display: block;
+}
+
+.flow-context {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    font-style: italic;
+    margin-top: 2px;
+    display: block;
+}
+
+.flow-segment-item {
+    font-size: 11px;
+    padding: 3px 0;
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.flow-segment-item:last-child {
+    border-bottom: none;
+}
+
+.flow-service-call {
+    font-size: 11px;
+    padding: 4px 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
+.flow-service-call code {
+    background: var(--bg-quaternary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+}
+
+.flow-timer-entity {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+    display: block;
 }
 
 /* Chat clickable message */

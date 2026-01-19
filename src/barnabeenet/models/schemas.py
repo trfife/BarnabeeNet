@@ -251,6 +251,48 @@ class LLMDetails(BaseModel):
     response_text: str | None = Field(default=None, description="Raw response from LLM")
 
 
+class TraceDetails(BaseModel):
+    """Enhanced trace details for observability in the dashboard chat tab."""
+
+    # Meta Agent decisions
+    routing_reason: str | None = Field(
+        default=None, description="Human-readable explanation of routing decision"
+    )
+    pattern_matched: str | None = Field(
+        default=None, description="Pattern that triggered classification"
+    )
+    meta_processing_time_ms: float | None = Field(
+        default=None, description="MetaAgent processing time"
+    )
+
+    # Context evaluation
+    context_evaluation: dict[str, Any] | None = Field(
+        default=None, description="Mood/urgency/empathy evaluation"
+    )
+
+    # Memory retrieval
+    memory_queries: list[str] | None = Field(
+        default=None, description="Queries used for memory retrieval"
+    )
+    memories_data: list[dict[str, Any]] | None = Field(
+        default=None, description="Details of retrieved memories"
+    )
+
+    # Action parsing (for ACTION intents)
+    parsed_segments: list[dict[str, Any]] | None = Field(
+        default=None, description="Parsed command segments for compound commands"
+    )
+    resolved_targets: list[dict[str, Any]] | None = Field(
+        default=None, description="How targets were resolved to entities/areas"
+    )
+    service_calls: list[dict[str, Any]] | None = Field(
+        default=None, description="HA service calls generated"
+    )
+
+    # Timer (if created)
+    timer_info: dict[str, Any] | None = Field(default=None, description="Timer creation details")
+
+
 class TextProcessResponse(BaseModel):
     """Response from text-only processing."""
 
@@ -269,6 +311,10 @@ class TextProcessResponse(BaseModel):
     )
     llm_details: LLMDetails | None = Field(
         default=None, description="Details about LLM call made during processing"
+    )
+    trace_details: TraceDetails | None = Field(
+        default=None,
+        description="Enhanced trace details for observability (routing reason, parsed segments, etc.)",
     )
 
     class Config:

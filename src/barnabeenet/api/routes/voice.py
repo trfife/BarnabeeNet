@@ -314,6 +314,22 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
                 response_text=llm_details_raw.get("response_text"),
             )
 
+        # Build trace details for enhanced observability
+        from barnabeenet.models.schemas import TraceDetails
+
+        trace_details = TraceDetails(
+            routing_reason=orchestrator_resp.get("routing_reason"),
+            pattern_matched=orchestrator_resp.get("pattern_matched"),
+            meta_processing_time_ms=orchestrator_resp.get("meta_processing_time_ms"),
+            context_evaluation=orchestrator_resp.get("context_evaluation"),
+            memory_queries=orchestrator_resp.get("memory_queries"),
+            memories_data=orchestrator_resp.get("memories_data"),
+            parsed_segments=orchestrator_resp.get("parsed_segments"),
+            resolved_targets=orchestrator_resp.get("resolved_targets"),
+            service_calls=orchestrator_resp.get("service_calls"),
+            timer_info=orchestrator_resp.get("timer_info"),
+        )
+
         return TextProcessResponse(
             text=request.text,
             response=response_text,
@@ -327,6 +343,7 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
             memories_stored=orchestrator_resp.get("memories_stored", 0),
             actions=orchestrator_resp.get("actions", []),
             llm_details=llm_details,
+            trace_details=trace_details,
         )
 
     except Exception as e:
