@@ -14,6 +14,16 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def reset_ha_client():
+    """Reset the global HA client between tests to avoid event loop issues."""
+    yield
+    # Reset the global client after each test
+    from barnabeenet.api.routes import homeassistant as ha_routes
+
+    ha_routes._ha_client = None
+
+
 class TestHAStatus:
     """Tests for Home Assistant status endpoint."""
 

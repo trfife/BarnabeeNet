@@ -571,7 +571,7 @@ class HomeAssistantClient:
             logger.info("Fetched %d log entries from Home Assistant", len(entries))
             return entries
 
-        except httpx.RequestError as e:
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
             logger.error("Failed to fetch error log: %s", e)
             return []
 

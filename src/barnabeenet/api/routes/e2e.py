@@ -16,6 +16,12 @@ from barnabeenet.services.e2e_tester import (
     TestSuiteConfig,
     get_test_runner,
 )
+from barnabeenet.services.homeassistant.mock_ha import (
+    disable_mock_ha,
+    enable_mock_ha,
+    get_mock_ha,
+    reset_mock_ha,
+)
 
 router = APIRouter(prefix="/e2e", tags=["E2E Testing"])
 
@@ -259,4 +265,154 @@ async def quick_test() -> TestSuiteResponse:
         success_rate=round(success_rate, 1),
         total_latency_ms=round(result.total_latency_ms, 2),
         test_results=result.test_results,
+    )
+
+
+# =============================================================================
+# Mock Home Assistant Endpoints
+# =============================================================================
+
+
+class MockHAStatusResponse(BaseModel):
+    """Status of the mock Home Assistant."""
+
+    enabled: bool
+    entity_count: int
+    area_count: int
+    service_call_count: int
+
+
+class MockHAEntitiesResponse(BaseModel):
+    """List of mock HA entities."""
+
+    entities: list[dict[str, Any]]
+    total: int
+
+
+class MockHAServiceHistoryResponse(BaseModel):
+    """History of mock HA service calls."""
+
+    calls: list[dict[str, Any]]
+    total: int
+
+
+@router.get("/mock-ha/status", response_model=MockHAStatusResponse)
+async def get_mock_ha_status() -> MockHAStatusResponse:
+    """Get status of the mock Home Assistant.
+
+    Shows whether mock mode is enabled and counts of entities/areas/calls.
+    """
+    mock_ha = get_mock_ha()
+    return MockHAStatusResponse(
+        enabled=mock_ha.is_enabled,
+        entity_count=len(mock_ha.get_entities()),
+        area_count=len(mock_ha.get_areas()),
+        service_call_count=len(mock_ha.get_service_call_history()),
+    )
+
+
+@router.post("/mock-ha/enable")
+async def enable_mock_ha_mode() -> dict[str, Any]:
+    """Enable mock Home Assistant mode.
+
+    When enabled, action tests will use the mock HA instead of a real instance.
+    Mock HA has predefined entities in common rooms (living room, kitchen, etc.).
+    """
+    enable_mock_ha()
+    mock_ha = get_mock_ha()
+    return {
+        "status": "enabled",
+        "message": "Mock Home Assistant enabled for testing",
+        "entity_count": len(mock_ha.get_entities()),
+        "area_count": len(mock_ha.get_areas()),
+    }
+
+
+@router.post("/mock-ha/disable")
+async def disable_mock_ha_mode() -> dict[str, Any]:
+    """Disable mock Home Assistant mode.
+
+    Reverts to using the real HA instance (if configured).
+    """
+    disable_mock_ha()
+    return {
+        "status": "disabled",
+        "message": "Mock Home Assistant disabled",
+    }
+
+
+@router.post("/mock-ha/reset")
+async def reset_mock_ha_state() -> dict[str, Any]:
+    """Reset mock HA to default state.
+
+    Restores all entities to their initial states and clears service history.
+    """
+    reset_mock_ha()
+    mock_ha = get_mock_ha()
+    return {
+        "status": "reset",
+        "message": "Mock Home Assistant reset to defaults",
+        "entity_count": len(mock_ha.get_entities()),
+    }
+
+
+@router.get("/mock-ha/entities", response_model=MockHAEntitiesResponse)
+async def get_mock_ha_entities(domain: str | None = None) -> MockHAEntitiesResponse:
+    """Get mock HA entities.
+
+    Args:
+        domain: Filter by domain (e.g., 'light', 'switch', 'cover')
+    """
+    mock_ha = get_mock_ha()
+    entities = mock_ha.get_entities(domain)
+
+    return MockHAEntitiesResponse(
+        entities=[
+            {
+                "entity_id": e.entity_id,
+                "domain": e.domain,
+                "friendly_name": e.friendly_name,
+                "area_id": e.area_id,
+                "state": e.state.state,
+                "attributes": {
+                    k: v
+                    for k, v in {
+                        "brightness": e.state.brightness,
+                        "position": e.state.position,
+                        "temperature": e.state.temperature,
+                    }.items()
+                    if v is not None
+                },
+            }
+            for e in entities
+        ],
+        total=len(entities),
+    )
+
+
+@router.get("/mock-ha/history", response_model=MockHAServiceHistoryResponse)
+async def get_mock_ha_service_history() -> MockHAServiceHistoryResponse:
+    """Get mock HA service call history.
+
+    Shows all service calls made during the test session.
+    Useful for verifying that action commands were executed correctly.
+    """
+    mock_ha = get_mock_ha()
+    history = mock_ha.get_service_call_history()
+
+    return MockHAServiceHistoryResponse(
+        calls=[
+            {
+                "timestamp": call.timestamp.isoformat(),
+                "domain": call.domain,
+                "service": call.service,
+                "entity_id": call.entity_id,
+                "area_id": call.area_id,
+                "data": call.data,
+                "success": call.result.success,
+                "message": call.result.message,
+            }
+            for call in history
+        ],
+        total=len(history),
     )

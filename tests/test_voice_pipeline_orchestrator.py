@@ -65,7 +65,7 @@ class TestVoicePipelineOrchestratorIntegration:
     ):
         """Voice pipeline should dispatch to orchestrator."""
         with (
-            patch("barnabeenet.services.voice_pipeline.app_state", mock_app_state),
+            patch("barnabeenet.main.app_state", mock_app_state),
             patch(
                 "barnabeenet.services.voice_pipeline.DistilWhisperSTT",
                 return_value=mock_stt,
@@ -120,7 +120,7 @@ class TestVoicePipelineOrchestratorIntegration:
         }
 
         with (
-            patch("barnabeenet.services.voice_pipeline.app_state", mock_app_state),
+            patch("barnabeenet.main.app_state", mock_app_state),
             patch(
                 "barnabeenet.services.voice_pipeline.DistilWhisperSTT",
                 return_value=mock_stt,
@@ -153,7 +153,7 @@ class TestVoicePipelineOrchestratorIntegration:
     ):
         """Speaker and room context should be passed to orchestrator."""
         with (
-            patch("barnabeenet.services.voice_pipeline.app_state", mock_app_state),
+            patch("barnabeenet.main.app_state", mock_app_state),
             patch(
                 "barnabeenet.services.voice_pipeline.DistilWhisperSTT",
                 return_value=mock_stt,
@@ -193,7 +193,7 @@ class TestVoicePipelineOrchestratorIntegration:
         }
 
         with (
-            patch("barnabeenet.services.voice_pipeline.app_state", mock_app_state),
+            patch("barnabeenet.main.app_state", mock_app_state),
             patch(
                 "barnabeenet.services.voice_pipeline.DistilWhisperSTT",
                 return_value=mock_stt,

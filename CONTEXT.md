@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-19 (Tiered STT Input System - Multi-Engine, Streaming, Azure Cloud - COMPLETED)
+2026-01-20 (Mock HA Service for E2E Testing + Test Infrastructure Fixes)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + MEMORY DASHBOARD + DIARY
@@ -112,6 +112,8 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Enhanced Observability (Phase 5)** - PipelineTrace model (`models/pipeline_trace.py`) with RoutingDecision for capturing full decision chain. generate_routing_reason() creates human-readable explanations of agent routing. TraceDetails schema added to TextProcessResponse with: routing_reason, pattern_matched, meta_processing_time_ms, context_evaluation, memory_queries, memories_data, parsed_segments, resolved_targets, service_calls, timer_info. Dashboard showProcessingFlow() enhanced to display: routing reason after classification, parsed segments for compound commands, service calls with area/entity targets, timer info when present. New CSS classes for trace details styling.
 - [x] **Compound Command Fixes (Jan 2026)** - Multiple fixes to ensure compound commands like "turn on the office light and turn on the office fan" work correctly: (1) SSH restart script on VM (`~/barnabeenet/start.sh`) with proper `</dev/null` to prevent hanging. (2) HA token hardcoded as fallback constant in homeassistant.py. (3) Compound parser no longer extracts embedded location from target phrases ("office light" stays as target, not "light" + "office" location). (4) Orchestrator uses raw_text directly for segments, not re-adding location. (5) SmartEntityResolver ranks entities by device type word match. (6) HA URL fallback now skips the default "homeassistant.local" to use hardcoded IP.
 - [x] **Tiered STT Input System** - Complete multi-engine STT architecture: (1) **STT Modes**: COMMAND (single utterance, default), REALTIME (streaming with word-by-word results), AMBIENT (batch every 30-60s). (2) **STT Engines**: AUTO (intelligent selection), PARAKEET (GPU, ~45ms), WHISPER (CPU fallback, ~2400ms), AZURE (cloud, for mobile/remote). (3) **Azure STT Integration**: New `azure_stt.py` with Azure Cognitive Services Speech SDK support for both batch and streaming modes. Config via AZURE_SPEECH_KEY/AZURE_SPEECH_REGION env vars. (4) **Enhanced STT Router**: `router.py` updated with engine selection logic (AUTO = GPU → Azure → CPU), `_select_engine()` method, `transcribe_streaming()` async generator for real-time results. (5) **WebSocket Streaming Endpoint**: `/ws/transcribe` for real-time audio streaming. Binary audio in, JSON partial/final results out. Config message for engine/language selection. (6) **Quick Input Endpoints**: `POST /input/text` for simple text input, `POST /input/audio` for file upload with transcription + response. (7) **Dashboard STT Settings**: Mode/engine selector in Chat tab, live STT status indicator showing engine availability, engine badge on transcribed messages. (8) **Mobile Client Architecture**: Placeholder docs at `docs/future/MOBILE_STT_CLIENT.md` with Android BT audio capture, Silero VAD, WebSocket streaming, offline buffering design.
+- [x] **Mock HA Service for E2E Testing** - New `mock_ha.py` service that simulates Home Assistant for E2E action tests without requiring a real HA instance. Features: (1) MockEntity/EntityState models with common attributes (brightness, position, temperature). (2) 20 predefined mock entities across 7 rooms (living room, kitchen, bedroom, office, bathroom, garage, backyard). (3) MockHomeAssistant class with service call simulation (turn_on/off, toggle, open/close covers, set temperature). (4) Service call history tracking for test verification. (5) Singleton pattern with enable/disable/reset controls. (6) Mock HA API endpoints at `/api/v1/e2e/mock-ha/*` for status, enable, disable, reset, entities, history. Enables comprehensive E2E testing of device control commands without HA connectivity.
+- [x] **Test Infrastructure Fixes** - Fixed multiple pre-existing test issues: (1) HA client now catches HTTPStatusError for 404s on error_log endpoint (was only catching RequestError). (2) Voice pipeline orchestrator tests patched correct module path (`barnabeenet.main.app_state` instead of `barnabeenet.services.voice_pipeline.app_state`). (3) HA API tests now reset global _ha_client between tests via autouse fixture to prevent event loop closure issues. All 617 tests now pass.
 
 ### In Progress
 None
@@ -153,7 +155,7 @@ None
 
 ## Next Steps (Ordered)
 
-1. Testing Dashboard enhancements - E2E runner improvements, mock HA ← NEXT
+1. Wire Mock HA into E2E action tests - test device commands without real HA
 2. Dashboard Polish - loading states, error handling, responsive design
 3. Connect to actual Home Assistant instance - configure via dashboard
 4. Voice wake word integration (Wyoming protocol)
