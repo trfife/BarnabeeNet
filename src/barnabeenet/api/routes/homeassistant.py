@@ -274,6 +274,10 @@ async def get_ha_config_from_redis(request: Request) -> dict[str, str]:
     return _ha_config_cache
 
 
+# Default values that indicate "not configured" - should fallback to hardcoded values
+_DEFAULT_HA_URL = "http://homeassistant.local:8123"
+
+
 async def get_ha_client_with_request(request: Request) -> HomeAssistantClient | None:
     """Get or create the Home Assistant client using Redis config."""
     global _ha_client
@@ -282,7 +286,14 @@ async def get_ha_client_with_request(request: Request) -> HomeAssistantClient | 
 
     # First try Redis config (saved via dashboard)
     redis_config = await get_ha_config_from_redis(request)
-    ha_url = redis_config.get("url") or settings.homeassistant.url or _FALLBACK_HA_URL
+    
+    # URL resolution: Redis > settings (if not default) > hardcoded fallback
+    settings_url = settings.homeassistant.url
+    if settings_url == _DEFAULT_HA_URL:
+        settings_url = None  # Treat default as unconfigured
+    ha_url = redis_config.get("url") or settings_url or _FALLBACK_HA_URL
+    
+    # Token resolution: Redis > settings (if not empty) > hardcoded fallback
     ha_token = redis_config.get("token") or settings.homeassistant.token or _FALLBACK_HA_TOKEN
 
     # Check if HA is configured
@@ -330,8 +341,13 @@ async def get_ha_client() -> HomeAssistantClient | None:
 
     settings = get_settings()
 
-    # Use cached config or env settings, with hardcoded fallback
-    ha_url = _ha_config_cache.get("url") or settings.homeassistant.url or _FALLBACK_HA_URL
+    # URL resolution: cache > settings (if not default) > hardcoded fallback
+    settings_url = settings.homeassistant.url
+    if settings_url == _DEFAULT_HA_URL:
+        settings_url = None  # Treat default as unconfigured
+    ha_url = _ha_config_cache.get("url") or settings_url or _FALLBACK_HA_URL
+    
+    # Token resolution: cache > settings (if not empty) > hardcoded fallback
     ha_token = _ha_config_cache.get("token") or settings.homeassistant.token or _FALLBACK_HA_TOKEN
 
     # Check if HA is configured
