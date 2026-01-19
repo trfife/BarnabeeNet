@@ -129,6 +129,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Make redis available on app.state for dependency injection
         app.state.redis = app_state.redis_client
 
+        # Debug: log app_state id after setting redis_client
+        logger.warning(f"Startup: app_state id={id(app_state)}, redis_client set to {app_state.redis_client}")
+
         # Binary Redis client for embeddings (no decode_responses)
         app_state.redis_client_binary = redis.from_url(
             settings.redis.url,
