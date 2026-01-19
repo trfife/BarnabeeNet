@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-20 (Dashboard Polish - Loading States, Error Handling)
+2026-01-20 (Voice Architecture Decision - HA + ViewAssist)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + MEMORY DASHBOARD + DIARY
@@ -116,6 +116,8 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Test Infrastructure Fixes** - Fixed multiple pre-existing test issues: (1) HA client now catches HTTPStatusError for 404s on error_log endpoint (was only catching RequestError). (2) Voice pipeline orchestrator tests patched correct module path (`barnabeenet.main.app_state` instead of `barnabeenet.services.voice_pipeline.app_state`). (3) HA API tests now reset global _ha_client between tests via autouse fixture to prevent event loop closure issues. All 617 tests now pass.
 - [x] **Mock HA Client Adapter for E2E Testing** - MockHAClient adapter class provides HomeAssistantClient interface for mock HA. MockEntityRegistry with find_by_name(), get_by_domain(), get_by_area() methods for entity resolution. E2E test runner wires mock client into orchestrator when use_mock_ha=True (default). New ENTITY_STATE assertion type verifies entity state after action commands. Enhanced ACTION_TESTS with entity state verification (turn on light → verify entity state is "on"). Orchestrator now has set_ha_client() method and reset_orchestrator() for testing. 628 tests pass.
 - [x] **Dashboard Polish** - Comprehensive UI improvements: (1) Loading skeletons with shimmer animation for cards/stats while data loads. (2) Error states with retry buttons for failed API calls. (3) Toast notification system with success/error/warning/info variants, auto-dismiss with progress bar. (4) Improved mobile navigation with horizontal scrolling nav links. (5) Offline detection banner with auto-reconnect. (6) WebSocket exponential backoff reconnection (max 30s delay). (7) Empty states for no-data scenarios. (8) Button loading states. (9) Accessibility focus states. (10) Print styles and reduced-motion support.
+- [x] **Home Assistant Connected** - HA integration fully working on VM. URL: http://192.168.86.60:8123, Version 2026.1.2. Stats: 2291 entities, 238 devices, 20 areas, 6 automations, 64 integrations. Dashboard configuration page allows setting URL + token (encrypted). State change streaming active.
+- [x] **Simple Chat API** - Dead-simple `/api/v1/chat` endpoint for HA/ViewAssist integration. POST or GET with just `text` parameter, returns `{"response": "..."}`. Integration guide at `docs/INTEGRATION.md` with examples for HA rest_command, shell_command, and ViewAssist.
 
 ### In Progress
 None
@@ -157,8 +159,16 @@ None
 
 ## Next Steps (Ordered)
 
-1. Connect to actual Home Assistant instance - configure via dashboard
-2. Voice wake word integration (Wyoming protocol)
+1. HA Conversation Integration - Connect BarnabeeNet as HA's conversation agent
+2. ViewAssist Integration - Accept audio/text from ViewAssist Companion App on tablets
+3. Mobile app / remote access
+
+## Voice Architecture Decision
+
+**Wake word is NOT handled by BarnabeeNet.** Input sources:
+- **Phones**: HA built-in assistant → HA Cloud STT → text → BarnabeeNet
+- **Tablets/Dashboards**: ViewAssist Companion App (forked) → wake word + audio → BarnabeeNet
+- **Dashboard Chat**: Direct text input via web UI (already working)
 
 ---
 

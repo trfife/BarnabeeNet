@@ -496,6 +496,85 @@ async def quick_audio_input(
 
 
 # =============================================================================
+# Simple Chat API (for Home Assistant / External Integration)
+# =============================================================================
+
+
+@router.post("/chat")
+async def chat(
+    text: str,
+    speaker: str | None = None,
+    room: str | None = None,
+    conversation_id: str | None = None,
+) -> dict:
+    """Dead-simple chat endpoint for Home Assistant integration.
+
+    Send text, get response. That's it.
+
+    Example:
+        POST /api/v1/chat?text=turn%20on%20the%20kitchen%20lights
+
+        Response: {"response": "Done! I've turned on the kitchen lights."}
+
+    For Home Assistant rest_command:
+        rest_command:
+          barnabee_chat:
+            url: "http://192.168.86.51:8000/api/v1/chat"
+            method: POST
+            content_type: "application/x-www-form-urlencoded"
+            payload: "text={{ text }}&speaker={{ speaker }}"
+
+    Query Parameters:
+    - text: The command or question (required)
+    - speaker: Who's speaking (e.g., "thom", "viola") - helps personalization
+    - room: Which room (e.g., "kitchen", "living_room") - helps context
+    - conversation_id: Maintain conversation context across requests
+    """
+    from barnabeenet.agents.orchestrator import get_orchestrator
+
+    orchestrator = get_orchestrator()
+    result = await orchestrator.process(
+        text=text,
+        speaker=speaker,
+        room=room,
+        conversation_id=conversation_id,
+    )
+
+    return {
+        "response": result.get("response", ""),
+        "intent": result.get("intent"),
+        "agent": result.get("agent"),
+        "conversation_id": result.get("conversation_id"),
+    }
+
+
+@router.get("/chat")
+async def chat_get(
+    text: str,
+    speaker: str | None = None,
+    room: str | None = None,
+) -> dict:
+    """GET version for even simpler testing.
+
+    Example: GET /api/v1/chat?text=what%20time%20is%20it
+    """
+    from barnabeenet.agents.orchestrator import get_orchestrator
+
+    orchestrator = get_orchestrator()
+    result = await orchestrator.process(
+        text=text,
+        speaker=speaker,
+        room=room,
+    )
+
+    return {
+        "response": result.get("response", ""),
+        "intent": result.get("intent"),
+        "agent": result.get("agent"),
+    }
+
+
+# =============================================================================
 # WebSocket Streaming Transcription
 # =============================================================================
 

@@ -1,6 +1,6 @@
 # Mobile STT Client Architecture
 
-> **Status**: Placeholder/Future Development  
+> **Status**: Placeholder/Future Development
 > **Target Platform**: Android (BT headset/glasses audio capture)
 
 ## Overview
@@ -90,17 +90,17 @@ class BarnabeeSTTClient(
     private val wsClient = BarnabeeWebSocketClient(serverUrl)
     private val offlineBuffer = OfflineAudioBuffer(context)
     private val modeController = STTModeController()
-    
+
     // State
     private var currentMode: STTMode = STTMode.COMMAND
     private var isConnected: Boolean = false
-    
+
     suspend fun start() {
         // Initialize components
         audioCapture.initialize()
         vad.initialize()
         wsClient.connect()
-        
+
         // Start audio capture loop
         audioCapture.captureFlow
             .filter { vad.isSpeech(it) }
@@ -116,7 +116,7 @@ class BarnabeeSTTClient(
                 }
             }
     }
-    
+
     fun setMode(mode: STTMode) {
         currentMode = mode
         when (mode) {
@@ -134,18 +134,18 @@ class BarnabeeSTTClient(
 class BluetoothAudioCapture(private val context: Context) {
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var audioRecord: AudioRecord? = null
-    
+
     val captureFlow: Flow<ByteArray> = flow {
         // Start Bluetooth SCO
         audioManager.startBluetoothSco()
-        
+
         // Create AudioRecord
         val bufferSize = AudioRecord.getMinBufferSize(
             SAMPLE_RATE_HZ,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT
         )
-        
+
         audioRecord = AudioRecord(
             MediaRecorder.AudioSource.VOICE_RECOGNITION,
             SAMPLE_RATE_HZ,
@@ -153,9 +153,9 @@ class BluetoothAudioCapture(private val context: Context) {
             AudioFormat.ENCODING_PCM_16BIT,
             bufferSize
         )
-        
+
         audioRecord?.startRecording()
-        
+
         val buffer = ByteArray(CHUNK_SIZE_BYTES)
         while (true) {
             val bytesRead = audioRecord?.read(buffer, 0, buffer.size) ?: 0
@@ -165,7 +165,7 @@ class BluetoothAudioCapture(private val context: Context) {
             delay(CHUNK_DURATION_MS)
         }
     }
-    
+
     companion object {
         const val SAMPLE_RATE_HZ = 16000
         const val CHUNK_DURATION_MS = 100L
@@ -180,7 +180,7 @@ class BluetoothAudioCapture(private val context: Context) {
 class SileroVAD(private val context: Context) {
     private var session: OrtSession? = null
     private var state: OnnxTensor? = null
-    
+
     fun initialize() {
         val env = OrtEnvironment.getEnvironment()
         val modelBytes = context.assets.open("silero_vad.onnx").readBytes()
@@ -188,21 +188,21 @@ class SileroVAD(private val context: Context) {
         // Initialize hidden state
         state = OnnxTensor.createTensor(env, FloatArray(128))
     }
-    
+
     fun isSpeech(audioChunk: ByteArray, threshold: Float = 0.5f): Boolean {
         // Convert bytes to float samples
         val samples = audioChunk.toFloatArray()
-        
+
         // Run VAD inference
         val inputs = mapOf(
             "input" to OnnxTensor.createTensor(env, arrayOf(samples)),
             "state" to state
         )
-        
+
         val outputs = session?.run(inputs)
         val prob = (outputs?.get(0)?.value as FloatArray)[0]
         state = outputs?.get(1) as OnnxTensor
-        
+
         return prob > threshold
     }
 }
@@ -216,32 +216,32 @@ class BarnabeeWebSocketClient(private val serverUrl: String) {
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
-    
+
     private val _transcriptions = MutableSharedFlow<TranscriptionResult>()
     val transcriptions: SharedFlow<TranscriptionResult> = _transcriptions
-    
+
     fun connect() {
         val request = Request.Builder()
             .url("$serverUrl/api/v1/voice/ws/transcribe")
             .build()
-        
+
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val result = Json.decodeFromString<TranscriptionResult>(text)
                 _transcriptions.tryEmit(result)
             }
-            
+
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 // Reconnect with exponential backoff
                 scheduleReconnect()
             }
         })
     }
-    
+
     fun sendAudio(chunk: ByteArray) {
         webSocket?.send(ByteString.of(*chunk))
     }
-    
+
     fun sendConfig(streaming: Boolean, interim: Boolean = true, batchMode: Boolean = false) {
         val config = buildJsonObject {
             put("type", "config")
@@ -265,7 +265,7 @@ class BarnabeeWebSocketClient(private val serverUrl: String) {
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
-    
+
     <application>
         <service
             android:name=".BarnabeeSTTService"
@@ -282,16 +282,16 @@ class BarnabeeWebSocketClient(private val serverUrl: String) {
 dependencies {
     // ONNX Runtime for Silero VAD
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.16.0")
-    
+
     // WebSocket
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    
+
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    
+
     // JSON serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
-    
+
     // Azure Speech SDK (optional fallback)
     implementation("com.microsoft.cognitiveservices.speech:client-sdk:1.32.0")
 }

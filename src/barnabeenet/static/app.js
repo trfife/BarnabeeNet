@@ -270,7 +270,7 @@ function connectWebSocket() {
 
             addActivityItem({
                 type: 'error',
-                message: `Disconnected. Reconnecting in ${Math.round(delay/1000)}s...`,
+                message: `Disconnected. Reconnecting in ${Math.round(delay / 1000)}s...`,
                 timestamp: new Date().toISOString()
             });
 
