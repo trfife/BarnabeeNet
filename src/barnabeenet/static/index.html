@@ -20,6 +20,7 @@
         <div class="nav-links">
             <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
             <a href="#" class="nav-link" data-page="chat">Chat</a>
+            <a href="#" class="nav-link" data-page="memory">Memory</a>
             <a href="#" class="nav-link" data-page="logs">Logs</a>
             <a href="#" class="nav-link" data-page="prompts">Prompts</a>
             <a href="#" class="nav-link" data-page="setup">Setup & Test</a>
@@ -227,6 +228,156 @@
                         Press <kbd>Enter</kbd> to send • Click <kbd>🎤</kbd> to record • Barnabee responds with
                         personality!
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Memory Page - Barnabee's Memories -->
+        <div id="page-memory" class="page">
+            <div class="page-header">
+                <h1>🧠 Barnabee's Memory</h1>
+                <p>View and manage what Barnabee knows about your household</p>
+            </div>
+
+            <!-- Memory Stats Cards -->
+            <div class="memory-stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon">📚</div>
+                    <div class="stat-value" id="memory-total">0</div>
+                    <div class="stat-label">Total Memories</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🆕</div>
+                    <div class="stat-value" id="memory-24h">0</div>
+                    <div class="stat-label">Last 24 Hours</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-value" id="memory-7d">0</div>
+                    <div class="stat-label">Last 7 Days</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">💾</div>
+                    <div class="stat-value" id="memory-backend">-</div>
+                    <div class="stat-label">Storage Backend</div>
+                </div>
+            </div>
+
+            <!-- Memory Tabs -->
+            <div class="memory-tabs">
+                <button class="memory-tab active" data-tab="all">📋 All Memories</button>
+                <button class="memory-tab" data-tab="semantic">💡 Facts & Knowledge</button>
+                <button class="memory-tab" data-tab="episodic">📝 Conversations</button>
+                <button class="memory-tab" data-tab="diary">📖 Diary</button>
+                <button class="memory-tab" data-tab="search">🔍 Search</button>
+                <button class="memory-tab" data-tab="add">➕ Add Memory</button>
+            </div>
+
+            <!-- Tab Content: All Memories -->
+            <div class="memory-tab-content active" id="tab-all">
+                <div class="memory-filters">
+                    <select id="memory-type-filter" class="form-control">
+                        <option value="">All Types</option>
+                        <option value="semantic">Semantic (Facts)</option>
+                        <option value="episodic">Episodic (Events)</option>
+                        <option value="procedural">Procedural (Routines)</option>
+                    </select>
+                    <select id="memory-participant-filter" class="form-control">
+                        <option value="">All Participants</option>
+                    </select>
+                    <button id="memory-refresh-btn" class="btn btn-secondary">🔄 Refresh</button>
+                </div>
+                <div class="memory-list" id="memory-list">
+                    <div class="loading">Loading memories...</div>
+                </div>
+                <div class="memory-pagination" id="memory-pagination"></div>
+            </div>
+
+            <!-- Tab Content: Facts & Knowledge -->
+            <div class="memory-tab-content" id="tab-semantic">
+                <div class="memory-category-intro">
+                    <h3>💡 Semantic Memories</h3>
+                    <p>Long-term facts about the household: preferences, relationships, and general knowledge.</p>
+                </div>
+                <div class="memory-list" id="semantic-list">
+                    <div class="loading">Loading facts...</div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Conversations -->
+            <div class="memory-tab-content" id="tab-episodic">
+                <div class="memory-category-intro">
+                    <h3>📝 Episodic Memories</h3>
+                    <p>Specific events and conversations from interactions.</p>
+                </div>
+                <div class="memory-list" id="episodic-list">
+                    <div class="loading">Loading events...</div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Diary -->
+            <div class="memory-tab-content" id="tab-diary">
+                <div class="memory-category-intro">
+                    <h3>📖 Daily Diary</h3>
+                    <p>Barnabee's daily journal entries summarizing household activity.</p>
+                </div>
+                <div class="diary-entries" id="diary-entries">
+                    <div class="loading">Loading diary...</div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Search -->
+            <div class="memory-tab-content" id="tab-search">
+                <div class="memory-search-form">
+                    <h3>🔍 Search Memories</h3>
+                    <p>Find specific memories using semantic search.</p>
+                    <div class="search-input-row">
+                        <input type="text" id="memory-search-input" class="form-control"
+                            placeholder="What is Thom's favorite color?" />
+                        <button id="memory-search-btn" class="btn btn-primary">Search</button>
+                    </div>
+                </div>
+                <div class="memory-search-results" id="memory-search-results">
+                    <p class="search-hint">Enter a question or topic to search Barnabee's memories.</p>
+                </div>
+            </div>
+
+            <!-- Tab Content: Add Memory -->
+            <div class="memory-tab-content" id="tab-add">
+                <div class="memory-add-form">
+                    <h3>➕ Add New Memory</h3>
+                    <p>Manually store information for Barnabee to remember.</p>
+                    <div class="form-group">
+                        <label>Memory Content</label>
+                        <textarea id="add-memory-content" class="form-control" rows="3"
+                            placeholder="e.g., Thom's favorite color is blue"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Type</label>
+                            <select id="add-memory-type" class="form-control">
+                                <option value="semantic">Semantic (Fact/Preference)</option>
+                                <option value="episodic">Episodic (Event)</option>
+                                <option value="procedural">Procedural (Routine)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Importance (0-1)</label>
+                            <input type="number" id="add-memory-importance" class="form-control" value="0.5" min="0"
+                                max="1" step="0.1" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Participants (comma-separated)</label>
+                        <input type="text" id="add-memory-participants" class="form-control"
+                            placeholder="e.g., Thom, Heidi" />
+                    </div>
+                    <div class="form-group">
+                        <label>Tags (comma-separated)</label>
+                        <input type="text" id="add-memory-tags" class="form-control"
+                            placeholder="e.g., preference, color" />
+                    </div>
+                    <button id="add-memory-btn" class="btn btn-primary">💾 Store Memory</button>
                 </div>
             </div>
         </div>

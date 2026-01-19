@@ -5099,3 +5099,389 @@ function writeString(view, offset, string) {
         view.setUint8(offset + i, string.charCodeAt(i));
     }
 }
+// =============================================================================
+// Memory System
+// =============================================================================
+
+let memoryCurrentPage = 1;
+let memoryPageSize = 20;
+let memoryInitialized = false;
+
+function initMemory() {
+    if (memoryInitialized) return;
+    memoryInitialized = true;
+
+    // Tab switching
+    document.querySelectorAll('.memory-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabId = tab.dataset.tab;
+            switchMemoryTab(tabId);
+        });
+    });
+
+    // Filter controls
+    const typeFilter = document.getElementById('memory-type-filter');
+    const participantFilter = document.getElementById('memory-participant-filter');
+    const refreshBtn = document.getElementById('memory-refresh-btn');
+
+    if (typeFilter) typeFilter.addEventListener('change', () => loadMemories(1));
+    if (participantFilter) participantFilter.addEventListener('change', () => loadMemories(1));
+    if (refreshBtn) refreshBtn.addEventListener('click', () => loadMemories(memoryCurrentPage));
+
+    // Search
+    const searchBtn = document.getElementById('memory-search-btn');
+    const searchInput = document.getElementById('memory-search-input');
+    if (searchBtn) searchBtn.addEventListener('click', searchMemories);
+    if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchMemories();
+        });
+    }
+
+    // Add memory
+    const addBtn = document.getElementById('add-memory-btn');
+    if (addBtn) addBtn.addEventListener('click', addMemory);
+
+    // Initial load
+    loadMemoryStats();
+    loadMemories(1);
+}
+
+function switchMemoryTab(tabId) {
+    // Update tab buttons
+    document.querySelectorAll('.memory-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabId);
+    });
+
+    // Update tab content
+    document.querySelectorAll('.memory-tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === `tab-${tabId}`);
+    });
+
+    // Load data for tab
+    switch (tabId) {
+        case 'all':
+            loadMemories(1);
+            break;
+        case 'semantic':
+            loadMemoriesByType('semantic');
+            break;
+        case 'episodic':
+            loadMemoriesByType('episodic');
+            break;
+        case 'diary':
+            loadDiary();
+            break;
+    }
+}
+
+async function loadMemoryStats() {
+    try {
+        const resp = await fetch(`${API_BASE}/api/v1/memory/stats`);
+        if (!resp.ok) throw new Error('Failed to load stats');
+        const data = await resp.json();
+
+        document.getElementById('memory-total').textContent = data.total_memories || 0;
+        document.getElementById('memory-24h').textContent = data.memories_24h || 0;
+        document.getElementById('memory-7d').textContent = data.memories_7d || 0;
+        document.getElementById('memory-backend').textContent = data.storage_backend || '-';
+    } catch (error) {
+        console.error('Error loading memory stats:', error);
+    }
+}
+
+async function loadMemories(page = 1) {
+    memoryCurrentPage = page;
+    const list = document.getElementById('memory-list');
+    list.innerHTML = '<div class="loading">Loading memories...</div>';
+
+    try {
+        const typeFilter = document.getElementById('memory-type-filter')?.value || '';
+        const participantFilter = document.getElementById('memory-participant-filter')?.value || '';
+
+        let url = `${API_BASE}/api/v1/memory/?skip=${(page - 1) * memoryPageSize}&limit=${memoryPageSize}`;
+        if (typeFilter) url += `&memory_type=${typeFilter}`;
+        if (participantFilter) url += `&participant=${encodeURIComponent(participantFilter)}`;
+
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('Failed to load memories');
+        const data = await resp.json();
+
+        if (data.memories.length === 0) {
+            list.innerHTML = `
+                <div class="memory-empty">
+                    <div class="memory-empty-icon">🧠</div>
+                    <h3>No memories yet</h3>
+                    <p>Barnabee will start remembering things as you interact!</p>
+                </div>
+            `;
+        } else {
+            list.innerHTML = data.memories.map(renderMemoryCard).join('');
+        }
+
+        renderPagination(data.total, page);
+    } catch (error) {
+        console.error('Error loading memories:', error);
+        list.innerHTML = `<div class="error">Failed to load memories: ${error.message}</div>`;
+    }
+}
+
+async function loadMemoriesByType(memoryType) {
+    const listId = `${memoryType}-list`;
+    const list = document.getElementById(listId);
+    if (!list) return;
+
+    list.innerHTML = '<div class="loading">Loading...</div>';
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/v1/memory/?memory_type=${memoryType}&limit=50`);
+        if (!resp.ok) throw new Error('Failed to load memories');
+        const data = await resp.json();
+
+        if (data.memories.length === 0) {
+            list.innerHTML = `
+                <div class="memory-empty">
+                    <div class="memory-empty-icon">📭</div>
+                    <h3>No ${memoryType} memories</h3>
+                </div>
+            `;
+        } else {
+            list.innerHTML = data.memories.map(renderMemoryCard).join('');
+        }
+    } catch (error) {
+        console.error(`Error loading ${memoryType} memories:`, error);
+        list.innerHTML = `<div class="error">Failed to load: ${error.message}</div>`;
+    }
+}
+
+function renderMemoryCard(memory) {
+    const typeIcons = {
+        semantic: '💡',
+        episodic: '📝',
+        procedural: '⚙️',
+        working: '⏱️'
+    };
+
+    const icon = typeIcons[memory.memory_type] || '💭';
+    const timestamp = new Date(memory.timestamp).toLocaleString();
+    const participants = memory.participants?.join(', ') || '-';
+    const importance = memory.importance ? `${Math.round(memory.importance * 100)}%` : '-';
+
+    const tags = (memory.tags || []).map(tag => 
+        `<span class="memory-tag">${escapeHtml(tag)}</span>`
+    ).join('');
+
+    return `
+        <div class="memory-card" data-id="${memory.id}">
+            <div class="memory-card-header">
+                <span class="memory-type-badge ${memory.memory_type}">${icon} ${memory.memory_type}</span>
+                <div class="memory-actions">
+                    <button class="memory-action-btn" onclick="deleteMemory('${memory.id}')" title="Delete">🗑️</button>
+                </div>
+            </div>
+            <div class="memory-content">${escapeHtml(memory.content)}</div>
+            <div class="memory-meta">
+                <span class="memory-meta-item">📅 ${timestamp}</span>
+                <span class="memory-meta-item">👥 ${escapeHtml(participants)}</span>
+                <span class="memory-meta-item">⭐ ${importance}</span>
+            </div>
+            ${tags ? `<div class="memory-tags">${tags}</div>` : ''}
+        </div>
+    `;
+}
+
+function renderPagination(total, currentPage) {
+    const pagination = document.getElementById('memory-pagination');
+    if (!pagination) return;
+
+    const totalPages = Math.ceil(total / memoryPageSize);
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+
+    let html = '';
+    html += `<button ${currentPage === 1 ? 'disabled' : ''} onclick="loadMemories(${currentPage - 1})">← Prev</button>`;
+
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+            html += `<button class="${i === currentPage ? 'active' : ''}" onclick="loadMemories(${i})">${i}</button>`;
+        } else if (i === currentPage - 3 || i === currentPage + 3) {
+            html += `<span>...</span>`;
+        }
+    }
+
+    html += `<button ${currentPage === totalPages ? 'disabled' : ''} onclick="loadMemories(${currentPage + 1})">Next →</button>`;
+    pagination.innerHTML = html;
+}
+
+async function searchMemories() {
+    const input = document.getElementById('memory-search-input');
+    const results = document.getElementById('memory-search-results');
+    const query = input?.value?.trim();
+
+    if (!query) {
+        results.innerHTML = '<p class="search-hint">Enter a question or topic to search.</p>';
+        return;
+    }
+
+    results.innerHTML = '<div class="loading">Searching...</div>';
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/v1/memory/search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, limit: 10 })
+        });
+        if (!resp.ok) throw new Error('Search failed');
+        const data = await resp.json();
+
+        if (data.results.length === 0) {
+            results.innerHTML = '<p class="search-hint">No matching memories found.</p>';
+        } else {
+            results.innerHTML = data.results.map(r => `
+                <div class="search-result-item">
+                    <div class="memory-card-header">
+                        <span class="memory-type-badge ${r.memory.memory_type}">${r.memory.memory_type}</span>
+                        <span class="similarity-score">🎯 ${Math.round(r.similarity * 100)}% match</span>
+                    </div>
+                    <div class="memory-content">${escapeHtml(r.memory.content)}</div>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Search error:', error);
+        results.innerHTML = `<div class="error">Search failed: ${error.message}</div>`;
+    }
+}
+
+async function addMemory() {
+    const content = document.getElementById('add-memory-content')?.value?.trim();
+    const memoryType = document.getElementById('add-memory-type')?.value || 'semantic';
+    const importance = parseFloat(document.getElementById('add-memory-importance')?.value) || 0.5;
+    const participantsStr = document.getElementById('add-memory-participants')?.value?.trim();
+    const tagsStr = document.getElementById('add-memory-tags')?.value?.trim();
+
+    if (!content) {
+        showToast('Please enter memory content', 'error');
+        return;
+    }
+
+    const participants = participantsStr ? participantsStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const tags = tagsStr ? tagsStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/v1/memory/store`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                content,
+                memory_type: memoryType,
+                importance,
+                participants,
+                tags
+            })
+        });
+
+        if (!resp.ok) throw new Error('Failed to store memory');
+
+        showToast('Memory stored successfully! 🧠', 'success');
+
+        // Clear form
+        document.getElementById('add-memory-content').value = '';
+        document.getElementById('add-memory-participants').value = '';
+        document.getElementById('add-memory-tags').value = '';
+
+        // Refresh stats and list
+        loadMemoryStats();
+        switchMemoryTab('all');
+    } catch (error) {
+        console.error('Error storing memory:', error);
+        showToast(`Failed to store memory: ${error.message}`, 'error');
+    }
+}
+
+async function deleteMemory(memoryId) {
+    if (!confirm('Delete this memory?')) return;
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/v1/memory/${memoryId}`, {
+            method: 'DELETE'
+        });
+
+        if (!resp.ok) throw new Error('Failed to delete');
+
+        showToast('Memory deleted', 'success');
+        loadMemoryStats();
+        loadMemories(memoryCurrentPage);
+    } catch (error) {
+        console.error('Delete error:', error);
+        showToast(`Failed to delete: ${error.message}`, 'error');
+    }
+}
+
+async function loadDiary() {
+    const container = document.getElementById('diary-entries');
+    if (!container) return;
+
+    container.innerHTML = '<div class="loading">Loading diary...</div>';
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/v1/memory/diary?days=7`);
+        if (!resp.ok) throw new Error('Failed to load diary');
+        const data = await resp.json();
+
+        if (data.entries.length === 0) {
+            container.innerHTML = `
+                <div class="memory-empty">
+                    <div class="memory-empty-icon">📖</div>
+                    <h3>No diary entries yet</h3>
+                    <p>Barnabee will write daily summaries as interactions happen.</p>
+                </div>
+            `;
+        } else {
+            container.innerHTML = data.entries.map(renderDiaryEntry).join('');
+        }
+    } catch (error) {
+        console.error('Error loading diary:', error);
+        container.innerHTML = `<div class="error">Failed to load diary: ${error.message}</div>`;
+    }
+}
+
+function renderDiaryEntry(entry) {
+    const date = new Date(entry.date).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+
+    return `
+        <div class="diary-entry">
+            <div class="diary-entry-header">
+                <span class="diary-date">📅 ${date}</span>
+                <span class="diary-summary-badge">${entry.memory_count || 0} memories</span>
+            </div>
+            <div class="diary-content">
+                ${entry.summary || '<em>No summary available</em>'}
+            </div>
+        </div>
+    `;
+}
+
+// Escape HTML helper (if not already defined)
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Hook into page navigation to initialize memory when shown
+const origShowPage = window.showPage || showPage;
+window.showPage = function(pageId) {
+    origShowPage(pageId);
+    if (pageId === 'memory') {
+        initMemory();
+    }
+};

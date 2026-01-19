@@ -175,18 +175,30 @@ async def transcribe(request: TranscribeRequest) -> TranscribeResponse:
             import tempfile
 
             # Write input to temp file
-            with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as f:
+            with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as f:
                 f.write(audio_bytes)
                 input_path = f.name
 
-            output_path = input_path.replace('.webm', '.wav')
+            output_path = input_path.replace(".webm", ".wav")
 
             # Use ffmpeg to convert to WAV (16kHz mono)
-            result = subprocess.run([
-                'ffmpeg', '-y', '-i', input_path,
-                '-ar', '16000', '-ac', '1', '-f', 'wav',
-                output_path
-            ], capture_output=True, timeout=5)
+            result = subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    input_path,
+                    "-ar",
+                    "16000",
+                    "-ac",
+                    "1",
+                    "-f",
+                    "wav",
+                    output_path,
+                ],
+                capture_output=True,
+                timeout=5,
+            )
 
             if result.returncode != 0:
                 raise ValueError(f"ffmpeg failed: {result.stderr.decode()[:200]}")
@@ -202,7 +214,7 @@ async def transcribe(request: TranscribeRequest) -> TranscribeResponse:
         except Exception as ffmpeg_error:
             raise HTTPException(
                 status_code=400,
-                detail=f"Could not decode audio: soundfile={sf_error}, ffmpeg={ffmpeg_error}"
+                detail=f"Could not decode audio: soundfile={sf_error}, ffmpeg={ffmpeg_error}",
             ) from ffmpeg_error
 
     # Convert to mono if stereo

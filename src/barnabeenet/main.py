@@ -167,6 +167,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error("Orchestrator initialization failed", error=str(e))
         # Continue - orchestrator will init lazily on first request
 
+    # Initialize Memory Storage
+    try:
+        from barnabeenet.services.memory.storage import MemoryStorage
+
+        app_state.memory_storage = MemoryStorage(
+            redis_client=getattr(app_state, "redis_client_binary", None)
+        )
+        await app_state.memory_storage.init()
+        logger.info("Memory storage initialized")
+    except Exception as e:
+        logger.error("Memory storage initialization failed", error=str(e))
+        app_state.memory_storage = None
+
     # Start GPU worker health check task
     app_state._health_check_task = asyncio.create_task(_gpu_worker_health_check_loop())
 
@@ -367,6 +380,7 @@ def _register_routes(app: FastAPI) -> None:
         e2e,
         health,
         homeassistant,
+        memory,
         metrics,
         prompts,
         voice,
@@ -405,6 +419,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(activity.router, prefix="/api/v1", tags=["Activity"])
     app.include_router(e2e.router, prefix="/api/v1", tags=["E2E Testing"])
     app.include_router(homeassistant.router, prefix="/api/v1", tags=["Home Assistant"])
+    app.include_router(memory.router, prefix="/api/v1", tags=["Memory"])
     app.include_router(prompts.router, prefix="/api/v1", tags=["Prompts"])
     app.include_router(metrics.router, tags=["Metrics"])
     app.include_router(websocket.router, prefix="/api/v1", tags=["WebSocket"])

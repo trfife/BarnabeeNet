@@ -624,6 +624,79 @@ class MemoryStorage:
                 )
             return len(self._memory_fallback)
 
+    async def get_all_memories(
+        self,
+        memory_type: str | None = None,
+        participant: str | None = None,
+    ) -> list[StoredMemory]:
+        """Get all memories with optional filtering.
+
+        Args:
+            memory_type: Optional filter by memory type.
+            participant: Optional filter by participant.
+
+        Returns:
+            List of all matching memories.
+        """
+        if self._use_redis and self._redis:
+            # Get candidate memory IDs
+            if memory_type:
+                memory_ids = await self._redis.smembers(
+                    f"{self.config.memory_prefix}type:{memory_type}"
+                )
+            else:
+                memory_ids = await self._redis.zrange(f"{self.config.memory_prefix}index", 0, -1)
+
+            # Handle bytes from binary client
+            memory_ids = [
+                mid.decode("utf-8") if isinstance(mid, bytes) else mid for mid in memory_ids
+            ]
+
+            memories = []
+            for mid in memory_ids:
+                memory = await self.get_memory(mid)
+                if memory:
+                    # Filter by participant if specified
+                    if participant and participant not in memory.participants:
+                        continue
+                    memories.append(memory)
+
+            return memories
+        else:
+            memories = list(self._memory_fallback.values())
+            if memory_type:
+                memories = [m for m in memories if m.memory_type == memory_type]
+            if participant:
+                memories = [m for m in memories if participant in m.participants]
+            return memories
+
+    async def retrieve_memories(
+        self,
+        query: str,
+        memory_type: str | None = None,
+        participant: str | None = None,
+        limit: int = 10,
+    ) -> list[StoredMemory]:
+        """Retrieve memories by semantic similarity (convenience wrapper).
+
+        Args:
+            query: Search query.
+            memory_type: Optional type filter.
+            participant: Optional participant filter.
+            limit: Maximum results.
+
+        Returns:
+            List of memories sorted by relevance.
+        """
+        participants = [participant] if participant else None
+        results = await self.search_memories(
+            query=query,
+            memory_type=memory_type,
+            participants=participants,
+            max_results=limit,
+        )
+        return [mem for mem, score in results]
+
     # =========================================================================
     # Batch Operations
     # =========================================================================
