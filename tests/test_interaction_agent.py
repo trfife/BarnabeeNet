@@ -301,10 +301,11 @@ class TestFallbackMode:
 
     @pytest.mark.asyncio
     async def test_fallback_on_question(self, agent_no_llm: InteractionAgent) -> None:
-        """Fallback handles unknown questions gracefully."""
+        """Fallback handles unknown questions gracefully with helpful message."""
         result = await agent_no_llm.handle_input("What's the weather like?", {})
         assert "response" in result
-        assert "apologize" in result["response"].lower() or "trouble" in result["response"].lower()
+        # Should explain the actual issue - no LLM API key configured
+        assert "api key" in result["response"].lower() or "configured" in result["response"].lower()
 
     @pytest.mark.asyncio
     async def test_fallback_uses_speaker_name(self, agent_no_llm: InteractionAgent) -> None:

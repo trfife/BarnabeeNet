@@ -538,15 +538,22 @@ class AgentOrchestrator:
                 execution_result = await self._execute_ha_action(action_spec, ctx)
 
                 # Update response based on execution result
-                if execution_result.get("executed"):
-                    if not execution_result.get("success"):
-                        # Action failed to execute
-                        ctx.agent_response["response"] = execution_result.get(
-                            "error", "Sorry, I couldn't complete that action."
-                        )
-                    # Add execution info to action
-                    action_spec["executed"] = execution_result.get("executed", False)
-                    action_spec["execution_message"] = execution_result.get("message", "")
+                if not execution_result.get("executed"):
+                    # Action not executed - tell user why
+                    error_msg = execution_result.get("message", "unknown error")
+                    ctx.agent_response["response"] = (
+                        f"I understood you want to {action_spec.get('service', 'do something')}, "
+                        f"but I couldn't do it: {error_msg}. "
+                        "Check Home Assistant connection in Configuration."
+                    )
+                elif not execution_result.get("success"):
+                    # Action failed to execute
+                    ctx.agent_response["response"] = execution_result.get(
+                        "error", "Sorry, I couldn't complete that action."
+                    )
+                # Add execution info to action
+                action_spec["executed"] = execution_result.get("executed", False)
+                action_spec["execution_message"] = execution_result.get("message", "")
 
                 # Log HA action
                 if self._pipeline_logger:

@@ -190,6 +190,9 @@ MEMORY_PATTERNS: list[tuple[str, str]] = [
     (r".*(last thing|previously|earlier|before).*(ask|say|tell|said|told).*$", "recall"),
     (r".*(what|when) (was|were|have|had) (i|we) .*$", "recall"),
     (r"^what (was|were) (my|our) last .*$", "recall"),
+    # Recall patterns for "what did I ask you to remember"
+    (r".*(asked|told) (you to |you )?(remember|store|save).*$", "recall"),
+    (r".*what.*(remember|stored|saved).*$", "recall"),
 ]
 
 GESTURE_PATTERNS: list[tuple[str, str]] = [

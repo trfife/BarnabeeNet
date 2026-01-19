@@ -438,16 +438,10 @@ class InteractionAgent(Agent):
         if any(word in text_lower for word in ["bye", "goodbye", "see you"]):
             return f"Goodbye {speaker_name}! Have a wonderful day."
 
-        if "?" in text:
-            return (
-                "I apologize, but I'm having trouble connecting to my thinking cap "
-                "at the moment. Could you ask again in a bit?"
-            )
-
-        # Generic fallback
+        # Specific error: No LLM configured
         return (
-            f"I heard you, {speaker_name}. I'm having some technical difficulties, "
-            "but I'm still here to help once they're resolved."
+            "I can't answer that right now - no LLM API key is configured. "
+            "Please set up an API key in the Configuration page (OpenRouter, OpenAI, etc.)."
         )
 
     def get_conversation(self, conversation_id: str) -> ConversationContext | None:
