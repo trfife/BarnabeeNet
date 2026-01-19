@@ -1,7 +1,9 @@
 # BarnabeeNet Project Log
 
-**Started:** January 16, 2026
-**Goal:** Build a privacy-first, multi-agent AI smart home assistant
+**Started:** January 16, 2026  
+**Goal:** Build a privacy-first, multi-agent AI smart home assistant  
+
+> **Status:** For current “what’s working” and next steps, see **CONTEXT.md**. This log records phases, decisions, and history.
 
 ---
 
@@ -82,7 +84,7 @@
 ---
 
 ## Phase 1: Core Services
-**Status:** 🔄 In Progress
+**Status:** ✅ Complete
 
 ### Step 1: Project Structure + Configuration
 **Status:** ✅ Complete
@@ -103,79 +105,130 @@
 - [x] Created `main.py` - FastAPI app with lifespan management
 - [x] Created `models/schemas.py` - All Pydantic request/response models
 - [x] Created `api/routes/health.py` - Health check endpoints
-- [x] Created `api/routes/voice.py` - STT, TTS, pipeline endpoints (placeholders)
+- [x] Created `api/routes/voice.py` - STT, TTS, pipeline endpoints
 - [x] Implemented background GPU worker health check (zero-latency routing)
 
 ### Step 3: STT Services
-**Status:** ⏳ Not Started
+**Status:** ✅ Complete
 
-- [ ] Implement Distil-Whisper CPU service
-- [ ] Implement GPU worker client
-- [ ] Implement routing logic
+- [x] Implement Distil-Whisper CPU service (~2.4s)
+- [x] Implement GPU worker client (Parakeet TDT, ~45ms)
+- [x] Implement STT router (GPU primary, CPU fallback)
+- [x] Azure STT integration (batch + streaming for mobile/remote)
+- [x] Tiered STT: COMMAND, REALTIME, AMBIENT modes; PARAKEET, WHISPER, AZURE engines
+- [x] WebSocket `/ws/transcribe` for real-time streaming
 
 ### Step 4: TTS Service
-**Status:** ⏳ Not Started
+**Status:** ✅ Complete
 
-- [ ] Implement Kokoro TTS service
-- [ ] Add caching layer
+- [x] Implement Kokoro TTS service (bm_fable, 232–537ms)
+- [x] Pronunciation fixes (Viola→Vyola, Xander→Zander)
 
 ### Step 5: GPU Worker (Man-of-war)
-**Status:** ⏳ Not Started
+**Status:** ✅ Complete
 
-- [ ] Create GPU worker FastAPI app
-- [ ] Implement Parakeet TDT integration
-- [ ] Setup WSL2 + CUDA on Man-of-war
-- [ ] Create deployment script
+- [x] GPU worker FastAPI app (`workers/gpu_stt_worker.py`)
+- [x] Parakeet TDT 0.6B v2 integration
+- [x] WSL2 + CUDA on Man-of-war; VM reaches worker via `192.168.86.61:8001`
+- [x] Scripts: `start-gpu-worker.sh`, `stop-gpu-worker.sh`; deploy via `deploy-vm.sh`
 
 ### Step 6: Deployment Scripts
-**Status:** ⏳ Not Started
+**Status:** ✅ Complete
 
-- [ ] `deploy.sh` for Beelink
-- [ ] `deploy-gpu-worker.sh` for Man-of-war
-- [ ] `setup-wsl-cuda.ps1` for Windows
+- [x] `deploy-vm.sh` – push to VM, restart
+- [x] `start-gpu-worker.sh`, `stop-gpu-worker.sh` for Man-of-war
+- [x] `restart.sh`, `status.sh` on VM
 
 ### Step 7: Tests
-**Status:** ⏳ Not Started
+**Status:** ✅ Complete
 
-- [ ] Unit tests
-- [ ] Integration tests
-- [ ] Latency benchmarks
-
-### Current Blockers
-- Man-of-war WSL needs Python environment setup:
-  ```bash
-  sudo apt update
-  sudo apt install python3-pip python3-venv -y
-  cd ~/projects/barnabeenet
-  python3 -m venv .venv
-  source .venv/bin/activate
-  pip install -e .
-  ```
+- [x] Unit/integration tests (600+ tests: agents, STT, TTS, config, HA, memory, E2E, etc.)
+- [x] E2E framework with mock HA, `ENTITY_STATE` assertions
+- [x] E2E API at `/api/v1/e2e/`
 
 ---
 
-## Phase 2: Voice Pipeline
-**Status:** Not Started
+## Phase 2: Voice Pipeline & Message Bus
+**Status:** ✅ Complete
+
+- [x] Message bus (Redis Streams)
+- [x] Voice pipeline orchestrator (STT → Agent → TTS)
+- [x] Pipeline signal logging, `RequestTrace`, `PipelineLogger`
+- [x] Text-only `/api/v1/voice/process` for testing
+- [x] Quick input: `POST /input/text`, `POST /input/audio`
+- [x] Simple Chat API: `GET/POST /api/v1/chat`
 
 ---
 
 ## Phase 3: Agent Architecture
-**Status:** Not Started
+**Status:** ✅ Complete
+
+- [x] **MetaAgent** – Intent classification, mood, memory-query generation, pattern + LLM
+- [x] **InstantAgent** – Time, date, math, greetings (no LLM)
+- [x] **ActionAgent** – HA device control, rule-based + LLM, compound commands, typos
+- [x] **InteractionAgent** – Claude/GPT-4 via OpenRouter, Barnabee persona, anti-hallucination
+- [x] **MemoryAgent** – Store/retrieve/forget, working memory, extraction, diary generation
+- [x] **ProfileAgent** – Family profiles, LLM-generated updates, privacy-aware context
+- [x] **AgentOrchestrator** – classify → memory retrieve → route → store; full pipeline
+- [x] LLM provider abstraction (12 providers), activity-based model config, encrypted secrets
+- [ ] **Proactive Agent** – Deferred (spec only)
+- [ ] **Evolver Agent** – Deferred (spec only)
 
 ---
 
 ## Phase 4: Home Assistant Integration
-**Status:** Not Started
+**Status:** ✅ Complete
+
+- [x] HomeAssistantClient – REST + WebSocket (device/area/entity registries)
+- [x] EntityRegistry, fuzzy matching, SmartEntityResolver (areas, floors, groups, typos)
+- [x] HATopologyService – floors, areas, natural-language targeting
+- [x] Compound commands (“X and Y”), CompoundCommandParser, HATarget models
+- [x] Action execution: resolve → HA service call → pipeline logging
+- [x] Timer system (TimerManager, HA timer helpers): alarm, device-duration, delayed
+- [x] Real-time `state_changed` WebSocket, activity log
+- [x] HA custom integration – conversation agent, config flow, speaker/room from HA user/device
+- [x] HA log analysis (LLM), “What Barnabee Knows” dashboard view
+- [x] Mock HA for E2E testing
 
 ---
 
 ## Phase 5: Multi-Modal & Advanced Features
-**Status:** Not Started
+**Status:** 🔄 Partially Complete
+
+- [x] Dashboard – Chat (text + voice mic), Memory, HA, Config, Prompts, Logs, Activity
+- [x] Azure STT, tiered STT (COMMAND/REALTIME/AMBIENT), `/ws/transcribe`
+- [x] Family profiles, ProfileAgent, privacy-aware context
+- [x] Observability: Prometheus, Grafana, metrics, traces, waterfall, health checks
+- [ ] AR (Even Realities G1) – Deferred
+- [ ] Wearable (Amazfit) – Deferred
+- [ ] ThinkSmart View – Deferred
+- [ ] ViewAssist integration – Next; APIs ready (`/api/v1/chat`, `/api/v1/input/audio`)
+- [ ] Mobile client – Placeholder at `docs/future/MOBILE_STT_CLIENT.md`
 
 ---
 
 ## Phase 6: Hardening & Production
-**Status:** Not Started
+**Status:** 🔄 Partially Complete
+
+- [x] VM deployment (192.168.86.51:8000), NixOS, Redis, Prometheus, Grafana
+- [x] 600+ tests, E2E with mock HA, CI-style validation
+- [x] Operations Runbook, INTEGRATION.md, CONTEXT.md as live status
+- [ ] Full production hardening (rate limits, auth, backups) – Ongoing
+- [ ] Speaker ID from voice (ECAPA-TDNN) – Deferred; speaker from HA/request/context only
+
+---
+
+## Deferred / Not Yet Implemented
+
+| Item | Spec / Plan | Current |
+|------|-------------|---------|
+| **Speaker ID from voice** | ECAPA-TDNN (SpeechBrain) | Speaker from HA user, request, or family profiles only |
+| **Memory persistence** | SQLite + sqlite-vec | Redis + in-memory fallback; vector similarity via embeddings in Redis |
+| **Proactive Agent** | Polling, safety/convenience/learning | Not implemented |
+| **Evolver Agent** | Vibe coding, Azure ML evals | Not implemented |
+| **Override system** | `config/overrides/` (user, room, schedule) | Not implemented |
+| **Spatial room graph** | YAML graph, path awareness | HATopologyService + HA areas; no full graph |
+| **AR, Wearables, ThinkSmart** | Spec | Placeholder / future |
 
 ---
 
@@ -270,7 +323,7 @@
 - [x] Git configured
 - [x] SSH keys for GitHub
 - [x] Repo cloned to ~/projects/barnabeenet
-- [ ] Python venv setup (next step)
+- [x] Python venv (main `.venv/`); separate `.venv-gpu/` for GPU worker (NeMo, Parakeet)
 
 ---
 
@@ -633,4 +686,4 @@ Copilot can now continue autonomously. User says "continue the project" → Copi
 
 ---
 
-*Last Updated: January 17, 2026 (Evening)*
+*Last Updated: January 2026 (doc sync with implementation)*

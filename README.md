@@ -1,37 +1,43 @@
 # BarnabeeNet
 
-A privacy-first, multi-agent AI smart home assistant built on Home Assistant. Local STT/TTS/Speaker ID with cloud LLM intelligence via Azure/OpenRouter.
+A privacy-first, multi-agent AI smart home assistant built on Home Assistant. Local STT/TTS; speaker from HA user, request, or family profiles; cloud LLM via OpenRouter.
 
 ## Overview
 
-BarnabeeNet provides Alexa/Google-level responsiveness (<500ms) while maintaining data sovereignty for sensitive audio. Voice capture, speech recognition, and speaker identification happen locally. LLM reasoning is powered by cloud providers (Azure/OpenRouter) for state-of-the-art capability and speed.
+BarnabeeNet targets Alexa/Google-level responsiveness (<500ms) while keeping audio on your network. Voice capture, speech recognition, and TTS run locally. Speaker identity comes from Home Assistant user, request context, or family profiles (voice-based speaker ID is deferred). LLM reasoning uses OpenRouter; Azure STT is optional for mobile/remote.
 
 ## Architecture
 
-- **Runtime Server:** Beelink EQi12 (Battlestation) - Always-on edge processing
-- **Compute Server:** Gaming PC (Man-of-war) - On-demand heavy LLM inference
-- **Core Platform:** Home Assistant with custom BarnabeeNet integration
+- **Runtime:** BarnabeeNet VM (Beelink, NixOS) — Always-on: agents, API, dashboard, Redis, TTS, CPU STT fallback
+- **GPU STT:** Man-of-war (Gaming PC) — Parakeet TDT worker for low-latency transcription
+- **Platform:** Home Assistant with custom BarnabeeNet conversation agent
 
 ## Core Principles
 
-1. **Privacy by Architecture** — Raw audio never leaves the local network; only text transcripts sent to LLM providers
-2. **Latency-Obsessed** — Target <500ms end-to-end for common commands
-3. **Family-Aware** — Speaker recognition enables permission-based control
-4. **Graceful Degradation** — System remains functional when cloud services are unavailable
-5. **Cost-Conscious** — Intelligent routing minimizes expensive LLM calls
-6. **Self-Improving** — Evolves its own prompts and models within scoped boundaries
+1. **Privacy by Architecture** — Raw audio stays on the local network; only text goes to LLM providers
+2. **Latency-Obsessed** — <500ms end-to-end for action-style commands when using GPU STT
+3. **Family-Aware** — Speaker from HA, request, or profiles; permission-aware control
+4. **Graceful Degradation** — CPU STT fallback, optional cloud STT; works when GPU or cloud is down
+5. **Cost-Conscious** — Activity-based model choice, instant/action agents avoid LLM when possible
+6. **Self-Improving** — *Planned* (Evolver Agent); not yet implemented
 
 ## Project Status
 
-🔄 **Phase 1: Core Services** - In Progress
+✅ **Phases 1–4 done** (Core, Voice, Agents, HA). 🔄 **Phases 5–6 partial** (dashboard, Azure STT, deploy, tests). Next: ViewAssist integration, mobile client.
 
-See [docs/project-log.md](docs/project-log.md) for detailed progress.
+- **Live status:** [CONTEXT.md](CONTEXT.md)
+- **Phases and deferred:** [barnabeenet-project-log.md](barnabeenet-project-log.md)
 
 ## Documentation
 
-- [Architecture](docs/architecture.md) - Full system design
-- [Project Log](docs/project-log.md) - Build progress and decisions
-- [Runbook](docs/runbook.md) - Operations guide (coming soon)
+| Doc | Purpose |
+|-----|---------|
+| [CONTEXT.md](CONTEXT.md) | Current status, next steps |
+| [docs/architecture.md](docs/architecture.md) | As-built architecture |
+| [docs/QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md) | Stack, config, latency |
+| [docs/INTEGRATION.md](docs/INTEGRATION.md) | HA, ViewAssist, Chat API |
+| [barnabeenet-project-log.md](barnabeenet-project-log.md) | Phases, decisions, deferred |
+| [docs/BarnabeeNet_Operations_Runbook.md](docs/BarnabeeNet_Operations_Runbook.md) | Operations |
 
 ## License
 

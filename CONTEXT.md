@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-20 (NixOS auto-start service)
+2026-01-20 (Doc sync: README, project-log, QUICK_REFERENCE, architecture, BarnabeeNet_README — as-built)
 
 ## Current Phase
-**Phase 1: Core Services** - FULL PIPELINE WORKING + MEMORY DASHBOARD + DIARY
+**Phases 1–4 done; 5–6 partial.** Full pipeline (STT/TTS/agents/HA/memory), dashboard, E2E, VM deploy. Next: ViewAssist, mobile.
 
 ## Development Workflow
 
@@ -124,7 +124,17 @@ To continue: Read this file → Check next steps → Create/execute session plan
 ### In Progress
 None
 
-### Not Started
+### Not Started (Deferred)
+
+- **ViewAssist integration** — APIs ready (`/api/v1/chat`, `/api/v1/input/audio`); connect ViewAssist Companion on tablets
+- **Mobile client** — Placeholder at `docs/future/MOBILE_STT_CLIENT.md`
+- **Proactive Agent** — Spec only
+- **Evolver Agent** — Spec only
+- **Speaker ID from voice (ECAPA-TDNN)** — Speaker is from HA user, request, or family profiles
+- **Override system** — `config/overrides/` (user, room, schedule); spec only
+- **AR, Wearables, ThinkSmart** — Spec / future
+
+> **Docs synced to as-built:** `README.md`, `barnabeenet-project-log.md`, `docs/QUICK_REFERENCE.md`, `docs/architecture.md`, `docs/BarnabeeNet_README_v3.2.md` (roadmap + as-built deviations).
 
 ---
 
@@ -230,7 +240,9 @@ _Use this section for temporary notes during a session. Clear when done._
 | File | Purpose |
 |------|---------|
 | `CONTEXT.md` | This file - Copilot's memory |
-| `barnabeenet-project-log.md` | Detailed project history |
+| `barnabeenet-project-log.md` | Phases, decisions, deferred; synced to as-built |
+| `docs/QUICK_REFERENCE.md` | Stack, config, latency |
+| `docs/architecture.md` | As-built architecture |
 | `claude-project-rules.md` | Rules for Claude sessions |
 | `.github/copilot-instructions.md` | Rules for Copilot agent |
 | `.copilot/sessions/` | Session plans and results |

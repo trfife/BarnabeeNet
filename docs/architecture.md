@@ -1,24 +1,25 @@
 # BarnabeeNet Architecture
 
-> Full architecture documentation for the BarnabeeNet smart home AI system.
+> As-built architecture for the BarnabeeNet smart home AI system.  
+> For vision and deferred items (e.g. ECAPA, SQLite, Proactive/Evolver), see **BarnabeeNet_README_v3.2.md** and **BarnabeeNet_Technical_Architecture.md**.
 
 ## Quick Reference
 
-| Component | Technology | Location |
-|-----------|------------|----------|
+| Component | Technology | Location / Notes |
+|-----------|------------|------------------|
 | Hypervisor | Proxmox VE 8.x | Battlestation |
-| VM OS | NixOS 24.11 (or Ubuntu 24.04) | BarnabeeNet VM |
-| Containers | Podman (rootless) | BarnabeeNet VM |
-| Home Automation | Home Assistant Core | Container |
-| LLM Gateway | LiteLLM Proxy | Container |
-| STT (CPU) | Distil-Whisper | BarnabeeNet Core |
-| STT (GPU) | Parakeet TDT 0.6B v2 | Man-of-war Worker |
-| TTS | Kokoro | BarnabeeNet Core |
-| Speaker ID | Pyannote 3.x | Container |
-| Agent Framework | PydanticAI | BarnabeeNet Core |
-| Database | SQLite + sqlite-vec | Local |
-| Cache | Redis (Valkey) | Container |
-| Observability | VictoriaMetrics + Grafana | Containers |
+| VM OS | NixOS 24.11 | BarnabeeNet VM |
+| Containers | Podman (rootless) | BarnabeeNet VM (e.g. Redis) |
+| Home Assistant | HA Core | Separate; BarnabeeNet talks via REST + WebSocket |
+| LLM | OpenRouter | 12 providers, activity-based; no LiteLLM |
+| STT (CPU) | Distil-Whisper | VM fallback (~2.4s) |
+| STT (GPU) | Parakeet TDT 0.6B v2 | Man-of-war worker (~45ms); Azure optional for remote |
+| TTS | Kokoro-82M | VM, voice `bm_fable` |
+| Speaker | Contextual | HA user, request, or family profiles. *Voice-based ECAPA-TDNN not implemented.* |
+| Agents | Custom | Meta, Instant, Action, Interaction, Memory, Profile; Orchestrator |
+| Memory | Redis | Working + long-term, embeddings (all-MiniLM-L6-v2), vector similarity. *SQLite/sqlite-vec not used.* |
+| Cache / Bus | Redis | Streams, signals, config, secrets |
+| Observability | Prometheus + Grafana | See `infrastructure/` |
 
 ## Network Architecture
 
@@ -47,43 +48,46 @@
 
 ```
                     ┌──────────────────┐
-                    │   Multi-Modal    │
-                    │   Input (Voice/  │
-                    │   Gesture/AR)    │
+                    │   Input (Voice,  │
+                    │   Text, HA/      │
+                    │   ViewAssist)    │
                     └────────┬─────────┘
                              │
                     ┌────────▼─────────┐
-                    │  Speaker ID +    │
-                    │  STT Pipeline    │
+                    │  STT Pipeline    │  ← Speaker from HA user, request, or profiles
+                    │  (or text)       │
                     └────────┬─────────┘
                              │
                     ┌────────▼─────────┐
                     │   Meta Agent     │
                     │  (Router/Triage) │
                     └────────┬─────────┘
-           ┌─────────────────┼─────────────────┐
-           │                 │                 │
-    ┌──────▼──────┐  ┌───────▼───────┐  ┌──────▼──────┐
-    │   Instant   │  │    Action     │  │ Interaction │
-    │   Response  │  │    Agent      │  │    Agent    │
-    │   (~3ms)    │  │   (~50ms)     │  │  (~1-3s)    │
-    └─────────────┘  └───────────────┘  └─────────────┘
+           ┌─────────────────┼─────────────────┬─────────────────┐
+           │                 │                 │                 │
+    ┌──────▼──────┐  ┌───────▼───────┐  ┌──────▼──────┐  ┌───────▼───────┐
+    │   Instant   │  │    Action     │  │ Interaction │  │    Memory     │
+    │   (~3ms)    │  │   (~50ms)     │  │  (~1-3s)    │  │   + Profile   │
+    └─────────────┘  └───────────────┘  └─────────────┘  └───────────────┘
 ```
 
-## Latency Budget
+*Proactive and Evolver agents are not implemented.*
 
-| Stage | Target | Implementation |
-|-------|--------|----------------|
-| Wake word | 0ms | OpenWakeWord (always listening) |
-| Audio capture | ~100ms | Streaming buffer |
-| Speech-to-Text (GPU) | ~20-40ms | Parakeet TDT 0.6B v2 (primary) |
-| Speech-to-Text (CPU) | ~150-300ms | Distil-Whisper small.en (fallback) |
-| Speaker ID | ~20ms | ECAPA-TDNN embeddings |
-| Meta Agent routing | <20ms | Rule-based + LLM fallback |
-| Specialized agent | <200ms | Varies by type |
-| Text-to-Speech | <100ms | Piper |
-| **Total (action)** | **<500ms** | |
+## Latency (As-Built)
 
-## Full Documentation
+| Stage | Observed / Target | Implementation |
+|-------|-------------------|----------------|
+| Wake word | — | *Out of scope:* handled by HA Cloud / ViewAssist / client |
+| Speech-to-Text (GPU) | ~45ms | Parakeet TDT 0.6B v2 (primary) |
+| Speech-to-Text (CPU) | ~2.4s | Distil-Whisper small.en (fallback) |
+| Speaker | — | From context (HA, request, profiles); no voice-based ID |
+| Meta Agent | <20ms | Pattern + LLM fallback |
+| Action / Instant | <100ms | HA call or template |
+| Interaction | <3s | OpenRouter LLM |
+| Text-to-Speech | 232–537ms | Kokoro-82M |
+| **Total (action path)** | **<500ms** | When GPU STT and fast path used |
 
-For the complete architecture specification, see the original design document in the project files.
+## More
+
+- **CONTEXT.md** – Current status and next steps  
+- **docs/QUICK_REFERENCE.md** – Stack and config  
+- **BarnabeeNet_README_v3.2.md**, **BarnabeeNet_Technical_Architecture.md** – Full spec (includes deferred pieces)

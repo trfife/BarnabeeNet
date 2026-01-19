@@ -1,9 +1,11 @@
 # BarnabeeNet: Privacy-First Multi-Agent Smart Home AI
 
 **Version:** 3.2  
-**Last Updated:** January 17, 2026  
+**Last Updated:** January 2026  
 **Author:** Thom Fife  
-**Status:** 🔄 Phase 1 In Progress (Foundation Setup)
+**Status:** 📚 Vision & spec. As-built: Phases 1–4 done, 5–6 partial. See [CONTEXT.md](../CONTEXT.md) and [barnabeenet-project-log.md](../barnabeenet-project-log.md).
+
+**As-built vs this spec:** Speaker ID is *contextual* (HA user, request, profiles); voice ECAPA-TDNN deferred. Memory is *Redis* (embeddings, vector search); SQLite/sqlite-vec not used. Proactive and Evolver agents not implemented. Gaming PC runs *GPU STT (Parakeet)*; LLM is OpenRouter (cloud).
 
 ---
 
@@ -762,35 +764,38 @@ users:
 
 ## Implementation Roadmap
 
-### Phase 1: Foundation (Weeks 1-2)
+> **As-built (Jan 2026):** Phases 1–4 are **done**; Phase 4 partially (dashboard, Azure STT; no AR/wearables/Proactive); Phase 5 **not started**.  
+> **Current status:** [CONTEXT.md](../CONTEXT.md) · **Phases and deferred:** [barnabeenet-project-log.md](../barnabeenet-project-log.md)
+
+### Phase 1: Foundation (Weeks 1-2) — ✅ Done
 - [x] Home Assistant installation and basic setup
 - [x] BarnabeeNet VM created (NixOS on Proxmox)
-- [ ] Redis + SQLite infrastructure
-- [ ] Basic STT pipeline (Distil-Whisper CPU + Parakeet GPU)
-- [ ] Basic TTS pipeline (Kokoro)
-- [ ] GPU worker on Man-of-war (WSL2 + CUDA)
-- [ ] Health check routing system
-- [ ] Simple pattern-matching Meta Agent
+- [x] Redis infrastructure (Streams, signals, config, secrets). *SQLite/sqlite-vec not used; memory is in Redis.*
+- [x] Basic STT pipeline (Distil-Whisper CPU + Parakeet GPU + Azure optional)
+- [x] Basic TTS pipeline (Kokoro-82M, bm_fable)
+- [x] GPU worker on Man-of-war (WSL2 + CUDA)
+- [x] Health check routing system
+- [x] Meta Agent (pattern + LLM fallback)
 
-### Phase 2: Core Agents (Weeks 3-4)
-- [ ] Instant Response Agent (patterns + templates)
-- [ ] Action Agent (HA service calls)
-- [ ] Working Memory (Redis sessions)
-- [ ] Basic speaker recognition
+### Phase 2: Core Agents (Weeks 3-4) — ✅ Done
+- [x] Instant Response Agent (patterns + templates)
+- [x] Action Agent (HA service calls, compound commands, SmartEntityResolver)
+- [x] Working Memory (Redis; MemoryAgent, ProfileAgent)
+- [x] Speaker from context (HA user, request, family profiles). *Voice-based ECAPA-TDNN deferred.*
 
-### Phase 3: Intelligence (Weeks 5-6)
-- [ ] Interaction Agent (OpenRouter integration)
-- [ ] Episodic Memory (conversation storage)
-- [ ] Semantic Memory (fact extraction)
-- [ ] Memory retrieval with embeddings
+### Phase 3: Intelligence (Weeks 5-6) — ✅ Done
+- [x] Interaction Agent (OpenRouter integration)
+- [x] Memory (Redis: episodic/semantic/procedural/working, embeddings, diary generation)
+- [x] Memory retrieval with embeddings (all-MiniLM-L6-v2)
 
-### Phase 4: Multi-Modal (Weeks 7-8)
+### Phase 4: Multi-Modal (Weeks 7-8) — 🔄 Partial
+- [x] Dashboard (Chat, Memory, HA, Config, Prompts, Logs), Azure STT, tiered STT modes
 - [ ] AR glasses integration (Even Realities SDK)
 - [ ] Wearable integration (Amazfit via Gadgetbridge)
 - [ ] ThinkSmart dashboard panels
 - [ ] Proactive Agent (polling + notifications)
 
-### Phase 5: Self-Improvement (Weeks 9-10)
+### Phase 5: Self-Improvement (Weeks 9-10) — ❌ Not started
 - [ ] Evolver Agent (vibe coding proposals)
 - [ ] Azure ML benchmarking integration
 - [ ] A/B testing framework for prompts
