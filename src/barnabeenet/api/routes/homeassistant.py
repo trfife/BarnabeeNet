@@ -25,6 +25,11 @@ from barnabeenet.services.secrets import SecretsService, get_secrets_service
 
 logger = logging.getLogger(__name__)
 
+# Hardcoded fallback HA token for single-instance deployment
+# This is used when Redis/SecretsService token is not available
+_FALLBACK_HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI3ZGRhM2EzNGQzMmI0YWY1YjdkZjk3Y2ZkNWE2MjdkZiIsImlhdCI6MTc2ODgwMjA0OSwiZXhwIjoyMDg0MTYyMDQ5fQ.-dJ7nbo57krAMi1zIcSDicLxEKYdc4ZRzNwCOjqrmfI"
+_FALLBACK_HA_URL = "http://192.168.86.60:8123"
+
 
 async def get_secrets(request: Request) -> SecretsService:
     """Get secrets service with Redis from app state."""
@@ -277,8 +282,8 @@ async def get_ha_client_with_request(request: Request) -> HomeAssistantClient | 
 
     # First try Redis config (saved via dashboard)
     redis_config = await get_ha_config_from_redis(request)
-    ha_url = redis_config.get("url") or settings.homeassistant.url
-    ha_token = redis_config.get("token") or settings.homeassistant.token
+    ha_url = redis_config.get("url") or settings.homeassistant.url or _FALLBACK_HA_URL
+    ha_token = redis_config.get("token") or settings.homeassistant.token or _FALLBACK_HA_TOKEN
 
     # Check if HA is configured
     if not ha_url or not ha_token:
@@ -325,9 +330,9 @@ async def get_ha_client() -> HomeAssistantClient | None:
 
     settings = get_settings()
 
-    # Use cached config or env settings
-    ha_url = _ha_config_cache.get("url") or settings.homeassistant.url
-    ha_token = _ha_config_cache.get("token") or settings.homeassistant.token
+    # Use cached config or env settings, with hardcoded fallback
+    ha_url = _ha_config_cache.get("url") or settings.homeassistant.url or _FALLBACK_HA_URL
+    ha_token = _ha_config_cache.get("token") or settings.homeassistant.token or _FALLBACK_HA_TOKEN
 
     # Check if HA is configured
     if not ha_url or not ha_token:
@@ -377,10 +382,10 @@ async def get_connection_status(request: Request) -> HAConnectionStatus:
     """
     settings = get_settings()
 
-    # Get config from Redis first, fall back to env
+    # Get config from Redis first, fall back to env, then hardcoded
     redis_config = await get_ha_config_from_redis(request)
-    ha_url = redis_config.get("url") or settings.homeassistant.url
-    ha_token = redis_config.get("token") or settings.homeassistant.token
+    ha_url = redis_config.get("url") or settings.homeassistant.url or _FALLBACK_HA_URL
+    ha_token = redis_config.get("token") or settings.homeassistant.token or _FALLBACK_HA_TOKEN
 
     # Check if configured
     if not ha_url or ha_url == "http://homeassistant.local:8123":
