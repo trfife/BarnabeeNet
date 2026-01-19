@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-20 (HA Native Area Targeting, Compound Commands, Timers, Enhanced Observability)
+2026-01-19 (Compound Command Fixes - Embedded Location, HA URL Fallback)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + MEMORY DASHBOARD + DIARY
@@ -110,6 +110,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Compound Command Parser (Phase 3)** - CompoundCommandParser in `agents/parsing/compound_parser.py` that splits "X and Y" commands into multiple service calls. Splits on conjunctions ("and", "then", "also", "plus"). Extracts action/target/location/value from each segment. TARGET_NOUN_TO_DOMAIN and ACTION_VERB_TO_SERVICE mappings for deterministic parsing. Handles typos ("trun", "tunr" → turn). No LLM needed for simple commands - regex-based parsing is fast and reliable.
 - [x] **Timer System (Phase 4)** - TimerManager service (`services/timers.py`) using HA timer helper entities. Three timer types: ALARM (wake me up in X), DEVICE_DURATION (turn off X in Y), DELAYED_ACTION (do X in Y minutes). Pool of timer.barnabee_1 through timer.barnabee_10 entities. ActiveTimer model tracks type, duration, action callback, entity_id. parse_duration() handles "5 minutes", "30 seconds", "1 hour". parse_timer_command() extracts timer intent from text. Timer service calls: timer.start, timer.cancel, timer.pause, timer.finish.
 - [x] **Enhanced Observability (Phase 5)** - PipelineTrace model (`models/pipeline_trace.py`) with RoutingDecision for capturing full decision chain. generate_routing_reason() creates human-readable explanations of agent routing. TraceDetails schema added to TextProcessResponse with: routing_reason, pattern_matched, meta_processing_time_ms, context_evaluation, memory_queries, memories_data, parsed_segments, resolved_targets, service_calls, timer_info. Dashboard showProcessingFlow() enhanced to display: routing reason after classification, parsed segments for compound commands, service calls with area/entity targets, timer info when present. New CSS classes for trace details styling.
+- [x] **Compound Command Fixes (Jan 2026)** - Multiple fixes to ensure compound commands like "turn on the office light and turn on the office fan" work correctly: (1) SSH restart script on VM (`~/barnabeenet/start.sh`) with proper `</dev/null` to prevent hanging. (2) HA token hardcoded as fallback constant in homeassistant.py. (3) Compound parser no longer extracts embedded location from target phrases ("office light" stays as target, not "light" + "office" location). (4) Orchestrator uses raw_text directly for segments, not re-adding location. (5) SmartEntityResolver ranks entities by device type word match. (6) HA URL fallback now skips the default "homeassistant.local" to use hardcoded IP.
 
 ### In Progress
 None
