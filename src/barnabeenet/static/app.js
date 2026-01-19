@@ -4234,23 +4234,9 @@ function initChatPage() {
     // Clear conversation
     clearBtn?.addEventListener('click', clearChat);
 
-    // Microphone button - hold to record
+    // Microphone button - click to toggle recording
     if (micBtn) {
-        // Mouse events
-        micBtn.addEventListener('mousedown', startVoiceRecording);
-        micBtn.addEventListener('mouseup', stopVoiceRecording);
-        micBtn.addEventListener('mouseleave', stopVoiceRecording);
-
-        // Touch events for mobile
-        micBtn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            startVoiceRecording();
-        });
-        micBtn.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            stopVoiceRecording();
-        });
-        micBtn.addEventListener('touchcancel', stopVoiceRecording);
+        micBtn.addEventListener('click', toggleVoiceRecording);
     }
 
     // Suggestion chips
@@ -4726,6 +4712,14 @@ function escapeHtml(text) {
 // =============================================================================
 // Voice Recording for Chat
 // =============================================================================
+
+async function toggleVoiceRecording() {
+    if (isRecording) {
+        stopVoiceRecording();
+    } else {
+        await startVoiceRecording();
+    }
+}
 
 async function startVoiceRecording() {
     if (isRecording) return;
