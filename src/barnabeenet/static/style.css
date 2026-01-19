@@ -4717,6 +4717,169 @@ body {
     flex-shrink: 0;
 }
 
+/* Processing Flow Display - Enhanced Agent Chain */
+.processing-flow {
+    margin-top: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-primary);
+    overflow: hidden;
+    font-size: 12px;
+}
+
+.flow-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.flow-header:hover {
+    background: linear-gradient(135deg, var(--bg-hover) 0%, var(--bg-secondary) 100%);
+}
+
+.flow-toggle {
+    font-size: 10px;
+    transition: transform 0.2s;
+    color: var(--text-muted);
+}
+
+.processing-flow:not(.expanded) .flow-toggle {
+    transform: rotate(-90deg);
+}
+
+.flow-title {
+    flex: 1;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.flow-duration {
+    font-size: 11px;
+    color: var(--accent-primary);
+    font-weight: 500;
+}
+
+.flow-steps {
+    display: none;
+    padding: 12px;
+}
+
+.processing-flow.expanded .flow-steps {
+    display: block;
+}
+
+.flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.flow-step-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    width: 24px;
+    text-align: center;
+}
+
+.flow-step-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.flow-step-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.flow-step-value {
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.flow-step-value strong {
+    color: var(--accent-secondary);
+}
+
+.flow-step-value code {
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 11px;
+    color: var(--accent-primary);
+}
+
+.flow-model {
+    display: block;
+    margin-top: 4px;
+    color: var(--text-secondary);
+}
+
+.flow-tokens {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.flow-arrow {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 4px 0;
+}
+
+/* Step type colors */
+.flow-step.flow-input {
+    border-left: 3px solid #4a9eff;
+}
+
+.flow-step.flow-classify {
+    border-left: 3px solid #9b59b6;
+}
+
+.flow-step.flow-memory {
+    border-left: 3px solid #f39c12;
+}
+
+.flow-step.flow-agent {
+    border-left: 3px solid #2ecc71;
+}
+
+.flow-step.flow-action {
+    border-left: 3px solid #e74c3c;
+}
+
+.flow-step.flow-memory-store {
+    border-left: 3px solid #f39c12;
+}
+
+.flow-step.flow-response {
+    border-left: 3px solid #1abc9c;
+}
+
+.flow-action-item {
+    font-family: monospace;
+    font-size: 10px;
+    padding: 4px 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
 /* Chat clickable message */
 .message-bubble.clickable:hover {
     background: var(--bg-hover);

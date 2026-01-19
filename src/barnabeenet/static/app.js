@@ -4482,10 +4482,8 @@ async function sendChatMessage() {
             addChatMessage('assistant', assistantMessage, { agent, intent, fullResponse: data, traceId });
             updateChatStatus('Ready to chat');
 
-            // Fetch and display agent chain if we have a trace_id
-            if (traceId) {
-                setTimeout(() => fetchAndDisplayAgentChain(traceId), 100);
-            }
+            // Show processing flow immediately from response data, then enhance with trace
+            showProcessingFlow(data, traceId);
         } else {
             // Error response
             const errorMsg = data.detail || data.error || 'Something went wrong';
@@ -4623,7 +4621,150 @@ function clearChat() {
     showToast('Conversation cleared');
 }
 
-async function fetchAndDisplayAgentChain(traceId) {
+function showProcessingFlow(data, traceId) {
+    // Find the last assistant message
+    const messages = document.querySelectorAll('.chat-message.assistant');
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage) return;
+
+    const messageContent = lastMessage.querySelector('.message-content');
+    if (!messageContent) return;
+
+    // Build processing flow from response data
+    const flowEl = document.createElement('div');
+    flowEl.className = 'processing-flow expanded';
+
+    const intent = data.intent || 'unknown';
+    const agent = data.agent_used || data.agent || 'unknown';
+    const llmDetails = data.llm_details;
+    const latency = data.latency_ms?.toFixed(0) || data.total_latency_ms?.toFixed(0) || '?';
+    const memoriesRetrieved = data.memories_retrieved || 0;
+    const memoriesStored = data.memories_stored || 0;
+    const actions = data.actions || [];
+
+    // Build flow steps
+    let flowHtml = `
+        <div class="flow-header" onclick="this.parentElement.classList.toggle('expanded')">
+            <span class="flow-toggle">▼</span>
+            <span class="flow-title">📊 Processing Flow</span>
+            <span class="flow-duration">${latency}ms total</span>
+        </div>
+        <div class="flow-steps">
+    `;
+
+    // Step 1: Input
+    flowHtml += `
+        <div class="flow-step flow-input">
+            <div class="flow-step-icon">📥</div>
+            <div class="flow-step-content">
+                <div class="flow-step-label">Input</div>
+                <div class="flow-step-value">"${escapeHtml(data.text || '')}"</div>
+            </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+    `;
+
+    // Step 2: Classification
+    flowHtml += `
+        <div class="flow-step flow-classify">
+            <div class="flow-step-icon">🧠</div>
+            <div class="flow-step-content">
+                <div class="flow-step-label">MetaAgent Classification</div>
+                <div class="flow-step-value">Intent: <strong>${intent}</strong></div>
+            </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+    `;
+
+    // Step 3: Memory retrieval (if any)
+    if (memoriesRetrieved > 0) {
+        flowHtml += `
+            <div class="flow-step flow-memory">
+                <div class="flow-step-icon">📝</div>
+                <div class="flow-step-content">
+                    <div class="flow-step-label">Memory Retrieval</div>
+                    <div class="flow-step-value">Retrieved ${memoriesRetrieved} relevant memories</div>
+                </div>
+            </div>
+            <div class="flow-arrow">↓</div>
+        `;
+    }
+
+    // Step 4: Agent routing and processing
+    const agentIcon = getAgentIcon(agent);
+    let agentDetails = `Routed to: <strong>${agent}</strong>`;
+    
+    if (llmDetails && llmDetails.model) {
+        const modelName = llmDetails.model.split('/').pop(); // Get just model name
+        const tokens = (llmDetails.input_tokens || 0) + (llmDetails.output_tokens || 0);
+        const llmLatency = llmDetails.llm_latency_ms?.toFixed(0) || '?';
+        agentDetails += `<br><span class="flow-model">Model: <code>${modelName}</code></span>`;
+        agentDetails += `<br><span class="flow-tokens">${tokens} tokens • ${llmLatency}ms LLM time</span>`;
+    }
+
+    flowHtml += `
+        <div class="flow-step flow-agent">
+            <div class="flow-step-icon">${agentIcon}</div>
+            <div class="flow-step-content">
+                <div class="flow-step-label">Agent Processing</div>
+                <div class="flow-step-value">${agentDetails}</div>
+            </div>
+        </div>
+    `;
+
+    // Step 5: Actions taken (if any)
+    if (actions.length > 0) {
+        flowHtml += `<div class="flow-arrow">↓</div>`;
+        flowHtml += `
+            <div class="flow-step flow-action">
+                <div class="flow-step-icon">🎯</div>
+                <div class="flow-step-content">
+                    <div class="flow-step-label">Actions Executed</div>
+                    <div class="flow-step-value">${actions.map(a => `<div class="flow-action-item">${escapeHtml(JSON.stringify(a))}</div>`).join('')}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Step 6: Memory storage (if any)
+    if (memoriesStored > 0) {
+        flowHtml += `<div class="flow-arrow">↓</div>`;
+        flowHtml += `
+            <div class="flow-step flow-memory-store">
+                <div class="flow-step-icon">💾</div>
+                <div class="flow-step-content">
+                    <div class="flow-step-label">Memory Storage</div>
+                    <div class="flow-step-value">Stored ${memoriesStored} new memories</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Final: Response
+    flowHtml += `<div class="flow-arrow">↓</div>`;
+    const responsePreview = (data.response || '').substring(0, 100) + ((data.response || '').length > 100 ? '...' : '');
+    flowHtml += `
+        <div class="flow-step flow-response">
+            <div class="flow-step-icon">💬</div>
+            <div class="flow-step-content">
+                <div class="flow-step-label">Response Generated</div>
+                <div class="flow-step-value">"${escapeHtml(responsePreview)}"</div>
+            </div>
+        </div>
+    `;
+
+    flowHtml += '</div>'; // Close flow-steps
+
+    flowEl.innerHTML = flowHtml;
+    messageContent.appendChild(flowEl);
+
+    // If we have a trace_id, fetch additional details asynchronously
+    if (traceId) {
+        fetchTraceEnhancements(traceId, flowEl);
+    }
+}
+
+async function fetchTraceEnhancements(traceId, flowEl) {
     try {
         const response = await fetch(`${API_BASE}/api/v1/activity/traces/${traceId}`);
         if (!response.ok) return;
@@ -4631,50 +4772,22 @@ async function fetchAndDisplayAgentChain(traceId) {
         const trace = await response.json();
         if (!trace.steps || trace.steps.length === 0) return;
 
-        // Find the last assistant message and add the agent chain
-        const messages = document.querySelectorAll('.chat-message.assistant');
-        const lastMessage = messages[messages.length - 1];
-        if (!lastMessage) return;
-
-        // Create agent chain element
-        const chainEl = document.createElement('div');
-        chainEl.className = 'agent-chain';
-
-        let chainHtml = `
-            <div class="agent-chain-header" onclick="this.parentElement.classList.toggle('expanded')">
-                <span class="chain-toggle">▶</span>
-                <span class="chain-title">🔗 Agent Chain (${trace.steps.length} steps)</span>
-                <span class="chain-duration">${trace.total_duration_ms?.toFixed(0) || '?'}ms</span>
-            </div>
-            <div class="agent-chain-steps">
-        `;
-
-        trace.steps.forEach((step, index) => {
-            const icon = getAgentIcon(step.agent);
-            const durationStr = step.duration_ms ? `${step.duration_ms.toFixed(0)}ms` : '';
-            chainHtml += `
-                <div class="chain-step">
-                    <span class="step-number">${index + 1}</span>
-                    <span class="step-icon">${icon}</span>
-                    <span class="step-agent">${step.agent}</span>
-                    <span class="step-action">${step.action}</span>
-                    <span class="step-summary">${escapeHtml(step.summary || '')}</span>
-                    ${durationStr ? `<span class="step-duration">${durationStr}</span>` : ''}
-                </div>
-            `;
-        });
-
-        chainHtml += '</div>';
-        chainEl.innerHTML = chainHtml;
-
-        // Add after the message content
-        const messageContent = lastMessage.querySelector('.message-content');
-        if (messageContent) {
-            messageContent.appendChild(chainEl);
+        // Update duration with accurate trace timing
+        const durationEl = flowEl.querySelector('.flow-duration');
+        if (durationEl && trace.total_duration_ms) {
+            durationEl.textContent = `${trace.total_duration_ms.toFixed(0)}ms total`;
         }
+
+        // Could enhance individual steps with trace timing here if needed
     } catch (e) {
-        console.warn('Failed to fetch agent chain:', e);
+        console.warn('Failed to fetch trace enhancements:', e);
     }
+}
+
+async function fetchAndDisplayAgentChain(traceId) {
+    // Legacy function - now handled by showProcessingFlow
+    // Kept for compatibility
+    return;
 }
 
 function getAgentIcon(agent) {

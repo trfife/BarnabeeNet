@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (Chat Conversation History)
+2026-01-18 (Chat Processing Flow Display)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + MEMORY DASHBOARD + DIARY
@@ -103,6 +103,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **HA Log Analysis Agent** - AI-powered Home Assistant log analysis. New LLM activity `ha.log_analyze` (openai/gpt-4o-mini, accuracy priority). POST `/api/v1/homeassistant/logs/analyze` endpoint fetches HA error logs and uses LLM to identify important issues (integration failures, automation errors, config problems, security warnings, resource issues). Returns structured issues with severity (high/medium/low), category, description, affected entities, and recommendations. Dashboard UI: new "Log Analysis" tab in HA page with "Analyze Logs" button. Results display with severity color-coding, issue cards with recommendations. Fallback to simple rule-based analysis when no LLM API key configured.
 - [x] **Memory Classification Fix** - Fixed MetaAgent MEMORY_PATTERNS to handle natural phrasing like "can you remember...", "could you store...", "make a note...", "don't forget...". Previously these were caught by heuristic classifier as QUERY intent and routed to InteractionAgent (which would just pretend to store). New patterns match memory operations regardless of prefix. 591 tests pass.
 - [x] **Chat Conversation History** - Dashboard chat now maintains conversation context across messages. Added `chatConversationId` tracking in app.js, passed to `/api/v1/voice/process` endpoint. Endpoint now returns orchestrator-generated conversation_id (was only echoing request). InteractionAgent uses conversation history for multi-turn conversations. Clear button resets conversation_id for fresh starts.
+- [x] **Chat Processing Flow Display** - Enhanced chat UI shows detailed processing flow for each message. Visible by default (collapsible). Shows: Input → MetaAgent classification (intent) → Memory retrieval (if any) → Agent routing with model name, tokens, LLM latency → Actions executed (if any) → Memory storage (if any) → Response. Color-coded steps (blue=input, purple=classify, orange=memory, green=agent, red=action, teal=response). Click header to collapse/expand.
 
 ### In Progress
 - [ ] Family profile system
