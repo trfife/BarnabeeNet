@@ -3,7 +3,7 @@
 Provides endpoints for:
 - Viewing stored memories (long-term, episodic, semantic)
 - Conversation history
-- Diary/journal entries
+- Diary/journal entries (with LLM-generated summaries)
 - Memory statistics
 - Manual memory management
 """
@@ -419,33 +419,123 @@ async def generate_diary_entry(
 ) -> DiaryEntry:
     """Generate a diary entry for a specific date using LLM.
 
-    This creates a natural language summary of the day's memories.
+    This creates a natural language summary of the day's memories,
+    written from Barnabee's perspective as the family butler AI.
     """
     storage = _get_memory_storage()
 
     # Get memories for the specific date
     all_memories = await storage.get_all_memories()
-
     day_memories = [m for m in all_memories if m.created_at.strftime("%Y-%m-%d") == date]
 
     if not day_memories:
         raise HTTPException(status_code=404, detail=f"No memories found for {date}")
 
-    # For now, return a simple summary
-    # TODO: Use LLM to generate natural language diary entry
-    highlights = [m.content for m in day_memories if m.importance >= 0.6][:5]
+    # Collect information for the diary
+    highlights = [m.content for m in day_memories if m.importance >= 0.6][:10]
     participants = set()
+    memory_types: dict[str, int] = {}
+
     for m in day_memories:
         participants.update(m.participants)
+        memory_types[m.memory_type] = memory_types.get(m.memory_type, 0) + 1
+
+    # Build the LLM prompt
+    memory_summary = "\n".join(f"- {m.content}" for m in day_memories[:20])
+
+    prompt = f"""You are Barnabee, a friendly and helpful AI butler for the Fife family.
+Write a short diary entry summarizing what happened on {date} based on the following memories.
+
+Keep it warm, personal, and conversational - like you're writing in your own journal.
+Focus on what the family did, any notable events, and your observations.
+Keep it to 2-3 paragraphs maximum.
+
+Memories from {date}:
+{memory_summary}
+
+Participants mentioned: {", ".join(participants) if participants else "None specified"}
+Memory types: {memory_types}
+
+Write your diary entry now:"""
+
+    # Try to use LLM for generation
+    try:
+        from barnabeenet.services.llm.openrouter import ChatMessage, OpenRouterClient
+        from barnabeenet.services.secrets import get_secrets_service
+
+        # Get Redis client from app state
+        redis_client = app_state.redis_client
+        if redis_client:
+            secrets = await get_secrets_service(redis_client)
+            api_key = await secrets.get_secret("openrouter_api_key")
+        else:
+            api_key = None
+
+        if api_key:
+            client = OpenRouterClient(api_key=api_key)
+            await client.init()
+
+            try:
+                response = await client.chat(
+                    messages=[ChatMessage(role="user", content=prompt)],
+                    activity="diary.generate",
+                    trace_id=f"diary_{date}",
+                )
+                summary = response.text.strip()
+            finally:
+                await client.shutdown()
+        else:
+            # Fallback if no API key
+            summary = _generate_simple_summary(date, day_memories, participants)
+
+    except Exception as e:
+        logger.warning(f"LLM diary generation failed, using fallback: {e}")
+        summary = _generate_simple_summary(date, day_memories, participants)
+
+    # Detect mood from content (simple heuristic)
+    mood = _detect_mood(day_memories)
 
     return DiaryEntry(
         date=date,
-        summary=f"A day with {len(day_memories)} recorded memories from the Fife household.",
-        highlights=highlights,
+        summary=summary,
+        highlights=highlights[:5],
         participants_mentioned=list(participants),
-        mood=None,
+        mood=mood,
         memory_count=len(day_memories),
     )
+
+
+def _generate_simple_summary(
+    date: str, memories: list[StoredMemory], participants: set[str]
+) -> str:
+    """Generate a simple summary without LLM."""
+    count = len(memories)
+    p_list = ", ".join(participants) if participants else "the household"
+
+    if count == 1:
+        return f"A quiet day on {date}. Recorded one memory involving {p_list}."
+    elif count < 5:
+        return f"A light day on {date}. Recorded {count} memories with activity from {p_list}."
+    else:
+        return f"A busy day on {date}! Recorded {count} memories. The household was active with {p_list} involved in various activities."
+
+
+def _detect_mood(memories: list[StoredMemory]) -> str | None:
+    """Detect overall mood from memories using simple heuristics."""
+    positive_words = ["happy", "great", "love", "fun", "enjoy", "excited", "wonderful", "good"]
+    negative_words = ["sad", "angry", "upset", "frustrated", "tired", "annoyed", "bad", "worried"]
+
+    content = " ".join(m.content.lower() for m in memories)
+
+    positive_count = sum(1 for word in positive_words if word in content)
+    negative_count = sum(1 for word in negative_words if word in content)
+
+    if positive_count > negative_count + 2:
+        return "positive"
+    elif negative_count > positive_count + 2:
+        return "concerned"
+    else:
+        return "neutral"
 
 
 # ============================================================================

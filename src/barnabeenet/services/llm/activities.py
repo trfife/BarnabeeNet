@@ -81,6 +81,12 @@ class LLMActivity(str, Enum):
     MEMORY_RANK = "memory.rank"
 
     # ==========================================================================
+    # Dashboard/API Activities
+    # ==========================================================================
+    # Generate daily diary summaries from memories
+    DIARY_GENERATE = "diary.generate"
+
+    # ==========================================================================
     # Instant Agent (fallback only - usually no LLM)
     # ==========================================================================
     # Fallback for instant patterns that need LLM
@@ -198,6 +204,14 @@ DEFAULT_ACTIVITY_CONFIGS: dict[str, dict[str, Any]] = {
         "max_tokens": 100,
         "priority": "speed",
         "description": "Rank memory relevance",
+    },
+    # Diary/Journal generation
+    "diary.generate": {
+        "model": "openai/gpt-4o-mini",
+        "temperature": 0.7,
+        "max_tokens": 800,
+        "priority": "quality",
+        "description": "Generate daily diary summaries from memories",
     },
     # Instant Agent fallback
     "instant.fallback": {

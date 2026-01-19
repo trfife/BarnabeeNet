@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (Memory Dashboard UI)
+2026-01-18 (LLM-Generated Diary Summaries)
 
 ## Current Phase
-**Phase 1: Core Services** - FULL PIPELINE WORKING + MEMORY DASHBOARD
+**Phase 1: Core Services** - FULL PIPELINE WORKING + MEMORY DASHBOARD + DIARY
 
 ## Development Workflow
 
@@ -98,9 +98,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Dashboard Voice Input (Phase 6)** - Microphone button in Chat tab for voice-to-voice conversations. Hold-to-record interaction with visual recording indicator (animated wave). WebM/Opus audio capture at 16kHz, sent to `/api/v1/voice/pipeline` for full STT→Agent→TTS processing. Auto-plays audio response when available. Mobile touch event support. Graceful fallback for unsupported browsers.
 - [x] **Anti-Hallucination for Memory** - Updated InteractionAgent persona to NEVER make up personal information or past conversations. Explicit system prompt warning when no memories retrieved. MemoryAgent returns clearer "I don't have that information stored" response. Prevents LLM from fabricating facts when asked about things it wasn't told.
 - [x] **Memory Dashboard (Phase 7)** - Full memory management UI: Memory API endpoints (list, search, store, delete, stats), tabbed interface (All Memories, Facts/Knowledge, Conversations, Diary, Search, Add Memory). Features: semantic search with similarity scores, memory type badges (semantic/episodic/procedural/working), participant/tag display, pagination, filter by type. Real-time stats (total memories, 24h/7d counts, storage backend). Add memory form with type, importance, participants, tags. Diary entries view for daily summaries.
+- [x] **LLM-Generated Diary Summaries** - New "diary.generate" LLM activity for AI-powered diary creation. POST `/api/v1/memory/diary/generate?date=YYYY-MM-DD` endpoint uses LLM to write natural language diary entries from Barnabee's perspective. Summarizes memories for a specific date with warm, personal tone. Dashboard "Generate Today's Entry" button with date picker. Enhanced diary entry display showing mood badge (positive/neutral/concerned), highlights list, participants mentioned. Fallback to simple summary if no LLM API key configured. Mood detection from memory content heuristics.
 
 ### In Progress
-- [ ] Memory system enhancements: LLM-generated diary summaries
+- [ ] HA activity feed integration (filter by HA vs other activities)
 
 ### Not Started
 - [ ] HA activity feed integration (filter by HA vs other activities)

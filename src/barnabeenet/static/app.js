@@ -5142,6 +5142,20 @@ function initMemory() {
     const addBtn = document.getElementById('add-memory-btn');
     if (addBtn) addBtn.addEventListener('click', addMemory);
 
+    // Diary generation
+    const generateDiaryBtn = document.getElementById('generate-diary-btn');
+    const diaryDatePicker = document.getElementById('diary-date-picker');
+
+    // Set default date to today
+    if (diaryDatePicker) {
+        const today = new Date().toISOString().split('T')[0];
+        diaryDatePicker.value = today;
+    }
+
+    if (generateDiaryBtn) {
+        generateDiaryBtn.addEventListener('click', generateDiaryEntry);
+    }
+
     // Initial load
     loadMemoryStats();
     loadMemories(1);
@@ -5437,6 +5451,7 @@ async function loadDiary() {
                     <div class="memory-empty-icon">📖</div>
                     <h3>No diary entries yet</h3>
                     <p>Barnabee will write daily summaries as interactions happen.</p>
+                    <p>Click "Generate Today's Entry" to create one using AI!</p>
                 </div>
             `;
         } else {
@@ -5448,7 +5463,51 @@ async function loadDiary() {
     }
 }
 
-function renderDiaryEntry(entry) {
+async function generateDiaryEntry() {
+    const btn = document.getElementById('generate-diary-btn');
+    const datePicker = document.getElementById('diary-date-picker');
+    const container = document.getElementById('diary-entries');
+
+    const date = datePicker?.value || new Date().toISOString().split('T')[0];
+
+    // Show loading state
+    const originalText = btn.textContent;
+    btn.textContent = '⏳ Generating...';
+    btn.disabled = true;
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/v1/memory/diary/generate?date=${date}`, {
+            method: 'POST'
+        });
+
+        if (!resp.ok) {
+            const error = await resp.json();
+            throw new Error(error.detail || 'Failed to generate diary');
+        }
+
+        const entry = await resp.json();
+
+        // Prepend the new entry to the list
+        const entryHtml = renderDiaryEntry(entry, true);
+        const existingContent = container.innerHTML;
+
+        if (existingContent.includes('memory-empty')) {
+            container.innerHTML = entryHtml;
+        } else {
+            container.innerHTML = entryHtml + existingContent;
+        }
+
+        showToast('✨ Diary entry generated!', 'success');
+    } catch (error) {
+        console.error('Error generating diary:', error);
+        showToast(`Failed to generate diary: ${error.message}`, 'error');
+    } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+    }
+}
+
+function renderDiaryEntry(entry, isNew = false) {
     const date = new Date(entry.date).toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
@@ -5456,15 +5515,48 @@ function renderDiaryEntry(entry) {
         day: 'numeric'
     });
 
+    const moodEmoji = {
+        'positive': '😊',
+        'neutral': '😐',
+        'concerned': '😟'
+    };
+
+    const moodBadge = entry.mood ? `<span class="mood-badge ${entry.mood}">${moodEmoji[entry.mood] || '📝'} ${entry.mood}</span>` : '';
+    const newBadge = isNew ? '<span class="new-badge">✨ New</span>' : '';
+
+    const highlights = (entry.highlights || []).map(h =>
+        `<li>${escapeHtml(h)}</li>`
+    ).join('');
+
+    const highlightsSection = highlights ? `
+        <div class="diary-highlights">
+            <strong>Notable moments:</strong>
+            <ul>${highlights}</ul>
+        </div>
+    ` : '';
+
+    const participants = (entry.participants_mentioned || []).join(', ');
+    const participantsSection = participants ? `
+        <div class="diary-participants">
+            <strong>People involved:</strong> ${escapeHtml(participants)}
+        </div>
+    ` : '';
+
     return `
-        <div class="diary-entry">
+        <div class="diary-entry ${isNew ? 'new-entry' : ''}">
             <div class="diary-entry-header">
                 <span class="diary-date">📅 ${date}</span>
-                <span class="diary-summary-badge">${entry.memory_count || 0} memories</span>
+                <div class="diary-badges">
+                    ${newBadge}
+                    ${moodBadge}
+                    <span class="diary-summary-badge">${entry.memory_count || 0} memories</span>
+                </div>
             </div>
             <div class="diary-content">
                 ${entry.summary || '<em>No summary available</em>'}
             </div>
+            ${highlightsSection}
+            ${participantsSection}
         </div>
     `;
 }
