@@ -4738,10 +4738,15 @@ async function startVoiceRecording() {
             }
         });
 
-        // Create MediaRecorder with WebM/Opus (widely supported)
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-            ? 'audio/webm;codecs=opus'
-            : 'audio/webm';
+        // Create MediaRecorder - prefer WAV if supported, otherwise WebM
+        let mimeType = 'audio/webm';
+        if (MediaRecorder.isTypeSupported('audio/wav')) {
+            mimeType = 'audio/wav';
+        } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+            mimeType = 'audio/webm;codecs=opus';
+        }
+        
+        console.log('Recording with mimeType:', mimeType);
 
         voiceRecorder = new MediaRecorder(mediaStream, { mimeType });
         const audioChunks = [];
@@ -4755,6 +4760,7 @@ async function startVoiceRecording() {
         voiceRecorder.onstop = async () => {
             // Combine chunks
             const audioBlob = new Blob(audioChunks, { type: mimeType });
+            console.log('Recorded blob:', audioBlob.size, 'bytes,', mimeType);
 
             // Stop all tracks
             mediaStream?.getTracks().forEach(track => track.stop());
@@ -4854,8 +4860,18 @@ async function processVoiceRecording(audioBlob) {
     const sendBtn = document.getElementById('chat-send-btn');
 
     try {
+        // Convert audio to WAV format for server compatibility
+        let wavBlob;
+        try {
+            wavBlob = await convertToWav(audioBlob);
+            console.log('Converted to WAV:', wavBlob.size, 'bytes');
+        } catch (convError) {
+            console.warn('WAV conversion failed, sending original:', convError);
+            wavBlob = audioBlob;
+        }
+        
         // Convert blob to base64
-        const arrayBuffer = await audioBlob.arrayBuffer();
+        const arrayBuffer = await wavBlob.arrayBuffer();
         const base64Audio = btoa(
             new Uint8Array(arrayBuffer)
                 .reduce((data, byte) => data + String.fromCharCode(byte), '')
@@ -4933,8 +4949,18 @@ async function processVoiceRecording(audioBlob) {
                 setTimeout(() => fetchAndDisplayAgentChain(traceId), 100);
             }
         } else {
-            // Error response
-            const errorMsg = data.detail || data.error || 'Voice processing failed';
+            // Error response - handle both string and object errors
+            let errorMsg = 'Voice processing failed';
+            if (data.detail) {
+                errorMsg = typeof data.detail === 'string' ? data.detail : 
+                           (data.detail.message || data.detail.error || JSON.stringify(data.detail));
+            } else if (data.error) {
+                errorMsg = typeof data.error === 'string' ? data.error :
+                           (data.error.message || JSON.stringify(data.error));
+            } else if (data.message) {
+                errorMsg = data.message;
+            }
+            
             // Update user message to show error
             const userMessages = document.querySelectorAll('.chat-message.user');
             const lastUserMessage = userMessages[userMessages.length - 1];
@@ -4947,6 +4973,7 @@ async function processVoiceRecording(audioBlob) {
             }
             addChatMessage('assistant', errorMsg, { error: true });
             updateChatStatus('Voice error');
+            console.error('Voice pipeline error:', data);
         }
     } catch (error) {
         // Network error
@@ -4988,5 +5015,93 @@ function playAudioResponse(base64Audio) {
         });
     } catch (error) {
         console.error('Failed to play audio response:', error);
+    }
+}
+
+// Convert audio blob to WAV format using Web Audio API
+async function convertToWav(audioBlob) {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)({
+        sampleRate: 16000
+    });
+    
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    
+    // Get mono channel data
+    const channelData = audioBuffer.getChannelData(0);
+    const sampleRate = audioBuffer.sampleRate;
+    
+    // Resample to 16kHz if needed
+    let samples = channelData;
+    if (sampleRate !== 16000) {
+        const ratio = 16000 / sampleRate;
+        const newLength = Math.round(channelData.length * ratio);
+        samples = new Float32Array(newLength);
+        for (let i = 0; i < newLength; i++) {
+            const srcIndex = i / ratio;
+            const srcIndexFloor = Math.floor(srcIndex);
+            const srcIndexCeil = Math.min(srcIndexFloor + 1, channelData.length - 1);
+            const t = srcIndex - srcIndexFloor;
+            samples[i] = channelData[srcIndexFloor] * (1 - t) + channelData[srcIndexCeil] * t;
+        }
+    }
+    
+    // Convert to 16-bit PCM
+    const pcmData = new Int16Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    
+    // Create WAV file
+    const wavBuffer = createWavBuffer(pcmData, 16000);
+    
+    audioContext.close();
+    return new Blob([wavBuffer], { type: 'audio/wav' });
+}
+
+// Create WAV file buffer from PCM data
+function createWavBuffer(pcmData, sampleRate) {
+    const numChannels = 1;
+    const bitsPerSample = 16;
+    const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+    const blockAlign = numChannels * (bitsPerSample / 8);
+    const dataSize = pcmData.length * (bitsPerSample / 8);
+    const bufferSize = 44 + dataSize;
+    
+    const buffer = new ArrayBuffer(bufferSize);
+    const view = new DataView(buffer);
+    
+    // RIFF header
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, bufferSize - 8, true);
+    writeString(view, 8, 'WAVE');
+    
+    // fmt chunk
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true); // chunk size
+    view.setUint16(20, 1, true);  // audio format (PCM)
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitsPerSample, true);
+    
+    // data chunk
+    writeString(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
+    
+    // PCM data
+    const pcmOffset = 44;
+    for (let i = 0; i < pcmData.length; i++) {
+        view.setInt16(pcmOffset + i * 2, pcmData[i], true);
+    }
+    
+    return buffer;
+}
+
+function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
     }
 }

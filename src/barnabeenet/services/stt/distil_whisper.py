@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import base64
+import io
 import time
 from typing import TYPE_CHECKING
 
 import numpy as np
+import soundfile as sf
 import structlog
 
 if TYPE_CHECKING:
@@ -97,11 +99,34 @@ class DistilWhisperSTT:
 
         start = time.perf_counter()
 
-        # Convert bytes to numpy array
-        audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32)
+        # Try to decode audio - support both raw PCM and encoded formats (WebM, WAV, etc.)
+        try:
+            # Try soundfile first (handles WAV, FLAC, OGG, etc.)
+            audio_buffer = io.BytesIO(audio_data)
+            audio_array, file_sample_rate = sf.read(audio_buffer, dtype="float32")
 
-        # Normalize to [-1, 1] range (faster-whisper expects this)
-        audio_array = (audio_array / 32768.0).astype(np.float32)
+            # Convert stereo to mono if needed
+            if len(audio_array.shape) > 1:
+                audio_array = audio_array.mean(axis=1)
+
+            sample_rate = file_sample_rate
+            logger.debug(
+                f"Decoded audio with soundfile: {len(audio_array)} samples at {sample_rate}Hz"
+            )
+
+        except Exception as sf_error:
+            logger.debug(f"soundfile decode failed ({sf_error}), trying raw PCM")
+            # Fall back to raw PCM (16-bit signed integer)
+            try:
+                audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32)
+                # Normalize to [-1, 1] range
+                audio_array = audio_array / 32768.0
+            except Exception as pcm_error:
+                logger.error(f"Failed to decode audio: soundfile={sf_error}, pcm={pcm_error}")
+                raise ValueError(f"Could not decode audio data: {sf_error}") from pcm_error
+
+        # Ensure float32
+        audio_array = audio_array.astype(np.float32)
 
         # Resample if needed (faster-whisper expects 16kHz)
         if sample_rate != 16000:
