@@ -299,6 +299,8 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
             trace_id=trace_id,
             response_text=response_text,
             success=True,
+            intent=intent,
+            agent_used=agent_used,
         )
 
         # Build LLM details if available

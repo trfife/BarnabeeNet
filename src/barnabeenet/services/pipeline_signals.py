@@ -304,6 +304,12 @@ class PipelineLogger:
         response_text: str = "",
         success: bool = True,
         error: str | None = None,
+        intent: str | None = None,
+        agent_used: str | None = None,
+        intent_confidence: float | None = None,
+        response_type: str | None = None,
+        ha_actions: list[dict[str, Any]] | None = None,
+        memories_retrieved: list[str] | None = None,
     ) -> RequestTrace | None:
         """Complete a request trace and store it."""
         trace = self._active_traces.pop(trace_id, None)
@@ -314,6 +320,16 @@ class PipelineLogger:
         trace.response_text = response_text
         trace.success = success
         trace.error = error
+        trace.intent = intent
+        trace.agent_used = agent_used
+        if intent_confidence is not None:
+            trace.intent_confidence = intent_confidence
+        if response_type is not None:
+            trace.response_type = response_type
+        if ha_actions is not None:
+            trace.ha_actions = ha_actions
+        if memories_retrieved is not None:
+            trace.memories_retrieved = memories_retrieved
 
         # Calculate totals
         if trace.started_at and trace.completed_at:
