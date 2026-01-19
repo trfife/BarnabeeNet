@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-20 (Logic Browser Phase 7.2: Waterfall timeline visualization, history filters)
+2026-01-20 (Logic Browser Phase 7.3-7.4: AI correction assistant with "Mark as Wrong" flow)
 
 ## Current Phase
-**Phases 1–4 done; 5–6 partial; Phase 7.1-7.2 (Logic as Data + Trace Visualization) complete.** Full pipeline (STT/TTS/agents/HA/memory), dashboard, E2E, VM deploy. Next: AI pattern correction, ViewAssist, mobile.
+**Phases 1–4 done; 5–6 partial; Phase 7.1-7.4 (Logic as Data + AI Correction) complete.** Full pipeline (STT/TTS/agents/HA/memory), dashboard, E2E, VM deploy. Next: ViewAssist, mobile.
 
 ## Development Workflow
 
@@ -122,6 +122,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **NixOS Auto-Start Service** - BarnabeeNet now auto-starts on VM boot via systemd. NixOS module at `/etc/nixos/barnabeenet.nix` defines `barnabeenet.service`: Type=simple, User=thom, auto-restarts on failure (RestartSec=5). Service is enabled and running, survives reboots. Uses existing Redis instance on VM.
 - [x] **Logic Browser System (Phase 7.1)** - Complete externalization of BarnabeeNet's decision logic: (1) **YAML Config Files**: `config/patterns.yaml` (all pattern definitions by group: emergency, instant, action, memory, query, gesture), `config/routing.yaml` (intent→agent routing, priority rules, confidence thresholds), `config/overrides.yaml` (user/room/time-based behavior modifications, entity aliases). (2) **LogicRegistry** (`core/logic_registry.py`): Loads/manages YAML patterns, hot-reload support, pattern matching, change tracking with reason logging, API for runtime updates. (3) **DecisionRegistry** (`core/decision_registry.py`): Captures every decision point (pattern match, routing, override) with context manager for tracing, rolling buffer storage, trace_id correlation. (4) **Logic API** (`api/routes/logic.py`): REST endpoints for browsing/editing patterns (GET/PUT /patterns/{group}/{name}), routing rules, overrides, entity aliases, pattern testing (POST /patterns/test), change history. (5) **Dashboard Logic Page**: Stats cards (patterns/routing/overrides/aliases), tabbed UI (Patterns/Routing/Overrides/Aliases/Test), collapsible pattern groups, edit modal with regex/confidence/enabled fields, pattern tester for live classification testing. (6) **MetaAgent Integration**: Backward-compatible - tries LogicRegistry first, falls back to hardcoded patterns. 628 tests pass.
 - [x] **Pipeline Trace Visualization (Phase 7.2 partial)** - Enhanced Logic Browser with: (1) **Waterfall Timeline**: Visual timeline showing timing of each pipeline signal with colored bars per component type (meta=purple, action=orange, interaction=blue, llm=indigo, etc.), relative positioning based on timestamps, duration labels. (2) **History Filters**: Agent type filter (instant/action/interaction/memory), success/error status filter, text search with debounce, filter results count display. (3) **Trace Detail Modal**: Shows full pipeline info including waterfall, input/output, classification, HA actions, LLM usage, signals list, raw JSON.
+- [x] **AI Correction Assistant (Phase 7.3-7.4)** - Complete AI-assisted pattern correction system: (1) **"Mark as Wrong" Button**: Added to trace detail modal header, opens correction flow modal. (2) **Correction Modal UI**: Two-step flow - Step 1: select issue type (wrong_entity, wrong_action, wrong_routing, clarification_needed, tone_content) and describe expected result. Step 2: AI analysis results with suggestions. (3) **AICorrectionService** (`services/ai_correction.py`): Analyzes traces using LLM to diagnose root cause, generates fix suggestions (pattern_modify, entity_alias, routing_change, prompt_edit), test/apply methods for suggestions. (4) **Correction API**: POST `/api/v1/logic/corrections/analyze` analyzes trace and returns suggestions, POST `/api/v1/logic/corrections/{analysis_id}/suggestions/{suggestion_id}/test` tests a suggestion against historical data, POST `/api/v1/logic/corrections/{analysis_id}/suggestions/{suggestion_id}/apply` applies fix. (5) **Suggestion Cards**: Styled cards showing suggestion type, title, description, impact level (low/medium/high), confidence score, diff preview (before/after), reasoning. (6) **JavaScript Functions**: `openCorrectionModal()`, `analyzeCorrection()`, `renderCorrectionAnalysis()`, `testSuggestion()`, `applySuggestion()`, `markAsWrongOnly()`. 628 tests pass.
 
 ### In Progress
 None
@@ -173,9 +174,8 @@ None
 
 ## Next Steps (Ordered)
 
-1. **Pipeline Management Dashboard Phase 7.3-7.4** — AI-assisted pattern correction ("Mark as Wrong" flow, fix suggestions, test against history)
-2. ViewAssist Integration — Accept audio/text from ViewAssist Companion App on tablets
-3. Mobile app / remote access
+1. ViewAssist Integration — Accept audio/text from ViewAssist Companion App on tablets
+2. Mobile app / remote access
 
 ## Voice Architecture Decision
 
