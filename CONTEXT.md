@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (Chat Processing Flow Display)
+2026-01-19 (Family Profile System Complete)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + MEMORY DASHBOARD + DIARY
@@ -104,12 +104,12 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Memory Classification Fix** - Fixed MetaAgent MEMORY_PATTERNS to handle natural phrasing like "can you remember...", "could you store...", "make a note...", "don't forget...". Previously these were caught by heuristic classifier as QUERY intent and routed to InteractionAgent (which would just pretend to store). New patterns match memory operations regardless of prefix. 591 tests pass.
 - [x] **Chat Conversation History** - Dashboard chat now maintains conversation context across messages. Added `chatConversationId` tracking in app.js, passed to `/api/v1/voice/process` endpoint. Endpoint now returns orchestrator-generated conversation_id (was only echoing request). InteractionAgent uses conversation history for multi-turn conversations. Clear button resets conversation_id for fresh starts.
 - [x] **Chat Processing Flow Display** - Enhanced chat UI shows detailed processing flow for each message. Visible by default (collapsible). Shows: Input → MetaAgent classification (intent) → Memory retrieval (if any) → Agent routing with model name, tokens, LLM latency → Actions executed (if any) → Memory storage (if any) → Response. Color-coded steps (blue=input, purple=classify, orange=memory, green=agent, red=action, teal=response). Click header to collapse/expand.
+- [x] **Family Profile System** - Complete implementation based on SkyrimNet's NPC biography pattern. (1) Profile Models: `models/profiles.py` with FamilyMemberProfile, PublicProfileBlock (communication style, interests, preferences), PrivateProfileBlock (personal notes, goals, topics to avoid), ProfileDiff for LLM-generated updates. (2) ProfileService: CRUD operations, Redis storage with `profile:` prefix, event tracking with significance scores, version history (last 10), pending update management, privacy-aware context injection. (3) ProfileAgent: LLM-based profile generation and updates via `profile.generate` activity, diff creation with before/after preview. (4) Profile API: REST endpoints at `/api/v1/profiles/` (list, create, get, update, delete, events, generate-update, approve-update, reject-update, history, context, guests). (5) Dashboard Family Page: Tabs for Members/Pending Updates/Add Member, profile cards with avatars and stats, detailed profile modal, diff preview modal with approve/reject, event significance tracking. (6) Orchestrator Integration: `_get_profile_context()` retrieves speaker profile, injects into `agent_context["profile"]`, maps rooms to privacy zones (bedroom/office = private, others = common). (7) InteractionAgent: `_build_profile_section()` formats profile for system prompt with communication style, interests, preferences, and private context when appropriate. Profiles enable personalized responses based on family member preferences.
 
 ### In Progress
-- [ ] Family profile system
+None
 
 ### Not Started
-- [ ] Family profile system
 
 ---
 
@@ -146,14 +146,10 @@ To continue: Read this file → Check next steps → Create/execute session plan
 
 ## Next Steps (Ordered)
 
-1. Dashboard Phase 7: Testing Dashboard enhancements - E2E runner, mock HA ← NEXT
-2. Dashboard Phase 8: Memory Dashboard - view/search memories, conversation history
-3. Dashboard Phase 9: Polish - loading states, error handling, responsive design
-4. Dashboard Phase 10: Integration - tie everything together
-5. Connect to actual Home Assistant instance - configure via dashboard
-6. HA activity feed integration (filter by HA vs other activities)
-7. Home Assistant intelligent log filtering agent
-8. Family profile system
+1. Testing Dashboard enhancements - E2E runner improvements, mock HA ← NEXT
+2. Dashboard Polish - loading states, error handling, responsive design
+3. Connect to actual Home Assistant instance - configure via dashboard
+4. Voice wake word integration (Wyoming protocol)
 
 ---
 

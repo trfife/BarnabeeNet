@@ -297,6 +297,11 @@ class InteractionAgent(Agent):
         if conv_ctx.room:
             parts.append(f"- Location: {conv_ctx.room}")
 
+        # Profile context (personalization from Family Profile System)
+        profile = user_ctx.get("profile")
+        if profile:
+            parts.append(self._build_profile_section(profile))
+
         # Child mode
         if conv_ctx.children_present:
             parts.append(
@@ -328,6 +333,73 @@ class InteractionAgent(Agent):
                 "their preferences, etc.), you MUST say you don't have that information stored. "
                 "Do NOT make anything up."
             )
+
+        return "\n".join(parts)
+
+    def _build_profile_section(self, profile: dict[str, Any]) -> str:
+        """Build the profile personalization section for the system prompt.
+
+        Args:
+            profile: Profile context from ProfileService (ProfileContextResponse as dict)
+
+        Returns:
+            Formatted section for system prompt
+        """
+        parts = ["\n## Speaker Profile"]
+
+        # Add name if available
+        name = profile.get("name")
+        if name:
+            parts.append(f"- Name: {name}")
+
+        # Add context type indicator
+        context_type = profile.get("context_type", "public_only")
+        if context_type == "guest":
+            parts.append("- Guest user (limited profile information)")
+            return "\n".join(parts)
+
+        # Add public profile info
+        public = profile.get("public", {})
+        if public:
+            # Communication style
+            comm_style = public.get("communication_style")
+            if comm_style:
+                parts.append(f"- Communication preference: {comm_style}")
+
+            # Interests
+            interests = public.get("interests", [])
+            if interests:
+                parts.append(f"- Interests: {', '.join(interests[:5])}")
+
+            # Preferences
+            prefs = public.get("preferences", {})
+            if prefs:
+                # Format as compact list
+                pref_items = [f"{k}: {v}" for k, v in list(prefs.items())[:5]]
+                if pref_items:
+                    parts.append(f"- Preferences: {'; '.join(pref_items)}")
+
+        # Add private profile info (only if context allows)
+        private = profile.get("private")
+        if private and context_type == "private":
+            parts.append("\n### Private Context (handle with care)")
+
+            # Personal notes
+            personal_notes = private.get("personal_notes")
+            if personal_notes:
+                parts.append(f"- Personal notes: {personal_notes[:200]}")
+
+            # Goals
+            goals = private.get("goals", [])
+            active_goals = [g for g in goals if g.get("status") == "active"][:3]
+            if active_goals:
+                goals_text = "; ".join(g.get("description", "") for g in active_goals)
+                parts.append(f"- Active goals: {goals_text}")
+
+            # Sensitive topics to avoid
+            avoid = private.get("topics_to_avoid", [])
+            if avoid:
+                parts.append(f"- Topics to handle carefully: {', '.join(avoid[:3])}")
 
         return "\n".join(parts)
 

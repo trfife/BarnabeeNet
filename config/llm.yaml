@@ -193,6 +193,32 @@ activities:
     priority: speed
     description: "Fallback for instant patterns"
 
+  # ---------------------------------------------------------------------------
+  # ProfileAgent Activities (infrequent but quality matters)
+  # ---------------------------------------------------------------------------
+  profile.generate:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.3
+    max_tokens: 2000
+    priority: quality
+    description: "Generate/update family member profiles"
+
+  profile.summarize_diff:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.3
+    max_tokens: 300
+    priority: speed
+    description: "Summarize profile changes"
+
+# =============================================================================
+# Model Pricing Reference (per 1M tokens)
+# =============================================================================
+pricing:
+  "anthropic/claude-3.5-sonnet":
+    input: 3.0
+    output: 15.0
+  "anthropic/claude-3-haiku":
+    input: 0.25
     output: 1.25
   "openai/gpt-4o":
     input: 2.5

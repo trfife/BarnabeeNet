@@ -794,62 +794,108 @@
         <div id="page-family" class="page">
             <div class="page-header">
                 <h1>👨‍👩‍👧‍👦 Family Profiles</h1>
-                <p>Manage family member profiles and preferences</p>
+                <p>Manage family member profiles and personalized preferences</p>
             </div>
 
-            <div class="family-grid" id="family-list">
-                <!-- Family members will be populated here -->
-                <div class="card family-card">
-                    <div class="family-avatar">👨</div>
-                    <h4>Thom</h4>
-                    <p class="text-muted">Admin</p>
-                    <div class="family-prefs">
-                        <span class="pref-tag">Morning Person</span>
+            <!-- Family Stats -->
+            <div class="family-stats-bar" id="family-stats">
+                <div class="family-stat">
+                    <span class="stat-value" id="family-total">-</span>
+                    <span class="stat-label">Family Members</span>
+                </div>
+                <div class="family-stat">
+                    <span class="stat-value" id="family-pending">-</span>
+                    <span class="stat-label">Pending Updates</span>
+                </div>
+                <div class="family-stat">
+                    <span class="stat-value" id="family-events">-</span>
+                    <span class="stat-label">Unprocessed Events</span>
+                </div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="family-tabs">
+                <button class="family-tab active" data-family-tab="members">👥 Members</button>
+                <button class="family-tab" data-family-tab="pending">⏳ Pending Updates</button>
+                <button class="family-tab" data-family-tab="add">➕ Add Member</button>
+            </div>
+
+            <!-- Members Tab -->
+            <div id="family-tab-members" class="family-tab-content active">
+                <div class="family-grid" id="family-list">
+                    <div class="loading">Loading family profiles...</div>
+                </div>
+            </div>
+
+            <!-- Pending Updates Tab -->
+            <div id="family-tab-pending" class="family-tab-content">
+                <div id="pending-updates-list">
+                    <div class="loading">Loading pending updates...</div>
+                </div>
+            </div>
+
+            <!-- Add Member Tab -->
+            <div id="family-tab-add" class="family-tab-content">
+                <div class="card add-member-card">
+                    <div class="card-header">
+                        <h3>➕ Add New Family Member</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="add-member-form">
+                            <div class="form-group">
+                                <label for="new-member-id">Member ID (lowercase, no spaces)</label>
+                                <input type="text" id="new-member-id" required pattern="[a-z0-9_]+"
+                                    placeholder="e.g., john">
+                            </div>
+                            <div class="form-group">
+                                <label for="new-member-name">Display Name</label>
+                                <input type="text" id="new-member-name" required placeholder="e.g., John">
+                            </div>
+                            <div class="form-group">
+                                <label for="new-member-relationship">Relationship</label>
+                                <select id="new-member-relationship" required>
+                                    <option value="self">Self (Primary User)</option>
+                                    <option value="spouse">Spouse/Partner</option>
+                                    <option value="child">Child</option>
+                                    <option value="parent">Parent</option>
+                                    <option value="sibling">Sibling</option>
+                                    <option value="extended_family">Extended Family</option>
+                                    <option value="guest">Guest</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Create Profile</button>
+                        </form>
                     </div>
                 </div>
-                <div class="card family-card">
-                    <div class="family-avatar">👩</div>
-                    <h4>Elizabeth</h4>
-                    <p class="text-muted">Adult</p>
-                    <div class="family-prefs">
-                        <span class="pref-tag">Night Owl</span>
+            </div>
+
+            <!-- Profile Detail Modal -->
+            <div id="profile-modal" class="modal">
+                <div class="modal-content profile-modal-content">
+                    <div class="modal-header">
+                        <h2 id="profile-modal-title">Profile Details</h2>
+                        <span class="close-modal">&times;</span>
+                    </div>
+                    <div class="modal-body" id="profile-modal-body">
+                        <!-- Profile details loaded dynamically -->
                     </div>
                 </div>
-                <div class="card family-card">
-                    <div class="family-avatar">👧</div>
-                    <h4>Viola</h4>
-                    <p class="text-muted">Child</p>
-                    <div class="family-prefs">
-                        <span class="pref-tag">Bedtime: 8pm</span>
+            </div>
+
+            <!-- Diff Preview Modal -->
+            <div id="diff-modal" class="modal">
+                <div class="modal-content diff-modal-content">
+                    <div class="modal-header">
+                        <h2 id="diff-modal-title">Profile Update Preview</h2>
+                        <span class="close-modal">&times;</span>
                     </div>
-                </div>
-                <div class="card family-card">
-                    <div class="family-avatar">👦</div>
-                    <h4>Xander</h4>
-                    <p class="text-muted">Child</p>
-                    <div class="family-prefs">
-                        <span class="pref-tag">Bedtime: 8pm</span>
+                    <div class="modal-body" id="diff-modal-body">
+                        <!-- Diff details loaded dynamically -->
                     </div>
-                </div>
-                <div class="card family-card">
-                    <div class="family-avatar">👶</div>
-                    <h4>Penelope</h4>
-                    <p class="text-muted">Toddler</p>
-                    <div class="family-prefs">
-                        <span class="pref-tag">Bedtime: 7pm</span>
+                    <div class="modal-footer">
+                        <button class="btn btn-success" id="diff-approve-btn">✓ Approve Changes</button>
+                        <button class="btn btn-danger" id="diff-reject-btn">✗ Reject Changes</button>
                     </div>
-                </div>
-                <div class="card family-card">
-                    <div class="family-avatar">👶</div>
-                    <h4>Zachary</h4>
-                    <p class="text-muted">Toddler</p>
-                    <div class="family-prefs">
-                        <span class="pref-tag">Bedtime: 7pm</span>
-                    </div>
-                </div>
-                <div class="card family-card add-new">
-                    <div class="family-avatar">➕</div>
-                    <h4>Add Member</h4>
                 </div>
             </div>
         </div>

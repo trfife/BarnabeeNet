@@ -4472,7 +4472,7 @@ async function sendChatMessage() {
             if (data.conversation_id) {
                 chatConversationId = data.conversation_id;
             }
-            
+
             // Add assistant response
             const assistantMessage = data.response || data.text || 'I received your message but have no response.';
             const agent = data.agent_used || data.agent || null;
@@ -4693,7 +4693,7 @@ function showProcessingFlow(data, traceId) {
     // Step 4: Agent routing and processing
     const agentIcon = getAgentIcon(agent);
     let agentDetails = `Routed to: <strong>${agent}</strong>`;
-    
+
     if (llmDetails && llmDetails.model) {
         const modelName = llmDetails.model.split('/').pop(); // Get just model name
         const tokens = (llmDetails.input_tokens || 0) + (llmDetails.output_tokens || 0);
@@ -5847,4 +5847,598 @@ window.showPage = function (pageId) {
     if (pageId === 'memory') {
         initMemory();
     }
+    if (pageId === 'family') {
+        initFamily();
+    }
 };
+
+// =============================================================================
+// Family Profiles Page
+// =============================================================================
+
+let familyInitialized = false;
+let currentProfileId = null;
+let currentDiffMemberId = null;
+
+function initFamily() {
+    if (familyInitialized) {
+        loadFamilyData();
+        return;
+    }
+
+    // Tab navigation
+    document.querySelectorAll('.family-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabId = tab.dataset.familyTab;
+            switchFamilyTab(tabId);
+        });
+    });
+
+    // Add member form
+    const addForm = document.getElementById('add-member-form');
+    if (addForm) {
+        addForm.addEventListener('submit', handleAddMember);
+    }
+
+    // Profile modal close
+    const profileModal = document.getElementById('profile-modal');
+    if (profileModal) {
+        profileModal.querySelector('.close-modal').addEventListener('click', () => {
+            profileModal.classList.remove('active');
+        });
+        profileModal.addEventListener('click', (e) => {
+            if (e.target === profileModal) {
+                profileModal.classList.remove('active');
+            }
+        });
+    }
+
+    // Diff modal handlers
+    const diffModal = document.getElementById('diff-modal');
+    if (diffModal) {
+        diffModal.querySelector('.close-modal').addEventListener('click', () => {
+            diffModal.classList.remove('active');
+        });
+        diffModal.addEventListener('click', (e) => {
+            if (e.target === diffModal) {
+                diffModal.classList.remove('active');
+            }
+        });
+
+        document.getElementById('diff-approve-btn').addEventListener('click', approvePendingUpdate);
+        document.getElementById('diff-reject-btn').addEventListener('click', rejectPendingUpdate);
+    }
+
+    familyInitialized = true;
+    loadFamilyData();
+}
+
+function switchFamilyTab(tabId) {
+    document.querySelectorAll('.family-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.familyTab === tabId);
+    });
+
+    document.querySelectorAll('.family-tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === `family-tab-${tabId}`);
+    });
+
+    if (tabId === 'pending') {
+        loadPendingUpdates();
+    }
+}
+
+async function loadFamilyData() {
+    try {
+        // Load stats
+        const statsResp = await fetch(`${API_BASE}/api/v1/profiles/stats`);
+        if (statsResp.ok) {
+            const stats = await statsResp.json();
+            document.getElementById('family-total').textContent = stats.total_profiles || 0;
+            document.getElementById('family-pending').textContent = stats.pending_updates || 0;
+            document.getElementById('family-events').textContent = stats.total_events_unprocessed || 0;
+        }
+
+        // Load profiles
+        const profilesResp = await fetch(`${API_BASE}/api/v1/profiles`);
+        if (profilesResp.ok) {
+            const data = await profilesResp.json();
+            renderFamilyGrid(data.profiles);
+        } else {
+            document.getElementById('family-list').innerHTML = renderNoProfiles();
+        }
+    } catch (error) {
+        console.error('Error loading family data:', error);
+        document.getElementById('family-list').innerHTML = `
+            <div class="error-message">
+                <p>Failed to load family profiles. Make sure the API is running.</p>
+                <small>${error.message}</small>
+            </div>
+        `;
+    }
+}
+
+function renderFamilyGrid(profiles) {
+    const grid = document.getElementById('family-list');
+
+    if (!profiles || profiles.length === 0) {
+        grid.innerHTML = renderNoProfiles();
+        return;
+    }
+
+    grid.innerHTML = profiles.map(profile => renderFamilyCard(profile)).join('');
+
+    // Add click handlers
+    grid.querySelectorAll('.family-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const memberId = card.dataset.memberId;
+            if (memberId) {
+                showProfileDetails(memberId);
+            }
+        });
+    });
+}
+
+function renderFamilyCard(profile) {
+    const avatar = getAvatarForRelationship(profile.relationship_to_primary);
+    const hasPending = profile.pending_update !== null;
+
+    const interests = profile.public?.interests || [];
+    const tagsHtml = interests.slice(0, 3).map(i =>
+        `<span class="pref-tag">${escapeHtml(i)}</span>`
+    ).join('');
+
+    return `
+        <div class="card family-card" data-member-id="${escapeHtml(profile.member_id)}">
+            ${hasPending ? '<div class="pending-indicator" title="Pending update"></div>' : ''}
+            <div class="family-avatar">${avatar}</div>
+            <span class="profile-badge">${escapeHtml(profile.relationship_to_primary)}</span>
+            <h4>${escapeHtml(profile.name)}</h4>
+            <div class="family-prefs">${tagsHtml || '<span class="pref-tag">No interests set</span>'}</div>
+            <div class="profile-version">v${profile.version}</div>
+        </div>
+    `;
+}
+
+function renderNoProfiles() {
+    return `
+        <div class="no-profiles">
+            <div class="no-profiles-icon">👨‍👩‍👧‍👦</div>
+            <h3>No Family Profiles Yet</h3>
+            <p>Create your first family member profile to get started with personalized interactions.</p>
+        </div>
+    `;
+}
+
+function getAvatarForRelationship(relationship) {
+    const avatars = {
+        'self': '👤',
+        'spouse': '💑',
+        'child': '👧',
+        'parent': '👴',
+        'sibling': '👫',
+        'extended_family': '👪',
+        'guest': '🧑‍🤝‍🧑'
+    };
+    return avatars[relationship] || '👤';
+}
+
+async function showProfileDetails(memberId) {
+    currentProfileId = memberId;
+    const modal = document.getElementById('profile-modal');
+    const body = document.getElementById('profile-modal-body');
+
+    body.innerHTML = '<div class="loading">Loading profile...</div>';
+    modal.classList.add('active');
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/v1/profiles/${memberId}`);
+        if (!resp.ok) throw new Error('Failed to load profile');
+
+        const data = await resp.json();
+        const profile = data.profile;
+
+        document.getElementById('profile-modal-title').textContent = `${profile.name}'s Profile`;
+
+        body.innerHTML = renderProfileDetails(profile, data.has_pending_update);
+    } catch (error) {
+        body.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+    }
+}
+
+function renderProfileDetails(profile, hasPending) {
+    const pub = profile.public || {};
+    const priv = profile.private || {};
+
+    let html = `
+        <div class="profile-section">
+            <h4>Identity</h4>
+            <div class="profile-field">
+                <span class="profile-field-label">Member ID:</span>
+                <span class="profile-field-value">${escapeHtml(profile.member_id)}</span>
+            </div>
+            <div class="profile-field">
+                <span class="profile-field-label">Relationship:</span>
+                <span class="profile-field-value">${escapeHtml(profile.relationship_to_primary)}</span>
+            </div>
+            <div class="profile-field">
+                <span class="profile-field-label">Version:</span>
+                <span class="profile-field-value">${profile.version}</span>
+            </div>
+            <div class="profile-field">
+                <span class="profile-field-label">Last Updated:</span>
+                <span class="profile-field-value">${new Date(profile.last_updated).toLocaleString()}</span>
+            </div>
+        </div>
+    `;
+
+    // Public block
+    html += `
+        <div class="profile-section">
+            <h4>🌐 Public Information</h4>
+            <div class="profile-block">
+                <div class="profile-block-title public">Shared with all family members</div>
+                ${pub.schedule_summary ? `
+                    <div class="profile-field">
+                        <span class="profile-field-label">Schedule:</span>
+                        <span class="profile-field-value">${escapeHtml(pub.schedule_summary)}</span>
+                    </div>
+                ` : ''}
+                ${pub.communication_style ? `
+                    <div class="profile-field">
+                        <span class="profile-field-label">Communication:</span>
+                        <span class="profile-field-value">${escapeHtml(pub.communication_style)}</span>
+                    </div>
+                ` : ''}
+                ${(pub.interests || []).length > 0 ? `
+                    <div class="profile-field">
+                        <span class="profile-field-label">Interests:</span>
+                        <span class="profile-field-value">
+                            <div class="profile-tags">
+                                ${pub.interests.map(i => `<span class="profile-tag">${escapeHtml(i)}</span>`).join('')}
+                            </div>
+                        </span>
+                    </div>
+                ` : ''}
+                ${(pub.household_responsibilities || []).length > 0 ? `
+                    <div class="profile-field">
+                        <span class="profile-field-label">Responsibilities:</span>
+                        <span class="profile-field-value">
+                            <div class="profile-tags">
+                                ${pub.household_responsibilities.map(r => `<span class="profile-tag">${escapeHtml(r)}</span>`).join('')}
+                            </div>
+                        </span>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+
+    // Private block
+    html += `
+        <div class="profile-section">
+            <h4>🔒 Private Information</h4>
+            <div class="profile-block">
+                <div class="profile-block-title private">Only used in direct interactions</div>
+                ${priv.emotional_patterns ? `
+                    <div class="profile-field">
+                        <span class="profile-field-label">Patterns:</span>
+                        <span class="profile-field-value">${escapeHtml(priv.emotional_patterns)}</span>
+                    </div>
+                ` : ''}
+                ${priv.relationship_notes ? `
+                    <div class="profile-field">
+                        <span class="profile-field-label">Notes:</span>
+                        <span class="profile-field-value">${escapeHtml(priv.relationship_notes)}</span>
+                    </div>
+                ` : ''}
+                ${(priv.sensitive_topics || []).length > 0 ? `
+                    <div class="profile-field">
+                        <span class="profile-field-label">Sensitive Topics:</span>
+                        <span class="profile-field-value">
+                            <div class="profile-tags">
+                                ${priv.sensitive_topics.map(t => `<span class="profile-tag">${escapeHtml(t)}</span>`).join('')}
+                            </div>
+                        </span>
+                    </div>
+                ` : ''}
+                ${priv.wellness_notes ? `
+                    <div class="profile-field">
+                        <span class="profile-field-label">Wellness:</span>
+                        <span class="profile-field-value">${escapeHtml(priv.wellness_notes)}</span>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+
+    // Actions
+    html += `
+        <div class="profile-section">
+            <div class="profile-actions" style="display: flex; gap: 8px;">
+                <button class="btn btn-primary" onclick="generateProfileUpdate('${escapeHtml(profile.member_id)}')">
+                    🔄 Generate Update
+                </button>
+                ${hasPending ? `
+                    <button class="btn btn-warning" onclick="showPendingDiff('${escapeHtml(profile.member_id)}')">
+                        ⏳ View Pending Update
+                    </button>
+                ` : ''}
+                <button class="btn btn-danger" onclick="deleteProfile('${escapeHtml(profile.member_id)}')">
+                    🗑️ Delete Profile
+                </button>
+            </div>
+        </div>
+    `;
+
+    return html;
+}
+
+async function handleAddMember(e) {
+    e.preventDefault();
+
+    const memberId = document.getElementById('new-member-id').value.trim().toLowerCase();
+    const name = document.getElementById('new-member-name').value.trim();
+    const relationship = document.getElementById('new-member-relationship').value;
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/v1/profiles`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                member_id: memberId,
+                name: name,
+                relationship: relationship
+            })
+        });
+
+        if (!resp.ok) {
+            const error = await resp.json();
+            throw new Error(error.detail || 'Failed to create profile');
+        }
+
+        // Reset form and switch to members tab
+        e.target.reset();
+        switchFamilyTab('members');
+        loadFamilyData();
+        showToast('Profile created successfully!', 'success');
+    } catch (error) {
+        showToast(`Error: ${error.message}`, 'error');
+    }
+}
+
+async function generateProfileUpdate(memberId) {
+    try {
+        showToast('Generating profile update...', 'info');
+
+        const resp = await fetch(`${API_BASE}/api/v1/profiles/${memberId}/generate-update`, {
+            method: 'POST'
+        });
+
+        if (!resp.ok) {
+            const error = await resp.json();
+            throw new Error(error.detail || 'Failed to generate update');
+        }
+
+        const diff = await resp.json();
+        showDiffModal(diff);
+        showToast('Profile update generated!', 'success');
+    } catch (error) {
+        showToast(`Error: ${error.message}`, 'error');
+    }
+}
+
+async function showPendingDiff(memberId) {
+    try {
+        const resp = await fetch(`${API_BASE}/api/v1/profiles/${memberId}/pending-update`);
+        if (!resp.ok) throw new Error('No pending update found');
+
+        const diff = await resp.json();
+        showDiffModal(diff);
+    } catch (error) {
+        showToast(`Error: ${error.message}`, 'error');
+    }
+}
+
+function showDiffModal(diff) {
+    currentDiffMemberId = diff.member_id;
+    const modal = document.getElementById('diff-modal');
+    const body = document.getElementById('diff-modal-body');
+
+    document.getElementById('diff-modal-title').textContent = `Update Preview: ${diff.name}`;
+
+    body.innerHTML = renderDiffPreview(diff);
+    modal.classList.add('active');
+}
+
+function renderDiffPreview(diff) {
+    let html = `
+        <div class="diff-summary">
+            <strong>Summary:</strong> ${escapeHtml(diff.summary)}
+            ${diff.confidence_notes ? `<br><em>Note: ${escapeHtml(diff.confidence_notes)}</em>` : ''}
+        </div>
+    `;
+
+    if (diff.additions && diff.additions.length > 0) {
+        html += `
+            <div class="diff-section">
+                <h4 class="additions">➕ Additions (${diff.additions.length})</h4>
+                ${diff.additions.map(e => renderDiffEntry(e, 'addition')).join('')}
+            </div>
+        `;
+    }
+
+    if (diff.modifications && diff.modifications.length > 0) {
+        html += `
+            <div class="diff-section">
+                <h4 class="modifications">✏️ Modifications (${diff.modifications.length})</h4>
+                ${diff.modifications.map(e => renderDiffEntry(e, 'modification')).join('')}
+            </div>
+        `;
+    }
+
+    if (diff.removals && diff.removals.length > 0) {
+        html += `
+            <div class="diff-section">
+                <h4 class="removals">➖ Removals (${diff.removals.length})</h4>
+                ${diff.removals.map(e => renderDiffEntry(e, 'removal')).join('')}
+            </div>
+        `;
+    }
+
+    if (!diff.additions?.length && !diff.modifications?.length && !diff.removals?.length) {
+        html += '<p class="text-muted">No changes detected.</p>';
+    }
+
+    return html;
+}
+
+function renderDiffEntry(entry, type) {
+    const oldVal = entry.old ? JSON.stringify(entry.old) : '-';
+    const newVal = entry.new ? JSON.stringify(entry.new) : '-';
+
+    return `
+        <div class="diff-entry">
+            <div class="diff-entry-header">
+                <span class="diff-entry-field">${escapeHtml(entry.field)}</span>
+                <span class="diff-entry-block">${entry.block_display || entry.block}</span>
+            </div>
+            ${type === 'modification' || type === 'removal' ? `
+                <div><span class="diff-old-value">${escapeHtml(oldVal)}</span></div>
+            ` : ''}
+            ${type === 'modification' || type === 'addition' ? `
+                <div><span class="diff-new-value">${escapeHtml(newVal)}</span></div>
+            ` : ''}
+            ${entry.reason ? `<div class="diff-reason">${escapeHtml(entry.reason)}</div>` : ''}
+        </div>
+    `;
+}
+
+async function approvePendingUpdate() {
+    if (!currentDiffMemberId) return;
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/v1/profiles/${currentDiffMemberId}/approve-update`, {
+            method: 'POST'
+        });
+
+        if (!resp.ok) {
+            const error = await resp.json();
+            throw new Error(error.detail || 'Failed to approve update');
+        }
+
+        document.getElementById('diff-modal').classList.remove('active');
+        document.getElementById('profile-modal').classList.remove('active');
+        loadFamilyData();
+        showToast('Profile update approved!', 'success');
+    } catch (error) {
+        showToast(`Error: ${error.message}`, 'error');
+    }
+}
+
+async function rejectPendingUpdate() {
+    if (!currentDiffMemberId) return;
+
+    const reason = prompt('Reason for rejection (optional):');
+
+    try {
+        let url = `${API_BASE}/api/v1/profiles/${currentDiffMemberId}/reject-update`;
+        if (reason) {
+            url += `?reason=${encodeURIComponent(reason)}`;
+        }
+
+        const resp = await fetch(url, { method: 'POST' });
+
+        if (!resp.ok) {
+            const error = await resp.json();
+            throw new Error(error.detail || 'Failed to reject update');
+        }
+
+        document.getElementById('diff-modal').classList.remove('active');
+        loadFamilyData();
+        showToast('Profile update rejected', 'info');
+    } catch (error) {
+        showToast(`Error: ${error.message}`, 'error');
+    }
+}
+
+async function deleteProfile(memberId) {
+    if (!confirm(`Are you sure you want to delete the profile for "${memberId}"? This cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/v1/profiles/${memberId}`, {
+            method: 'DELETE'
+        });
+
+        if (!resp.ok) {
+            const error = await resp.json();
+            throw new Error(error.detail || 'Failed to delete profile');
+        }
+
+        document.getElementById('profile-modal').classList.remove('active');
+        loadFamilyData();
+        showToast('Profile deleted', 'success');
+    } catch (error) {
+        showToast(`Error: ${error.message}`, 'error');
+    }
+}
+
+async function loadPendingUpdates() {
+    const container = document.getElementById('pending-updates-list');
+    container.innerHTML = '<div class="loading">Loading pending updates...</div>';
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/v1/profiles/pending-updates`);
+        if (!resp.ok) throw new Error('Failed to load pending updates');
+
+        const data = await resp.json();
+
+        if (data.pending_updates.length === 0) {
+            container.innerHTML = `
+                <div class="no-profiles">
+                    <div class="no-profiles-icon">✓</div>
+                    <h3>No Pending Updates</h3>
+                    <p>All profiles are up to date.</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = data.pending_updates.map(item => `
+            <div class="pending-update-item">
+                <div class="pending-update-info">
+                    <div class="pending-update-avatar">${getAvatarForRelationship('self')}</div>
+                    <div class="pending-update-details">
+                        <h4>${escapeHtml(item.name)}</h4>
+                        <p>Version ${item.current_version} • ${item.trigger_count} triggers • ${item.generated_at ? new Date(item.generated_at).toLocaleString() : 'Unknown'}</p>
+                    </div>
+                </div>
+                <div class="pending-update-actions">
+                    <button class="btn btn-primary btn-sm" onclick="showPendingDiff('${escapeHtml(item.member_id)}')">
+                        Review
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        container.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+    }
+}
+
+// Toast notification helper (ensure it exists)
+function showToast(message, type = 'info') {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}

@@ -1,5 +1,5 @@
 """API route modules."""
 
-from barnabeenet.api.routes import health, prompts, voice
+from barnabeenet.api.routes import health, profiles, prompts, voice
 
-__all__ = ["health", "prompts", "voice"]
+__all__ = ["health", "profiles", "prompts", "voice"]

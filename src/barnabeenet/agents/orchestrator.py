@@ -513,6 +513,48 @@ class AgentOrchestrator:
 
         logger.debug(f"Retrieved {len(ctx.retrieved_memories)} memories")
 
+    async def _get_profile_context(
+        self, speaker: str | None, room: str | None
+    ) -> dict[str, Any] | None:
+        """Get profile context for the current speaker.
+
+        Returns profile context dict with public and optionally private profile blocks
+        based on privacy zone (room). Returns None if no profile found.
+        """
+        if not speaker:
+            return None
+
+        try:
+            from barnabeenet.services.profiles import PrivacyZone, get_profile_service
+
+            profile_service = await get_profile_service()
+
+            # Map room to privacy zone
+            # Private rooms (bedrooms, offices) get full private context
+            private_rooms = {"bedroom", "office", "study", "bathroom"}
+            room_lower = (room or "").lower()
+            if any(r in room_lower for r in private_rooms):
+                privacy_zone = PrivacyZone.PRIVATE_ROOM
+            else:
+                privacy_zone = PrivacyZone.COMMON_AREA_ALONE
+
+            context = await profile_service.get_profile_context(
+                speaker_id=speaker,
+                conversation_participants=[speaker],  # Single participant
+                privacy_zone=privacy_zone,
+            )
+
+            if context:
+                logger.debug(
+                    f"Retrieved profile context for {speaker} ({context.context_type}) in {room}"
+                )
+                return context.model_dump()
+            return None
+
+        except Exception as e:
+            logger.warning(f"Failed to get profile context for {speaker}: {e}")
+            return None
+
     async def _route_and_handle(self, ctx: RequestContext) -> None:
         """Stage 3: Route to appropriate agent and handle."""
         start = time.perf_counter()
@@ -541,6 +583,12 @@ class AgentOrchestrator:
             else {},
             "sub_category": ctx.classification.sub_category if ctx.classification else None,
         }
+
+        # Add profile context if speaker is identified
+        if ctx.speaker:
+            profile_context = await self._get_profile_context(ctx.speaker, ctx.room)
+            if profile_context:
+                agent_context["profile"] = profile_context
 
         # Log routing decision
         if self._pipeline_logger:
