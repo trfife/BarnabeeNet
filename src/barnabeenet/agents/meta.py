@@ -183,16 +183,26 @@ QUERY_PATTERNS: list[tuple[str, str]] = [
 ]
 
 MEMORY_PATTERNS: list[tuple[str, str]] = [
+    # Explicit store commands
     (r"^remember (that )?.*$", "store"),
+    (r"^(please )?(store|save|keep|note) (that )?.*$", "store"),
+    # Factual statements about preferences/information (implicit store)
+    (r"^(my|our|\w+'s) (favorite|favourite) .+ (is|are) .+$", "store"),
+    (r"^(the )?(secret|password|code|pin) (word )?(is|are) .+$", "store"),
+    (r"^(my|our|\w+'s) .+ (is|are) .+$", "store"),  # "my birthday is...", "thom's car is..."
+    (r"^(i|we) (like|love|prefer|hate|dislike|enjoy) .+$", "store"),
+    (r"^(i|we) (am|are) .+$", "store"),  # "I am allergic to...", "we are vegetarian"
+    # Recall patterns
     (r"^(do you remember|what do you know about) .*$", "recall"),
     (r"^forget .*$", "forget"),
     (r"^(when|what) did (i|we) .*$", "recall"),
     (r".*(last thing|previously|earlier|before).*(ask|say|tell|said|told).*$", "recall"),
     (r".*(what|when) (was|were|have|had) (i|we) .*$", "recall"),
     (r"^what (was|were) (my|our) last .*$", "recall"),
-    # Recall patterns for "what did I ask you to remember"
     (r".*(asked|told) (you to |you )?(remember|store|save).*$", "recall"),
     (r".*what.*(remember|stored|saved).*$", "recall"),
+    (r"^what('s| is| are) (my|our|\w+'s) (favorite|favourite) .+$", "recall"),
+    (r"^what('s| is) the (secret|password|code|pin).*$", "recall"),
 ]
 
 GESTURE_PATTERNS: list[tuple[str, str]] = [
