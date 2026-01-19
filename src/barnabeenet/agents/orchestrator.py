@@ -198,15 +198,14 @@ class AgentOrchestrator:
 
             import redis.asyncio as redis
 
-            from barnabeenet.services.secrets import SecretsService
+            from barnabeenet.services.secrets import get_secrets_service
 
             # Get Redis connection
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
             redis_client = redis.from_url(redis_url, decode_responses=True)
 
-            # Create and initialize secrets service
-            secrets_service = SecretsService(redis_client)
-            await secrets_service.initialize()
+            # Use the singleton secrets service
+            secrets_service = await get_secrets_service(redis_client)
 
             # Get secrets for this provider
             provider_secrets = await secrets_service.get_secrets_for_provider(provider)

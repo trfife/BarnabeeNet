@@ -249,6 +249,15 @@ async def get_ha_config_from_redis(request: Request) -> dict[str, str]:
                         config["token"] = await secrets_service.get_secret("ha_token")
                         if not config["token"]:
                             logger.warning("HA token decrypted but empty - may need to re-save")
+                    except ValueError as e:
+                        # Master key changed - old encrypted token is unusable
+                        logger.error(
+                            "HA token cannot be decrypted (master key changed?): %s. "
+                            "Please re-enter your Home Assistant token in Configuration.",
+                            e,
+                        )
+                        config["token"] = ""
+                        config["needs_reauth"] = True
                     except Exception as e:
                         logger.error("Failed to decrypt HA token: %s", e)
                         config["token"] = ""
