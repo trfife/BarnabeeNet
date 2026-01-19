@@ -97,6 +97,7 @@ class ClassificationResult:
     target_agent: str | None = None
     priority: int = 5  # 1-10, higher = more urgent
     total_processing_time_ms: int = 0
+    matched_pattern: str | None = None  # The pattern/rule that triggered this classification
 
 
 @dataclass
@@ -477,6 +478,7 @@ class MetaAgent(Agent):
                         intent=intent,
                         confidence=confidence,
                         sub_category=sub_category,
+                        matched_pattern=f"{pattern_group}:{sub_category or 'default'} → {pattern.pattern}",
                     )
 
         return ClassificationResult(
@@ -498,6 +500,7 @@ class MetaAgent(Agent):
             return ClassificationResult(
                 intent=IntentCategory.CONVERSATION,
                 confidence=0.75,
+                matched_pattern="heuristic:conversation_history → has prior conversation context",
             )
 
         # Urgency from context evaluation influences classification
@@ -505,6 +508,7 @@ class MetaAgent(Agent):
             return ClassificationResult(
                 intent=IntentCategory.EMERGENCY,
                 confidence=0.85,
+                matched_pattern="heuristic:urgency → context evaluated as EMERGENCY",
             )
 
         # Question markers
@@ -524,6 +528,7 @@ class MetaAgent(Agent):
             return ClassificationResult(
                 intent=IntentCategory.QUERY,
                 confidence=0.70,
+                matched_pattern="heuristic:question → ends with '?' or starts with question word",
             )
 
         # Command verbs
@@ -549,12 +554,14 @@ class MetaAgent(Agent):
             return ClassificationResult(
                 intent=IntentCategory.ACTION,
                 confidence=0.70,
+                matched_pattern=f"heuristic:command → starts with verb '{first_word}'",
             )
 
         # Default to conversation
         return ClassificationResult(
             intent=IntentCategory.CONVERSATION,
             confidence=0.50,
+            matched_pattern="heuristic:default → no patterns matched, assuming conversation",
         )
 
     async def _llm_classify(self, text: str, context: dict) -> ClassificationResult:

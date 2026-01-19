@@ -1202,6 +1202,9 @@ class AgentOrchestrator:
         if ctx.classification:
             from barnabeenet.models.pipeline_trace import generate_routing_reason
 
+            # Get the matched pattern from classification (if available)
+            pattern_matched = ctx.classification.matched_pattern
+
             routing_reason = generate_routing_reason(
                 intent=ctx.classification.intent.value,
                 confidence=ctx.classification.confidence,
