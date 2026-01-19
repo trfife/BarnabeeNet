@@ -117,14 +117,37 @@
                     <div class="card-actions">
                         <select id="activity-filter" class="filter-select">
                             <option value="">All Types</option>
-                            <option value="request_start">Requests</option>
-                            <option value="stt">STT</option>
-                            <option value="meta_classify">Classification</option>
-                            <option value="llm_request">LLM Calls</option>
-                            <option value="ha_service_call">HA Actions</option>
-                            <option value="memory">Memory</option>
-                            <option value="tts">TTS</option>
-                            <option value="error">Errors</option>
+                            <optgroup label="Categories">
+                                <option value="category:ha">🏠 Home Assistant Only</option>
+                                <option value="category:llm">🤖 LLM Only</option>
+                                <option value="category:agent">🧠 Agents Only</option>
+                                <option value="category:memory">📝 Memory Only</option>
+                            </optgroup>
+                            <optgroup label="Pipeline">
+                                <option value="request_start">Requests</option>
+                                <option value="stt">STT</option>
+                                <option value="meta_classify">Classification</option>
+                                <option value="tts">TTS</option>
+                            </optgroup>
+                            <optgroup label="Agents">
+                                <option value="instant">Instant Agent</option>
+                                <option value="action">Action Agent</option>
+                                <option value="interaction">Interaction Agent</option>
+                                <option value="memory">Memory Agent</option>
+                            </optgroup>
+                            <optgroup label="LLM">
+                                <option value="llm_request">LLM Calls</option>
+                                <option value="llm.error">LLM Errors</option>
+                            </optgroup>
+                            <optgroup label="Home Assistant">
+                                <option value="ha.state_change">State Changes</option>
+                                <option value="ha.service_call">Service Calls</option>
+                                <option value="ha.event">HA Events</option>
+                            </optgroup>
+                            <optgroup label="System">
+                                <option value="error">Errors</option>
+                                <option value="system">System</option>
+                            </optgroup>
                         </select>
                         <button class="btn btn-small" id="clear-activity">Clear</button>
                         <label class="toggle-label">
@@ -499,7 +522,7 @@
                             <option value="llm">LLM</option>
                             <option value="memory">Memory</option>
                             <option value="action">Action</option>
-                            <option value="ha">Home Assistant</option>
+                            <option value="homeassistant">Home Assistant</option>
                             <option value="system">System</option>
                         </select>
                         <select id="log-level-filter" class="filter-select">

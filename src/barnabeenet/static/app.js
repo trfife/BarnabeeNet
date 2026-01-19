@@ -286,9 +286,19 @@ function addActivityItem(data) {
         ${expandButton}
     `;
 
-    // Apply filter
-    if (activityFilter && data.type !== activityFilter) {
-        item.style.display = 'none';
+    // Apply filter (same logic as filterActivityFeed)
+    if (activityFilter) {
+        const itemType = data.type || '';
+        let isVisible = false;
+        if (activityFilter.startsWith('category:')) {
+            const category = activityFilter.split(':')[1];
+            isVisible = matchesCategory(itemType, category);
+        } else {
+            isVisible = itemType === activityFilter || itemType.startsWith(activityFilter + '.') || itemType.startsWith(activityFilter + '_');
+        }
+        if (!isVisible) {
+            item.style.display = 'none';
+        }
     }
 
     feed.appendChild(item);
@@ -312,12 +322,33 @@ function formatActivityType(type) {
 
 function filterActivityFeed() {
     document.querySelectorAll('.activity-item').forEach(item => {
-        if (!activityFilter || item.dataset.type === activityFilter) {
+        const itemType = item.dataset.type || '';
+        if (!activityFilter) {
             item.style.display = '';
+        } else if (activityFilter.startsWith('category:')) {
+            // Category-based filtering
+            const category = activityFilter.split(':')[1];
+            const isMatch = matchesCategory(itemType, category);
+            item.style.display = isMatch ? '' : 'none';
         } else {
-            item.style.display = 'none';
+            // Exact or prefix match
+            const isMatch = itemType === activityFilter || itemType.startsWith(activityFilter + '.') || itemType.startsWith(activityFilter + '_');
+            item.style.display = isMatch ? '' : 'none';
         }
     });
+}
+
+// Check if activity type matches a category
+function matchesCategory(type, category) {
+    const categories = {
+        ha: ['ha.state_change', 'ha.service_call', 'ha.event', 'ha.sensor_update', 'ha_state_change', 'ha_service_call'],
+        llm: ['llm.request', 'llm.response', 'llm.error', 'llm_request', 'llm_call'],
+        agent: ['meta.classify', 'meta.route', 'instant.match', 'instant.respond', 'action.parse', 'action.execute', 
+                'interaction.think', 'interaction.respond', 'agent.thinking', 'agent.decision', 'agent.response'],
+        memory: ['memory.search', 'memory.retrieve', 'memory.store', 'memory.fact_extracted', 'memory.consolidated']
+    };
+    const patterns = categories[category] || [];
+    return patterns.some(p => type === p || type.startsWith(p.split('.')[0] + '.') || type.startsWith(p.split('.')[0] + '_'));
 }
 
 // =============================================================================
