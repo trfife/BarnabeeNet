@@ -320,7 +320,7 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
             intent=intent,
             agent_used=agent_used,
             trace_id=trace_id,
-            conversation_id=request.conversation_id,
+            conversation_id=orchestrator_resp.get("conversation_id") or request.conversation_id,
             latency_ms=processing_time,
             total_latency_ms=processing_time,
             memories_retrieved=orchestrator_resp.get("memories_retrieved", 0),

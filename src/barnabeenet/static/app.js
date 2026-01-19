@@ -4357,6 +4357,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let chatInitialized = false;
 let chatMessages = [];
+let chatConversationId = null; // Tracks conversation for history
 let voiceRecorder = null;
 let isRecording = false;
 let mediaStream = null;
@@ -4456,7 +4457,8 @@ async function sendChatMessage() {
             body: JSON.stringify({
                 text: message,
                 speaker: 'Dashboard User',
-                room: 'Dashboard'
+                room: 'Dashboard',
+                conversation_id: chatConversationId
             }),
         });
 
@@ -4466,6 +4468,11 @@ async function sendChatMessage() {
         removeThinkingIndicator(thinkingId);
 
         if (response.ok) {
+            // Store conversation_id for subsequent messages
+            if (data.conversation_id) {
+                chatConversationId = data.conversation_id;
+            }
+            
             // Add assistant response
             const assistantMessage = data.response || data.text || 'I received your message but have no response.';
             const agent = data.agent_used || data.agent || null;
@@ -4583,6 +4590,7 @@ function updateChatStatus(status, thinking = false) {
 function clearChat() {
     const messagesContainer = document.getElementById('chat-messages');
     chatMessages = [];
+    chatConversationId = null; // Reset conversation for fresh start
 
     // Restore welcome screen
     messagesContainer.innerHTML = `
