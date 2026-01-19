@@ -682,9 +682,16 @@ class AgentOrchestrator:
                 failed_any = False
 
                 for segment in parsed.segments:
-                    segment_text = segment.raw_text or f"{segment.action} {segment.target_noun}"
-                    if segment.location:
-                        segment_text += f" in {segment.location}"
+                    # Use raw_text if available - it preserves the original phrasing
+                    # which is important for entity resolution (e.g., "office light"
+                    # should resolve to "light.office_switch" not "any light in office")
+                    # Only add location if raw_text is not available (fallback)
+                    if segment.raw_text:
+                        segment_text = segment.raw_text
+                    else:
+                        segment_text = f"{segment.action} {segment.target_noun}"
+                        if segment.location:
+                            segment_text += f" in {segment.location}"
 
                     # Parse and execute each segment
                     segment_response = await self._action_agent.handle_input(

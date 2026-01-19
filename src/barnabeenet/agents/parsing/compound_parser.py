@@ -320,16 +320,13 @@ class CompoundCommandParser:
                 # Handle special case: "light" from "office light"
                 target_noun = self._extract_target_noun(target)
 
-                # Extract location (may be in target for patterns like "kitchen lights")
+                # Extract location ONLY if explicitly specified with preposition (in/at/on)
+                # Do NOT extract embedded location from target like "office light"
+                # because the full phrase is needed for proper entity resolution.
+                # "office light" should resolve to "light.office_switch", not "any light in office"
                 location = groups.get("location")
                 if location:
                     location = location.strip()
-
-                # Try to extract location from target if not explicit
-                if not location and target:
-                    embedded_location = self._extract_embedded_location(target)
-                    if embedded_location:
-                        location = embedded_location
 
                 # Extract value
                 value = groups.get("value")
