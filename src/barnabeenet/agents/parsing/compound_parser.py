@@ -254,12 +254,23 @@ class CompoundCommandParser:
             result.is_compound = True
             result.execution_mode = execution_mode
 
-        # Parse each segment
+        # Parse each segment, carrying forward the action from previous segments
+        # This handles "turn on X and Y" → "turn on X" + "turn on Y"
+        last_action: str | None = None
         for segment_text in segments_text:
             segment = self._parse_segment(segment_text.strip())
             if segment:
+                last_action = segment.action
                 result.segments.append(segment)
             else:
+                # Try to parse with inherited action from previous segment
+                if last_action:
+                    # Prepend the action to the segment text
+                    augmented_text = f"{last_action.replace('_', ' ')} {segment_text.strip()}"
+                    segment = self._parse_segment(augmented_text)
+                    if segment:
+                        result.segments.append(segment)
+                        continue
                 result.parse_errors.append(f"Could not parse: '{segment_text}'")
 
         return result
