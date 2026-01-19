@@ -8,7 +8,6 @@ import structlog
 
 from barnabeenet.agents.orchestrator import get_orchestrator
 from barnabeenet.config import get_settings
-from barnabeenet.main import app_state
 from barnabeenet.models.schemas import (
     STTEngine,
     VoicePipelineRequest,
@@ -34,6 +33,8 @@ class VoicePipelineService:
         audio_bytes = base64.b64decode(request.audio_base64)
 
         # STT: choose GPU if available
+        from barnabeenet.main import app_state
+
         use_gpu = app_state.gpu_worker_available
 
         if use_gpu:
