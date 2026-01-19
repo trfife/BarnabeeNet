@@ -25,12 +25,12 @@ user_overrides:
       - action: "block"
         domain: "lock"
         message: "Ask a parent to help with locks."
-      
+
       # Kids can't change thermostat
       - action: "block"
         domain: "climate"
         message: "Ask a parent to adjust the temperature."
-      
+
       # Kids can only control lights in their rooms
       - action: "restrict_area"
         domain: "light"
@@ -51,11 +51,11 @@ user_overrides:
       - action: "block"
         domain: "lock"
         message: "Guests cannot control door locks."
-      
+
       - action: "block"
         domain: "alarm"
         message: "Please ask your host for help with the alarm."
-      
+
       - action: "allow_only"
         domains:
           - "light"
@@ -84,11 +84,11 @@ room_overrides:
     rules:
       - action: "modify_response"
         setting: "tts_volume"
-        value: 0.5  # 50% volume
-      
+        value: 0.5 # 50% volume
+
       - action: "modify_response"
         setting: "tts_speed"
-        value: 0.9  # Slightly slower, calmer
+        value: 0.9 # Slightly slower, calmer
 
   # Office focus mode
   office_focus:
@@ -104,8 +104,8 @@ room_overrides:
     rules:
       - action: "modify_response"
         setting: "response_style"
-        value: "brief"  # Short, efficient responses
-      
+        value: "brief" # Short, efficient responses
+
       - action: "modify_response"
         setting: "skip_pleasantries"
         value: true
@@ -130,7 +130,7 @@ time_overrides:
           - "xander"
           - "viola"
         message: "It's past bedtime! "
-        
+
       - action: "block"
         users:
           - "penelope"
@@ -151,7 +151,7 @@ time_overrides:
       - action: "modify_response"
         setting: "tone"
         value: "cheerful"
-      
+
       - action: "context_inject"
         context_key: "time_of_day"
         context_value: "morning"
@@ -168,7 +168,7 @@ time_overrides:
       - action: "modify_response"
         setting: "tts_volume"
         value: 0.6
-      
+
       - action: "modify_response"
         setting: "tone"
         value: "calm"
@@ -183,18 +183,18 @@ entity_aliases:
     "the light":
       resolve_by: "current_room"
       fallback: "ask_which"
-    
+
     "main light":
       resolve_by: "current_room"
       prefer_attribute: "is_ceiling"
-    
+
     "lamp":
       resolve_by: "current_room"
       prefer_attribute: "is_lamp"
-    
+
     "all the lights":
       resolve_to: "all_lights_in_room"
-    
+
     "all lights":
       resolve_to: "all_lights_in_room"
 
@@ -203,19 +203,19 @@ entity_aliases:
     "living room lamp":
       entity_id: "light.living_room_lamp"
       priority: "high"
-    
+
     "office light":
       entity_id: "light.office_light"
       priority: "high"
-    
+
     "dining table light":
       entity_id: "light.dining_table_light"
       priority: "high"
-    
+
     "front door":
       entity_id: "lock.front_door"
       domain: "lock"
-    
+
     "garage door":
       entity_id: "cover.garage_door"
       domain: "cover"

@@ -11,10 +11,10 @@ last_modified: "2026-01-20"
 defaults:
   # Default agent when intent is unknown
   unknown_intent: "interaction"
-  
+
   # Default model for LLM classification fallback
   llm_fallback_model: "deepseek/deepseek-chat"
-  
+
   # Maximum time for pattern matching before LLM fallback (ms)
   pattern_match_timeout_ms: 50
 
@@ -33,7 +33,7 @@ intent_routing:
     agent: "action"
     description: "Device control - lights, switches, covers, media"
     priority: 9
-    requires_llm: false  # Uses rule-based parsing, LLM fallback
+    requires_llm: false # Uses rule-based parsing, LLM fallback
     timeout_ms: 2000
 
   query:
@@ -96,7 +96,7 @@ priority_rules:
     unknown: 1
 
   urgency_modifiers:
-    emergency: +3  # Always highest
+    emergency: +3 # Always highest
     high: +2
     medium: +1
     low: 0
@@ -142,13 +142,13 @@ special_rules:
 confidence_thresholds:
   # Minimum confidence for pattern match to be accepted
   pattern_match: 0.85
-  
+
   # Minimum confidence for heuristic classification
   heuristic: 0.70
-  
+
   # Below this, use LLM for classification
   llm_fallback: 0.60
-  
+
   # If LLM confidence also below this, default to interaction
   minimum_usable: 0.40
 
@@ -162,19 +162,19 @@ memory_retrieval:
     - "conversation"
     - "query"
     - "memory"
-  
+
   # Disable for fast-path intents
   disabled_for:
     - "instant"
     - "gesture"
     - "emergency"
-  
+
   # Maximum memories to retrieve
   max_memories: 5
-  
+
   # Minimum relevance score for memory inclusion
   min_relevance: 0.6
-  
+
   # Maximum age for working memory (minutes)
   working_memory_ttl: 30
 
@@ -184,15 +184,15 @@ memory_retrieval:
 response_settings:
   # Include personality in responses
   include_personality: true
-  
+
   # Personality style
-  personality_style: "barnabee"  # warm, helpful, slightly whimsical
-  
+  personality_style: "barnabee" # warm, helpful, slightly whimsical
+
   # Adjust response tone based on context
   adapt_tone_to_context: true
-  
+
   # Maximum response length (characters)
   max_response_length: 500
-  
+
   # Include empathy phrases when user is stressed
   empathy_enabled: true

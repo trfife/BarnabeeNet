@@ -198,7 +198,7 @@ function showPage(pageId) {
     document.querySelectorAll('.page').forEach(page => {
         page.classList.toggle('active', page.id === `page-${pageId}`);
     });
-    
+
     // Initialize Logic page when navigating to it
     if (pageId === 'logic') {
         const logicPage = document.getElementById('page-logic');
@@ -6856,41 +6856,41 @@ function initLogicPage() {
     document.querySelectorAll('.logic-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const tabName = tab.dataset.tab;
-            
+
             // Update active tab
             document.querySelectorAll('.logic-tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
-            
+
             // Show corresponding content
             document.querySelectorAll('.logic-tab-content').forEach(c => c.classList.remove('active'));
             document.getElementById(`logic-tab-${tabName}`).classList.add('active');
         });
     });
-    
+
     // Pattern group filter
     const groupFilter = document.getElementById('pattern-group-filter');
     if (groupFilter) {
         groupFilter.addEventListener('change', () => renderPatternGroups());
     }
-    
+
     // Show disabled toggle
     const showDisabled = document.getElementById('show-disabled-patterns');
     if (showDisabled) {
         showDisabled.addEventListener('change', () => renderPatternGroups());
     }
-    
+
     // Refresh button
     const refreshBtn = document.getElementById('patterns-refresh-btn');
     if (refreshBtn) {
         refreshBtn.addEventListener('click', loadLogicData);
     }
-    
+
     // Pattern test button
     const testBtn = document.getElementById('run-pattern-test');
     if (testBtn) {
         testBtn.addEventListener('click', runPatternTest);
     }
-    
+
     // Pattern test on enter key
     const testInput = document.getElementById('pattern-test-input');
     if (testInput) {
@@ -6898,18 +6898,18 @@ function initLogicPage() {
             if (e.key === 'Enter') runPatternTest();
         });
     }
-    
+
     // Save pattern button
     const saveBtn = document.getElementById('save-pattern-btn');
     if (saveBtn) {
         saveBtn.addEventListener('click', savePatternEdit);
     }
-    
+
     // Modal close buttons
     document.querySelectorAll('#pattern-modal .modal-close-btn').forEach(btn => {
         btn.addEventListener('click', closePatternModal);
     });
-    
+
     // Close modal on outside click
     const modal = document.getElementById('pattern-modal');
     if (modal) {
@@ -6917,13 +6917,33 @@ function initLogicPage() {
             if (e.target === modal) closePatternModal();
         });
     }
-    
+
     // History refresh button
     const historyRefreshBtn = document.getElementById('history-refresh-btn');
     if (historyRefreshBtn) {
         historyRefreshBtn.addEventListener('click', loadDecisionHistory);
     }
+
+    // History filter change handlers
+    const agentFilter = document.getElementById('history-agent-filter');
+    const statusFilter = document.getElementById('history-status-filter');
+    const searchInput = document.getElementById('history-search');
     
+    if (agentFilter) {
+        agentFilter.addEventListener('change', renderDecisionHistory);
+    }
+    if (statusFilter) {
+        statusFilter.addEventListener('change', renderDecisionHistory);
+    }
+    if (searchInput) {
+        // Debounce search input
+        let searchTimeout;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(renderDecisionHistory, 300);
+        });
+    }
+
     // Load initial data
     loadLogicData();
 }
@@ -6932,26 +6952,26 @@ async function loadLogicData() {
     try {
         // Use the main logic endpoint which returns everything in one call
         const response = await fetch('/api/v1/logic/');
-        
+
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
-        
+
         const data = await response.json();
-        
+
         // Store the data - structure is: patterns, routing, overrides, entity_aliases, stats, metadata
         logicData.patterns = data.patterns || {};
         logicData.routing = data.routing || {};
         logicData.overrides = data.overrides || {};
         logicData.aliases = data.entity_aliases || {};
         logicData.stats = data.stats || {};
-        
+
         updateLogicStats();
         renderPatternGroups();
         renderRoutingRules();
         renderOverrides();
         renderAliases();
-        
+
         // Also load decision history
         loadDecisionHistory();
     } catch (error) {
@@ -6970,16 +6990,16 @@ async function loadDecisionHistory() {
             fetch('/api/v1/dashboard/traces?limit=50'),
             fetch('/api/v1/dashboard/stats')
         ]);
-        
+
         if (!tracesResponse.ok || !statsResponse.ok) {
             throw new Error(`HTTP error`);
         }
-        
+
         const tracesData = await tracesResponse.json();
         const statsData = await statsResponse.json();
-        
+
         decisionHistory = tracesData.traces || [];
-        
+
         renderDecisionStats(statsData);
         renderDecisionHistory();
     } catch (error) {
@@ -6994,7 +7014,7 @@ async function loadDecisionHistory() {
 function renderDecisionStats(stats) {
     const container = document.getElementById('history-stats');
     if (!container) return;
-    
+
     container.innerHTML = `
         <div class="history-stats-grid">
             <div class="stat-mini">
@@ -7020,12 +7040,36 @@ function renderDecisionStats(stats) {
 function renderDecisionHistory() {
     const container = document.getElementById('history-list');
     if (!container) return;
-    
+
     if (!decisionHistory || decisionHistory.length === 0) {
         container.innerHTML = '<div class="text-muted">No request history yet. Try sending some requests to BarnabeeNet!</div>';
         return;
     }
-    
+
+    // Get filter values
+    const agentFilter = document.getElementById('history-agent-filter')?.value || '';
+    const statusFilter = document.getElementById('history-status-filter')?.value || '';
+    const searchTerm = document.getElementById('history-search')?.value?.toLowerCase() || '';
+
+    // Apply filters
+    let filteredHistory = decisionHistory.filter(trace => {
+        // Agent filter
+        if (agentFilter && trace.agent_used !== agentFilter) return false;
+        
+        // Status filter
+        if (statusFilter === 'success' && !trace.success) return false;
+        if (statusFilter === 'error' && trace.success) return false;
+        
+        // Search filter
+        if (searchTerm) {
+            const inputText = (trace.input_preview || '').toLowerCase();
+            const responseText = (trace.response_preview || '').toLowerCase();
+            if (!inputText.includes(searchTerm) && !responseText.includes(searchTerm)) return false;
+        }
+        
+        return true;
+    });
+
     const agentIcons = {
         instant: '⚡',
         action: '🎯',
@@ -7033,15 +7077,20 @@ function renderDecisionHistory() {
         interaction: '💬',
         emergency: '🚨'
     };
-    
-    let html = '';
-    decisionHistory.forEach(trace => {
+
+    if (filteredHistory.length === 0) {
+        container.innerHTML = `<div class="text-muted">No matching requests found. ${decisionHistory.length} total requests available.</div>`;
+        return;
+    }
+
+    let html = `<div class="filter-results-count">${filteredHistory.length} of ${decisionHistory.length} requests</div>`;
+    filteredHistory.forEach(trace => {
         const icon = agentIcons[trace.agent_used] || '❓';
         const time = trace.timestamp ? new Date(trace.timestamp).toLocaleTimeString() : '';
         const duration = trace.total_latency_ms ? `${trace.total_latency_ms.toFixed(1)}ms` : '';
         const successClass = trace.success ? 'success' : 'error';
         const successColor = trace.success ? 'var(--success)' : 'var(--danger)';
-        
+
         // Determine which pattern was matched based on agent and intent
         let logicInfo = '';
         if (trace.intent) {
@@ -7049,7 +7098,7 @@ function renderDecisionHistory() {
         } else if (trace.agent_used) {
             logicInfo = `Routed to: ${trace.agent_used} agent`;
         }
-        
+
         html += `
             <div class="decision-card clickable" onclick="openTraceDetail('${trace.trace_id}')">
                 <div class="decision-header">
@@ -7076,22 +7125,22 @@ function renderDecisionHistory() {
             </div>
         `;
     });
-    
+
     container.innerHTML = html;
 }
 
 // Open trace detail modal - exposed globally for onclick handlers
-window.openTraceDetail = async function(traceId) {
+window.openTraceDetail = async function (traceId) {
     const modal = document.getElementById('trace-modal');
     const body = document.getElementById('trace-modal-body');
-    
+
     modal.style.display = 'flex';
     body.innerHTML = '<div class="loading-skeleton"><div class="skeleton-card"></div></div>';
-    
+
     try {
         const response = await fetch(`/api/v1/dashboard/traces/${traceId}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
         const trace = await response.json();
         body.innerHTML = renderTraceDetail(trace);
     } catch (error) {
@@ -7108,12 +7157,15 @@ function renderTraceDetail(trace) {
         interaction: '💬',
         emergency: '🚨'
     };
-    
+
     const icon = agentIcons[trace.agent_used] || '❓';
     const startTime = trace.started_at ? new Date(trace.started_at).toLocaleString() : 'N/A';
     const endTime = trace.completed_at ? new Date(trace.completed_at).toLocaleString() : 'N/A';
     const successColor = trace.success ? 'var(--success)' : 'var(--danger)';
-    
+
+    // Build waterfall timeline from signals
+    const waterfallHtml = renderWaterfallTimeline(trace);
+
     let html = `
         <div class="trace-detail">
             <!-- Header Summary -->
@@ -7128,7 +7180,10 @@ function renderTraceDetail(trace) {
                     <strong>${trace.total_latency_ms?.toFixed(2) || 0}ms</strong> total
                 </div>
             </div>
-            
+
+            <!-- Waterfall Timeline -->
+            ${waterfallHtml}
+
             <!-- Input/Output Section -->
             <div class="trace-section">
                 <h4>📥 Input</h4>
@@ -7139,7 +7194,7 @@ function renderTraceDetail(trace) {
                     ${trace.room ? `<div class="trace-field"><span class="label">Room:</span> ${escapeHtml(trace.room)}</div>` : ''}
                 </div>
             </div>
-            
+
             <div class="trace-section">
                 <h4>📤 Output</h4>
                 <div class="trace-code-block">
@@ -7148,7 +7203,7 @@ function renderTraceDetail(trace) {
                     ${trace.error ? `<div class="trace-field error"><span class="label">Error:</span> ${escapeHtml(trace.error)}</div>` : ''}
                 </div>
             </div>
-            
+
             <!-- Classification & Routing -->
             <div class="trace-section">
                 <h4>🧠 Classification & Routing</h4>
@@ -7161,7 +7216,7 @@ function renderTraceDetail(trace) {
                     ${trace.mood ? `<div class="trace-field"><span class="label">Mood:</span> ${trace.mood}</div>` : ''}
                 </div>
             </div>
-            
+
             <!-- Memory Operations -->
             ${trace.memories_retrieved?.length > 0 ? `
             <div class="trace-section">
@@ -7171,7 +7226,7 @@ function renderTraceDetail(trace) {
                 </div>
             </div>
             ` : ''}
-            
+
             <!-- Home Assistant Actions -->
             ${trace.ha_actions?.length > 0 ? `
             <div class="trace-section">
@@ -7187,7 +7242,7 @@ function renderTraceDetail(trace) {
                 </div>
             </div>
             ` : ''}
-            
+
             <!-- LLM Details -->
             ${trace.total_tokens > 0 || trace.total_cost_usd > 0 ? `
             <div class="trace-section">
@@ -7198,7 +7253,7 @@ function renderTraceDetail(trace) {
                 </div>
             </div>
             ` : ''}
-            
+
             <!-- Timing -->
             <div class="trace-section">
                 <h4>⏱️ Timing</h4>
@@ -7208,7 +7263,7 @@ function renderTraceDetail(trace) {
                     <div class="trace-field"><span class="label">Total Latency:</span> <strong>${trace.total_latency_ms?.toFixed(2) || 0}ms</strong></div>
                 </div>
             </div>
-            
+
             <!-- Pipeline Signals -->
             ${trace.signals?.length > 0 ? `
             <div class="trace-section">
@@ -7218,7 +7273,7 @@ function renderTraceDetail(trace) {
                 </div>
             </div>
             ` : ''}
-            
+
             <!-- Raw Data (collapsible) -->
             <div class="trace-section">
                 <h4 class="collapsible" onclick="toggleTraceRaw(this)">📋 Raw JSON Data <span class="toggle-icon">▶</span></h4>
@@ -7226,7 +7281,7 @@ function renderTraceDetail(trace) {
                     <pre>${escapeHtml(JSON.stringify(trace, null, 2))}</pre>
                 </div>
             </div>
-            
+
             <!-- Trace ID -->
             <div class="trace-section trace-id-section">
                 <span class="label">Trace ID:</span>
@@ -7234,7 +7289,7 @@ function renderTraceDetail(trace) {
             </div>
         </div>
     `;
-    
+
     return html;
 }
 
@@ -7257,19 +7312,19 @@ function renderSignalItem(signal, index) {
         agent_interaction: '💬',
         agent_memory: '📝'
     };
-    
+
     const icon = typeIcons[signal.signal_type] || '📌';
     const time = signal.timestamp ? new Date(signal.timestamp).toLocaleTimeString() : '';
     const latency = signal.latency_ms ? `${signal.latency_ms.toFixed(2)}ms` : '';
     const successClass = signal.success ? '' : 'error';
-    
+
     let details = [];
     if (signal.model_used) details.push(`Model: ${signal.model_used}`);
     if (signal.tokens_in) details.push(`In: ${signal.tokens_in} tokens`);
     if (signal.tokens_out) details.push(`Out: ${signal.tokens_out} tokens`);
     if (signal.cost_usd) details.push(`Cost: $${signal.cost_usd.toFixed(6)}`);
     if (signal.error) details.push(`Error: ${signal.error}`);
-    
+
     return `
         <div class="trace-signal-item ${successClass}">
             <div class="signal-header">
@@ -7296,8 +7351,128 @@ function renderSignalItem(signal, index) {
     `;
 }
 
+/**
+ * Render a waterfall timeline visualization showing the timing of each pipeline step.
+ * Each signal is shown as a horizontal bar with its start offset and duration.
+ */
+function renderWaterfallTimeline(trace) {
+    if (!trace.signals || trace.signals.length === 0) {
+        return '';
+    }
+
+    // Parse timestamps and calculate relative positions
+    const traceStart = trace.started_at ? new Date(trace.started_at).getTime() : null;
+    const totalDuration = trace.total_latency_ms || 1;
+
+    if (!traceStart) return '';
+
+    // Process signals to get timing information
+    const timelineItems = [];
+    
+    trace.signals.forEach(signal => {
+        const signalTime = signal.timestamp ? new Date(signal.timestamp).getTime() : null;
+        if (signalTime === null) return;
+
+        // Calculate start offset from trace start
+        const startOffset = signalTime - traceStart;
+        const duration = signal.latency_ms || 0;
+
+        // Determine bar type for coloring based on component
+        let barType = 'default';
+        if (signal.component?.includes('meta')) barType = 'meta';
+        else if (signal.component?.includes('instant')) barType = 'instant';
+        else if (signal.component?.includes('action')) barType = 'action';
+        else if (signal.component?.includes('interaction')) barType = 'interaction';
+        else if (signal.component?.includes('memory')) barType = 'memory';
+        else if (signal.signal_type?.includes('llm')) barType = 'llm';
+        else if (signal.signal_type?.includes('tts')) barType = 'tts';
+        else if (signal.signal_type?.includes('stt')) barType = 'stt';
+        else if (signal.signal_type?.includes('ha')) barType = 'action';
+
+        const typeIcons = {
+            request_start: '▶️',
+            request_complete: '✅',
+            meta_classify: '🧠',
+            agent_route: '🚦',
+            llm_request: '📤',
+            llm_response: '📥',
+            ha_service_call: '🏠',
+            ha_action: '🏠',
+            memory_query: '🔍',
+            memory_store: '💾',
+            memory_retrieve: '📖',
+            error: '❌',
+            agent_instant: '⚡',
+            agent_action: '🎯',
+            agent_interaction: '💬',
+            agent_memory: '📝'
+        };
+        const icon = typeIcons[signal.signal_type] || '📌';
+
+        // Create a concise label
+        let label = signal.signal_type || 'unknown';
+        if (signal.model_used) {
+            // Shorten model name for display
+            const shortModel = signal.model_used.split('/').pop().split(':')[0];
+            label = `${icon} ${shortModel}`;
+        } else if (signal.component) {
+            label = `${icon} ${signal.component}`;
+        } else {
+            label = `${icon} ${label}`;
+        }
+
+        timelineItems.push({
+            label,
+            startOffset,
+            duration,
+            barType,
+            signal
+        });
+    });
+
+    // Sort by start time
+    timelineItems.sort((a, b) => a.startOffset - b.startOffset);
+
+    // Build HTML
+    let html = `
+        <div class="trace-section waterfall-timeline">
+            <h4>📊 Waterfall Timeline</h4>
+            <div class="timeline-scale">
+                <span>0ms</span>
+                <span>${(totalDuration / 4).toFixed(0)}ms</span>
+                <span>${(totalDuration / 2).toFixed(0)}ms</span>
+                <span>${(totalDuration * 3 / 4).toFixed(0)}ms</span>
+                <span>${totalDuration.toFixed(0)}ms</span>
+            </div>
+    `;
+
+    timelineItems.forEach(item => {
+        // Calculate percentage positions
+        const leftPct = Math.max(0, (item.startOffset / totalDuration) * 100);
+        const widthPct = Math.max(1, (item.duration / totalDuration) * 100);
+
+        // Format duration for display
+        const durationStr = item.duration > 0 ? `${item.duration.toFixed(1)}ms` : '';
+
+        html += `
+            <div class="timeline-row">
+                <div class="step-label" title="${escapeHtml(item.signal?.summary || '')}">${item.label}</div>
+                <div class="timeline-bar-container">
+                    <div class="timeline-bar ${item.barType}" style="left: ${leftPct}%; width: ${widthPct}%;">
+                        ${durationStr && widthPct > 15 ? `<span class="bar-duration">${durationStr}</span>` : ''}
+                    </div>
+                    ${durationStr && widthPct <= 15 ? `<span class="step-duration" style="left: ${leftPct + widthPct + 1}%">${durationStr}</span>` : ''}
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    return html;
+}
+
 // Toggle raw JSON display - exposed globally for onclick handlers
-window.toggleTraceRaw = function(element) {
+window.toggleTraceRaw = function (element) {
     const rawDiv = element.nextElementSibling;
     const icon = element.querySelector('.toggle-icon');
     if (rawDiv.style.display === 'none') {
@@ -7310,7 +7485,7 @@ window.toggleTraceRaw = function(element) {
 }
 
 // Close trace modal - exposed globally
-window.closeTraceModal = function() {
+window.closeTraceModal = function () {
     const modal = document.getElementById('trace-modal');
     if (modal) modal.style.display = 'none';
 }
@@ -7339,21 +7514,21 @@ function updateLogicStats() {
         });
     }
     document.getElementById('logic-patterns-count').textContent = patternCount;
-    
+
     // Count routing rules
     let routingCount = 0;
     if (logicData.routing) {
         routingCount = Object.keys(logicData.routing).length;
     }
     document.getElementById('logic-routing-count').textContent = routingCount;
-    
+
     // Count overrides
     let overridesCount = 0;
     if (logicData.overrides) {
         overridesCount = Object.keys(logicData.overrides).length;
     }
     document.getElementById('logic-overrides-count').textContent = overridesCount;
-    
+
     // Count aliases
     const aliasCount = logicData.aliases ? Object.keys(logicData.aliases).length : 0;
     document.getElementById('logic-aliases-count').textContent = aliasCount;
@@ -7363,12 +7538,12 @@ function renderPatternGroups() {
     const container = document.getElementById('pattern-groups');
     const filterValue = document.getElementById('pattern-group-filter')?.value || '';
     const showDisabled = document.getElementById('show-disabled-patterns')?.checked || false;
-    
+
     if (!logicData.patterns || Object.keys(logicData.patterns).length === 0) {
         container.innerHTML = '<div class="text-muted">No patterns loaded</div>';
         return;
     }
-    
+
     const groupIcons = {
         emergency: '🚨',
         instant: '⚡',
@@ -7377,23 +7552,23 @@ function renderPatternGroups() {
         query: '❓',
         gesture: '👋'
     };
-    
+
     let html = '';
-    
+
     // logicData.patterns is { groupName: { name, patterns: { patternName: {...} }, pattern_count } }
     Object.entries(logicData.patterns).forEach(([groupName, group]) => {
         // Filter by group if selected
         if (filterValue && groupName !== filterValue) return;
-        
+
         // patterns is an object { patternName: patternData }
         const patternsObj = group.patterns || {};
         const patternsArray = Object.values(patternsObj);
         const visiblePatterns = showDisabled ? patternsArray : patternsArray.filter(p => p.enabled !== false);
-        
+
         if (visiblePatterns.length === 0) return;
-        
+
         const icon = groupIcons[groupName] || '📋';
-        
+
         html += `
             <div class="pattern-group" data-group="${groupName}">
                 <div class="pattern-group-header" onclick="togglePatternGroup('${groupName}')">
@@ -7412,20 +7587,20 @@ function renderPatternGroups() {
             </div>
         `;
     });
-    
+
     container.innerHTML = html || '<div class="text-muted">No patterns match the filter</div>';
 }
 
 function renderPatternCard(group, pattern) {
-    const confidenceClass = pattern.confidence >= 0.9 ? 'confidence-high' : 
-                           pattern.confidence >= 0.7 ? 'confidence-medium' : 'confidence-low';
+    const confidenceClass = pattern.confidence >= 0.9 ? 'confidence-high' :
+        pattern.confidence >= 0.7 ? 'confidence-medium' : 'confidence-low';
     const disabledClass = pattern.enabled === false ? 'disabled' : '';
-    
+
     const examples = pattern.examples || [];
-    const examplesHtml = examples.slice(0, 3).map(ex => 
+    const examplesHtml = examples.slice(0, 3).map(ex =>
         `<span class="pattern-example">"${escapeHtml(ex)}"</span>`
     ).join('');
-    
+
     return `
         <div class="pattern-card ${disabledClass}" data-pattern="${escapeHtml(pattern.name)}">
             <div class="pattern-card-header">
@@ -7439,7 +7614,7 @@ function renderPatternCard(group, pattern) {
                 <button class="btn btn-small btn-secondary" onclick="openPatternEditor('${group}', '${escapeHtml(pattern.name)}')">
                     ✏️ Edit
                 </button>
-                <button class="btn btn-small ${pattern.enabled === false ? 'btn-primary' : 'btn-secondary'}" 
+                <button class="btn btn-small ${pattern.enabled === false ? 'btn-primary' : 'btn-secondary'}"
                         onclick="togglePattern('${group}', '${escapeHtml(pattern.name)}', ${pattern.enabled === false})">
                     ${pattern.enabled === false ? '✓ Enable' : '✕ Disable'}
                 </button>
@@ -7462,13 +7637,13 @@ function capitalizeFirst(str) {
 function openPatternEditor(group, patternName) {
     const groupData = logicData.patterns?.[group];
     if (!groupData) return;
-    
+
     // patterns is an object { patternName: patternData }
     const pattern = groupData.patterns?.[patternName];
     if (!pattern) return;
-    
+
     currentEditPattern = { group, name: patternName };
-    
+
     document.getElementById('edit-pattern-name').value = pattern.name;
     document.getElementById('edit-pattern-regex').value = pattern.pattern;
     document.getElementById('edit-pattern-subcategory').value = pattern.sub_category || '';
@@ -7476,7 +7651,7 @@ function openPatternEditor(group, patternName) {
     document.getElementById('edit-pattern-description').value = pattern.description || '';
     document.getElementById('edit-pattern-enabled').checked = pattern.enabled !== false;
     document.getElementById('edit-pattern-reason').value = '';
-    
+
     document.getElementById('pattern-modal').style.display = 'flex';
 }
 
@@ -7487,7 +7662,7 @@ function closePatternModal() {
 
 async function savePatternEdit() {
     if (!currentEditPattern) return;
-    
+
     const updates = {
         pattern: document.getElementById('edit-pattern-regex').value,
         sub_category: document.getElementById('edit-pattern-subcategory').value,
@@ -7496,19 +7671,19 @@ async function savePatternEdit() {
         enabled: document.getElementById('edit-pattern-enabled').checked,
         reason: document.getElementById('edit-pattern-reason').value || 'Dashboard edit'
     };
-    
+
     try {
         const response = await fetch(`/api/v1/logic/patterns/${currentEditPattern.group}/${currentEditPattern.name}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updates)
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.detail || 'Failed to save pattern');
         }
-        
+
         showToast('Pattern updated successfully', 'success');
         closePatternModal();
         await loadLogicData();
@@ -7528,9 +7703,9 @@ async function togglePattern(group, patternName, currentlyDisabled) {
                 reason: currentlyDisabled ? 'Enabled from dashboard' : 'Disabled from dashboard'
             })
         });
-        
+
         if (!response.ok) throw new Error('Failed to toggle pattern');
-        
+
         showToast(`Pattern ${currentlyDisabled ? 'enabled' : 'disabled'}`, 'success');
         await loadLogicData();
     } catch (error) {
@@ -7541,19 +7716,19 @@ async function togglePattern(group, patternName, currentlyDisabled) {
 
 function renderRoutingRules() {
     const container = document.getElementById('routing-rules');
-    
+
     if (!logicData.routing || Object.keys(logicData.routing).length === 0) {
         container.innerHTML = '<div class="text-muted">No routing rules loaded</div>';
         return;
     }
-    
+
     let html = '';
     // logicData.routing is { intent: { intent, agent, description, priority, ... } }
     Object.entries(logicData.routing).forEach(([intent, config]) => {
         const agent = config.agent || 'unknown';
         const priority = config.priority || 'normal';
         const description = config.description || '';
-        
+
         html += `
             <div class="routing-rule-card">
                 <div class="routing-rule-header">
@@ -7568,19 +7743,19 @@ function renderRoutingRules() {
             </div>
         `;
     });
-    
+
     container.innerHTML = html || '<div class="text-muted">No routing rules configured</div>';
 }
 
 function renderOverrides() {
     const container = document.getElementById('overrides-list');
     let html = '';
-    
+
     if (!logicData.overrides || Object.keys(logicData.overrides).length === 0) {
         container.innerHTML = '<div class="text-muted">No overrides configured</div>';
         return;
     }
-    
+
     // logicData.overrides is { name: { name, description, enabled, condition_type, conditions, rules } }
     Object.entries(logicData.overrides).forEach(([name, config]) => {
         const typeIcon = {
@@ -7589,10 +7764,10 @@ function renderOverrides() {
             'time': '🕐',
             'phrase': '💬'
         }[config.condition_type] || '⚙️';
-        
+
         const typeClass = config.condition_type || 'default';
         const enabledBadge = config.enabled ? '✓ Enabled' : '✗ Disabled';
-        
+
         html += `
             <div class="override-card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -7604,7 +7779,7 @@ function renderOverrides() {
             </div>
         `;
     });
-    
+
     container.innerHTML = html || '<div class="text-muted">No overrides configured</div>';
 }
 
@@ -7621,12 +7796,12 @@ function formatOverrideConfig(config) {
 
 function renderAliases() {
     const container = document.getElementById('aliases-list');
-    
+
     if (!logicData.aliases || Object.keys(logicData.aliases).length === 0) {
         container.innerHTML = '<div class="text-muted">No entity aliases configured</div>';
         return;
     }
-    
+
     let html = '';
     // logicData.aliases is { aliasName: { alias, entity_id, resolve_by, domain, priority } }
     Object.entries(logicData.aliases).forEach(([name, config]) => {
@@ -7640,7 +7815,7 @@ function renderAliases() {
             </div>
         `;
     });
-    
+
     container.innerHTML = html;
 }
 
@@ -7650,26 +7825,26 @@ async function runPatternTest() {
         showToast('Please enter text to test', 'warning');
         return;
     }
-    
+
     const resultsDiv = document.getElementById('pattern-test-results');
     const summaryDiv = document.getElementById('test-summary');
     const matchesDiv = document.getElementById('test-matches');
-    
+
     resultsDiv.style.display = 'block';
     summaryDiv.innerHTML = '<div class="loading">Testing patterns...</div>';
     matchesDiv.innerHTML = '';
-    
+
     try {
         const response = await fetch('/api/v1/logic/patterns/test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: input })
         });
-        
+
         if (!response.ok) throw new Error('Pattern test failed');
-        
+
         const result = await response.json();
-        
+
         if (result.matches && result.matches.length > 0) {
             const bestMatch = result.matches[0];
             summaryDiv.className = 'test-summary matched';
@@ -7677,7 +7852,7 @@ async function runPatternTest() {
                 <h4>✓ Best Match: ${escapeHtml(bestMatch.pattern_name)}</h4>
                 <p>Group: <strong>${bestMatch.group}</strong> • Confidence: <strong>${(bestMatch.confidence * 100).toFixed(0)}%</strong></p>
             `;
-            
+
             if (result.matches.length > 1) {
                 matchesDiv.innerHTML = `
                     <div class="test-matches-title">All Matches (${result.matches.length})</div>

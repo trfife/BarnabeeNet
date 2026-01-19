@@ -285,7 +285,7 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
         intent = orchestrator_resp.get("intent", "unknown")
         actions = orchestrator_resp.get("actions", [])
         routing_reason = orchestrator_resp.get("routing_reason")
-        
+
         processing_time = (time.perf_counter() - start_time) * 1000
 
         # Build LLM details if available
@@ -301,9 +301,10 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
                 messages_sent=llm_details_raw.get("messages_sent"),
                 response_text=llm_details_raw.get("response_text"),
             )
-            
+
             # Log LLM signal for trace
             from barnabeenet.services.pipeline_signals import PipelineSignal, SignalType
+
             await pipeline_logger.log_signal(
                 PipelineSignal(
                     trace_id=trace_id,
@@ -321,16 +322,17 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
                     output_data={"response_preview": response_text[:100]},
                 )
             )
-        
+
         # Log agent processing signal
         from barnabeenet.services.pipeline_signals import PipelineSignal, SignalType
+
         agent_signal_type = {
             "instant": SignalType.AGENT_INSTANT,
             "action": SignalType.AGENT_ACTION,
             "interaction": SignalType.AGENT_INTERACTION,
             "memory": SignalType.AGENT_MEMORY,
         }.get(agent_used, SignalType.AGENT_ROUTE)
-        
+
         await pipeline_logger.log_signal(
             PipelineSignal(
                 trace_id=trace_id,
@@ -351,7 +353,7 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
                 },
             )
         )
-        
+
         # Log HA actions if any
         for action in actions:
             await pipeline_logger.log_signal(
