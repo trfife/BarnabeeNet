@@ -4361,6 +4361,7 @@ let chatConversationId = null; // Tracks conversation for history
 let voiceRecorder = null;
 let isRecording = false;
 let mediaStream = null;
+let sttEngineStatus = null; // Current STT engine status
 
 function initChatPage() {
     chatInitialized = true;
@@ -4417,7 +4418,104 @@ function initChatPage() {
         }
     }
 
+    // Initialize STT settings
+    initSTTSettings();
+
     console.log('Chat page initialized with voice support');
+}
+
+// =============================================================================
+// STT Settings and Status
+// =============================================================================
+
+async function initSTTSettings() {
+    // Load STT engine status
+    await refreshSTTStatus();
+
+    // Set up change listeners for STT selectors
+    const modeSelect = document.getElementById('stt-mode-select');
+    const engineSelect = document.getElementById('stt-engine-select');
+
+    modeSelect?.addEventListener('change', () => {
+        console.log('STT mode changed to:', modeSelect.value);
+    });
+
+    engineSelect?.addEventListener('change', async () => {
+        console.log('STT engine changed to:', engineSelect.value);
+        // Validate engine availability
+        if (sttEngineStatus && engineSelect.value !== 'auto') {
+            const engines = sttEngineStatus.engines || {};
+            const selected = engines[engineSelect.value];
+            if (selected && !selected.available) {
+                showToast(`Warning: ${engineSelect.value} engine is currently unavailable`, 'warning');
+            }
+        }
+    });
+
+    // Refresh status periodically
+    setInterval(refreshSTTStatus, 30000);
+}
+
+async function refreshSTTStatus() {
+    const statusIndicator = document.getElementById('stt-status-indicator');
+    const statusDot = statusIndicator?.querySelector('.stt-status-dot');
+    const statusText = statusIndicator?.querySelector('.stt-status-text');
+    const engineSelect = document.getElementById('stt-engine-select');
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/voice/stt/status`);
+        if (!response.ok) throw new Error('Failed to fetch STT status');
+
+        sttEngineStatus = await response.json();
+
+        // Update status indicator
+        const engines = sttEngineStatus.engines || {};
+        const availableEngines = Object.entries(engines)
+            .filter(([_, info]) => info.available)
+            .map(([name]) => name);
+
+        if (availableEngines.includes('parakeet')) {
+            statusDot?.classList.remove('partial', 'disconnected');
+            statusDot?.classList.add('connected');
+            statusText && (statusText.textContent = 'GPU Ready');
+        } else if (availableEngines.includes('azure')) {
+            statusDot?.classList.remove('connected', 'disconnected');
+            statusDot?.classList.add('partial');
+            statusText && (statusText.textContent = 'Azure Ready');
+        } else if (availableEngines.includes('whisper')) {
+            statusDot?.classList.remove('connected', 'partial');
+            statusDot?.classList.add('disconnected');
+            statusText && (statusText.textContent = 'CPU Only');
+        }
+
+        // Update engine select options with availability
+        if (engineSelect) {
+            Array.from(engineSelect.options).forEach(option => {
+                if (option.value === 'auto') return;
+                const engineInfo = engines[option.value];
+                const available = engineInfo?.available ?? false;
+                const suffix = available ? ' ✓' : ' ✗';
+                const baseName = option.text.replace(/ [✓✗]$/, '');
+                option.text = baseName + suffix;
+                option.disabled = !available && option.value !== 'whisper';
+            });
+        }
+
+        console.log('STT status refreshed:', sttEngineStatus);
+
+    } catch (error) {
+        console.error('Failed to refresh STT status:', error);
+        statusDot?.classList.remove('connected', 'partial');
+        statusDot?.classList.add('disconnected');
+        statusText && (statusText.textContent = 'Error');
+    }
+}
+
+function getSelectedSTTConfig() {
+    return {
+        mode: document.getElementById('stt-mode-select')?.value || 'command',
+        engine: document.getElementById('stt-engine-select')?.value || 'auto'
+    };
 }
 
 async function sendChatMessage() {
@@ -5229,10 +5327,13 @@ async function processVoiceRecording(audioBlob) {
     const messagesContainer = document.getElementById('chat-messages');
     const sendBtn = document.getElementById('chat-send-btn');
 
+    // Get STT settings
+    const sttConfig = getSelectedSTTConfig();
+
     try {
         // Send audio directly - server handles format conversion
         // This is much faster than browser-side WebM->WAV conversion
-        console.log('Sending audio:', audioBlob.size, 'bytes,', audioBlob.type);
+        console.log('Sending audio:', audioBlob.size, 'bytes,', audioBlob.type, 'engine:', sttConfig.engine, 'mode:', sttConfig.mode);
 
         // Convert blob to base64
         const arrayBuffer = await audioBlob.arrayBuffer();
@@ -5247,8 +5348,9 @@ async function processVoiceRecording(audioBlob) {
             welcome.remove();
         }
 
-        // Add user voice message indicator
-        addChatMessage('user', '🎤 Voice message', { isVoice: true });
+        // Add user voice message indicator with STT info
+        const engineLabel = sttConfig.engine === 'auto' ? 'auto' : sttConfig.engine;
+        addChatMessage('user', `🎤 Voice message (${engineLabel})`, { isVoice: true });
 
         // Show thinking indicator
         const thinkingId = showThinkingIndicator();
@@ -5267,7 +5369,10 @@ async function processVoiceRecording(audioBlob) {
                 sample_rate: 16000,
                 language: 'en',
                 speaker: 'Dashboard User',
-                room: 'Dashboard'
+                room: 'Dashboard',
+                // Include STT settings (if the endpoint supports them)
+                stt_engine: sttConfig.engine,
+                stt_mode: sttConfig.mode
             }),
         });
 
@@ -5277,13 +5382,17 @@ async function processVoiceRecording(audioBlob) {
         removeThinkingIndicator(thinkingId);
 
         if (response.ok) {
-            // Update the user message with transcribed text
+            // Get STT engine used from response
+            const sttEngine = data.stt_engine || data.engine_used || sttConfig.engine;
+
+            // Update the user message with transcribed text and engine used
             const userMessages = document.querySelectorAll('.chat-message.user');
             const lastUserMessage = userMessages[userMessages.length - 1];
             if (lastUserMessage && data.input_text) {
                 const bubble = lastUserMessage.querySelector('.message-bubble');
                 if (bubble) {
-                    bubble.textContent = `🎤 "${data.input_text}"`;
+                    const engineBadge = `<span class="stt-engine-badge ${sttEngine}">${sttEngine}</span>`;
+                    bubble.innerHTML = `🎤 "${escapeHtml(data.input_text)}" ${engineBadge}`;
                 }
             }
 
@@ -5298,7 +5407,8 @@ async function processVoiceRecording(audioBlob) {
                 intent,
                 fullResponse: data,
                 traceId,
-                hasAudio: !!data.audio_base64
+                hasAudio: !!data.audio_base64,
+                sttEngine
             });
 
             // Play audio response if available

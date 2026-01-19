@@ -235,6 +235,30 @@
 
                 <!-- Chat Input -->
                 <div class="chat-input-container">
+                    <!-- STT Settings Row -->
+                    <div class="stt-settings-row" id="stt-settings-row">
+                        <div class="stt-setting">
+                            <label for="stt-mode-select">Mode:</label>
+                            <select id="stt-mode-select" class="stt-select" title="STT processing mode">
+                                <option value="command" selected>Command (single utterance)</option>
+                                <option value="realtime">Real-time (streaming)</option>
+                                <option value="ambient">Ambient (continuous)</option>
+                            </select>
+                        </div>
+                        <div class="stt-setting">
+                            <label for="stt-engine-select">Engine:</label>
+                            <select id="stt-engine-select" class="stt-select" title="STT engine">
+                                <option value="auto" selected>Auto (best available)</option>
+                                <option value="parakeet">Parakeet (GPU)</option>
+                                <option value="whisper">Whisper (CPU)</option>
+                                <option value="azure">Azure (Cloud)</option>
+                            </select>
+                        </div>
+                        <div class="stt-status" id="stt-status-indicator">
+                            <span class="stt-status-dot"></span>
+                            <span class="stt-status-text">Checking...</span>
+                        </div>
+                    </div>
                     <div class="chat-input-wrapper">
                         <button id="chat-mic-btn" class="chat-mic-btn" title="Click to record voice">
                             <span class="mic-icon">🎤</span>
