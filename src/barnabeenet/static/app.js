@@ -6918,6 +6918,12 @@ function initLogicPage() {
         });
     }
     
+    // History refresh button
+    const historyRefreshBtn = document.getElementById('history-refresh-btn');
+    if (historyRefreshBtn) {
+        historyRefreshBtn.addEventListener('click', loadDecisionHistory);
+    }
+    
     // Load initial data
     loadLogicData();
 }
@@ -6945,10 +6951,159 @@ async function loadLogicData() {
         renderRoutingRules();
         renderOverrides();
         renderAliases();
+        
+        // Also load decision history
+        loadDecisionHistory();
     } catch (error) {
         console.error('Failed to load logic data:', error);
         showToast('Failed to load logic data', 'error');
     }
+}
+
+// Decision history for Logic Browser
+let decisionHistory = [];
+
+async function loadDecisionHistory() {
+    try {
+        const response = await fetch('/api/v1/logic/decisions?limit=50');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        decisionHistory = data.decisions || [];
+        
+        renderDecisionStats(data.stats || {});
+        renderDecisionHistory();
+    } catch (error) {
+        console.error('Failed to load decision history:', error);
+        const container = document.getElementById('history-list');
+        if (container) {
+            container.innerHTML = '<div class="text-muted">Failed to load decision history. Try sending some requests to BarnabeeNet first.</div>';
+        }
+    }
+}
+
+function renderDecisionStats(stats) {
+    const container = document.getElementById('history-stats');
+    if (!container) return;
+    
+    const byType = stats.by_type || {};
+    const byOutcome = stats.by_outcome || {};
+    
+    container.innerHTML = `
+        <div class="history-stats-grid">
+            <div class="stat-mini">
+                <span class="stat-value-small">${stats.total_decisions || 0}</span>
+                <span class="stat-label-small">Total Decisions</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-value-small">${byOutcome.match || 0}</span>
+                <span class="stat-label-small">Matches</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-value-small">${byType.pattern_match || 0}</span>
+                <span class="stat-label-small">Pattern Matches</span>
+            </div>
+            <div class="stat-mini">
+                <span class="stat-value-small">${byType.routing || 0}</span>
+                <span class="stat-label-small">Routing Decisions</span>
+            </div>
+        </div>
+    `;
+}
+
+function renderDecisionHistory() {
+    const container = document.getElementById('history-list');
+    if (!container) return;
+    
+    if (!decisionHistory || decisionHistory.length === 0) {
+        container.innerHTML = '<div class="text-muted">No decision history yet. Try sending some requests to BarnabeeNet!</div>';
+        return;
+    }
+    
+    const typeIcons = {
+        pattern_match: '📝',
+        routing: '🚦',
+        override: '⚙️',
+        llm_call: '🤖',
+        action_selection: '🎯',
+        threshold: '📊',
+        fallback: '↩️'
+    };
+    
+    const outcomeColors = {
+        match: 'var(--success)',
+        no_match: 'var(--secondary)',
+        selected: 'var(--primary)',
+        rejected: 'var(--warning)',
+        skipped: 'var(--secondary)',
+        error: 'var(--danger)',
+        overridden: 'var(--info)',
+        fallback: 'var(--warning)'
+    };
+    
+    let html = '';
+    decisionHistory.forEach(decision => {
+        const icon = typeIcons[decision.decision_type] || '❓';
+        const outcomeColor = outcomeColors[decision.result?.outcome] || 'var(--secondary)';
+        const time = decision.started_at ? new Date(decision.started_at).toLocaleTimeString() : '';
+        const duration = decision.duration_ms ? `${decision.duration_ms.toFixed(1)}ms` : '';
+        
+        // Get input preview
+        let inputPreview = '';
+        if (decision.inputs?.primary) {
+            inputPreview = decision.inputs.primary.substring(0, 100);
+            if (decision.inputs.primary.length > 100) inputPreview += '...';
+        }
+        
+        // Get result value preview
+        let resultPreview = '';
+        if (decision.result?.value) {
+            if (typeof decision.result.value === 'string') {
+                resultPreview = decision.result.value.substring(0, 80);
+            } else if (typeof decision.result.value === 'object') {
+                resultPreview = JSON.stringify(decision.result.value).substring(0, 80);
+            }
+        }
+        
+        // Get logic info
+        let logicInfo = '';
+        if (decision.logic) {
+            logicInfo = decision.logic.logic_type;
+            if (decision.logic.logic_source) {
+                logicInfo += ` from ${decision.logic.logic_source}`;
+            }
+        }
+        
+        html += `
+            <div class="decision-card">
+                <div class="decision-header">
+                    <span class="decision-icon">${icon}</span>
+                    <span class="decision-name">${escapeHtml(decision.decision_name || decision.decision_type)}</span>
+                    <span class="decision-component">${escapeHtml(decision.component || '')}</span>
+                    <span class="decision-time">${time}</span>
+                </div>
+                <div class="decision-body">
+                    ${inputPreview ? `<div class="decision-input"><strong>Input:</strong> "${escapeHtml(inputPreview)}"</div>` : ''}
+                    <div class="decision-result">
+                        <span class="decision-outcome" style="color: ${outcomeColor}">
+                            ${decision.result?.outcome || 'pending'}
+                        </span>
+                        ${resultPreview ? `<span class="decision-value">${escapeHtml(resultPreview)}</span>` : ''}
+                        ${decision.result?.confidence ? `<span class="decision-confidence">${(decision.result.confidence * 100).toFixed(0)}% confidence</span>` : ''}
+                    </div>
+                    ${logicInfo ? `<div class="decision-logic"><strong>Logic:</strong> ${escapeHtml(logicInfo)}</div>` : ''}
+                </div>
+                <div class="decision-footer">
+                    ${duration ? `<span class="decision-duration">${duration}</span>` : ''}
+                    <span class="decision-id" title="${decision.decision_id}">${decision.decision_id?.substring(0, 12) || ''}</span>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
 }
 
 function updateLogicStats() {

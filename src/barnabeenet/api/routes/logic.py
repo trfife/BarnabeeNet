@@ -575,3 +575,24 @@ async def get_logic_stats():
         "stats": data["stats"],
         "metadata": data["metadata"],
     }
+
+
+@router.get("/decisions")
+async def get_recent_decisions(
+    limit: int = Query(50, ge=1, le=200, description="Maximum decisions to return"),
+):
+    """Get recent decision records showing how logic was applied.
+    
+    This endpoint shows the history of pattern matches, routing decisions,
+    and other logic applications - the "what happened" view of the logic system.
+    """
+    from barnabeenet.core.decision_registry import get_decision_registry
+    
+    registry = get_decision_registry()
+    decisions = await registry.get_recent_decisions(limit=limit)
+    
+    return {
+        "decisions": [d.to_dict() for d in decisions],
+        "total": len(decisions),
+        "stats": registry.get_stats(),
+    }
