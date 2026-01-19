@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-20 (Voice Architecture Decision - HA + ViewAssist)
+2026-01-20 (NixOS auto-start service)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + MEMORY DASHBOARD + DIARY
@@ -119,6 +119,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Home Assistant Connected** - HA integration fully working on VM. URL: http://192.168.86.60:8123, Version 2026.1.2. Stats: 2291 entities, 238 devices, 20 areas, 6 automations, 64 integrations. Dashboard configuration page allows setting URL + token (encrypted). State change streaming active.
 - [x] **Simple Chat API** - Dead-simple `/api/v1/chat` endpoint for HA/ViewAssist integration. POST or GET with just `text` parameter, returns `{"response": "..."}`. Integration guide at `docs/INTEGRATION.md` with examples for HA rest_command, shell_command, and ViewAssist.
 - [x] **HA Custom Conversation Agent** - Full Home Assistant custom integration at `ha-integration/custom_components/barnabeenet/`. Registers as a conversation agent in HA's Voice assistants. Auto-detects speaker from logged-in HA user (via person entity). Auto-detects room from device area. Config flow with URL setup. Works with HA Cloud STT on phones.
+- [x] **NixOS Auto-Start Service** - BarnabeeNet now auto-starts on VM boot via systemd. NixOS module at `/etc/nixos/barnabeenet.nix` defines `barnabeenet.service`: Type=simple, User=thom, auto-restarts on failure (RestartSec=5). Service is enabled and running, survives reboots. Uses existing Redis instance on VM.
 
 ### In Progress
 None

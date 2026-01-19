@@ -11,7 +11,6 @@ import logging
 from typing import Literal
 
 import aiohttp
-
 from homeassistant.components import conversation
 from homeassistant.components.conversation import ConversationInput, ConversationResult
 from homeassistant.config_entries import ConfigEntry
@@ -63,9 +62,7 @@ class BarnabeeNetConversationAgent(conversation.ConversationEntity):
         """Return supported languages (all languages)."""
         return "*"
 
-    async def async_process(
-        self, user_input: ConversationInput
-    ) -> ConversationResult:
+    async def async_process(self, user_input: ConversationInput) -> ConversationResult:
         """Process a conversation input and return the response."""
         text = user_input.text
         conversation_id = user_input.conversation_id
