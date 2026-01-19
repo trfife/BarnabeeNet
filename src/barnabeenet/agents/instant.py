@@ -89,6 +89,14 @@ class InstantAgent(Agent):
         "Glad I could help!",
     ]
 
+    MIC_CHECK_RESPONSES = [
+        "Yes, I can hear you loud and clear!",
+        "I hear you! What can I help with?",
+        "Yep, I'm here and listening!",
+        "Loud and clear! Go ahead.",
+        "I hear you perfectly!",
+    ]
+
     FALLBACK_RESPONSES = [
         "I'm not sure how to respond to that.",
         "Let me think about that for a moment...",
@@ -150,6 +158,9 @@ class InstantAgent(Agent):
         elif sub_category == "thanks" or self._is_thanks(text_lower):
             response = self._handle_thanks()
             response_type = "thanks"
+        elif sub_category == "mic_check" or self._is_mic_check(text_lower):
+            response = self._handle_mic_check()
+            response_type = "mic_check"
         elif sub_category == "math" or (math_result := self._try_math(text)):
             if sub_category == "math":
                 math_result = self._try_math(text)
@@ -216,6 +227,19 @@ class InstantAgent(Agent):
         thanks_keywords = ["thank", "thanks", "cheers", "appreciate"]
         return any(kw in text for kw in thanks_keywords)
 
+    def _is_mic_check(self, text: str) -> bool:
+        """Check if this is a mic test or hearing check."""
+        mic_keywords = [
+            "can you hear me",
+            "do you hear me",
+            "are you there",
+            "testing",
+            "test",
+            "is this working",
+            "am i working",
+        ]
+        return any(kw in text for kw in mic_keywords)
+
     # =========================================================================
     # Response Handlers
     # =========================================================================
@@ -274,6 +298,10 @@ class InstantAgent(Agent):
     def _handle_thanks(self) -> str:
         """Generate thanks response."""
         return random.choice(self.THANKS_RESPONSES)
+
+    def _handle_mic_check(self) -> str:
+        """Generate mic check / hearing confirmation response."""
+        return random.choice(self.MIC_CHECK_RESPONSES)
 
     def _try_math(self, text: str) -> str | None:
         """Try to evaluate simple math expressions.

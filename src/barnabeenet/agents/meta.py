@@ -157,6 +157,10 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(what('s| is) )?(\d+)\s*[\+\-\*\/]\s*(\d+)(\?)?$", "math"),
     (r"^(how are you|you okay)(\?)?$", "status"),
     (r"^thank(s| you).*$", "thanks"),
+    # Mic check / test queries
+    (r"^(can you hear me|do you hear me|are you there|testing)(\?)?$", "mic_check"),
+    (r"^test(ing)?( 1 2 3)?(\?)?$", "mic_check"),
+    (r"^(is this|this is|am i) (working|on)(\?)?$", "mic_check"),
 ]
 
 ACTION_PATTERNS: list[tuple[str, str]] = [
