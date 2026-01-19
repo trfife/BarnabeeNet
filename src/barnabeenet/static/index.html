@@ -1326,6 +1326,77 @@
                     </div>
                 </div>
             </div>
+
+            <!-- AI Correction Modal -->
+            <div id="correction-modal" class="modal" style="display: none;">
+                <div class="modal-content modal-large">
+                    <div class="modal-header">
+                        <h3>🔴 Report Incorrect Response</h3>
+                        <button class="btn btn-small modal-close-btn" onclick="window.closeCorrectionModal()">✕</button>
+                    </div>
+                    <div class="modal-body" id="correction-modal-body">
+                        <!-- Step 1: What went wrong -->
+                        <div id="correction-step-1">
+                            <div class="correction-section">
+                                <h4>What was the request?</h4>
+                                <div class="correction-request-preview" id="correction-request-preview">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+                            
+                            <div class="correction-section">
+                                <h4>What should have happened?</h4>
+                                <textarea id="correction-expected" class="form-control" rows="3" 
+                                    placeholder="Describe the correct response or action..."></textarea>
+                            </div>
+                            
+                            <div class="correction-section">
+                                <h4>What type of issue is this?</h4>
+                                <div class="correction-issue-types">
+                                    <label class="radio-option">
+                                        <input type="radio" name="issue-type" value="wrong_entity">
+                                        <span>🏠 Wrong device/entity selected</span>
+                                    </label>
+                                    <label class="radio-option">
+                                        <input type="radio" name="issue-type" value="wrong_action">
+                                        <span>⚡ Wrong action performed</span>
+                                    </label>
+                                    <label class="radio-option">
+                                        <input type="radio" name="issue-type" value="wrong_routing">
+                                        <span>🚦 Routed to wrong agent</span>
+                                    </label>
+                                    <label class="radio-option">
+                                        <input type="radio" name="issue-type" value="clarification_needed">
+                                        <span>❓ Should have asked for clarification</span>
+                                    </label>
+                                    <label class="radio-option">
+                                        <input type="radio" name="issue-type" value="tone_content">
+                                        <span>💬 Response tone/content issue</span>
+                                    </label>
+                                    <label class="radio-option">
+                                        <input type="radio" name="issue-type" value="other">
+                                        <span>📝 Other</span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="correction-actions">
+                                <button class="btn btn-secondary" onclick="window.closeCorrectionModal()">Cancel</button>
+                                <button class="btn btn-primary" id="analyze-correction-btn" onclick="window.analyzeCorrection()">
+                                    🤖 Analyze with AI
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Step 2: AI Analysis Results -->
+                        <div id="correction-step-2" style="display: none;">
+                            <div class="correction-analysis" id="correction-analysis">
+                                <!-- Populated by JS after AI analysis -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Configuration Page -->

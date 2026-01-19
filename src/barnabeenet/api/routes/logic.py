@@ -596,3 +596,118 @@ async def get_recent_decisions(
         "total": len(decisions),
         "stats": registry.get_stats(),
     }
+
+
+# =============================================================================
+# AI Correction Endpoints
+# =============================================================================
+
+
+class CorrectionAnalyzeRequest(BaseModel):
+    """Request to analyze a trace for correction."""
+
+    trace_id: str = Field(..., description="The trace ID to analyze")
+    expected_result: str = Field(..., description="What should have happened")
+    issue_type: str = Field(..., description="Type of issue reported")
+
+
+class CorrectionSuggestionResponse(BaseModel):
+    """A suggested fix from AI analysis."""
+
+    suggestion_id: str
+    suggestion_type: str
+    title: str
+    description: str
+    impact_level: str
+    target_logic_id: str
+    proposed_value: str | None
+    diff_before: str | None
+    diff_after: str | None
+    confidence: float
+    reasoning: str | None
+
+
+class CorrectionAnalysisResponse(BaseModel):
+    """Response from AI correction analysis."""
+
+    analysis_id: str
+    trace_id: str
+    root_cause: str
+    root_cause_logic_id: str | None
+    suggestions: list[CorrectionSuggestionResponse]
+
+
+@router.post("/corrections/analyze", response_model=CorrectionAnalysisResponse)
+async def analyze_correction(request: CorrectionAnalyzeRequest):
+    """Analyze a trace with AI to diagnose issues and suggest fixes.
+
+    This endpoint:
+    1. Loads the full trace with all signals
+    2. Gathers the logic configurations that were used
+    3. Calls AI to diagnose the root cause
+    4. Generates fix suggestions with diff previews
+    """
+    from barnabeenet.services.ai_correction import get_correction_service
+
+    try:
+        correction_service = await get_correction_service()
+        analysis = await correction_service.analyze_trace(
+            trace_id=request.trace_id,
+            expected_result=request.expected_result,
+            issue_type=request.issue_type,
+        )
+        return analysis
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    except Exception as e:
+        logger.error(f"Correction analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}") from None
+
+
+@router.post("/corrections/{analysis_id}/suggestions/{suggestion_id}/test")
+async def test_correction_suggestion(analysis_id: str, suggestion_id: str):
+    """Test a suggestion against historical data without applying it.
+
+    Returns metrics on how many traces would be improved vs regressed.
+    """
+    from barnabeenet.services.ai_correction import get_correction_service
+
+    try:
+        correction_service = await get_correction_service()
+        results = await correction_service.test_suggestion(
+            analysis_id=analysis_id,
+            suggestion_id=suggestion_id,
+        )
+        return results
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    except Exception as e:
+        logger.error(f"Suggestion test failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}") from None
+
+
+@router.post("/corrections/{analysis_id}/suggestions/{suggestion_id}/apply")
+async def apply_correction_suggestion(analysis_id: str, suggestion_id: str):
+    """Apply a suggested fix.
+
+    This modifies the logic configuration (patterns, routing, etc.)
+    and marks the original trace as corrected.
+    """
+    from barnabeenet.services.ai_correction import get_correction_service
+
+    try:
+        correction_service = await get_correction_service()
+        result = await correction_service.apply_suggestion(
+            analysis_id=analysis_id,
+            suggestion_id=suggestion_id,
+            user="dashboard",
+        )
+        return {
+            "success": True,
+            "applied_at": result.applied_at.isoformat() if result.applied_at else None,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    except Exception as e:
+        logger.error(f"Apply suggestion failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Apply failed: {str(e)}") from None

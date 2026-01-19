@@ -7179,6 +7179,9 @@ function renderTraceDetail(trace) {
                 <div class="trace-timing">
                     <strong>${trace.total_latency_ms?.toFixed(2) || 0}ms</strong> total
                 </div>
+                <button class="btn btn-danger btn-sm mark-wrong-btn" onclick="window.openCorrectionModal('${trace.trace_id}')">
+                    🔴 Mark as Wrong
+                </button>
             </div>
 
             <!-- Waterfall Timeline -->
@@ -7501,7 +7504,295 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', window.closeTraceModal);
         });
     }
+    
+    // Initialize correction modal close handlers
+    const correctionModal = document.getElementById('correction-modal');
+    if (correctionModal) {
+        correctionModal.addEventListener('click', (e) => {
+            if (e.target === correctionModal) window.closeCorrectionModal();
+        });
+    }
 });
+
+// =============================================================================
+// AI Correction System
+// =============================================================================
+
+let currentCorrectionTrace = null;
+
+// Open correction modal for a trace
+window.openCorrectionModal = async function(traceId) {
+    const modal = document.getElementById('correction-modal');
+    const preview = document.getElementById('correction-request-preview');
+    const step1 = document.getElementById('correction-step-1');
+    const step2 = document.getElementById('correction-step-2');
+    
+    // Reset to step 1
+    step1.style.display = 'block';
+    step2.style.display = 'none';
+    document.getElementById('correction-expected').value = '';
+    document.querySelectorAll('input[name="issue-type"]').forEach(r => r.checked = false);
+    
+    // Load trace data
+    try {
+        const response = await fetch(`/api/v1/dashboard/traces/${traceId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        currentCorrectionTrace = await response.json();
+        
+        // Show request preview
+        preview.innerHTML = `
+            <div class="correction-preview-item">
+                <span class="label">Input:</span>
+                <span class="value">"${escapeHtml(currentCorrectionTrace.input_text || '')}"</span>
+            </div>
+            <div class="correction-preview-item">
+                <span class="label">Agent:</span>
+                <span class="value">${currentCorrectionTrace.agent_used || 'unknown'}</span>
+            </div>
+            <div class="correction-preview-item">
+                <span class="label">Response:</span>
+                <span class="value">"${escapeHtml(currentCorrectionTrace.response_text || '')}"</span>
+            </div>
+            ${currentCorrectionTrace.ha_actions?.length > 0 ? `
+            <div class="correction-preview-item">
+                <span class="label">Actions:</span>
+                <span class="value">${currentCorrectionTrace.ha_actions.map(a => `${a.service || a.action_type} → ${a.entity_id || ''}`).join(', ')}</span>
+            </div>
+            ` : ''}
+        `;
+        
+        modal.style.display = 'flex';
+    } catch (error) {
+        console.error('Failed to load trace for correction:', error);
+        showToast('Failed to load request details', 'error');
+    }
+}
+
+// Close correction modal
+window.closeCorrectionModal = function() {
+    const modal = document.getElementById('correction-modal');
+    if (modal) modal.style.display = 'none';
+    currentCorrectionTrace = null;
+}
+
+// Analyze correction with AI
+window.analyzeCorrection = async function() {
+    if (!currentCorrectionTrace) {
+        showToast('No trace selected', 'error');
+        return;
+    }
+    
+    const expectedResult = document.getElementById('correction-expected').value.trim();
+    const issueTypeEl = document.querySelector('input[name="issue-type"]:checked');
+    
+    if (!expectedResult) {
+        showToast('Please describe what should have happened', 'warning');
+        return;
+    }
+    
+    if (!issueTypeEl) {
+        showToast('Please select an issue type', 'warning');
+        return;
+    }
+    
+    const issueType = issueTypeEl.value;
+    const analyzeBtn = document.getElementById('analyze-correction-btn');
+    const step1 = document.getElementById('correction-step-1');
+    const step2 = document.getElementById('correction-step-2');
+    const analysisDiv = document.getElementById('correction-analysis');
+    
+    // Show loading state
+    analyzeBtn.disabled = true;
+    analyzeBtn.innerHTML = '🔄 Analyzing...';
+    
+    try {
+        const response = await fetch('/api/v1/logic/corrections/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                trace_id: currentCorrectionTrace.trace_id,
+                expected_result: expectedResult,
+                issue_type: issueType
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `HTTP ${response.status}`);
+        }
+        
+        const analysis = await response.json();
+        
+        // Show analysis results
+        step1.style.display = 'none';
+        step2.style.display = 'block';
+        analysisDiv.innerHTML = renderCorrectionAnalysis(analysis);
+        
+    } catch (error) {
+        console.error('Failed to analyze correction:', error);
+        showToast(`Analysis failed: ${error.message}`, 'error');
+    } finally {
+        analyzeBtn.disabled = false;
+        analyzeBtn.innerHTML = '🤖 Analyze with AI';
+    }
+}
+
+// Render AI analysis results
+function renderCorrectionAnalysis(analysis) {
+    const issueTypeLabels = {
+        wrong_entity: '🏠 Wrong device/entity',
+        wrong_action: '⚡ Wrong action',
+        wrong_routing: '🚦 Wrong routing',
+        clarification_needed: '❓ Missing clarification',
+        tone_content: '💬 Tone/content issue',
+        other: '📝 Other'
+    };
+    
+    let suggestionsHtml = '';
+    if (analysis.suggestions && analysis.suggestions.length > 0) {
+        suggestionsHtml = analysis.suggestions.map((sugg, idx) => `
+            <div class="suggestion-card ${idx === 0 ? 'recommended' : ''}">
+                <div class="suggestion-header">
+                    <span class="suggestion-rank">${idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</span>
+                    <span class="suggestion-title">${escapeHtml(sugg.title)}</span>
+                    <span class="suggestion-confidence">${(sugg.confidence * 100).toFixed(0)}% confidence</span>
+                    <span class="suggestion-impact impact-${sugg.impact_level}">${sugg.impact_level} impact</span>
+                </div>
+                <div class="suggestion-body">
+                    <p>${escapeHtml(sugg.description)}</p>
+                    ${sugg.reasoning ? `<p class="suggestion-reasoning"><strong>Why:</strong> ${escapeHtml(sugg.reasoning)}</p>` : ''}
+                </div>
+                <div class="suggestion-diff">
+                    <div class="diff-section diff-before">
+                        <span class="diff-label">Before:</span>
+                        <pre>${escapeHtml(sugg.diff_before || 'N/A')}</pre>
+                    </div>
+                    <div class="diff-section diff-after">
+                        <span class="diff-label">After:</span>
+                        <pre>${escapeHtml(sugg.diff_after || sugg.proposed_value || 'N/A')}</pre>
+                    </div>
+                </div>
+                <div class="suggestion-actions">
+                    <button class="btn btn-secondary btn-sm" onclick="window.testSuggestion('${analysis.analysis_id}', '${sugg.suggestion_id}')">
+                        🧪 Test
+                    </button>
+                    <button class="btn btn-primary btn-sm" onclick="window.applySuggestion('${analysis.analysis_id}', '${sugg.suggestion_id}')">
+                        ✓ Apply Fix
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        suggestionsHtml = '<div class="no-suggestions">No automatic fixes suggested. Manual adjustment may be required.</div>';
+    }
+    
+    return `
+        <div class="analysis-header">
+            <h4>🤖 AI Analysis Complete</h4>
+            <button class="btn btn-secondary btn-sm" onclick="window.backToCorrectionStep1()">← Back</button>
+        </div>
+        
+        <div class="analysis-section root-cause">
+            <h5>📍 Root Cause</h5>
+            <p>${escapeHtml(analysis.root_cause)}</p>
+            ${analysis.root_cause_logic_id ? `
+            <div class="root-cause-details">
+                <span class="label">Problem Area:</span>
+                <code>${escapeHtml(analysis.root_cause_logic_id)}</code>
+            </div>
+            ` : ''}
+        </div>
+        
+        <div class="analysis-section suggestions">
+            <h5>💡 Suggested Fixes</h5>
+            ${suggestionsHtml}
+        </div>
+        
+        <div class="analysis-actions">
+            <button class="btn btn-secondary" onclick="window.closeCorrectionModal()">Close</button>
+            <button class="btn btn-warning" onclick="window.markAsWrongOnly('${analysis.trace_id}')">
+                Mark as Wrong (No Fix)
+            </button>
+        </div>
+    `;
+}
+
+// Go back to step 1
+window.backToCorrectionStep1 = function() {
+    document.getElementById('correction-step-1').style.display = 'block';
+    document.getElementById('correction-step-2').style.display = 'none';
+}
+
+// Test a suggestion before applying
+window.testSuggestion = async function(analysisId, suggestionId) {
+    showToast('Testing suggestion against historical data...', 'info');
+    
+    try {
+        const response = await fetch(`/api/v1/logic/corrections/${analysisId}/suggestions/${suggestionId}/test`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const results = await response.json();
+        
+        // Show test results
+        let message = `Test complete: ${results.improvement_count} improvements`;
+        if (results.regression_count > 0) {
+            message += `, ⚠️ ${results.regression_count} regressions`;
+            showToast(message, 'warning');
+        } else {
+            showToast(message, 'success');
+        }
+    } catch (error) {
+        console.error('Failed to test suggestion:', error);
+        showToast('Test failed: ' + error.message, 'error');
+    }
+}
+
+// Apply a suggestion
+window.applySuggestion = async function(analysisId, suggestionId) {
+    if (!confirm('Apply this fix? This will modify the system configuration.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/v1/logic/corrections/${analysisId}/suggestions/${suggestionId}/apply`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        showToast('Fix applied successfully!', 'success');
+        window.closeCorrectionModal();
+        
+        // Refresh logic data
+        if (typeof loadLogicData === 'function') {
+            loadLogicData();
+        }
+    } catch (error) {
+        console.error('Failed to apply suggestion:', error);
+        showToast('Failed to apply fix: ' + error.message, 'error');
+    }
+}
+
+// Mark trace as wrong without applying a fix
+window.markAsWrongOnly = async function(traceId) {
+    try {
+        const response = await fetch(`/api/v1/dashboard/traces/${traceId}/mark-wrong`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        showToast('Marked as incorrect. This helps improve future analysis.', 'success');
+        window.closeCorrectionModal();
+    } catch (error) {
+        console.error('Failed to mark as wrong:', error);
+        showToast('Failed to mark as wrong: ' + error.message, 'error');
+    }
+}
 
 function updateLogicStats() {
     // Count patterns from the nested structure
