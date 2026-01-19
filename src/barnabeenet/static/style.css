@@ -3904,6 +3904,163 @@ body {
     font-size: 13px;
 }
 
+/* =====================================================
+   Log Analysis Tab Styles
+   ===================================================== */
+
+.ha-analysis-header {
+    margin-bottom: 20px;
+}
+
+.ha-analysis-header h3 {
+    font-size: 18px;
+    margin-bottom: 4px;
+}
+
+.ha-analysis-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 12px;
+}
+
+.analysis-status {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.ha-analysis-results {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.analysis-summary {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.summary-icon {
+    font-size: 36px;
+}
+
+.summary-text h4 {
+    font-size: 16px;
+    margin-bottom: 4px;
+}
+
+.analysis-issues {
+    margin-top: 16px;
+}
+
+.analysis-issues h4 {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.analysis-issue {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.analysis-issue.severity-high {
+    border-left: 4px solid #f44336;
+}
+
+.analysis-issue.severity-medium {
+    border-left: 4px solid #ff9800;
+}
+
+.analysis-issue.severity-low {
+    border-left: 4px solid #4caf50;
+}
+
+.issue-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.issue-severity {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.issue-category {
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--bg-hover);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.issue-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.issue-description {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.issue-entities {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.issue-recommendation {
+    font-size: 13px;
+    color: var(--accent-primary);
+    background: rgba(96, 165, 250, 0.1);
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-top: 10px;
+}
+
+.no-issues {
+    text-align: center;
+    padding: 40px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+}
+
+.no-issues p {
+    font-size: 16px;
+    color: var(--accent-primary);
+}
+
+.analysis-error {
+    text-align: center;
+    padding: 30px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--accent-error);
+    border-radius: 12px;
+}
+
+.analysis-error p {
+    color: var(--accent-error);
+}
+
 /* Legacy activity log items (keep for backwards compat) */
 .ha-activity-log-item {
     background: var(--bg-card);

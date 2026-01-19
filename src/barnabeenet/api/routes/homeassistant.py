@@ -1149,3 +1149,221 @@ async def test_ha_connection(
                 success=False,
                 message=f"Connection failed: {error_msg}",
             )
+
+
+# =============================================================================
+# Log Analysis Endpoint (AI-Powered)
+# =============================================================================
+
+
+class LogAnalysisIssue(BaseModel):
+    """A single issue identified in the logs."""
+
+    severity: str = Field(description="high, medium, or low")
+    category: str = Field(description="Category of issue (integration, automation, etc)")
+    title: str = Field(description="Brief title of the issue")
+    description: str = Field(description="Detailed description of what's happening")
+    affected_entities: list[str] = Field(default_factory=list)
+    recommendation: str = Field(description="Suggested fix or action")
+
+
+class LogAnalysisResponse(BaseModel):
+    """Response from AI log analysis."""
+
+    analyzed: bool = Field(description="Whether analysis was performed")
+    log_count: int = Field(description="Number of log entries analyzed")
+    issues: list[LogAnalysisIssue] = Field(default_factory=list)
+    summary: str = Field(description="Overall health summary")
+    error: str | None = None
+
+
+@router.post("/logs/analyze", response_model=LogAnalysisResponse)
+async def analyze_logs(
+    request: Request,
+    limit: int = Query(100, ge=10, le=500, description="Max log entries to analyze"),
+) -> LogAnalysisResponse:
+    """Use AI to analyze Home Assistant logs and identify important issues.
+
+    This endpoint uses an LLM to intelligently filter and analyze HA error logs,
+    surfacing important issues that need attention while filtering out noise.
+    """
+    from barnabeenet.services.llm.activities import LLMActivity
+    from barnabeenet.services.llm.openrouter import OpenRouterClient
+    from barnabeenet.services.secrets import get_secrets_service
+
+    # Get HA client
+    client = await get_ha_client_with_request(request)
+    if not client or not client.connected:
+        return LogAnalysisResponse(
+            analyzed=False,
+            log_count=0,
+            summary="Not connected to Home Assistant",
+            error="Please connect to Home Assistant first",
+        )
+
+    # Fetch logs
+    logs = await client.get_error_log(max_lines=limit)
+    if not logs:
+        return LogAnalysisResponse(
+            analyzed=True,
+            log_count=0,
+            summary="No log entries found. Your Home Assistant appears to be running smoothly!",
+        )
+
+    # Get API key
+    secrets = await get_secrets_service(request.app.state.redis_client)
+    api_key = await secrets.get_secret("openrouter_api_key")
+
+    if not api_key:
+        # Fallback to simple analysis without LLM
+        return _simple_log_analysis(logs)
+
+    # Prepare log text for LLM
+    log_text = "\n".join(
+        f"[{log.timestamp.isoformat()} {log.level}] {log.source}: {log.message}"
+        for log in logs[:limit]
+    )
+
+    # Build prompt
+    system_prompt = """You are a Home Assistant expert analyzing error logs.
+Your job is to identify IMPORTANT issues that need user attention while filtering out:
+- Routine informational messages
+- Transient network hiccups that resolved
+- Debug/trace level noise
+- Repeated instances of the same error
+
+Focus on:
+1. Integration failures (devices not responding)
+2. Automation errors
+3. Configuration problems
+4. Security warnings
+5. Resource issues (memory, storage)
+6. Persistent connection problems
+
+For each issue found, provide:
+- severity: "high" (needs immediate action), "medium" (should fix soon), "low" (nice to fix)
+- category: the type of issue (integration, automation, config, security, resource, connection)
+- title: a brief 1-line title
+- description: what's happening and why it matters
+- affected_entities: list of entity_ids or integration names affected
+- recommendation: specific action to fix it
+
+Respond in JSON format:
+{
+    "issues": [...],
+    "summary": "Overall 1-2 sentence health summary"
+}"""
+
+    user_prompt = f"""Analyze these Home Assistant logs and identify important issues:
+
+{log_text}
+
+Provide your analysis as JSON."""
+
+    try:
+        # Call LLM
+        llm_client = OpenRouterClient(api_key=api_key)
+        await llm_client.init()
+
+        response = await llm_client.chat(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            activity=LLMActivity.HA_LOG_ANALYZE,
+        )
+
+        # Parse response
+        import json
+
+        response_text = response.text
+
+        # Extract JSON from response (handle markdown code blocks)
+        if "```json" in response_text:
+            json_start = response_text.find("```json") + 7
+            json_end = response_text.find("```", json_start)
+            response_text = response_text[json_start:json_end].strip()
+        elif "```" in response_text:
+            json_start = response_text.find("```") + 3
+            json_end = response_text.find("```", json_start)
+            response_text = response_text[json_start:json_end].strip()
+
+        analysis = json.loads(response_text)
+
+        issues = [
+            LogAnalysisIssue(
+                severity=issue.get("severity", "low"),
+                category=issue.get("category", "unknown"),
+                title=issue.get("title", "Unknown issue"),
+                description=issue.get("description", ""),
+                affected_entities=issue.get("affected_entities", []),
+                recommendation=issue.get("recommendation", ""),
+            )
+            for issue in analysis.get("issues", [])
+        ]
+
+        return LogAnalysisResponse(
+            analyzed=True,
+            log_count=len(logs),
+            issues=issues,
+            summary=analysis.get("summary", "Analysis complete"),
+        )
+
+    except json.JSONDecodeError as e:
+        logger.error("Failed to parse LLM response: %s", e)
+        return _simple_log_analysis(logs)
+    except Exception as e:
+        logger.error("Log analysis failed: %s", e)
+        return LogAnalysisResponse(
+            analyzed=False,
+            log_count=len(logs),
+            summary="Analysis failed",
+            error=str(e),
+        )
+
+
+def _simple_log_analysis(logs: list) -> LogAnalysisResponse:
+    """Simple rule-based log analysis when LLM is unavailable."""
+    issues = []
+
+    # Count errors by source
+    error_counts: dict[str, int] = {}
+    warning_counts: dict[str, int] = {}
+
+    for log in logs:
+        if log.level.upper() == "ERROR":
+            error_counts[log.source] = error_counts.get(log.source, 0) + 1
+        elif log.level.upper() == "WARNING":
+            warning_counts[log.source] = warning_counts.get(log.source, 0) + 1
+
+    # Flag sources with many errors
+    for source, count in error_counts.items():
+        if count >= 5:
+            issues.append(
+                LogAnalysisIssue(
+                    severity="high" if count >= 10 else "medium",
+                    category="integration",
+                    title=f"Frequent errors from {source}",
+                    description=f"{count} error messages from {source} in recent logs",
+                    affected_entities=[source],
+                    recommendation=f"Check {source} configuration and connectivity",
+                )
+            )
+
+    # Summary
+    total_errors = sum(error_counts.values())
+    total_warnings = sum(warning_counts.values())
+
+    if total_errors == 0 and total_warnings == 0:
+        summary = "No issues found. Home Assistant is running smoothly."
+    elif total_errors == 0:
+        summary = f"{total_warnings} warnings found. No critical errors."
+    else:
+        summary = f"{total_errors} errors and {total_warnings} warnings found."
+
+    return LogAnalysisResponse(
+        analyzed=True,
+        log_count=len(logs),
+        issues=issues,
+        summary=summary,
+    )

@@ -879,6 +879,7 @@
                 <button class="ha-tab-btn" data-ha-tab="areas">🗺️ Areas</button>
                 <button class="ha-tab-btn" data-ha-tab="devices">📱 Devices</button>
                 <button class="ha-tab-btn" data-ha-tab="activity">📋 Activity Log</button>
+                <button class="ha-tab-btn" data-ha-tab="analysis">🔍 Log Analysis</button>
             </div>
 
             <!-- Overview Tab (NEW) -->
@@ -994,6 +995,23 @@
                 <div class="ha-activity-log" id="ha-activity-log">
                     <div class="empty-state">
                         <p class="text-muted">No activity yet. Talk to Barnabee to control your home!</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Log Analysis Tab (AI-powered) -->
+            <div id="ha-tab-analysis" class="ha-tab-content">
+                <div class="ha-analysis-header">
+                    <h3>🤖 AI Log Analysis</h3>
+                    <p class="text-muted">Let AI identify important issues in your Home Assistant logs</p>
+                    <div class="ha-analysis-actions">
+                        <button class="btn" id="run-log-analysis">🔍 Analyze Logs</button>
+                        <span class="analysis-status" id="analysis-status"></span>
+                    </div>
+                </div>
+                <div class="ha-analysis-results" id="ha-analysis-results">
+                    <div class="empty-state">
+                        <p class="text-muted">Click "Analyze Logs" to scan for issues</p>
                     </div>
                 </div>
             </div>

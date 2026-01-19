@@ -3,7 +3,7 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-18 (HA Activity Filtering)
+2026-01-18 (HA Log Analysis Agent)
 
 ## Current Phase
 **Phase 1: Core Services** - FULL PIPELINE WORKING + MEMORY DASHBOARD + DIARY
@@ -100,12 +100,12 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Memory Dashboard (Phase 7)** - Full memory management UI: Memory API endpoints (list, search, store, delete, stats), tabbed interface (All Memories, Facts/Knowledge, Conversations, Diary, Search, Add Memory). Features: semantic search with similarity scores, memory type badges (semantic/episodic/procedural/working), participant/tag display, pagination, filter by type. Real-time stats (total memories, 24h/7d counts, storage backend). Add memory form with type, importance, participants, tags. Diary entries view for daily summaries.
 - [x] **LLM-Generated Diary Summaries** - New "diary.generate" LLM activity for AI-powered diary creation. POST `/api/v1/memory/diary/generate?date=YYYY-MM-DD` endpoint uses LLM to write natural language diary entries from Barnabee's perspective. Summarizes memories for a specific date with warm, personal tone. Dashboard "Generate Today's Entry" button with date picker. Enhanced diary entry display showing mood badge (positive/neutral/concerned), highlights list, participants mentioned. Fallback to simple summary if no LLM API key configured. Mood detection from memory content heuristics.
 - [x] **HA Activity Feed Filtering** - Enhanced activity filter dropdown with category-based filtering. New filter groups: "🏠 Home Assistant Only" (all ha.* types), "🤖 LLM Only", "🧠 Agents Only", "📝 Memory Only". Improved filter groupings with optgroups (Pipeline, Agents, LLM, Home Assistant, System). Fixed Logs page component filter to use "homeassistant" source value. Smart category matching supports both dot and underscore-separated activity types.
+- [x] **HA Log Analysis Agent** - AI-powered Home Assistant log analysis. New LLM activity `ha.log_analyze` (openai/gpt-4o-mini, accuracy priority). POST `/api/v1/homeassistant/logs/analyze` endpoint fetches HA error logs and uses LLM to identify important issues (integration failures, automation errors, config problems, security warnings, resource issues). Returns structured issues with severity (high/medium/low), category, description, affected entities, and recommendations. Dashboard UI: new "Log Analysis" tab in HA page with "Analyze Logs" button. Results display with severity color-coding, issue cards with recommendations. Fallback to simple rule-based analysis when no LLM API key configured.
 
 ### In Progress
-- [ ] Home Assistant intelligent log filtering agent
+- [ ] Family profile system
 
 ### Not Started
-- [ ] Home Assistant intelligent log filtering agent
 - [ ] Family profile system
 
 ---

@@ -87,6 +87,12 @@ class LLMActivity(str, Enum):
     DIARY_GENERATE = "diary.generate"
 
     # ==========================================================================
+    # Home Assistant Activities
+    # ==========================================================================
+    # Analyze HA error logs to find important issues
+    HA_LOG_ANALYZE = "ha.log_analyze"
+
+    # ==========================================================================
     # Instant Agent (fallback only - usually no LLM)
     # ==========================================================================
     # Fallback for instant patterns that need LLM
@@ -212,6 +218,14 @@ DEFAULT_ACTIVITY_CONFIGS: dict[str, dict[str, Any]] = {
         "max_tokens": 800,
         "priority": "quality",
         "description": "Generate daily diary summaries from memories",
+    },
+    # Home Assistant log analysis
+    "ha.log_analyze": {
+        "model": "openai/gpt-4o-mini",
+        "temperature": 0.3,
+        "max_tokens": 1500,
+        "priority": "accuracy",
+        "description": "Analyze HA logs to identify important issues and patterns",
     },
     # Instant Agent fallback
     "instant.fallback": {

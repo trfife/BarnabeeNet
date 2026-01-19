@@ -2226,6 +2226,9 @@ function switchHATab(tab) {
         case 'activity':
             loadHAActivityTab();
             break;
+        case 'analysis':
+            // Just show the tab, analysis runs on button click
+            break;
     }
 }
 
@@ -2588,6 +2591,122 @@ document.getElementById('ha-sync-now')?.addEventListener('click', async () => {
         btn.textContent = '🔄 Sync Now';
     }
 });
+
+// Log Analysis button handler
+document.getElementById('run-log-analysis')?.addEventListener('click', runLogAnalysis);
+
+async function runLogAnalysis() {
+    const btn = document.getElementById('run-log-analysis');
+    const statusEl = document.getElementById('analysis-status');
+    const resultsEl = document.getElementById('ha-analysis-results');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Analyzing...';
+    statusEl.textContent = 'Analyzing logs with AI...';
+    resultsEl.innerHTML = '<div class="loading-spinner">AI is analyzing your logs...</div>';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/homeassistant/logs/analyze`, {
+            method: 'POST',
+        });
+        const data = await response.json();
+
+        if (!data.analyzed) {
+            resultsEl.innerHTML = `
+                <div class="analysis-error">
+                    <p>⚠️ ${escapeHtml(data.error || 'Analysis could not be performed')}</p>
+                </div>
+            `;
+            statusEl.textContent = 'Analysis failed';
+            return;
+        }
+
+        // Render results
+        let html = `
+            <div class="analysis-summary">
+                <div class="summary-icon">${getSummaryIcon(data.issues)}</div>
+                <div class="summary-text">
+                    <h4>${escapeHtml(data.summary)}</h4>
+                    <p class="text-muted">${data.log_count} log entries analyzed</p>
+                </div>
+            </div>
+        `;
+
+        if (data.issues && data.issues.length > 0) {
+            html += '<div class="analysis-issues">';
+            html += '<h4>Issues Found</h4>';
+
+            // Sort by severity (high first)
+            const sortedIssues = [...data.issues].sort((a, b) => {
+                const severityOrder = { high: 0, medium: 1, low: 2 };
+                return (severityOrder[a.severity] || 3) - (severityOrder[b.severity] || 3);
+            });
+
+            for (const issue of sortedIssues) {
+                html += renderAnalysisIssue(issue);
+            }
+            html += '</div>';
+        } else {
+            html += `
+                <div class="no-issues">
+                    <p>✅ No significant issues found. Your Home Assistant is running smoothly!</p>
+                </div>
+            `;
+        }
+
+        resultsEl.innerHTML = html;
+        statusEl.textContent = `Analysis complete - ${data.issues?.length || 0} issues found`;
+
+    } catch (e) {
+        console.error('Log analysis failed:', e);
+        resultsEl.innerHTML = `
+            <div class="analysis-error">
+                <p>❌ Failed to analyze logs: ${escapeHtml(e.message)}</p>
+            </div>
+        `;
+        statusEl.textContent = 'Analysis failed';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 Analyze Logs';
+    }
+}
+
+function getSummaryIcon(issues) {
+    if (!issues || issues.length === 0) return '✅';
+    const hasHigh = issues.some(i => i.severity === 'high');
+    const hasMedium = issues.some(i => i.severity === 'medium');
+    if (hasHigh) return '🔴';
+    if (hasMedium) return '🟡';
+    return '🟢';
+}
+
+function renderAnalysisIssue(issue) {
+    const severityClass = `severity-${issue.severity}`;
+    const severityIcon = {
+        high: '🔴',
+        medium: '🟡',
+        low: '🟢'
+    }[issue.severity] || '⚪';
+
+    return `
+        <div class="analysis-issue ${severityClass}">
+            <div class="issue-header">
+                <span class="issue-severity">${severityIcon} ${issue.severity.toUpperCase()}</span>
+                <span class="issue-category">${escapeHtml(issue.category)}</span>
+            </div>
+            <h5 class="issue-title">${escapeHtml(issue.title)}</h5>
+            <p class="issue-description">${escapeHtml(issue.description)}</p>
+            ${issue.affected_entities && issue.affected_entities.length > 0 ? `
+                <div class="issue-entities">
+                    <strong>Affected:</strong> ${issue.affected_entities.map(e => escapeHtml(e)).join(', ')}
+                </div>
+            ` : ''}
+            <div class="issue-recommendation">
+                <strong>💡 Recommendation:</strong> ${escapeHtml(issue.recommendation)}
+            </div>
+        </div>
+    `;
+}
 
 async function loadHAAreasTab() {
     const container = document.getElementById('ha-areas-list');
