@@ -118,6 +118,7 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Dashboard Polish** - Comprehensive UI improvements: (1) Loading skeletons with shimmer animation for cards/stats while data loads. (2) Error states with retry buttons for failed API calls. (3) Toast notification system with success/error/warning/info variants, auto-dismiss with progress bar. (4) Improved mobile navigation with horizontal scrolling nav links. (5) Offline detection banner with auto-reconnect. (6) WebSocket exponential backoff reconnection (max 30s delay). (7) Empty states for no-data scenarios. (8) Button loading states. (9) Accessibility focus states. (10) Print styles and reduced-motion support.
 - [x] **Home Assistant Connected** - HA integration fully working on VM. URL: http://192.168.86.60:8123, Version 2026.1.2. Stats: 2291 entities, 238 devices, 20 areas, 6 automations, 64 integrations. Dashboard configuration page allows setting URL + token (encrypted). State change streaming active.
 - [x] **Simple Chat API** - Dead-simple `/api/v1/chat` endpoint for HA/ViewAssist integration. POST or GET with just `text` parameter, returns `{"response": "..."}`. Integration guide at `docs/INTEGRATION.md` with examples for HA rest_command, shell_command, and ViewAssist.
+- [x] **HA Custom Conversation Agent** - Full Home Assistant custom integration at `ha-integration/custom_components/barnabeenet/`. Registers as a conversation agent in HA's Voice assistants. Auto-detects speaker from logged-in HA user (via person entity). Auto-detects room from device area. Config flow with URL setup. Works with HA Cloud STT on phones.
 
 ### In Progress
 None
@@ -159,9 +160,8 @@ None
 
 ## Next Steps (Ordered)
 
-1. HA Conversation Integration - Connect BarnabeeNet as HA's conversation agent
-2. ViewAssist Integration - Accept audio/text from ViewAssist Companion App on tablets
-3. Mobile app / remote access
+1. ViewAssist Integration - Accept audio/text from ViewAssist Companion App on tablets
+2. Mobile app / remote access
 
 ## Voice Architecture Decision
 
