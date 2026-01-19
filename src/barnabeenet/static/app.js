@@ -6915,17 +6915,21 @@ function initLogicPage() {
 
 async function loadLogicData() {
     try {
-        const [patternsRes, routingRes, overridesRes, aliasesRes] = await Promise.all([
-            fetch('/api/v1/logic/patterns'),
-            fetch('/api/v1/logic/routing'),
-            fetch('/api/v1/logic/overrides'),
-            fetch('/api/v1/logic/aliases')
-        ]);
+        // Use the main logic endpoint which returns everything in one call
+        const response = await fetch('/api/v1/logic/');
         
-        if (patternsRes.ok) logicData.patterns = await patternsRes.json();
-        if (routingRes.ok) logicData.routing = await routingRes.json();
-        if (overridesRes.ok) logicData.overrides = await overridesRes.json();
-        if (aliasesRes.ok) logicData.aliases = await aliasesRes.json();
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Store the data - structure is: patterns, routing, overrides, entity_aliases, stats, metadata
+        logicData.patterns = data.patterns || {};
+        logicData.routing = data.routing || {};
+        logicData.overrides = data.overrides || {};
+        logicData.aliases = data.entity_aliases || {};
+        logicData.stats = data.stats || {};
         
         updateLogicStats();
         renderPatternGroups();
@@ -6939,31 +6943,33 @@ async function loadLogicData() {
 }
 
 function updateLogicStats() {
-    // Count patterns
+    // Count patterns from the nested structure
     let patternCount = 0;
-    if (logicData.patterns.groups) {
-        Object.values(logicData.patterns.groups).forEach(group => {
-            patternCount += group.patterns ? group.patterns.length : 0;
+    if (logicData.patterns) {
+        Object.values(logicData.patterns).forEach(group => {
+            if (group.patterns) {
+                patternCount += Object.keys(group.patterns).length;
+            }
         });
     }
     document.getElementById('logic-patterns-count').textContent = patternCount;
     
     // Count routing rules
     let routingCount = 0;
-    if (logicData.routing.intent_routing) {
-        routingCount = Object.keys(logicData.routing.intent_routing).length;
+    if (logicData.routing) {
+        routingCount = Object.keys(logicData.routing).length;
     }
     document.getElementById('logic-routing-count').textContent = routingCount;
     
     // Count overrides
     let overridesCount = 0;
-    if (logicData.overrides.user_overrides) overridesCount += Object.keys(logicData.overrides.user_overrides).length;
-    if (logicData.overrides.room_overrides) overridesCount += Object.keys(logicData.overrides.room_overrides).length;
-    if (logicData.overrides.time_overrides) overridesCount += logicData.overrides.time_overrides.length;
+    if (logicData.overrides) {
+        overridesCount = Object.keys(logicData.overrides).length;
+    }
     document.getElementById('logic-overrides-count').textContent = overridesCount;
     
     // Count aliases
-    const aliasCount = logicData.aliases.aliases ? logicData.aliases.aliases.length : 0;
+    const aliasCount = logicData.aliases ? Object.keys(logicData.aliases).length : 0;
     document.getElementById('logic-aliases-count').textContent = aliasCount;
 }
 
@@ -6972,7 +6978,7 @@ function renderPatternGroups() {
     const filterValue = document.getElementById('pattern-group-filter')?.value || '';
     const showDisabled = document.getElementById('show-disabled-patterns')?.checked || false;
     
-    if (!logicData.patterns.groups) {
+    if (!logicData.patterns || Object.keys(logicData.patterns).length === 0) {
         container.innerHTML = '<div class="text-muted">No patterns loaded</div>';
         return;
     }
@@ -6988,12 +6994,15 @@ function renderPatternGroups() {
     
     let html = '';
     
-    Object.entries(logicData.patterns.groups).forEach(([groupName, group]) => {
+    // logicData.patterns is { groupName: { name, patterns: { patternName: {...} }, pattern_count } }
+    Object.entries(logicData.patterns).forEach(([groupName, group]) => {
         // Filter by group if selected
         if (filterValue && groupName !== filterValue) return;
         
-        const patterns = group.patterns || [];
-        const visiblePatterns = showDisabled ? patterns : patterns.filter(p => p.enabled !== false);
+        // patterns is an object { patternName: patternData }
+        const patternsObj = group.patterns || {};
+        const patternsArray = Object.values(patternsObj);
+        const visiblePatterns = showDisabled ? patternsArray : patternsArray.filter(p => p.enabled !== false);
         
         if (visiblePatterns.length === 0) return;
         
@@ -7065,10 +7074,11 @@ function capitalizeFirst(str) {
 }
 
 function openPatternEditor(group, patternName) {
-    const groupData = logicData.patterns.groups?.[group];
+    const groupData = logicData.patterns?.[group];
     if (!groupData) return;
     
-    const pattern = groupData.patterns?.find(p => p.name === patternName);
+    // patterns is an object { patternName: patternData }
+    const pattern = groupData.patterns?.[patternName];
     if (!pattern) return;
     
     currentEditPattern = { group, name: patternName };
@@ -7146,17 +7156,17 @@ async function togglePattern(group, patternName, currentlyDisabled) {
 function renderRoutingRules() {
     const container = document.getElementById('routing-rules');
     
-    if (!logicData.routing.intent_routing) {
+    if (!logicData.routing || Object.keys(logicData.routing).length === 0) {
         container.innerHTML = '<div class="text-muted">No routing rules loaded</div>';
         return;
     }
     
-    const priorityRules = logicData.routing.priority_rules || {};
-    
     let html = '';
-    Object.entries(logicData.routing.intent_routing).forEach(([intent, config]) => {
-        const agent = config.agent || config;
-        const priority = priorityRules[intent]?.priority || 'normal';
+    // logicData.routing is { intent: { intent, agent, description, priority, ... } }
+    Object.entries(logicData.routing).forEach(([intent, config]) => {
+        const agent = config.agent || 'unknown';
+        const priority = config.priority || 'normal';
+        const description = config.description || '';
         
         html += `
             <div class="routing-rule-card">
@@ -7166,9 +7176,9 @@ function renderRoutingRules() {
                         <span class="routing-arrow">→</span>
                         <span class="routing-agent">${agent}</span>
                     </div>
-                    <span class="routing-priority">${priority}</span>
+                    <span class="routing-priority">Priority: ${priority}</span>
                 </div>
-                ${config.fallback ? `<div class="text-muted">Fallback: ${config.fallback}</div>` : ''}
+                ${description ? `<div class="text-muted">${escapeHtml(description)}</div>` : ''}
             </div>
         `;
     });
@@ -7180,44 +7190,34 @@ function renderOverrides() {
     const container = document.getElementById('overrides-list');
     let html = '';
     
-    // User overrides
-    if (logicData.overrides.user_overrides) {
-        Object.entries(logicData.overrides.user_overrides).forEach(([user, config]) => {
-            html += `
-                <div class="override-card">
-                    <span class="override-type user">👤 User Override</span>
-                    <div class="override-condition">User: ${escapeHtml(user)}</div>
-                    <div class="override-action">${formatOverrideConfig(config)}</div>
-                </div>
-            `;
-        });
+    if (!logicData.overrides || Object.keys(logicData.overrides).length === 0) {
+        container.innerHTML = '<div class="text-muted">No overrides configured</div>';
+        return;
     }
     
-    // Room overrides
-    if (logicData.overrides.room_overrides) {
-        Object.entries(logicData.overrides.room_overrides).forEach(([room, config]) => {
-            html += `
-                <div class="override-card">
-                    <span class="override-type room">🏠 Room Override</span>
-                    <div class="override-condition">Room: ${escapeHtml(room)}</div>
-                    <div class="override-action">${formatOverrideConfig(config)}</div>
+    // logicData.overrides is { name: { name, description, enabled, condition_type, conditions, rules } }
+    Object.entries(logicData.overrides).forEach(([name, config]) => {
+        const typeIcon = {
+            'user': '👤',
+            'room': '🏠',
+            'time': '🕐',
+            'phrase': '💬'
+        }[config.condition_type] || '⚙️';
+        
+        const typeClass = config.condition_type || 'default';
+        const enabledBadge = config.enabled ? '✓ Enabled' : '✗ Disabled';
+        
+        html += `
+            <div class="override-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span class="override-type ${typeClass}">${typeIcon} ${capitalizeFirst(config.condition_type || 'unknown')}</span>
+                    <span class="text-muted" style="font-size: 12px;">${enabledBadge}</span>
                 </div>
-            `;
-        });
-    }
-    
-    // Time overrides
-    if (logicData.overrides.time_overrides) {
-        logicData.overrides.time_overrides.forEach(config => {
-            html += `
-                <div class="override-card">
-                    <span class="override-type time">🕐 Time Override</span>
-                    <div class="override-condition">${escapeHtml(config.start_time || '')} - ${escapeHtml(config.end_time || '')}</div>
-                    <div class="override-action">${formatOverrideConfig(config)}</div>
-                </div>
-            `;
-        });
-    }
+                <h4 style="margin: 0 0 8px 0; font-size: 14px;">${escapeHtml(config.name)}</h4>
+                <div class="override-condition">${escapeHtml(config.description || '')}</div>
+            </div>
+        `;
+    });
     
     container.innerHTML = html || '<div class="text-muted">No overrides configured</div>';
 }
@@ -7235,22 +7235,22 @@ function formatOverrideConfig(config) {
 
 function renderAliases() {
     const container = document.getElementById('aliases-list');
-    const aliases = logicData.aliases.aliases || [];
     
-    if (aliases.length === 0) {
+    if (!logicData.aliases || Object.keys(logicData.aliases).length === 0) {
         container.innerHTML = '<div class="text-muted">No entity aliases configured</div>';
         return;
     }
     
     let html = '';
-    aliases.forEach(alias => {
-        const names = alias.aliases || [];
+    // logicData.aliases is { aliasName: { alias, entity_id, resolve_by, domain, priority } }
+    Object.entries(logicData.aliases).forEach(([name, config]) => {
+        const target = config.entity_id || (config.resolve_by ? `Resolve by: ${config.resolve_by}` : 'N/A');
         html += `
             <div class="alias-card">
                 <div class="alias-names">
-                    ${names.map(n => `<span class="alias-name">${escapeHtml(n)}</span>`).join('')}
+                    <span class="alias-name">${escapeHtml(config.alias || name)}</span>
                 </div>
-                <div class="alias-target">${escapeHtml(alias.entity_id)}</div>
+                <div class="alias-target">${escapeHtml(target)}</div>
             </div>
         `;
     });
