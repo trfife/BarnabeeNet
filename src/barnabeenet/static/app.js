@@ -7051,7 +7051,7 @@ function renderDecisionHistory() {
         }
         
         html += `
-            <div class="decision-card">
+            <div class="decision-card clickable" onclick="openTraceDetail('${trace.trace_id}')">
                 <div class="decision-header">
                     <span class="decision-icon">${icon}</span>
                     <span class="decision-name">${trace.agent_used || 'unknown'} agent</span>
@@ -7070,7 +7070,8 @@ function renderDecisionHistory() {
                 </div>
                 <div class="decision-footer">
                     ${duration ? `<span class="decision-duration">${duration}</span>` : ''}
-                    <span class="decision-id" title="${trace.trace_id}">${trace.trace_id?.substring(0, 12) || ''}</span>
+                    <span class="decision-id" title="${trace.trace_id}">${trace.trace_id?.substring(0, 12) || ''}...</span>
+                    <span class="click-hint">Click for details →</span>
                 </div>
             </div>
         `;
@@ -7078,6 +7079,252 @@ function renderDecisionHistory() {
     
     container.innerHTML = html;
 }
+
+// Open trace detail modal
+async function openTraceDetail(traceId) {
+    const modal = document.getElementById('trace-modal');
+    const body = document.getElementById('trace-modal-body');
+    
+    modal.style.display = 'flex';
+    body.innerHTML = '<div class="loading-skeleton"><div class="skeleton-card"></div></div>';
+    
+    try {
+        const response = await fetch(`/api/v1/dashboard/traces/${traceId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const trace = await response.json();
+        body.innerHTML = renderTraceDetail(trace);
+    } catch (error) {
+        console.error('Failed to load trace details:', error);
+        body.innerHTML = `<div class="error-message">Failed to load trace details: ${error.message}</div>`;
+    }
+}
+
+function renderTraceDetail(trace) {
+    const agentIcons = {
+        instant: '⚡',
+        action: '🎯',
+        memory: '📝',
+        interaction: '💬',
+        emergency: '🚨'
+    };
+    
+    const icon = agentIcons[trace.agent_used] || '❓';
+    const startTime = trace.started_at ? new Date(trace.started_at).toLocaleString() : 'N/A';
+    const endTime = trace.completed_at ? new Date(trace.completed_at).toLocaleString() : 'N/A';
+    const successColor = trace.success ? 'var(--success)' : 'var(--danger)';
+    
+    let html = `
+        <div class="trace-detail">
+            <!-- Header Summary -->
+            <div class="trace-detail-header">
+                <div class="trace-status-badge" style="background: ${successColor}20; color: ${successColor}; border: 1px solid ${successColor}">
+                    ${trace.success ? '✓ SUCCESS' : '✗ ERROR'}
+                </div>
+                <div class="trace-agent-badge">
+                    <span>${icon}</span> ${trace.agent_used || 'unknown'} agent
+                </div>
+                <div class="trace-timing">
+                    <strong>${trace.total_latency_ms?.toFixed(2) || 0}ms</strong> total
+                </div>
+            </div>
+            
+            <!-- Input/Output Section -->
+            <div class="trace-section">
+                <h4>📥 Input</h4>
+                <div class="trace-code-block">
+                    <div class="trace-field"><span class="label">Text:</span> "${escapeHtml(trace.input_text || '')}"</div>
+                    <div class="trace-field"><span class="label">Type:</span> ${trace.input_type || 'text'}</div>
+                    ${trace.speaker ? `<div class="trace-field"><span class="label">Speaker:</span> ${escapeHtml(trace.speaker)}</div>` : ''}
+                    ${trace.room ? `<div class="trace-field"><span class="label">Room:</span> ${escapeHtml(trace.room)}</div>` : ''}
+                </div>
+            </div>
+            
+            <div class="trace-section">
+                <h4>📤 Output</h4>
+                <div class="trace-code-block">
+                    <div class="trace-field"><span class="label">Response:</span> "${escapeHtml(trace.response_text || '')}"</div>
+                    <div class="trace-field"><span class="label">Type:</span> ${trace.response_type || 'spoken'}</div>
+                    ${trace.error ? `<div class="trace-field error"><span class="label">Error:</span> ${escapeHtml(trace.error)}</div>` : ''}
+                </div>
+            </div>
+            
+            <!-- Classification & Routing -->
+            <div class="trace-section">
+                <h4>🧠 Classification & Routing</h4>
+                <div class="trace-code-block">
+                    <div class="trace-field"><span class="label">Intent:</span> <strong>${trace.intent || 'unknown'}</strong></div>
+                    ${trace.intent_confidence ? `<div class="trace-field"><span class="label">Confidence:</span> ${(trace.intent_confidence * 100).toFixed(0)}%</div>` : ''}
+                    <div class="trace-field"><span class="label">Agent:</span> <strong>${trace.agent_used || 'unknown'}</strong></div>
+                    ${trace.route_reason ? `<div class="trace-field"><span class="label">Routing Reason:</span> ${escapeHtml(trace.route_reason)}</div>` : ''}
+                    ${trace.context_type ? `<div class="trace-field"><span class="label">Context:</span> ${trace.context_type}</div>` : ''}
+                    ${trace.mood ? `<div class="trace-field"><span class="label">Mood:</span> ${trace.mood}</div>` : ''}
+                </div>
+            </div>
+            
+            <!-- Memory Operations -->
+            ${trace.memories_retrieved?.length > 0 ? `
+            <div class="trace-section">
+                <h4>🧠 Memories Retrieved</h4>
+                <div class="trace-code-block">
+                    ${trace.memories_retrieved.map(m => `<div class="trace-memory-item">${escapeHtml(typeof m === 'string' ? m : JSON.stringify(m))}</div>`).join('')}
+                </div>
+            </div>
+            ` : ''}
+            
+            <!-- Home Assistant Actions -->
+            ${trace.ha_actions?.length > 0 ? `
+            <div class="trace-section">
+                <h4>🏠 Home Assistant Actions</h4>
+                <div class="trace-code-block">
+                    ${trace.ha_actions.map(a => `
+                        <div class="trace-action-item">
+                            <strong>${a.service || a.action_type || 'action'}</strong>
+                            ${a.entity_id ? ` → ${a.entity_id}` : ''}
+                            ${a.executed !== undefined ? `<span class="${a.executed ? 'success' : 'error'}">[${a.executed ? 'executed' : 'failed'}]</span>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
+            
+            <!-- LLM Details -->
+            ${trace.total_tokens > 0 || trace.total_cost_usd > 0 ? `
+            <div class="trace-section">
+                <h4>🤖 LLM Usage</h4>
+                <div class="trace-code-block">
+                    <div class="trace-field"><span class="label">Total Tokens:</span> ${trace.total_tokens}</div>
+                    <div class="trace-field"><span class="label">Total Cost:</span> $${trace.total_cost_usd?.toFixed(6) || '0'}</div>
+                </div>
+            </div>
+            ` : ''}
+            
+            <!-- Timing -->
+            <div class="trace-section">
+                <h4>⏱️ Timing</h4>
+                <div class="trace-code-block">
+                    <div class="trace-field"><span class="label">Started:</span> ${startTime}</div>
+                    <div class="trace-field"><span class="label">Completed:</span> ${endTime}</div>
+                    <div class="trace-field"><span class="label">Total Latency:</span> <strong>${trace.total_latency_ms?.toFixed(2) || 0}ms</strong></div>
+                </div>
+            </div>
+            
+            <!-- Pipeline Signals -->
+            ${trace.signals?.length > 0 ? `
+            <div class="trace-section">
+                <h4>📊 Pipeline Signals (${trace.signals.length})</h4>
+                <div class="trace-signals-list">
+                    ${trace.signals.map((sig, idx) => renderSignalItem(sig, idx)).join('')}
+                </div>
+            </div>
+            ` : ''}
+            
+            <!-- Raw Data (collapsible) -->
+            <div class="trace-section">
+                <h4 class="collapsible" onclick="toggleTraceRaw(this)">📋 Raw JSON Data <span class="toggle-icon">▶</span></h4>
+                <div class="trace-raw-json" style="display: none;">
+                    <pre>${escapeHtml(JSON.stringify(trace, null, 2))}</pre>
+                </div>
+            </div>
+            
+            <!-- Trace ID -->
+            <div class="trace-section trace-id-section">
+                <span class="label">Trace ID:</span>
+                <code>${trace.trace_id}</code>
+            </div>
+        </div>
+    `;
+    
+    return html;
+}
+
+function renderSignalItem(signal, index) {
+    const typeIcons = {
+        request_start: '▶️',
+        request_complete: '✅',
+        meta_classify: '🧠',
+        agent_route: '🚦',
+        llm_request: '📤',
+        llm_response: '📥',
+        ha_service_call: '🏠',
+        ha_action: '🏠',
+        memory_query: '🔍',
+        memory_store: '💾',
+        memory_retrieve: '📖',
+        error: '❌',
+        agent_instant: '⚡',
+        agent_action: '🎯',
+        agent_interaction: '💬',
+        agent_memory: '📝'
+    };
+    
+    const icon = typeIcons[signal.signal_type] || '📌';
+    const time = signal.timestamp ? new Date(signal.timestamp).toLocaleTimeString() : '';
+    const latency = signal.latency_ms ? `${signal.latency_ms.toFixed(2)}ms` : '';
+    const successClass = signal.success ? '' : 'error';
+    
+    let details = [];
+    if (signal.model_used) details.push(`Model: ${signal.model_used}`);
+    if (signal.tokens_in) details.push(`In: ${signal.tokens_in} tokens`);
+    if (signal.tokens_out) details.push(`Out: ${signal.tokens_out} tokens`);
+    if (signal.cost_usd) details.push(`Cost: $${signal.cost_usd.toFixed(6)}`);
+    if (signal.error) details.push(`Error: ${signal.error}`);
+    
+    return `
+        <div class="trace-signal-item ${successClass}">
+            <div class="signal-header">
+                <span class="signal-index">#${index + 1}</span>
+                <span class="signal-icon">${icon}</span>
+                <span class="signal-type">${signal.signal_type}</span>
+                <span class="signal-component">${signal.component}</span>
+                <span class="signal-time">${time}</span>
+                ${latency ? `<span class="signal-latency">${latency}</span>` : ''}
+            </div>
+            ${signal.summary ? `<div class="signal-summary">${escapeHtml(signal.summary)}</div>` : ''}
+            ${details.length > 0 ? `<div class="signal-details">${details.join(' • ')}</div>` : ''}
+            ${Object.keys(signal.input_data || {}).length > 0 ? `
+                <div class="signal-data">
+                    <strong>Input:</strong> <code>${escapeHtml(JSON.stringify(signal.input_data).substring(0, 200))}${JSON.stringify(signal.input_data).length > 200 ? '...' : ''}</code>
+                </div>
+            ` : ''}
+            ${Object.keys(signal.output_data || {}).length > 0 ? `
+                <div class="signal-data">
+                    <strong>Output:</strong> <code>${escapeHtml(JSON.stringify(signal.output_data).substring(0, 200))}${JSON.stringify(signal.output_data).length > 200 ? '...' : ''}</code>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+function toggleTraceRaw(element) {
+    const rawDiv = element.nextElementSibling;
+    const icon = element.querySelector('.toggle-icon');
+    if (rawDiv.style.display === 'none') {
+        rawDiv.style.display = 'block';
+        icon.textContent = '▼';
+    } else {
+        rawDiv.style.display = 'none';
+        icon.textContent = '▶';
+    }
+}
+
+function closeTraceModal() {
+    const modal = document.getElementById('trace-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+// Initialize trace modal close handlers
+document.addEventListener('DOMContentLoaded', () => {
+    const traceModal = document.getElementById('trace-modal');
+    if (traceModal) {
+        traceModal.addEventListener('click', (e) => {
+            if (e.target === traceModal) closeTraceModal();
+        });
+        traceModal.querySelectorAll('.modal-close-btn').forEach(btn => {
+            btn.addEventListener('click', closeTraceModal);
+        });
+    }
+});
 
 function updateLogicStats() {
     // Count patterns from the nested structure

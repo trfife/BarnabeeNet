@@ -283,25 +283,10 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
         response_text = orchestrator_resp.get("response", "")
         agent_used = orchestrator_resp.get("agent", "unknown")
         intent = orchestrator_resp.get("intent", "unknown")
-
+        actions = orchestrator_resp.get("actions", [])
+        routing_reason = orchestrator_resp.get("routing_reason")
+        
         processing_time = (time.perf_counter() - start_time) * 1000
-
-        logger.info(
-            "Text processing complete",
-            trace_id=trace_id[:8],
-            agent=agent_used,
-            intent=intent,
-            latency_ms=f"{processing_time:.2f}",
-        )
-
-        # Complete trace
-        await pipeline_logger.complete_trace(
-            trace_id=trace_id,
-            response_text=response_text,
-            success=True,
-            intent=intent,
-            agent_used=agent_used,
-        )
 
         # Build LLM details if available
         llm_details_raw = orchestrator_resp.get("llm_details")
@@ -316,12 +301,103 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
                 messages_sent=llm_details_raw.get("messages_sent"),
                 response_text=llm_details_raw.get("response_text"),
             )
+            
+            # Log LLM signal for trace
+            from barnabeenet.services.pipeline_signals import PipelineSignal, SignalType
+            await pipeline_logger.log_signal(
+                PipelineSignal(
+                    trace_id=trace_id,
+                    signal_type=SignalType.LLM_RESPONSE,
+                    stage="process",
+                    component=f"{agent_used}_agent",
+                    model_used=llm_details_raw.get("model"),
+                    tokens_in=llm_details_raw.get("input_tokens"),
+                    tokens_out=llm_details_raw.get("output_tokens"),
+                    cost_usd=llm_details_raw.get("cost_usd"),
+                    latency_ms=llm_details_raw.get("llm_latency_ms"),
+                    success=True,
+                    summary=f"LLM: {llm_details_raw.get('model')} → {llm_details_raw.get('output_tokens')} tokens",
+                    input_data={"messages": len(llm_details_raw.get("messages_sent", []))},
+                    output_data={"response_preview": response_text[:100]},
+                )
+            )
+        
+        # Log agent processing signal
+        from barnabeenet.services.pipeline_signals import PipelineSignal, SignalType
+        agent_signal_type = {
+            "instant": SignalType.AGENT_INSTANT,
+            "action": SignalType.AGENT_ACTION,
+            "interaction": SignalType.AGENT_INTERACTION,
+            "memory": SignalType.AGENT_MEMORY,
+        }.get(agent_used, SignalType.AGENT_ROUTE)
+        
+        await pipeline_logger.log_signal(
+            PipelineSignal(
+                trace_id=trace_id,
+                signal_type=agent_signal_type,
+                stage="process",
+                component=f"{agent_used}_agent",
+                latency_ms=processing_time,
+                success=True,
+                summary=f"{agent_used.title()} Agent: {intent} → '{response_text[:50]}...'",
+                input_data={
+                    "text": request.text,
+                    "intent": intent,
+                    "routing_reason": routing_reason,
+                },
+                output_data={
+                    "response": response_text[:200],
+                    "actions_count": len(actions),
+                },
+            )
+        )
+        
+        # Log HA actions if any
+        for action in actions:
+            await pipeline_logger.log_signal(
+                PipelineSignal(
+                    trace_id=trace_id,
+                    signal_type=SignalType.HA_ACTION,
+                    stage="action",
+                    component="home_assistant",
+                    success=action.get("executed", False),
+                    summary=f"HA: {action.get('service', 'unknown')} → {action.get('entity_id', 'unknown')}",
+                    input_data={
+                        "service": action.get("service"),
+                        "entity_id": action.get("entity_id"),
+                        "entity_name": action.get("entity_name"),
+                    },
+                    output_data={
+                        "executed": action.get("executed"),
+                        "message": action.get("execution_message"),
+                    },
+                )
+            )
+
+        logger.info(
+            "Text processing complete",
+            trace_id=trace_id[:8],
+            agent=agent_used,
+            intent=intent,
+            latency_ms=f"{processing_time:.2f}",
+        )
+
+        # Complete trace with all available data
+        await pipeline_logger.complete_trace(
+            trace_id=trace_id,
+            response_text=response_text,
+            success=True,
+            intent=intent,
+            agent_used=agent_used,
+            ha_actions=actions,
+            route_reason=routing_reason,
+        )
 
         # Build trace details for enhanced observability
         from barnabeenet.models.schemas import TraceDetails
 
         trace_details = TraceDetails(
-            routing_reason=orchestrator_resp.get("routing_reason"),
+            routing_reason=routing_reason,
             pattern_matched=orchestrator_resp.get("pattern_matched"),
             meta_processing_time_ms=orchestrator_resp.get("meta_processing_time_ms"),
             context_evaluation=orchestrator_resp.get("context_evaluation"),
@@ -344,7 +420,7 @@ async def text_process(request: TextProcessRequest) -> TextProcessResponse:
             total_latency_ms=processing_time,
             memories_retrieved=orchestrator_resp.get("memories_retrieved", 0),
             memories_stored=orchestrator_resp.get("memories_stored", 0),
-            actions=orchestrator_resp.get("actions", []),
+            actions=actions,
             llm_details=llm_details,
             trace_details=trace_details,
         )

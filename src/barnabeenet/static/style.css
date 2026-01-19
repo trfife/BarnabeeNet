@@ -8688,3 +8688,295 @@ textarea:focus-visible {
     color: var(--text-secondary);
     opacity: 0.6;
 }
+
+/* Clickable decision cards */
+.decision-card.clickable {
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.decision-card.clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.click-hint {
+    color: var(--accent-primary);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    font-size: 11px;
+}
+
+.decision-card.clickable:hover .click-hint {
+    opacity: 1;
+}
+
+/* Large modal variant */
+.modal-content.modal-large {
+    max-width: 900px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-content.modal-large .modal-body {
+    overflow-y: auto;
+    flex: 1;
+    padding: 20px;
+}
+
+/* Trace Detail Styles */
+.trace-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.trace-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding-bottom: 16px;
+    border-bottom: 2px solid var(--border);
+}
+
+.trace-status-badge {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.trace-agent-badge {
+    background: var(--bg-hover);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.trace-timing {
+    margin-left: auto;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.trace-timing strong {
+    color: var(--accent-secondary);
+    font-family: 'Fira Code', monospace;
+}
+
+.trace-section {
+    background: var(--bg-card);
+    border-radius: 8px;
+    padding: 16px;
+    border: 1px solid var(--border);
+}
+
+.trace-section h4 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.trace-section h4.collapsible {
+    cursor: pointer;
+    user-select: none;
+}
+
+.trace-section h4.collapsible:hover {
+    color: var(--accent-primary);
+}
+
+.toggle-icon {
+    font-size: 10px;
+    margin-left: auto;
+    color: var(--text-secondary);
+}
+
+.trace-code-block {
+    background: var(--bg-primary);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: 'Fira Code', monospace;
+    font-size: 12px;
+}
+
+.trace-field {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.trace-field:last-child {
+    margin-bottom: 0;
+}
+
+.trace-field .label {
+    color: var(--text-secondary);
+    min-width: 120px;
+    display: inline-block;
+}
+
+.trace-field.error {
+    color: var(--danger);
+}
+
+.trace-field strong {
+    color: var(--accent-primary);
+}
+
+.trace-memory-item,
+.trace-action-item {
+    padding: 8px;
+    background: var(--bg-hover);
+    border-radius: 4px;
+    margin-bottom: 6px;
+    font-size: 12px;
+}
+
+.trace-action-item .success {
+    color: var(--success);
+}
+
+.trace-action-item .error {
+    color: var(--danger);
+}
+
+.trace-raw-json {
+    background: var(--bg-primary);
+    border-radius: 6px;
+    padding: 12px;
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.trace-raw-json pre {
+    margin: 0;
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.trace-id-section {
+    background: var(--bg-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.trace-id-section code {
+    font-family: 'Fira Code', monospace;
+    color: var(--accent-secondary);
+    user-select: all;
+}
+
+/* Pipeline Signals in Trace */
+.trace-signals-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.trace-signal-item {
+    background: var(--bg-primary);
+    border-radius: 6px;
+    padding: 12px;
+    border-left: 3px solid var(--accent-primary);
+}
+
+.trace-signal-item.error {
+    border-left-color: var(--danger);
+    background: rgba(255, 59, 48, 0.1);
+}
+
+.signal-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+
+.signal-index {
+    background: var(--bg-hover);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.signal-icon {
+    font-size: 14px;
+}
+
+.signal-type {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 12px;
+}
+
+.signal-component {
+    background: var(--bg-hover);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.signal-time {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-left: auto;
+}
+
+.signal-latency {
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    color: var(--accent-secondary);
+}
+
+.signal-summary {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.signal-details {
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+}
+
+.signal-data {
+    font-size: 11px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+}
+
+.signal-data code {
+    font-family: 'Fira Code', monospace;
+    color: var(--text-secondary);
+    word-break: break-all;
+}
+
+.error-message {
+    background: rgba(255, 59, 48, 0.2);
+    color: var(--danger);
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+}

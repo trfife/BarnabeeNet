@@ -310,6 +310,7 @@ class PipelineLogger:
         response_type: str | None = None,
         ha_actions: list[dict[str, Any]] | None = None,
         memories_retrieved: list[str] | None = None,
+        route_reason: str | None = None,
     ) -> RequestTrace | None:
         """Complete a request trace and store it."""
         trace = self._active_traces.pop(trace_id, None)
@@ -328,6 +329,8 @@ class PipelineLogger:
             trace.response_type = response_type
         if ha_actions is not None:
             trace.ha_actions = ha_actions
+        if route_reason is not None:
+            trace.route_reason = route_reason
         if memories_retrieved is not None:
             trace.memories_retrieved = memories_retrieved
 
