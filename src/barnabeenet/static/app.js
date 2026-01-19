@@ -343,8 +343,8 @@ function matchesCategory(type, category) {
     const categories = {
         ha: ['ha.state_change', 'ha.service_call', 'ha.event', 'ha.sensor_update', 'ha_state_change', 'ha_service_call'],
         llm: ['llm.request', 'llm.response', 'llm.error', 'llm_request', 'llm_call'],
-        agent: ['meta.classify', 'meta.route', 'instant.match', 'instant.respond', 'action.parse', 'action.execute', 
-                'interaction.think', 'interaction.respond', 'agent.thinking', 'agent.decision', 'agent.response'],
+        agent: ['meta.classify', 'meta.route', 'instant.match', 'instant.respond', 'action.parse', 'action.execute',
+            'interaction.think', 'interaction.respond', 'agent.thinking', 'agent.decision', 'agent.response'],
         memory: ['memory.search', 'memory.retrieve', 'memory.store', 'memory.fact_extracted', 'memory.consolidated']
     };
     const patterns = categories[category] || [];

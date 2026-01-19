@@ -190,6 +190,12 @@ MEMORY_PATTERNS: list[tuple[str, str]] = [
     # Explicit store commands
     (r"^remember (that )?.*$", "store"),
     (r"^(please )?(store|save|keep|note) (that )?.*$", "store"),
+    (
+        r"^(can you |could you |will you |would you )?(please )?(remember|store|save|keep|note) (that )?.*$",
+        "store",
+    ),
+    (r"^make a note (that )?.*$", "store"),
+    (r"^don'?t forget (that )?.*$", "store"),
     # Factual statements about preferences/information (implicit store)
     (r"^(my|our|\w+'s) (favorite|favourite) .+ (is|are) .+$", "store"),
     (r"^(the )?(secret|password|code|pin) (word )?(is|are) .+$", "store"),
@@ -198,6 +204,10 @@ MEMORY_PATTERNS: list[tuple[str, str]] = [
     (r"^(i|we) (am|are) .+$", "store"),  # "I am allergic to...", "we are vegetarian"
     # Recall patterns
     (r"^(do you remember|what do you know about) .*$", "recall"),
+    (
+        r"^(can you |could you |will you |would you )?(tell me )?(what|who|when|where).*(you remember|you know|stored|saved).*$",
+        "recall",
+    ),
     (r"^forget .*$", "forget"),
     (r"^(when|what) did (i|we) .*$", "recall"),
     (r".*(last thing|previously|earlier|before).*(ask|say|tell|said|told).*$", "recall"),
@@ -207,6 +217,7 @@ MEMORY_PATTERNS: list[tuple[str, str]] = [
     (r".*what.*(remember|stored|saved).*$", "recall"),
     (r"^what('s| is| are) (my|our|\w+'s) (favorite|favourite) .+$", "recall"),
     (r"^what('s| is) the (secret|password|code|pin).*$", "recall"),
+    (r"^(do you |can you )?(recall|recollect) .*$", "recall"),
 ]
 
 GESTURE_PATTERNS: list[tuple[str, str]] = [
