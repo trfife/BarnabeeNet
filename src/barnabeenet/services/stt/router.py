@@ -1,13 +1,20 @@
-"""STT Router - Routes transcription requests to GPU or CPU backend.
+"""STT Router - Routes transcription requests to GPU, CPU, or Azure backend.
 
 GPU (Parakeet TDT 0.6B v2) is primary for low latency (~45ms).
-CPU (Distil-Whisper) is fallback when GPU unavailable (~2400ms).
+Azure is secondary when GPU unavailable but configured.
+CPU (Distil-Whisper) is fallback when both GPU and Azure unavailable (~2400ms).
+
+Supports multiple modes:
+- COMMAND: Single utterance recognition (default)
+- REALTIME: Streaming with partial results
+- AMBIENT: Batch processing for background capture
 """
 
 from __future__ import annotations
 
 import asyncio
 import base64
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -15,7 +22,10 @@ from typing import TYPE_CHECKING
 import httpx
 import structlog
 
+from barnabeenet.models.stt_modes import STTEngine, STTMode
+
 if TYPE_CHECKING:
+    from barnabeenet.services.stt.azure_stt import AzureSTT
     from barnabeenet.services.stt.distil_whisper import DistilWhisperSTT
 
 logger = structlog.get_logger()
@@ -26,6 +36,7 @@ class STTBackend(str, Enum):
 
     GPU = "gpu"
     CPU = "cpu"
+    AZURE = "azure"
 
 
 @dataclass
@@ -37,15 +48,32 @@ class STTResult:
     latency_ms: float
     backend: STTBackend
     model: str
+    is_final: bool = True
+
+
+@dataclass
+class StreamingSTTResult:
+    """Partial or final result from streaming transcription."""
+
+    text: str
+    is_final: bool
+    confidence: float = 0.0
+    backend: STTBackend = STTBackend.GPU
+    latency_ms: float = 0.0
 
 
 class STTRouter:
-    """Routes STT requests to GPU worker or CPU fallback.
+    """Routes STT requests to GPU worker, Azure, or CPU fallback.
 
     The router:
     1. Checks GPU worker health on startup and periodically
-    2. Routes to GPU if healthy, otherwise falls back to CPU
-    3. Provides unified interface for all STT consumers
+    2. Checks Azure availability if configured
+    3. Routes based on engine selection or auto-selects best available:
+       - AUTO: GPU → Azure → CPU (in order of preference)
+       - PARAKEET: GPU only, fail if unavailable
+       - AZURE: Azure only, fail if unavailable
+       - WHISPER: CPU only
+    4. Provides unified interface for all STT consumers
     """
 
     def __init__(
@@ -66,7 +94,9 @@ class STTRouter:
         self.request_timeout = request_timeout
 
         self._cpu_backend: DistilWhisperSTT | None = None
+        self._azure_backend: AzureSTT | None = None
         self._gpu_healthy = False
+        self._azure_available = False
         self._health_check_task: asyncio.Task | None = None
         self._http_client: httpx.AsyncClient | None = None
         self._initialized = False
@@ -89,6 +119,9 @@ class STTRouter:
         # Check GPU health immediately
         await self._check_gpu_health()
 
+        # Check Azure availability
+        await self._check_azure_availability()
+
         # Start background health checker
         self._health_check_task = asyncio.create_task(self._health_check_loop())
 
@@ -96,6 +129,7 @@ class STTRouter:
         logger.info(
             "STT Router initialized",
             gpu_available=self._gpu_healthy,
+            azure_available=self._azure_available,
         )
 
     async def _check_gpu_health(self) -> bool:
@@ -133,10 +167,36 @@ class STTRouter:
         return False
 
     async def _health_check_loop(self) -> None:
-        """Background task to periodically check GPU health."""
+        """Background task to periodically check GPU and Azure health."""
         while True:
             await asyncio.sleep(self.health_check_interval)
             await self._check_gpu_health()
+            await self._check_azure_availability()
+
+    async def _check_azure_availability(self) -> bool:
+        """Check if Azure STT is available.
+
+        Returns:
+            True if Azure STT is configured and working.
+        """
+        try:
+            azure = await self._ensure_azure_backend()
+            self._azure_available = azure.is_available()
+        except Exception as e:
+            logger.debug("Azure STT not available", error=str(e))
+            self._azure_available = False
+        return self._azure_available
+
+    async def _ensure_azure_backend(self) -> AzureSTT:
+        """Lazily initialize Azure backend when needed."""
+        if self._azure_backend is None:
+            from barnabeenet.services.stt.azure_stt import AzureSTT
+
+            logger.info("Initializing Azure STT backend")
+            self._azure_backend = AzureSTT()
+            await self._azure_backend.initialize()
+
+        return self._azure_backend
 
     async def _ensure_cpu_backend(self) -> DistilWhisperSTT:
         """Lazily initialize CPU backend when needed."""
@@ -154,28 +214,100 @@ class STTRouter:
         audio_data: bytes,
         sample_rate: int = 16000,
         language: str = "en",
+        engine: STTEngine = STTEngine.AUTO,
+        mode: STTMode = STTMode.COMMAND,
     ) -> STTResult:
-        """Transcribe audio using the best available backend.
+        """Transcribe audio using the specified or best available backend.
 
         Args:
             audio_data: Raw audio bytes (PCM 16-bit signed integers)
             sample_rate: Audio sample rate in Hz
             language: Language code
+            engine: STT engine to use (AUTO, PARAKEET, WHISPER, AZURE)
+            mode: Processing mode (COMMAND, REALTIME, AMBIENT)
 
         Returns:
             STTResult with transcription and metadata
+
+        Raises:
+            RuntimeError: If specified engine is unavailable
         """
         if not self._initialized:
             await self.initialize()
 
-        # Try GPU first if healthy
-        if self._gpu_healthy:
+        # Resolve engine selection
+        selected_engine = await self._select_engine(engine)
+
+        logger.debug(
+            "Transcribing audio",
+            requested_engine=engine.value,
+            selected_engine=selected_engine.value,
+            mode=mode.value,
+            audio_bytes=len(audio_data),
+        )
+
+        # Route to selected engine
+        if selected_engine == STTEngine.PARAKEET:
             result = await self._transcribe_gpu(audio_data, sample_rate, language)
             if result is not None:
                 return result
-            # GPU failed, will fall through to CPU
+            # GPU failed, try fallback if AUTO mode
+            if engine == STTEngine.AUTO:
+                return await self._transcribe_with_fallback(audio_data, sample_rate, language)
+            raise RuntimeError("GPU STT unavailable")
 
-        # Fallback to CPU
+        elif selected_engine == STTEngine.AZURE:
+            result = await self._transcribe_azure(audio_data, sample_rate, language)
+            if result is not None:
+                return result
+            # Azure failed, try fallback if AUTO mode
+            if engine == STTEngine.AUTO:
+                return await self._transcribe_cpu(audio_data, sample_rate, language)
+            raise RuntimeError("Azure STT unavailable")
+
+        else:  # WHISPER / CPU fallback
+            return await self._transcribe_cpu(audio_data, sample_rate, language)
+
+    async def _select_engine(self, engine: STTEngine) -> STTEngine:
+        """Select the best available engine based on preference.
+
+        Args:
+            engine: Requested engine (or AUTO for auto-selection)
+
+        Returns:
+            The engine to use.
+        """
+        if engine == STTEngine.PARAKEET:
+            if self._gpu_healthy:
+                return STTEngine.PARAKEET
+            raise RuntimeError("GPU STT requested but unavailable")
+
+        if engine == STTEngine.AZURE:
+            if self._azure_available:
+                return STTEngine.AZURE
+            raise RuntimeError("Azure STT requested but unavailable")
+
+        if engine == STTEngine.WHISPER:
+            return STTEngine.WHISPER
+
+        # AUTO mode: GPU → Azure → CPU
+        if self._gpu_healthy:
+            return STTEngine.PARAKEET
+        if self._azure_available:
+            return STTEngine.AZURE
+        return STTEngine.WHISPER
+
+    async def _transcribe_with_fallback(
+        self,
+        audio_data: bytes,
+        sample_rate: int,
+        language: str,
+    ) -> STTResult:
+        """Try Azure, then CPU as fallback."""
+        if self._azure_available:
+            result = await self._transcribe_azure(audio_data, sample_rate, language)
+            if result is not None:
+                return result
         return await self._transcribe_cpu(audio_data, sample_rate, language)
 
     async def _transcribe_gpu(
@@ -264,18 +396,125 @@ class STTRouter:
             model="distil-whisper-small.en",
         )
 
+    async def _transcribe_azure(
+        self,
+        audio_data: bytes,
+        sample_rate: int,
+        language: str,
+    ) -> STTResult | None:
+        """Transcribe using Azure Speech Services.
+
+        Returns:
+            STTResult if successful, None if failed.
+        """
+        try:
+            azure = await self._ensure_azure_backend()
+            if not azure.is_available():
+                return None
+
+            result = await azure.transcribe(
+                audio_data=audio_data,
+                sample_rate=sample_rate,
+                language=language,
+            )
+
+            logger.info(
+                "Azure transcription complete",
+                latency_ms=f"{result.latency_ms:.2f}",
+                text_length=len(result.text),
+            )
+
+            return STTResult(
+                text=result.text,
+                confidence=result.confidence,
+                latency_ms=result.latency_ms,
+                backend=STTBackend.AZURE,
+                model="azure-speech-sdk",
+            )
+        except Exception as e:
+            logger.warning(
+                "Azure transcription failed",
+                error=str(e),
+            )
+            self._azure_available = False
+            return None
+
+    async def transcribe_streaming(
+        self,
+        audio_stream: AsyncGenerator[bytes, None],
+        sample_rate: int = 16000,
+        language: str = "en",
+        engine: STTEngine = STTEngine.AUTO,
+    ) -> AsyncGenerator[StreamingSTTResult, None]:
+        """Transcribe streaming audio with real-time partial results.
+
+        Args:
+            audio_stream: Async generator yielding audio chunks
+            sample_rate: Audio sample rate in Hz
+            language: Language code
+            engine: STT engine to use
+
+        Yields:
+            StreamingSTTResult with partial and final transcriptions.
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        # For streaming, prefer Azure if available (native streaming support)
+        # GPU worker doesn't support streaming yet, so fall back to batch mode
+        selected_engine = await self._select_engine(engine)
+
+        if selected_engine == STTEngine.AZURE and self._azure_available:
+            # Use Azure's native streaming
+            azure = await self._ensure_azure_backend()
+            async for result in azure.transcribe_streaming(
+                audio_stream=audio_stream,
+                sample_rate=sample_rate,
+                language=language,
+            ):
+                yield StreamingSTTResult(
+                    text=result.text,
+                    is_final=result.is_final,
+                    confidence=result.confidence,
+                    backend=STTBackend.AZURE,
+                )
+        else:
+            # For non-Azure engines, collect audio and transcribe in batch
+            # This is a fallback for engines that don't support streaming
+            audio_chunks = []
+            async for chunk in audio_stream:
+                audio_chunks.append(chunk)
+
+            audio_data = b"".join(audio_chunks)
+            result = await self.transcribe(
+                audio_data=audio_data,
+                sample_rate=sample_rate,
+                language=language,
+                engine=engine,
+            )
+
+            yield StreamingSTTResult(
+                text=result.text,
+                is_final=True,
+                confidence=result.confidence,
+                backend=STTBackend(result.backend.value),
+                latency_ms=result.latency_ms,
+            )
+
     async def transcribe_base64(
         self,
         audio_base64: str,
         sample_rate: int = 16000,
         language: str = "en",
+        engine: STTEngine = STTEngine.AUTO,
+        mode: STTMode = STTMode.COMMAND,
     ) -> STTResult:
         """Transcribe base64-encoded audio.
 
         Convenience method for API endpoints.
         """
         audio_data = base64.b64decode(audio_base64)
-        return await self.transcribe(audio_data, sample_rate, language)
+        return await self.transcribe(audio_data, sample_rate, language, engine=engine, mode=mode)
 
     def get_status(self) -> dict:
         """Get current router status.
@@ -283,13 +522,25 @@ class STTRouter:
         Returns:
             Dict with backend availability info.
         """
+        # Determine preferred backend based on availability
+        if self._gpu_healthy:
+            preferred = STTBackend.GPU.value
+        elif self._azure_available:
+            preferred = STTBackend.AZURE.value
+        else:
+            preferred = STTBackend.CPU.value
+
         return {
             "gpu_healthy": self._gpu_healthy,
             "gpu_url": self.gpu_worker_url,
+            "azure_available": self._azure_available,
             "cpu_available": self._cpu_backend is not None and self._cpu_backend.is_available(),
-            "preferred_backend": STTBackend.GPU.value
-            if self._gpu_healthy
-            else STTBackend.CPU.value,
+            "preferred_backend": preferred,
+            "engines": {
+                "parakeet": {"available": self._gpu_healthy, "type": "gpu"},
+                "azure": {"available": self._azure_available, "type": "cloud"},
+                "whisper": {"available": True, "type": "cpu"},  # Always available as fallback
+            },
         }
 
     async def shutdown(self) -> None:
@@ -306,6 +557,9 @@ class STTRouter:
 
         if self._cpu_backend is not None:
             await self._cpu_backend.shutdown()
+
+        if self._azure_backend is not None:
+            await self._azure_backend.shutdown()
 
         self._initialized = False
         logger.info("STT Router shut down")
