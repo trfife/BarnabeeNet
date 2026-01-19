@@ -4697,9 +4697,18 @@ function showProcessingFlow(data, traceId) {
             memoryHtml += `<br><span class="flow-memory-queries">Queries: ${traceDetails.memory_queries.map(q => `"${escapeHtml(q)}"`).join(', ')}</span>`;
         }
         
-        // Show context evaluation
-        if (traceDetails.context_evaluation) {
-            memoryHtml += `<br><span class="flow-context">${escapeHtml(traceDetails.context_evaluation)}</span>`;
+        // Show context evaluation (it's an object with emotional_tone, urgency_level, empathy_needed)
+        if (traceDetails.context_evaluation && typeof traceDetails.context_evaluation === 'object') {
+            const ctx = traceDetails.context_evaluation;
+            const parts = [];
+            if (ctx.emotional_tone) parts.push(`Tone: ${ctx.emotional_tone}`);
+            if (ctx.urgency_level) parts.push(`Urgency: ${ctx.urgency_level}`);
+            if (ctx.empathy_needed) parts.push('Empathy needed');
+            if (parts.length > 0) {
+                memoryHtml += `<br><span class="flow-context">${escapeHtml(parts.join(' • '))}</span>`;
+            }
+        } else if (traceDetails.context_evaluation) {
+            memoryHtml += `<br><span class="flow-context">${escapeHtml(String(traceDetails.context_evaluation))}</span>`;
         }
         
         flowHtml += `

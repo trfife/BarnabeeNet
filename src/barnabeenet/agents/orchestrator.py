@@ -668,12 +668,74 @@ class AgentOrchestrator:
             agent_name = "instant"
 
         elif intent == IntentCategory.ACTION:
-            ctx.agent_response = await self._action_agent.handle_input(ctx.text, agent_context)
-            agent_name = "action"
-            # Track device actions
-            if ctx.agent_response.get("action"):
-                action_spec = ctx.agent_response["action"]
-                ctx.actions_taken.append(action_spec)
+            # Check for compound commands (e.g., "turn on X and turn off Y")
+            from barnabeenet.agents.parsing.compound_parser import CompoundCommandParser
+
+            parser = CompoundCommandParser()
+            parsed = parser.parse(ctx.text)
+
+            if parsed.is_compound and len(parsed.segments) > 1:
+                # Handle compound command - execute each segment
+                agent_name = "action"
+                all_results = []
+                all_actions = []
+                failed_any = False
+
+                for segment in parsed.segments:
+                    segment_text = segment.raw_text or f"{segment.action} {segment.target_noun}"
+                    if segment.location:
+                        segment_text += f" in {segment.location}"
+
+                    # Parse and execute each segment
+                    segment_response = await self._action_agent.handle_input(
+                        segment_text, agent_context
+                    )
+
+                    if segment_response.get("action"):
+                        action_spec = segment_response["action"]
+                        all_actions.append(action_spec)
+                        ctx.actions_taken.append(action_spec)
+
+                        # Execute via HA
+                        execution_result = await self._execute_ha_action(action_spec, ctx)
+                        all_results.append(
+                            {
+                                "segment": segment_text,
+                                "action": action_spec,
+                                "result": execution_result,
+                            }
+                        )
+                        if not execution_result.get("success"):
+                            failed_any = True
+
+                # Build combined response
+                successful = [r for r in all_results if r["result"].get("success")]
+                failed = [r for r in all_results if not r["result"].get("success")]
+
+                if not failed:
+                    response_text = f"Done! I executed {len(successful)} commands."
+                elif not successful:
+                    response_text = f"I couldn't execute any of the {len(all_results)} commands."
+                else:
+                    response_text = (
+                        f"Partially done: {len(successful)} succeeded, {len(failed)} failed."
+                    )
+
+                ctx.agent_response = {
+                    "_agent_name": "action",
+                    "response": response_text,
+                    "actions": all_actions,
+                    "compound_results": all_results,
+                    "success": not failed_any,
+                }
+            else:
+                # Single command - original flow
+                ctx.agent_response = await self._action_agent.handle_input(ctx.text, agent_context)
+                agent_name = "action"
+                # Track device actions
+                if ctx.agent_response.get("action"):
+                    action_spec = ctx.agent_response["action"]
+                    ctx.actions_taken.append(action_spec)
 
                 # Execute the action via Home Assistant
                 execution_result = await self._execute_ha_action(action_spec, ctx)
