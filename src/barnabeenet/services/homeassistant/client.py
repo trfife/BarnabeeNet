@@ -231,9 +231,46 @@ class HomeAssistantClient:
 
         try:
             response = await self._client.get("/api/")
-            return response.status_code == 200
+            is_ok = response.status_code == 200
+            if is_ok and not self._connected:
+                self._connected = True
+                logger.info("Home Assistant connection restored")
+            elif not is_ok and self._connected:
+                self._connected = False
+                logger.warning("Home Assistant returned status %d", response.status_code)
+            return is_ok
         except httpx.RequestError as e:
-            logger.warning("Home Assistant ping failed: %s", e)
+            if self._connected:
+                self._connected = False
+                logger.warning("Home Assistant connection lost: %s", e)
+            return False
+
+    async def ensure_connected(self) -> bool:
+        """Verify connection is alive and reconnect if needed.
+
+        Returns:
+            True if connected (or successfully reconnected), False otherwise.
+        """
+        # Quick check - if we think we're connected, verify with ping
+        if self._connected:
+            if await self.ping():
+                return True
+            # Ping failed, mark disconnected
+            self._connected = False
+            logger.warning("Home Assistant connection stale, attempting reconnect...")
+
+        # Try to reconnect
+        try:
+            # Close existing client if any
+            if self._client:
+                await self._client.aclose()
+                self._client = None
+
+            # Reinitialize
+            await self.connect()
+            return self._connected
+        except Exception as e:
+            logger.error("Home Assistant reconnection failed: %s", e)
             return False
 
     async def get_config(self) -> dict[str, Any] | None:
@@ -786,6 +823,10 @@ class HomeAssistantClient:
 
         except httpx.HTTPStatusError as e:
             logger.error("Service call failed with status %d: %s", e.response.status_code, e)
+            # Mark disconnected on auth errors
+            if e.response.status_code in (401, 403):
+                self._connected = False
+                logger.warning("HA authentication failed - marking disconnected")
             return ServiceCallResult(
                 success=False,
                 service=service,
@@ -793,12 +834,14 @@ class HomeAssistantClient:
                 message=f"HTTP error: {e.response.status_code}",
             )
         except httpx.RequestError as e:
-            logger.error("Service call failed: %s", e)
+            # Network error - mark connection as failed
+            self._connected = False
+            logger.error("Service call failed (connection lost): %s", e)
             return ServiceCallResult(
                 success=False,
                 service=service,
                 entity_id=entity_id,
-                message=f"Request error: {e}",
+                message=f"Connection error: {e}",
             )
 
     async def get_entities(self, domain: str | None = None) -> list[Entity]:

@@ -744,12 +744,21 @@ class AgentOrchestrator:
             except Exception as e:
                 logger.warning("Could not get HA client: %s", e)
 
-        if self._ha_client is None or not self._ha_client.connected:
+        if self._ha_client is None:
+            logger.info("Home Assistant client not configured")
+            return {
+                "executed": False,
+                "success": False,
+                "message": "Home Assistant not configured",
+            }
+
+        # Verify connection is alive (will auto-reconnect if stale)
+        if not await self._ha_client.ensure_connected():
             logger.info("Home Assistant not connected, action not executed")
             return {
                 "executed": False,
                 "success": False,
-                "message": "Home Assistant not connected",
+                "message": "Home Assistant not connected - check Configuration",
             }
 
         # Check if this is a batch operation
