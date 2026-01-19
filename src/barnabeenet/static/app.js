@@ -4676,7 +4676,7 @@ function showProcessingFlow(data, traceId) {
     if (traceDetails.meta_processing_time_ms) {
         classificationHtml += `<br><span class="flow-timing">Classification: ${traceDetails.meta_processing_time_ms.toFixed(0)}ms</span>`;
     }
-    
+
     flowHtml += `
         <div class="flow-step flow-classify">
             <div class="flow-step-icon">🧠</div>
@@ -4691,12 +4691,12 @@ function showProcessingFlow(data, traceId) {
     // Step 3: Memory retrieval (if any)
     if (memoriesRetrieved > 0 || (traceDetails.memory_queries && traceDetails.memory_queries.length > 0)) {
         let memoryHtml = `Retrieved ${memoriesRetrieved} relevant memories`;
-        
+
         // Show what queries were used
         if (traceDetails.memory_queries && traceDetails.memory_queries.length > 0) {
             memoryHtml += `<br><span class="flow-memory-queries">Queries: ${traceDetails.memory_queries.map(q => `"${escapeHtml(q)}"`).join(', ')}</span>`;
         }
-        
+
         // Show context evaluation (it's an object with emotional_tone, urgency_level, empathy_needed)
         if (traceDetails.context_evaluation && typeof traceDetails.context_evaluation === 'object') {
             const ctx = traceDetails.context_evaluation;
@@ -4710,7 +4710,7 @@ function showProcessingFlow(data, traceId) {
         } else if (traceDetails.context_evaluation) {
             memoryHtml += `<br><span class="flow-context">${escapeHtml(String(traceDetails.context_evaluation))}</span>`;
         }
-        
+
         flowHtml += `
             <div class="flow-step flow-memory">
                 <div class="flow-step-icon">📝</div>
@@ -4756,7 +4756,7 @@ function showProcessingFlow(data, traceId) {
             if (seg.value) parts.push(`to ${escapeHtml(seg.value)}`);
             return `<div class="flow-segment-item">${i + 1}. ${parts.join(' ')}</div>`;
         }).join('');
-        
+
         flowHtml += `
             <div class="flow-step flow-parsing">
                 <div class="flow-step-icon">🔀</div>
@@ -4781,7 +4781,7 @@ function showProcessingFlow(data, traceId) {
             }
             return `<div class="flow-service-call"><code>${escapeHtml(call.service || call.domain + '.' + call.service_name)}</code>${targetDesc ? ` → ${escapeHtml(targetDesc)}` : ''}</div>`;
         }).join('');
-        
+
         flowHtml += `
             <div class="flow-step flow-action">
                 <div class="flow-step-icon">🎯</div>
@@ -4813,7 +4813,7 @@ function showProcessingFlow(data, traceId) {
         if (timer.duration) timerHtml += ` for ${timer.duration}`;
         if (timer.action) timerHtml += ` then: ${escapeHtml(timer.action)}`;
         if (timer.entity_id) timerHtml += `<br><span class="flow-timer-entity">Entity: <code>${timer.entity_id}</code></span>`;
-        
+
         flowHtml += `
             <div class="flow-step flow-timer">
                 <div class="flow-step-icon">⏱️</div>

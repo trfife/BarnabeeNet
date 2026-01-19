@@ -94,8 +94,8 @@ if [ -d ".venv" ]; then
         tmux new-session -d -s barnabeenet "$START_CMD"
         ATTACH_CMD="tmux attach -t barnabeenet"
     else
-        # Fallback to nohup
-        nohup bash -c "$START_CMD" &
+        # Fallback to nohup (</dev/null prevents SSH hanging)
+        nohup bash -c "$START_CMD" </dev/null &
         ATTACH_CMD="tail -f logs/barnabeenet.log"
     fi
 

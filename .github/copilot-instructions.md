@@ -45,6 +45,31 @@ After completing tasks:
 
 Python 3.12, strict typing, Pydantic v2, async-first.
 
+## SSH Command Patterns
+
+### CRITICAL: Avoid SSH Hanging
+
+When running background processes via SSH, **always** include `</dev/null` to detach stdin. Without this, SSH will hang waiting for file descriptors to close.
+
+**WRONG (will hang):**
+```bash
+ssh host 'nohup command > /tmp/log 2>&1 &'
+```
+
+**CORRECT:**
+```bash
+ssh host 'nohup command > /tmp/log 2>&1 </dev/null &'
+```
+
+### BarnabeeNet VM Restart - MANDATORY
+
+**Always use the start script to restart BarnabeeNet. Never run uvicorn inline via SSH.**
+```bash
+ssh -o ConnectTimeout=5 thom@192.168.86.51 'bash ~/barnabeenet/start.sh'
+```
+
+DO NOT attempt inline nohup/uvicorn commands - they will hang SSH.
+
 ## Forbidden
 
 - Never commit secrets

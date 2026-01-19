@@ -423,6 +423,40 @@ class SmartEntityResolver:
                 or singular in id_lower
             )
 
+        def score_entity_for_device_type(
+            entity: Entity, device_type: str, target_domain: str
+        ) -> float:
+            """Score how well an entity matches the requested device type.
+
+            Higher scores indicate better matches:
+            - 1.0: Device type word appears in entity name (strongest match)
+            - 0.5: Entity is in the primary domain but type word not in name
+            - 0.0: Alternative domain without type word in name (won't be included)
+            """
+            name_lower = entity.friendly_name.lower()
+            id_lower = entity.entity_id.lower()
+            type_lower = device_type.lower()
+            singular = type_lower.rstrip("s")
+
+            # Check if device type appears in name
+            has_type_in_name = (
+                type_lower in name_lower
+                or type_lower in id_lower
+                or singular in name_lower
+                or singular in id_lower
+            )
+
+            if has_type_in_name:
+                # Best match - device type word is in the name
+                return 1.0
+            elif target_domain == domain:
+                # Primary domain but no type word in name
+                return 0.5
+            else:
+                # Alternative domain without type word - shouldn't happen
+                # (filtered out by entity_matches_device_type)
+                return 0.0
+
         # Helper to check if a term appears as a whole word or phrase in text
         def term_matches_in_text(term: str, text: str) -> bool:
             """Check if term appears as a whole word/phrase in text.
@@ -494,12 +528,23 @@ class SmartEntityResolver:
                         result.entities.append(entity)
 
         if result.entities:
+            # Sort entities by how well they match the device type
+            # Entities with the device type word in their name rank higher
+            # This ensures switch.office_switch_light beats light.office_door_status_light
+            # when looking for "office light"
+            result.entities.sort(
+                key=lambda e: score_entity_for_device_type(
+                    e, device_type, e.entity_id.split(".")[0]
+                ),
+                reverse=True,
+            )
             result.confidence = 0.8
             logger.info(
-                "Batch resolved %d %s entities%s",
+                "Batch resolved %d %s entities%s (best: %s)",
                 len(result.entities),
                 domain,
                 f" in {location}" if location else "",
+                result.entities[0].entity_id if result.entities else "none",
             )
         else:
             result.error = f"No {device_type} found" + (f" in {location}" if location else "")
