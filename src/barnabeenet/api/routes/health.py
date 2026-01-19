@@ -118,11 +118,6 @@ async def _check_redis() -> ServiceHealth:
     """Check Redis health."""
     from barnabeenet.main import app_state
 
-    # Debug: log the app_state details
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.warning(f"_check_redis: app_state id={id(app_state)}, redis_client={app_state.redis_client}")
-
     if not app_state.redis_client:
         return ServiceHealth(
             name="redis",
