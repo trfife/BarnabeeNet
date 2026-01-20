@@ -293,6 +293,7 @@ class MetaAgent(Agent):
         config: MetaAgentConfig | None = None,
         logic_registry: LogicRegistry | None = None,
         enable_diagnostics: bool = True,
+        enable_health_monitoring: bool = True,
     ) -> None:
         self._llm_client = llm_client
         self._config = config or MetaAgentConfig()
@@ -300,7 +301,9 @@ class MetaAgent(Agent):
         self._compiled_patterns: dict[str, list[tuple[re.Pattern[str], str]]] = {}
         self._use_registry = False  # Will be set during init
         self._enable_diagnostics = enable_diagnostics
+        self._enable_health_monitoring = enable_health_monitoring
         self._diagnostics_service = None
+        self._health_monitor = None
 
     async def init(self) -> None:
         """Initialize the Meta Agent - load patterns from registry or compile hardcoded."""
@@ -325,6 +328,16 @@ class MetaAgent(Agent):
                 logger.info("MetaAgent diagnostics enabled")
             except Exception as e:
                 logger.debug("Diagnostics service not available: %s", e)
+
+        # Initialize health monitor
+        if self._enable_health_monitoring:
+            try:
+                from barnabeenet.services.logic_health import get_health_monitor
+
+                self._health_monitor = get_health_monitor()
+                logger.info("MetaAgent health monitoring enabled")
+            except Exception as e:
+                logger.debug("Health monitor not available: %s", e)
 
         if self._use_registry and self._logic_registry:
             # Load patterns from registry
@@ -434,7 +447,7 @@ class MetaAgent(Agent):
 
         total_time_ms = int((time.perf_counter() - start_time) * 1000)
 
-        return ClassificationResult(
+        result = ClassificationResult(
             intent=intent_result.intent,
             confidence=intent_result.confidence,
             sub_category=intent_result.sub_category,
@@ -443,7 +456,32 @@ class MetaAgent(Agent):
             target_agent=target_agent,
             priority=priority,
             total_processing_time_ms=total_time_ms,
+            # Carry over diagnostics fields from intent_result
+            classification_method=intent_result.classification_method,
+            patterns_checked=intent_result.patterns_checked,
+            near_miss_patterns=intent_result.near_miss_patterns,
+            failure_diagnosis=intent_result.failure_diagnosis,
+            diagnostics_summary=intent_result.diagnostics_summary,
+            matched_pattern=intent_result.matched_pattern,
         )
+
+        # Record to health monitor for consistency tracking
+        if self._health_monitor:
+            try:
+                self._health_monitor.record_classification(
+                    raw_input=text,
+                    intent=result.intent.value,
+                    sub_category=result.sub_category,
+                    confidence=result.confidence,
+                    classification_method=result.classification_method or "unknown",
+                    matched_pattern=result.matched_pattern,
+                    near_misses=None,  # Could extract from diagnostics_summary
+                    failure_reason=result.failure_diagnosis,
+                )
+            except Exception as e:
+                logger.debug("Failed to record classification to health monitor: %s", e)
+
+        return result
 
     def _evaluate_context_and_mood(self, text: str, context: dict) -> ContextEvaluation:
         """Evaluate emotional tone, urgency, and empathy needs."""

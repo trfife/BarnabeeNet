@@ -888,3 +888,90 @@ async def full_classify_with_diagnostics(request: FullClassifyRequest):
         }
     finally:
         await meta.shutdown()
+
+
+# =============================================================================
+# Health Monitor Endpoints
+# =============================================================================
+
+
+@router.get("/health")
+async def get_logic_health_report():
+    """Get a comprehensive health report for the logic system.
+
+    This endpoint analyzes the classification history to detect:
+    - Inconsistent classifications (same input → different results)
+    - Frequent near-misses (patterns that almost match)
+    - High failure rates (too many inputs falling to LLM)
+    - Confidence drift (decreasing classification confidence)
+
+    Use this to identify areas where patterns need improvement.
+    """
+    from barnabeenet.services.logic_health import get_health_monitor
+
+    monitor = get_health_monitor()
+    report = monitor.generate_health_report()
+
+    return report.to_dict()
+
+
+@router.get("/health/stats")
+async def get_health_stats():
+    """Get summary statistics from the health monitor."""
+    from barnabeenet.services.logic_health import get_health_monitor
+
+    monitor = get_health_monitor()
+    return monitor.get_stats()
+
+
+@router.get("/health/inconsistent")
+async def get_inconsistent_classifications():
+    """Get inputs that have been classified inconsistently.
+
+    These are inputs where the same (normalized) text produced
+    different classification results over time.
+    """
+    from barnabeenet.services.logic_health import get_health_monitor
+
+    monitor = get_health_monitor()
+    inconsistent = monitor.get_inconsistent_inputs()
+
+    return {
+        "inconsistent_inputs": inconsistent,
+        "total": len(inconsistent),
+    }
+
+
+@router.get("/health/near-misses")
+async def get_frequent_near_misses(
+    min_count: int = Query(3, ge=1, description="Minimum near-miss count to include"),
+):
+    """Get patterns that frequently almost match.
+
+    These are potential gaps in the pattern library - patterns that
+    came close to matching but didn't, suggesting the pattern could
+    be expanded or a new pattern added.
+    """
+    from barnabeenet.services.logic_health import get_health_monitor
+
+    monitor = get_health_monitor()
+    near_misses = monitor.get_frequent_near_misses(min_count=min_count)
+
+    return {
+        "near_misses": near_misses,
+        "total": len(near_misses),
+    }
+
+
+@router.post("/health/clear")
+async def clear_health_data():
+    """Clear all health monitoring data.
+
+    Use this to reset tracking after making pattern changes.
+    """
+    from barnabeenet.services.logic_health import get_health_monitor
+
+    monitor = get_health_monitor()
+    monitor.clear()
+
+    return {"status": "cleared", "message": "Health monitoring data cleared"}
