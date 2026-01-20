@@ -170,9 +170,10 @@ ACTION_PATTERNS: list[tuple[str, ActionType, DeviceDomain | None]] = [
 ]
 
 # High-risk actions that require confirmation
+# Note: Opening covers like blinds/shades doesn't need confirmation
+# Garage doors should be handled specially via entity name check
 HIGH_RISK_ACTIONS = {
     (ActionType.UNLOCK, DeviceDomain.LOCK),
-    (ActionType.OPEN, DeviceDomain.COVER),  # Garage doors, etc.
 }
 
 # Domain inference from entity names
@@ -267,8 +268,18 @@ class ActionAgent(Agent):
 
         # Check if confirmation is needed
         if action_spec.requires_confirmation:
+            # Generate confirmation-style response (infinitive form)
+            confirmation_text = self._generate_response(
+                action_spec.action_type,
+                action_spec.entity_name,
+                action_spec.target_value,
+                action_spec.domain,
+                action_spec.target_area,
+                action_spec.is_batch,
+                for_confirmation=True,
+            )
             return {
-                "response": f"Are you sure you want to {action_spec.spoken_response}?",
+                "response": f"Are you sure you want to {confirmation_text}?",
                 "agent": self.name,
                 "action": self._action_to_dict(action_spec),
                 "requires_confirmation": True,
@@ -458,6 +469,10 @@ class ActionAgent(Agent):
 
         # Check if high-risk action
         requires_confirmation = (actual_action, domain) in HIGH_RISK_ACTIONS
+        # Garage doors require confirmation even though other covers don't
+        if actual_action == ActionType.OPEN and domain == DeviceDomain.COVER:
+            if "garage" in entity_name.lower():
+                requires_confirmation = True
 
         # Generate spoken response
         spoken_response = self._generate_response(
@@ -564,8 +579,14 @@ class ActionAgent(Agent):
         domain: DeviceDomain,
         target_area: str | None = None,
         is_batch: bool = False,
+        for_confirmation: bool = False,
     ) -> str:
-        """Generate natural language response for action."""
+        """Generate natural language response for action.
+
+        Args:
+            for_confirmation: If True, use infinitive form ("unlock the door")
+                             If False, use gerund form ("Unlocking the door.")
+        """
         # Build entity description
         if is_batch and target_area:
             entity_display = f"{entity_name} in {target_area}"
@@ -574,30 +595,60 @@ class ActionAgent(Agent):
         else:
             entity_display = entity_name or "the device"
 
-        responses = {
-            ActionType.TURN_ON: f"Turning on {entity_display}.",
-            ActionType.TURN_OFF: f"Turning off {entity_display}.",
-            ActionType.TOGGLE: f"Toggling {entity_display}.",
-            ActionType.LOCK: f"Locking {entity_display}.",
-            ActionType.UNLOCK: f"unlock {entity_display}",  # For confirmation prompt
-            ActionType.OPEN: f"Opening {entity_display}.",
-            ActionType.CLOSE: f"Closing {entity_display}.",
-            ActionType.PLAY: f"Playing on {entity_display}.",
-            ActionType.PAUSE: f"Pausing {entity_display}.",
-            ActionType.STOP: f"Stopping {entity_display}.",
-            ActionType.SKIP: f"Skipping to next track on {entity_display}.",
-            ActionType.ACTIVATE_SCENE: f"Activating {entity_display} scene.",
-        }
+        # Different forms for confirmation vs completed action
+        if for_confirmation:
+            responses = {
+                ActionType.TURN_ON: f"turn on {entity_display}",
+                ActionType.TURN_OFF: f"turn off {entity_display}",
+                ActionType.TOGGLE: f"toggle {entity_display}",
+                ActionType.LOCK: f"lock {entity_display}",
+                ActionType.UNLOCK: f"unlock {entity_display}",
+                ActionType.OPEN: f"open {entity_display}",
+                ActionType.CLOSE: f"close {entity_display}",
+                ActionType.PLAY: f"play on {entity_display}",
+                ActionType.PAUSE: f"pause {entity_display}",
+                ActionType.STOP: f"stop {entity_display}",
+                ActionType.SKIP: f"skip to next track on {entity_display}",
+                ActionType.ACTIVATE_SCENE: f"activate {entity_display} scene",
+            }
+        else:
+            responses = {
+                ActionType.TURN_ON: f"Turning on {entity_display}.",
+                ActionType.TURN_OFF: f"Turning off {entity_display}.",
+                ActionType.TOGGLE: f"Toggling {entity_display}.",
+                ActionType.LOCK: f"Locking {entity_display}.",
+                ActionType.UNLOCK: f"Unlocking {entity_display}.",
+                ActionType.OPEN: f"Opening {entity_display}.",
+                ActionType.CLOSE: f"Closing {entity_display}.",
+                ActionType.PLAY: f"Playing on {entity_display}.",
+                ActionType.PAUSE: f"Pausing {entity_display}.",
+                ActionType.STOP: f"Stopping {entity_display}.",
+                ActionType.SKIP: f"Skipping to next track on {entity_display}.",
+                ActionType.ACTIVATE_SCENE: f"Activating {entity_display} scene.",
+            }
 
         if action_type == ActionType.SET_VALUE:
-            if domain == DeviceDomain.LIGHT:
-                return f"Setting {entity_display} to {target_value}%."
-            elif domain == DeviceDomain.CLIMATE:
-                return f"Setting {entity_display} to {target_value} degrees."
+            if for_confirmation:
+                if domain == DeviceDomain.LIGHT:
+                    return f"set {entity_display} to {target_value}%"
+                elif domain == DeviceDomain.CLIMATE:
+                    return f"set {entity_display} to {target_value} degrees"
+                else:
+                    return f"set {entity_display} to {target_value}"
             else:
-                return f"Setting {entity_display} to {target_value}."
+                if domain == DeviceDomain.LIGHT:
+                    return f"Setting {entity_display} to {target_value}%."
+                elif domain == DeviceDomain.CLIMATE:
+                    return f"Setting {entity_display} to {target_value} degrees."
+                else:
+                    return f"Setting {entity_display} to {target_value}."
 
-        return responses.get(action_type, f"Executing action on {entity_display}.")
+        default = (
+            f"do that to {entity_display}"
+            if for_confirmation
+            else f"Executing action on {entity_display}."
+        )
+        return responses.get(action_type, default)
 
     def _is_batch_reference(self, text: str) -> bool:
         """Check if text refers to multiple devices (batch operation)."""
