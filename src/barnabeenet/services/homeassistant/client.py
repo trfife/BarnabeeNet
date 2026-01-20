@@ -799,8 +799,11 @@ class HomeAssistantClient:
             data: dict[str, Any] = dict(service_data)
 
             # Support HA's target parameter for floor/area/entity targeting
+            # The REST API expects target keys at the root level, not nested in "target"
             if target:
-                data["target"] = target
+                # Merge target keys directly into data
+                # HA REST API expects: {"floor_id": [...]} or {"area_id": [...]} at root
+                data.update(target)
             elif entity_id:
                 data["entity_id"] = entity_id
 
