@@ -582,11 +582,14 @@ class AgentOrchestrator:
             # Get all profiles
             all_profiles = await profile_service.get_all_profiles()
             if not all_profiles:
+                logger.debug("No profiles found")
                 return None
 
             # Find mentions in the text (case-insensitive)
             text_lower = text.lower()
             mentioned = []
+
+            logger.debug(f"Looking for mentions in: {text_lower!r}, profiles: {len(all_profiles)}")
 
             for profile in all_profiles:
                 member_id = profile.member_id.lower()
@@ -600,11 +603,16 @@ class AgentOrchestrator:
 
                 # Check if member is mentioned by ID, full name, or first name
                 # Use word boundary check for first name to avoid false positives
-                if (
-                    member_id in text_lower
-                    or name in text_lower
-                    or f" {first_name}" in f" {text_lower}"  # Word boundary match
-                ):
+                id_match = member_id in text_lower
+                name_match = name in text_lower
+                first_name_match = f" {first_name}" in f" {text_lower}"
+
+                logger.debug(
+                    f"Profile {name}: id_match={id_match}, name_match={name_match}, "
+                    f"first_name_match={first_name_match} (first_name={first_name!r})"
+                )
+
+                if id_match or name_match or first_name_match:
                     # Get their profile context including location
                     context = await profile_service.get_profile_context(
                         speaker_id=profile.member_id,
@@ -627,9 +635,11 @@ class AgentOrchestrator:
                     # Add location if available
                     if context and context.location:
                         profile_summary["location"] = context.location.model_dump()
+                        logger.debug(f"Got location for {name}: {context.location.state}")
 
                     mentioned.append(profile_summary)
 
+            logger.debug(f"Found {len(mentioned)} mentioned profiles")
             return mentioned if mentioned else None
 
         except Exception as e:
