@@ -747,6 +747,9 @@ class AgentOrchestrator:
                 # Execute the action via Home Assistant
                 execution_result = await self._execute_ha_action(action_spec, ctx)
 
+                # Store execution result for trace details
+                ctx.agent_response["_execution_result"] = execution_result
+
                 # Update response based on execution result
                 if not execution_result.get("executed"):
                     # Action not executed - tell user why
@@ -1386,18 +1389,38 @@ class AgentOrchestrator:
         parsed_segments = None
         service_calls = None
         resolved_targets = None
+        action_agent_mode = None
         if ctx.agent_response and ctx.agent_response.get("_agent_name") == "action":
             action_data = ctx.agent_response.get("action")
+            execution_result = ctx.agent_response.get("_execution_result", {})
+
+            # Get whether action agent used rule-based or LLM parsing
+            action_agent_mode = "rule-based"  # Default - action agent uses rule-based first
+
             if action_data:
-                # Build service call info
-                service_calls = [
-                    {
-                        "service": action_data.get("service"),
-                        "entity_id": action_data.get("entity_id"),
-                        "area_id": action_data.get("target_area"),
-                        "is_batch": action_data.get("is_batch", False),
-                    }
-                ]
+                # Build service call info with full execution details
+                service_call = {
+                    "service": action_data.get("service"),
+                    "domain": action_data.get("domain"),
+                    "entity_id": action_data.get("entity_id"),
+                    "entity_name": action_data.get("entity_name"),
+                    "is_batch": action_data.get("is_batch", False),
+                    "service_data": action_data.get("service_data", {}),
+                }
+
+                # Add execution details
+                if execution_result:
+                    service_call["executed"] = execution_result.get("executed", False)
+                    service_call["success"] = execution_result.get("success", False)
+                    service_call["affected_count"] = execution_result.get("affected_count")
+
+                    # Include the actual target used (floor_id, area_id, etc.)
+                    if execution_result.get("target"):
+                        service_call["target"] = execution_result.get("target")
+                    service_call["target_desc"] = execution_result.get("target_desc")
+
+                service_calls = [service_call]
+
                 # Build resolved targets
                 if action_data.get("entity_id") or action_data.get("entity_ids"):
                     resolved_targets = [
@@ -1437,6 +1460,7 @@ class AgentOrchestrator:
             "parsed_segments": parsed_segments,
             "resolved_targets": resolved_targets,
             "service_calls": service_calls,
+            "action_agent_mode": action_agent_mode,
         }
 
     # Convenience methods for direct agent access

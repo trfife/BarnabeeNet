@@ -5379,10 +5379,14 @@ body {
 
 .flow-service-call {
     font-size: 11px;
-    padding: 4px 8px;
+    padding: 6px 10px;
     background: var(--bg-tertiary);
     border-radius: 4px;
     margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
 }
 
 .flow-service-call code {
@@ -5390,6 +5394,50 @@ body {
     padding: 2px 6px;
     border-radius: 3px;
     font-size: 10px;
+    color: var(--accent-secondary);
+}
+
+.flow-service-target {
+    color: var(--text-secondary);
+    font-size: 10px;
+}
+
+.flow-service-batch {
+    background: var(--accent-primary);
+    color: var(--bg-primary);
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.flow-service-affected {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    font-style: italic;
+}
+
+.flow-success {
+    color: var(--success);
+    font-weight: bold;
+}
+
+.flow-failure {
+    color: var(--error);
+    font-weight: bold;
+}
+
+.flow-mode {
+    font-size: 10px;
+    color: var(--text-tertiary);
+}
+
+.flow-mode code {
+    background: var(--bg-tertiary);
+    padding: 1px 4px;
+    border-radius: 2px;
+    color: var(--accent-primary);
 }
 
 .flow-timer-entity {

@@ -5020,6 +5020,11 @@ function showProcessingFlow(data, traceId) {
         agentDetails += `<br><span class="flow-tokens">${tokens} tokens • ${llmLatency}ms LLM time</span>`;
     }
 
+    // Show action agent mode if available
+    if (agent === 'action' && traceDetails.action_agent_mode) {
+        agentDetails += `<br><span class="flow-mode">Mode: <code>${traceDetails.action_agent_mode}</code></span>`;
+    }
+
     flowHtml += `
         <div class="flow-step flow-agent">
             <div class="flow-step-icon">${agentIcon}</div>
@@ -5053,18 +5058,52 @@ function showProcessingFlow(data, traceId) {
         `;
     }
 
-    // Step 5: Service calls (enhanced from actions)
+    // Step 5: Service calls (enhanced with full details)
     const serviceCalls = traceDetails.service_calls || [];
     if (serviceCalls.length > 0) {
         flowHtml += `<div class="flow-arrow">↓</div>`;
         let callsHtml = serviceCalls.map(call => {
-            let targetDesc = '';
-            if (call.target) {
-                if (call.target.area_id) targetDesc = `area: ${call.target.area_id}`;
-                else if (call.target.entity_id) targetDesc = `entity: ${call.target.entity_id}`;
-                else if (call.target.device_id) targetDesc = `device: ${call.target.device_id}`;
+            let details = [];
+            
+            // Service name
+            details.push(`<code>${escapeHtml(call.service || 'unknown')}</code>`);
+            
+            // Target description
+            if (call.target_desc) {
+                details.push(`<span class="flow-service-target">Target: ${escapeHtml(call.target_desc)}</span>`);
+            } else if (call.target) {
+                // Build target description from target object
+                if (call.target.floor_id) {
+                    const floors = Array.isArray(call.target.floor_id) ? call.target.floor_id.join(', ') : call.target.floor_id;
+                    details.push(`<span class="flow-service-target">Floors: ${escapeHtml(floors)}</span>`);
+                } else if (call.target.area_id) {
+                    const areas = Array.isArray(call.target.area_id) ? call.target.area_id.join(', ') : call.target.area_id;
+                    details.push(`<span class="flow-service-target">Areas: ${escapeHtml(areas)}</span>`);
+                } else if (call.target.entity_id) {
+                    details.push(`<span class="flow-service-target">Entity: ${escapeHtml(call.target.entity_id)}</span>`);
+                }
+            } else if (call.entity_id) {
+                details.push(`<span class="flow-service-target">Entity: ${escapeHtml(call.entity_id)}</span>`);
             }
-            return `<div class="flow-service-call"><code>${escapeHtml(call.service || call.domain + '.' + call.service_name)}</code>${targetDesc ? ` → ${escapeHtml(targetDesc)}` : ''}</div>`;
+            
+            // Batch indicator
+            if (call.is_batch) {
+                details.push(`<span class="flow-service-batch">batch</span>`);
+            }
+            
+            // Affected count
+            if (call.affected_count !== undefined && call.affected_count !== null) {
+                details.push(`<span class="flow-service-affected">${call.affected_count} entities affected</span>`);
+            }
+            
+            // Success indicator
+            if (call.executed !== undefined) {
+                const statusClass = call.success ? 'flow-success' : 'flow-failure';
+                const statusIcon = call.success ? '✓' : '✗';
+                details.push(`<span class="${statusClass}">${statusIcon}</span>`);
+            }
+            
+            return `<div class="flow-service-call">${details.join(' ')}</div>`;
         }).join('');
 
         flowHtml += `
