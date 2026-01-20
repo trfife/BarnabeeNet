@@ -852,7 +852,11 @@ async def get_profile_service(
     if _profile_service is None:
         _profile_service = ProfileService(redis_client, ha_client)
         await _profile_service.init()
-    elif ha_client and _profile_service._ha_client is None:
-        # Update HA client if it wasn't set before
-        _profile_service.set_ha_client(ha_client)
+    else:
+        # Update clients if provided and not already set
+        if redis_client and _profile_service._redis is None:
+            _profile_service._redis = redis_client
+            logger.info("ProfileService: Redis client updated")
+        if ha_client and _profile_service._ha_client is None:
+            _profile_service.set_ha_client(ha_client)
     return _profile_service
