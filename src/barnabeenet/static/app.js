@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initClock();
     initActivityControls();
     initConfigNav();
-    initTestButtons();
+    // initTestButtons(); // Removed - Setup & Test page no longer exists
     initTraceModal();
     initOfflineDetection();
 
@@ -6928,7 +6928,7 @@ function initLogicPage() {
     const agentFilter = document.getElementById('history-agent-filter');
     const statusFilter = document.getElementById('history-status-filter');
     const searchInput = document.getElementById('history-search');
-    
+
     if (agentFilter) {
         agentFilter.addEventListener('change', renderDecisionHistory);
     }
@@ -7055,18 +7055,18 @@ function renderDecisionHistory() {
     let filteredHistory = decisionHistory.filter(trace => {
         // Agent filter
         if (agentFilter && trace.agent_used !== agentFilter) return false;
-        
+
         // Status filter
         if (statusFilter === 'success' && !trace.success) return false;
         if (statusFilter === 'error' && trace.success) return false;
-        
+
         // Search filter
         if (searchTerm) {
             const inputText = (trace.input_preview || '').toLowerCase();
             const responseText = (trace.response_preview || '').toLowerCase();
             if (!inputText.includes(searchTerm) && !responseText.includes(searchTerm)) return false;
         }
-        
+
         return true;
     });
 
@@ -7371,7 +7371,7 @@ function renderWaterfallTimeline(trace) {
 
     // Process signals to get timing information
     const timelineItems = [];
-    
+
     trace.signals.forEach(signal => {
         const signalTime = signal.timestamp ? new Date(signal.timestamp).getTime() : null;
         if (signalTime === null) return;
@@ -7504,7 +7504,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', window.closeTraceModal);
         });
     }
-    
+
     // Initialize correction modal close handlers
     const correctionModal = document.getElementById('correction-modal');
     if (correctionModal) {
@@ -7521,25 +7521,25 @@ document.addEventListener('DOMContentLoaded', () => {
 let currentCorrectionTrace = null;
 
 // Open correction modal for a trace
-window.openCorrectionModal = async function(traceId) {
+window.openCorrectionModal = async function (traceId) {
     const modal = document.getElementById('correction-modal');
     const preview = document.getElementById('correction-request-preview');
     const step1 = document.getElementById('correction-step-1');
     const step2 = document.getElementById('correction-step-2');
-    
+
     // Reset to step 1
     step1.style.display = 'block';
     step2.style.display = 'none';
     document.getElementById('correction-expected').value = '';
     document.querySelectorAll('input[name="issue-type"]').forEach(r => r.checked = false);
-    
+
     // Load trace data
     try {
         const response = await fetch(`/api/v1/dashboard/traces/${traceId}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
         currentCorrectionTrace = await response.json();
-        
+
         // Show request preview
         preview.innerHTML = `
             <div class="correction-preview-item">
@@ -7561,7 +7561,7 @@ window.openCorrectionModal = async function(traceId) {
             </div>
             ` : ''}
         `;
-        
+
         modal.style.display = 'flex';
     } catch (error) {
         console.error('Failed to load trace for correction:', error);
@@ -7570,42 +7570,42 @@ window.openCorrectionModal = async function(traceId) {
 }
 
 // Close correction modal
-window.closeCorrectionModal = function() {
+window.closeCorrectionModal = function () {
     const modal = document.getElementById('correction-modal');
     if (modal) modal.style.display = 'none';
     currentCorrectionTrace = null;
 }
 
 // Analyze correction with AI
-window.analyzeCorrection = async function() {
+window.analyzeCorrection = async function () {
     if (!currentCorrectionTrace) {
         showToast('No trace selected', 'error');
         return;
     }
-    
+
     const expectedResult = document.getElementById('correction-expected').value.trim();
     const issueTypeEl = document.querySelector('input[name="issue-type"]:checked');
-    
+
     if (!expectedResult) {
         showToast('Please describe what should have happened', 'warning');
         return;
     }
-    
+
     if (!issueTypeEl) {
         showToast('Please select an issue type', 'warning');
         return;
     }
-    
+
     const issueType = issueTypeEl.value;
     const analyzeBtn = document.getElementById('analyze-correction-btn');
     const step1 = document.getElementById('correction-step-1');
     const step2 = document.getElementById('correction-step-2');
     const analysisDiv = document.getElementById('correction-analysis');
-    
+
     // Show loading state
     analyzeBtn.disabled = true;
     analyzeBtn.innerHTML = '🔄 Analyzing...';
-    
+
     try {
         const response = await fetch('/api/v1/logic/corrections/analyze', {
             method: 'POST',
@@ -7616,19 +7616,19 @@ window.analyzeCorrection = async function() {
                 issue_type: issueType
             })
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             throw new Error(errorData.detail || `HTTP ${response.status}`);
         }
-        
+
         const analysis = await response.json();
-        
+
         // Show analysis results
         step1.style.display = 'none';
         step2.style.display = 'block';
         analysisDiv.innerHTML = renderCorrectionAnalysis(analysis);
-        
+
     } catch (error) {
         console.error('Failed to analyze correction:', error);
         showToast(`Analysis failed: ${error.message}`, 'error');
@@ -7648,7 +7648,7 @@ function renderCorrectionAnalysis(analysis) {
         tone_content: '💬 Tone/content issue',
         other: '📝 Other'
     };
-    
+
     let suggestionsHtml = '';
     if (analysis.suggestions && analysis.suggestions.length > 0) {
         suggestionsHtml = analysis.suggestions.map((sugg, idx) => `
@@ -7686,13 +7686,13 @@ function renderCorrectionAnalysis(analysis) {
     } else {
         suggestionsHtml = '<div class="no-suggestions">No automatic fixes suggested. Manual adjustment may be required.</div>';
     }
-    
+
     return `
         <div class="analysis-header">
             <h4>🤖 AI Analysis Complete</h4>
             <button class="btn btn-secondary btn-sm" onclick="window.backToCorrectionStep1()">← Back</button>
         </div>
-        
+
         <div class="analysis-section root-cause">
             <h5>📍 Root Cause</h5>
             <p>${escapeHtml(analysis.root_cause)}</p>
@@ -7703,12 +7703,12 @@ function renderCorrectionAnalysis(analysis) {
             </div>
             ` : ''}
         </div>
-        
+
         <div class="analysis-section suggestions">
             <h5>💡 Suggested Fixes</h5>
             ${suggestionsHtml}
         </div>
-        
+
         <div class="analysis-actions">
             <button class="btn btn-secondary" onclick="window.closeCorrectionModal()">Close</button>
             <button class="btn btn-warning" onclick="window.markAsWrongOnly('${analysis.trace_id}')">
@@ -7719,24 +7719,24 @@ function renderCorrectionAnalysis(analysis) {
 }
 
 // Go back to step 1
-window.backToCorrectionStep1 = function() {
+window.backToCorrectionStep1 = function () {
     document.getElementById('correction-step-1').style.display = 'block';
     document.getElementById('correction-step-2').style.display = 'none';
 }
 
 // Test a suggestion before applying
-window.testSuggestion = async function(analysisId, suggestionId) {
+window.testSuggestion = async function (analysisId, suggestionId) {
     showToast('Testing suggestion against historical data...', 'info');
-    
+
     try {
         const response = await fetch(`/api/v1/logic/corrections/${analysisId}/suggestions/${suggestionId}/test`, {
             method: 'POST'
         });
-        
+
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
         const results = await response.json();
-        
+
         // Show test results
         let message = `Test complete: ${results.improvement_count} improvements`;
         if (results.regression_count > 0) {
@@ -7752,21 +7752,21 @@ window.testSuggestion = async function(analysisId, suggestionId) {
 }
 
 // Apply a suggestion
-window.applySuggestion = async function(analysisId, suggestionId) {
+window.applySuggestion = async function (analysisId, suggestionId) {
     if (!confirm('Apply this fix? This will modify the system configuration.')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/v1/logic/corrections/${analysisId}/suggestions/${suggestionId}/apply`, {
             method: 'POST'
         });
-        
+
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
         showToast('Fix applied successfully!', 'success');
         window.closeCorrectionModal();
-        
+
         // Refresh logic data
         if (typeof loadLogicData === 'function') {
             loadLogicData();
@@ -7778,14 +7778,14 @@ window.applySuggestion = async function(analysisId, suggestionId) {
 }
 
 // Mark trace as wrong without applying a fix
-window.markAsWrongOnly = async function(traceId) {
+window.markAsWrongOnly = async function (traceId) {
     try {
         const response = await fetch(`/api/v1/dashboard/traces/${traceId}/mark-wrong`, {
             method: 'POST'
         });
-        
+
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
         showToast('Marked as incorrect. This helps improve future analysis.', 'success');
         window.closeCorrectionModal();
     } catch (error) {

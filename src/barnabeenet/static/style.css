@@ -9050,6 +9050,7 @@ textarea:focus-visible {
     border-radius: 8px;
     text-align: center;
 }
+
 /* =============================================================================
    AI Correction Modal Styles
    ============================================================================= */
@@ -9141,7 +9142,7 @@ textarea:focus-visible {
     accent-color: var(--accent-primary);
 }
 
-.radio-option input[type="radio"]:checked + span {
+.radio-option input[type="radio"]:checked+span {
     color: var(--accent-primary);
     font-weight: 500;
 }
