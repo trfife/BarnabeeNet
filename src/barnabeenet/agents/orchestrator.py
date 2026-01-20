@@ -581,6 +581,7 @@ class AgentOrchestrator:
         Returns:
             List of profile summaries for mentioned family members
         """
+        print(f"DEBUG: _get_mentioned_profiles called with text={text!r}")
         logger.info(f"_get_mentioned_profiles called: text={text!r}, speaker={speaker!r}")
         try:
             import os
