@@ -1247,21 +1247,24 @@ class AgentOrchestrator:
         """Adapt a service call to work with a different domain.
 
         For example, light.turn_on -> switch.turn_on when the entity is a switch.
+        Only adapts services that are compatible across domains.
+        Domain-specific services (like cover.open_cover) are NOT adapted.
         """
         if "." not in service:
             return service
 
         original_domain, action = service.split(".", 1)
 
-        # Map common actions between domains
-        # light and switch share turn_on, turn_off, toggle
+        # Only adapt services that are compatible across domains
+        # Domain-specific actions should NOT be adapted
         compatible_actions = {"turn_on", "turn_off", "toggle"}
 
-        if action in compatible_actions:
+        if action in compatible_actions and target_domain != original_domain:
             return f"{target_domain}.{action}"
 
-        # For other actions, try to use the target domain's equivalent
-        return f"{target_domain}.{action}"
+        # For domain-specific actions (open_cover, close_cover, lock, unlock, etc.),
+        # keep the original service - these only work with their native domain
+        return service
 
     def _build_response(self, ctx: RequestContext) -> dict[str, Any]:
         """Build the final response dict."""
