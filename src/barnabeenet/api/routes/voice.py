@@ -24,7 +24,7 @@ from barnabeenet.models.schemas import (
     VoicePipelineRequest,
     VoicePipelineResponse,
 )
-from barnabeenet.services.stt import DistilWhisperSTT
+from barnabeenet.services.stt import get_distil_whisper_class
 from barnabeenet.services.tts import KokoroTTS
 from barnabeenet.services.voice_pipeline import VoicePipelineService
 
@@ -32,14 +32,17 @@ router = APIRouter()
 logger = structlog.get_logger()
 
 # Service instances (initialized lazily)
-_stt_service: DistilWhisperSTT | None = None
+_stt_service = None  # Will be DistilWhisperSTT if available
 _tts_service: KokoroTTS | None = None
 
 
-async def get_stt_service() -> DistilWhisperSTT:
+async def get_stt_service():
     """Get or create the STT service instance."""
     global _stt_service
     if _stt_service is None:
+        DistilWhisperSTT = get_distil_whisper_class()
+        if DistilWhisperSTT is None:
+            raise RuntimeError("STT service not available: numpy import failed")
         settings = get_settings()
         _stt_service = DistilWhisperSTT(
             model_size=settings.stt.whisper_model,
