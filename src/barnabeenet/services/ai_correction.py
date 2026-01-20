@@ -5,6 +5,8 @@ This service analyzes traces where things went wrong and uses AI to:
 2. Suggest specific fixes
 3. Test fixes against historical data
 4. Apply fixes with hot-reload
+
+Now enhanced with LogicDiagnostics for pattern-level analysis.
 """
 
 from __future__ import annotations
@@ -265,7 +267,10 @@ class AICorrectionService:
         issue_type: str,
         trace: dict[str, Any],
     ) -> CorrectionAnalysis:
-        """Create a basic analysis when AI is unavailable."""
+        """Create a basic analysis when AI is unavailable.
+
+        Enhanced to use LogicDiagnostics for pattern-level insights.
+        """
         issue_descriptions = {
             "wrong_entity": "The system selected the wrong device or entity",
             "wrong_action": "The system performed an incorrect action",
@@ -276,8 +281,12 @@ class AICorrectionService:
         }
 
         suggestions = []
+        input_text = trace.get("input_text", "")
 
-        # Generate suggestions based on issue type
+        # Use LogicDiagnostics for pattern-level analysis if available
+        diagnostics_info = self._get_pattern_diagnostics(input_text)
+
+        # Generate suggestions based on issue type and diagnostics
         if issue_type == "wrong_entity":
             suggestions.append(
                 CorrectionSuggestion(
@@ -293,17 +302,71 @@ class AICorrectionService:
                 )
             )
         elif issue_type == "wrong_routing":
+            # Use diagnostics to suggest better patterns
+            if diagnostics_info:
+                # Add diagnostic-based suggestions
+                if diagnostics_info.get("near_misses"):
+                    for i, nm in enumerate(diagnostics_info["near_misses"][:2]):
+                        suggestions.append(
+                            CorrectionSuggestion(
+                                suggestion_id=f"sugg_{trace_id[:8]}_{i}",
+                                suggestion_type="pattern_modify",
+                                title=f"Modify near-miss pattern: {nm.get('group', 'unknown')}",
+                                description=f"Pattern '{nm.get('pattern', '')[:50]}...' almost matched (similarity={nm.get('similarity_score', 0):.2f}). Reason: {nm.get('failure_reason', 'unknown')}",
+                                impact_level="medium",
+                                target_logic_id=f"config/patterns.yaml#{nm.get('group', '')}",
+                                proposed_value=nm.get(
+                                    "suggestion", "Modify pattern to match this input"
+                                ),
+                                confidence=nm.get("similarity_score", 0.5),
+                                reasoning=f"Pattern was close to matching. Suggestions: {', '.join(nm.get('suggestions', [])[:2]) or 'Review pattern'}",
+                            )
+                        )
+
+                if diagnostics_info.get("suggested_patterns"):
+                    for i, pattern in enumerate(diagnostics_info["suggested_patterns"][:2]):
+                        suggestions.append(
+                            CorrectionSuggestion(
+                                suggestion_id=f"sugg_{trace_id[:8]}_new_{i}",
+                                suggestion_type="pattern_add",
+                                title="Add new pattern for this input",
+                                description=f"Suggested pattern: {pattern}",
+                                impact_level="low",
+                                target_logic_id="config/patterns.yaml#action",
+                                proposed_value=pattern,
+                                confidence=0.6,
+                                reasoning="Generated pattern based on input structure",
+                            )
+                        )
+
+                # Diagnostics summary already used in suggestion descriptions
+            else:
+                suggestions.append(
+                    CorrectionSuggestion(
+                        suggestion_id=f"sugg_{trace_id[:8]}_0",
+                        suggestion_type="pattern_modify",
+                        title="Adjust routing pattern",
+                        description="Modify pattern to better match this type of request",
+                        impact_level="medium",
+                        target_logic_id="config/patterns.yaml",
+                        proposed_value=f"# Add or modify pattern for: {input_text}",
+                        confidence=0.6,
+                        reasoning="A more specific pattern would capture this intent correctly",
+                    )
+                )
+
+        elif issue_type == "wrong_action":
             suggestions.append(
                 CorrectionSuggestion(
                     suggestion_id=f"sugg_{trace_id[:8]}_0",
                     suggestion_type="pattern_modify",
-                    title="Adjust routing pattern",
-                    description="Modify pattern to better match this type of request",
+                    title="Adjust action pattern",
+                    description="The action pattern may be too broad or incorrect",
                     impact_level="medium",
-                    target_logic_id="config/patterns.yaml",
-                    proposed_value=f"# Add or modify pattern for: {trace.get('input_text', '')}",
-                    confidence=0.6,
-                    reasoning="A more specific pattern would capture this intent correctly",
+                    target_logic_id="config/patterns.yaml#action",
+                    proposed_value=f"# Review action patterns for: {input_text}",
+                    confidence=0.5,
+                    reasoning="Action was misinterpreted - pattern needs refinement",
                 )
             )
 
@@ -313,13 +376,78 @@ class AICorrectionService:
             timestamp=datetime.now(UTC),
             expected_result=expected_result,
             issue_type=issue_type,
-            root_cause=issue_descriptions.get(issue_type, "Unknown issue"),
+            root_cause=issue_descriptions.get(issue_type, "Unknown issue")
+            if not diagnostics_info
+            else f"{issue_descriptions.get(issue_type, 'Unknown issue')}. Pattern diagnostics available.",
             root_cause_logic_id=None,
             suggestions=suggestions,
         )
 
         _analyses[analysis.analysis_id] = analysis
         return analysis
+
+    def _get_pattern_diagnostics(self, text: str) -> dict[str, Any] | None:
+        """Get pattern diagnostics for input text.
+
+        Returns diagnostic info including near-misses and suggestions.
+        """
+        if not text:
+            return None
+
+        try:
+            import re
+
+            from barnabeenet.agents.meta import (
+                ACTION_PATTERNS,
+                INSTANT_PATTERNS,
+                MEMORY_PATTERNS,
+                QUERY_PATTERNS,
+            )
+            from barnabeenet.services.logic_diagnostics import get_diagnostics_service
+
+            diagnostics = get_diagnostics_service()
+
+            # Use hardcoded patterns for diagnostics
+            compiled_patterns = {
+                "instant": [(re.compile(p, re.IGNORECASE), c) for p, c in INSTANT_PATTERNS],
+                "action": [(re.compile(p, re.IGNORECASE), c) for p, c in ACTION_PATTERNS],
+                "memory": [(re.compile(p, re.IGNORECASE), c) for p, c in MEMORY_PATTERNS],
+                "query": [(re.compile(p, re.IGNORECASE), c) for p, c in QUERY_PATTERNS],
+            }
+
+            pattern_priority = [
+                ("instant", "INSTANT", 0.95),
+                ("action", "ACTION", 0.90),
+                ("memory", "MEMORY", 0.90),
+                ("query", "QUERY", 0.85),
+            ]
+
+            diag = diagnostics.diagnose_pattern_match(
+                text=text,
+                compiled_patterns=compiled_patterns,
+                pattern_priority=pattern_priority,
+            )
+
+            return {
+                "total_checked": diag.total_patterns_checked,
+                "near_misses": [
+                    {
+                        "pattern": nm.pattern_str,
+                        "group": nm.pattern_group,
+                        "sub_category": nm.sub_category,
+                        "similarity_score": nm.similarity_score,
+                        "failure_reason": nm.failure_reason.value if nm.failure_reason else None,
+                        "suggestions": nm.suggestions,
+                    }
+                    for nm in diag.near_misses[:5]
+                ],
+                "suggested_patterns": diag.suggested_patterns[:3],
+                "suggested_modifications": diag.suggested_modifications[:3],
+            }
+
+        except Exception as e:
+            logger.debug(f"Pattern diagnostics failed: {e}")
+            return None
 
     def _format_signals(self, signals: list[dict]) -> str:
         """Format signals for the prompt."""

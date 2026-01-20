@@ -711,3 +711,180 @@ async def apply_correction_suggestion(analysis_id: str, suggestion_id: str):
     except Exception as e:
         logger.error(f"Apply suggestion failed: {e}")
         raise HTTPException(status_code=500, detail=f"Apply failed: {str(e)}") from None
+
+
+# =============================================================================
+# Diagnostics Endpoints
+# =============================================================================
+
+
+class DiagnoseTextRequest(BaseModel):
+    """Request for text diagnosis."""
+
+    text: str = Field(..., description="The text to diagnose")
+    include_all_checks: bool = Field(
+        False, description="Include all pattern checks, not just near misses"
+    )
+
+
+class DiagnoseTextResponse(BaseModel):
+    """Response from text diagnosis."""
+
+    input_text: str
+    normalized_text: str
+    winner: dict[str, Any] | None
+    near_misses: list[dict[str, Any]]
+    total_patterns_checked: int
+    classification_method: str
+    processing_time_ms: float
+    suggested_patterns: list[str]
+    suggested_modifications: list[dict[str, Any]]
+
+
+@router.post("/diagnostics/diagnose", response_model=DiagnoseTextResponse)
+async def diagnose_text(request: DiagnoseTextRequest):
+    """Diagnose why a text input matches or doesn't match patterns.
+
+    This provides detailed analysis including:
+    - Which pattern matched (if any)
+    - Near-miss patterns that almost matched
+    - Why patterns failed (typo, word order, missing keyword, etc.)
+    - Suggestions for new patterns or modifications
+    """
+    from barnabeenet.services.logic_diagnostics import get_diagnostics_service
+
+    registry = await get_registry()
+    diagnostics = get_diagnostics_service()
+
+    # Get compiled patterns from registry
+    compiled_patterns: dict[str, list[tuple[re.Pattern[str], str]]] = {}
+    pattern_priority = [
+        ("emergency", "EMERGENCY", 0.99),
+        ("instant", "INSTANT", 0.95),
+        ("gesture", "GESTURE", 0.95),
+        ("action", "ACTION", 0.90),
+        ("memory", "MEMORY", 0.90),
+        ("query", "QUERY", 0.85),
+    ]
+
+    for group_name, _intent, _confidence in pattern_priority:
+        group = registry.get_pattern_group(group_name)
+        if group:
+            patterns = []
+            for pattern in group.patterns.values():
+                if pattern.enabled:
+                    try:
+                        compiled = re.compile(pattern.pattern, re.IGNORECASE)
+                        patterns.append((compiled, pattern.sub_category))
+                    except re.error:
+                        pass
+            compiled_patterns[group_name] = patterns
+
+    # Run diagnosis
+    diag = diagnostics.diagnose_pattern_match(
+        text=request.text,
+        compiled_patterns=compiled_patterns,
+        pattern_priority=pattern_priority,
+    )
+
+    return DiagnoseTextResponse(
+        input_text=diag.input_text,
+        normalized_text=diag.normalized_text,
+        winner=diag._check_to_dict(diag.winner) if diag.winner else None,
+        near_misses=[diag._check_to_dict(nm) for nm in diag.near_misses[:10]],
+        total_patterns_checked=diag.total_patterns_checked,
+        classification_method=diag.classification_method,
+        processing_time_ms=diag.processing_time_ms,
+        suggested_patterns=diag.suggested_patterns[:5],
+        suggested_modifications=diag.suggested_modifications[:5],
+    )
+
+
+@router.get("/diagnostics/stats")
+async def get_diagnostics_stats():
+    """Get diagnostics statistics.
+
+    Returns:
+    - Pattern match success rate
+    - Common failure reasons
+    - Patterns that frequently almost match
+    """
+    from barnabeenet.services.logic_diagnostics import get_diagnostics_service
+
+    diagnostics = get_diagnostics_service()
+    return diagnostics.get_stats()
+
+
+@router.get("/diagnostics/failures")
+async def get_recent_failures(limit: int = Query(50, le=200)):
+    """Get recent classification failures.
+
+    Returns cases where no pattern matched, useful for identifying
+    gaps in pattern coverage.
+    """
+    from barnabeenet.services.logic_diagnostics import get_diagnostics_service
+
+    diagnostics = get_diagnostics_service()
+    failures = diagnostics.get_recent_failures(limit=limit)
+
+    return {
+        "failures": [f.to_dict() for f in failures],
+        "total": len(failures),
+    }
+
+
+class FullClassifyRequest(BaseModel):
+    """Request for full classification with diagnostics."""
+
+    text: str = Field(..., description="The text to classify")
+    speaker: str | None = Field(None, description="Speaker ID if known")
+    room: str | None = Field(None, description="Room where request originated")
+
+
+@router.post("/diagnostics/classify")
+async def full_classify_with_diagnostics(request: FullClassifyRequest):
+    """Run full MetaAgent classification with detailed diagnostics.
+
+    This calls the actual MetaAgent (pattern → heuristic → LLM fallback)
+    and returns all diagnostic information about the classification process.
+    """
+    from barnabeenet.agents.meta import MetaAgent
+
+    # Create a MetaAgent instance with diagnostics enabled
+    meta = MetaAgent(enable_diagnostics=True)
+    await meta.init()
+
+    try:
+        result = await meta.classify(
+            request.text,
+            {
+                "speaker": request.speaker,
+                "room": request.room,
+            },
+        )
+
+        return {
+            "intent": result.intent.value,
+            "confidence": result.confidence,
+            "sub_category": result.sub_category,
+            "target_agent": result.target_agent,
+            "priority": result.priority,
+            "matched_pattern": result.matched_pattern,
+            "classification_method": result.classification_method,
+            "patterns_checked": result.patterns_checked,
+            "near_miss_patterns": result.near_miss_patterns,
+            "failure_diagnosis": result.failure_diagnosis,
+            "diagnostics_summary": result.diagnostics_summary,
+            "processing_time_ms": result.total_processing_time_ms,
+            "context_evaluation": (
+                {
+                    "emotional_tone": result.context.emotional_tone.value,
+                    "urgency_level": result.context.urgency_level.value,
+                    "empathy_needed": result.context.empathy_needed,
+                }
+                if result.context
+                else None
+            ),
+        }
+    finally:
+        await meta.shutdown()

@@ -9,6 +9,7 @@ Responsibilities:
 3. Memory Query Generation - Generate semantic search queries for memory retrieval
 
 Now uses LogicRegistry for pattern definitions (editable via dashboard).
+Also integrates DecisionRegistry for full decision tracing.
 """
 
 from __future__ import annotations
@@ -103,6 +104,13 @@ class ClassificationResult:
     priority: int = 5  # 1-10, higher = more urgent
     total_processing_time_ms: int = 0
     matched_pattern: str | None = None  # The pattern/rule that triggered this classification
+
+    # Diagnostic information for debugging
+    classification_method: str | None = None  # "pattern", "heuristic", "llm"
+    patterns_checked: int = 0
+    near_miss_patterns: list[str] = field(default_factory=list)  # Patterns that almost matched
+    failure_diagnosis: str | None = None  # Why pattern match failed (if applicable)
+    diagnostics_summary: dict[str, Any] | None = None  # Full diagnostics if available
 
 
 @dataclass
@@ -263,21 +271,36 @@ class MetaAgent(Agent):
     Supports two modes:
     1. LogicRegistry mode (new): Patterns loaded from config/patterns.yaml
     2. Legacy mode: Patterns from hardcoded lists (backward compatible)
+
+    Now includes full decision tracing and diagnostics for debugging.
     """
 
     name = "meta"
+
+    # Pattern priority for classification (used for diagnostics)
+    PATTERN_PRIORITY: list[tuple[str, IntentCategory, float]] = [
+        ("emergency", IntentCategory.EMERGENCY, 0.99),
+        ("instant", IntentCategory.INSTANT, 0.95),
+        ("gesture", IntentCategory.GESTURE, 0.95),
+        ("action", IntentCategory.ACTION, 0.90),
+        ("memory", IntentCategory.MEMORY, 0.90),
+        ("query", IntentCategory.QUERY, 0.85),
+    ]
 
     def __init__(
         self,
         llm_client: OpenRouterClient | None = None,
         config: MetaAgentConfig | None = None,
         logic_registry: LogicRegistry | None = None,
+        enable_diagnostics: bool = True,
     ) -> None:
         self._llm_client = llm_client
         self._config = config or MetaAgentConfig()
         self._logic_registry = logic_registry
         self._compiled_patterns: dict[str, list[tuple[re.Pattern[str], str]]] = {}
         self._use_registry = False  # Will be set during init
+        self._enable_diagnostics = enable_diagnostics
+        self._diagnostics_service = None
 
     async def init(self) -> None:
         """Initialize the Meta Agent - load patterns from registry or compile hardcoded."""
@@ -292,6 +315,16 @@ class MetaAgent(Agent):
             except Exception as e:
                 logger.debug("LogicRegistry not available, using hardcoded patterns: %s", e)
                 self._use_registry = False
+
+        # Initialize diagnostics service
+        if self._enable_diagnostics:
+            try:
+                from barnabeenet.services.logic_diagnostics import get_diagnostics_service
+
+                self._diagnostics_service = get_diagnostics_service()
+                logger.info("MetaAgent diagnostics enabled")
+            except Exception as e:
+                logger.debug("Diagnostics service not available: %s", e)
 
         if self._use_registry and self._logic_registry:
             # Load patterns from registry
@@ -497,6 +530,7 @@ class MetaAgent(Agent):
         # Phase 3: LLM fallback (if available)
         if self._llm_client:
             result = await self._llm_classify(text, context)
+            result.classification_method = "llm"
             logger.debug(
                 "LLM classification: %s (conf=%.2f)", result.intent.value, result.confidence
             )
@@ -509,32 +543,72 @@ class MetaAgent(Agent):
         return result
 
     def _pattern_match(self, text: str) -> ClassificationResult:
-        """Pattern-based classification with priority ordering."""
-        # Check patterns in priority order
-        pattern_priority: list[tuple[str, IntentCategory, float]] = [
-            ("emergency", IntentCategory.EMERGENCY, 0.99),
-            ("instant", IntentCategory.INSTANT, 0.95),
-            ("gesture", IntentCategory.GESTURE, 0.95),
-            ("action", IntentCategory.ACTION, 0.90),
-            ("memory", IntentCategory.MEMORY, 0.90),
-            ("query", IntentCategory.QUERY, 0.85),
-        ]
+        """Pattern-based classification with priority ordering and diagnostics.
 
-        for pattern_group, intent, confidence in pattern_priority:
+        Now includes full diagnostic information about:
+        - How many patterns were checked
+        - Which patterns almost matched (near misses)
+        - Why patterns failed to match
+        """
+        # Run diagnostics if available
+        diag = None
+        if self._diagnostics_service:
+            diag = self._diagnostics_service.diagnose_pattern_match(
+                text=text,
+                compiled_patterns=self._compiled_patterns,
+                pattern_priority=self.PATTERN_PRIORITY,
+            )
+
+        # Count patterns for result
+        total_patterns = sum(len(p) for p in self._compiled_patterns.values())
+
+        # Check patterns in priority order
+        for pattern_group, intent, confidence in self.PATTERN_PRIORITY:
             patterns = self._compiled_patterns.get(pattern_group, [])
             for pattern, sub_category in patterns:
                 if pattern.match(text):
-                    return ClassificationResult(
+                    result = ClassificationResult(
                         intent=intent,
                         confidence=confidence,
                         sub_category=sub_category,
                         matched_pattern=f"{pattern_group}:{sub_category or 'default'} → {pattern.pattern}",
+                        classification_method="pattern",
+                        patterns_checked=total_patterns,
                     )
+                    if diag:
+                        result.diagnostics_summary = {
+                            "processing_time_ms": diag.processing_time_ms,
+                            "total_checked": diag.total_patterns_checked,
+                        }
+                    return result
 
-        return ClassificationResult(
+        # No match - include diagnostic info about what almost worked
+        result = ClassificationResult(
             intent=IntentCategory.UNKNOWN,
             confidence=0.0,
+            classification_method="pattern_failed",
+            patterns_checked=total_patterns,
         )
+
+        if diag:
+            # Add near-miss information
+            result.near_miss_patterns = [
+                f"{nm.pattern_group}:{nm.sub_category} (sim={nm.similarity_score:.2f})"
+                for nm in diag.near_misses[:5]
+            ]
+            if diag.near_misses:
+                top_miss = diag.near_misses[0]
+                if top_miss.failure_reason:
+                    result.failure_diagnosis = top_miss.failure_reason.value
+            result.diagnostics_summary = {
+                "processing_time_ms": diag.processing_time_ms,
+                "total_checked": diag.total_patterns_checked,
+                "near_misses": len(diag.near_misses),
+                "suggested_patterns": diag.suggested_patterns[:3],
+                "suggested_modifications": diag.suggested_modifications[:3],
+            }
+
+        return result
 
     def _heuristic_classify(
         self,
@@ -551,6 +625,7 @@ class MetaAgent(Agent):
                 intent=IntentCategory.CONVERSATION,
                 confidence=0.75,
                 matched_pattern="heuristic:conversation_history → has prior conversation context",
+                classification_method="heuristic",
             )
 
         # Urgency from context evaluation influences classification
@@ -559,6 +634,7 @@ class MetaAgent(Agent):
                 intent=IntentCategory.EMERGENCY,
                 confidence=0.85,
                 matched_pattern="heuristic:urgency → context evaluated as EMERGENCY",
+                classification_method="heuristic",
             )
 
         # Question markers
@@ -579,6 +655,7 @@ class MetaAgent(Agent):
                 intent=IntentCategory.QUERY,
                 confidence=0.70,
                 matched_pattern="heuristic:question → ends with '?' or starts with question word",
+                classification_method="heuristic",
             )
 
         # Command verbs
@@ -605,6 +682,7 @@ class MetaAgent(Agent):
                 intent=IntentCategory.ACTION,
                 confidence=0.70,
                 matched_pattern=f"heuristic:command → starts with verb '{first_word}'",
+                classification_method="heuristic",
             )
 
         # Default to conversation
@@ -612,6 +690,7 @@ class MetaAgent(Agent):
             intent=IntentCategory.CONVERSATION,
             confidence=0.50,
             matched_pattern="heuristic:default → no patterns matched, assuming conversation",
+            classification_method="heuristic",
         )
 
     async def _llm_classify(self, text: str, context: dict) -> ClassificationResult:
