@@ -591,14 +591,17 @@ class AgentOrchestrator:
             # Get Redis client for profile storage
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
             redis_client = aioredis.from_url(redis_url, decode_responses=True)
+            print(f"DEBUG: Got redis client from {redis_url}")
 
             # Pass both Redis and HA client for real-time location data
             profile_service = await get_profile_service(
                 redis_client=redis_client, ha_client=self._ha_client
             )
+            print(f"DEBUG: Got profile_service: {profile_service}")
 
             # Get all profiles
             all_profiles = await profile_service.get_all_profiles()
+            print(f"DEBUG: Got {len(all_profiles) if all_profiles else 0} profiles")
             if not all_profiles:
                 logger.info("No profiles found for mentioned lookup")
                 return None
