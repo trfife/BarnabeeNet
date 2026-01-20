@@ -385,6 +385,7 @@ def _register_routes(app: FastAPI) -> None:
         metrics,
         profiles,
         prompts,
+        self_improvement,
         voice,
         websocket,
     )
@@ -425,6 +426,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(memory.router, prefix="/api/v1", tags=["Memory"])
     app.include_router(profiles.router, prefix="/api/v1", tags=["Profiles"])
     app.include_router(prompts.router, prefix="/api/v1", tags=["Prompts"])
+    app.include_router(self_improvement.router, tags=["Self-Improvement"])
     app.include_router(metrics.router, tags=["Metrics"])
     app.include_router(websocket.router, prefix="/api/v1", tags=["WebSocket"])
 

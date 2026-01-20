@@ -5064,10 +5064,10 @@ function showProcessingFlow(data, traceId) {
         flowHtml += `<div class="flow-arrow">↓</div>`;
         let callsHtml = serviceCalls.map(call => {
             let details = [];
-            
+
             // Service name
             details.push(`<code>${escapeHtml(call.service || 'unknown')}</code>`);
-            
+
             // Target description
             if (call.target_desc) {
                 details.push(`<span class="flow-service-target">Target: ${escapeHtml(call.target_desc)}</span>`);
@@ -5085,24 +5085,24 @@ function showProcessingFlow(data, traceId) {
             } else if (call.entity_id) {
                 details.push(`<span class="flow-service-target">Entity: ${escapeHtml(call.entity_id)}</span>`);
             }
-            
+
             // Batch indicator
             if (call.is_batch) {
                 details.push(`<span class="flow-service-batch">batch</span>`);
             }
-            
+
             // Affected count
             if (call.affected_count !== undefined && call.affected_count !== null) {
                 details.push(`<span class="flow-service-affected">${call.affected_count} entities affected</span>`);
             }
-            
+
             // Success indicator
             if (call.executed !== undefined) {
                 const statusClass = call.success ? 'flow-success' : 'flow-failure';
                 const statusIcon = call.success ? '✓' : '✗';
                 details.push(`<span class="${statusClass}">${statusIcon}</span>`);
             }
-            
+
             return `<div class="flow-service-call">${details.join(' ')}</div>`;
         }).join('');
 
