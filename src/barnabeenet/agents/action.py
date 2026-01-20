@@ -138,19 +138,19 @@ ACTION_PATTERNS: list[tuple[str, ActionType, DeviceDomain | None]] = [
     # Lock patterns
     (r"^(lock|unlock) (?:the )?(.+)$", ActionType.LOCK, DeviceDomain.LOCK),
     # Batch cover patterns - MUST come before single cover patterns
-    # "close all the blinds in living room", "open blinds in the kitchen"
+    # "close all the blinds in living room", "open blinds in the kitchen", "stop the blinds"
     (
-        r"^(open|close) all (?:the |of the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))?$",
+        r"^(open|close|stop) all (?:the |of the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))?$",
         ActionType.OPEN,
         DeviceDomain.COVER,
     ),
     (
-        r"^(open|close) (?:the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))$",
+        r"^(open|close|stop) (?:the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))$",
         ActionType.OPEN,
         DeviceDomain.COVER,
     ),
     # Single cover patterns
-    (r"^(open|close) (?:the )?(.+)$", ActionType.OPEN, DeviceDomain.COVER),
+    (r"^(open|close|stop) (?:the )?(.+)$", ActionType.OPEN, DeviceDomain.COVER),
     # Media patterns
     (
         r"^(play|pause|stop|skip)(?: (?:the )?(?:music|video|media)?(?:on (?:the )?)?(.*))?$",
@@ -397,18 +397,24 @@ class ActionAgent(Agent):
             actual_action = ActionType.LOCK if lock_action == "lock" else ActionType.UNLOCK
 
         elif action_type in (ActionType.OPEN, ActionType.CLOSE):
-            # Handle batch patterns: (open/close, device_type, area?)
+            # Handle batch patterns: (open/close/stop, device_type, area?)
             cover_action = groups[0].lower()
-            actual_action = ActionType.OPEN if cover_action == "open" else ActionType.CLOSE
+            # Map cover action to ActionType
+            cover_action_map = {
+                "open": ActionType.OPEN,
+                "close": ActionType.CLOSE,
+                "stop": ActionType.STOP,
+            }
+            actual_action = cover_action_map.get(cover_action, ActionType.OPEN)
 
             # Check if this is a batch command (has area/location)
             if len(groups) >= 3 and groups[2]:
-                # Batch with location: (open/close, device_type, location)
+                # Batch with location: (open/close/stop, device_type, location)
                 entity_name = groups[1] if groups[1] else ""
                 target_area = groups[2].strip() if groups[2] else None
                 is_batch = True
             else:
-                # Single entity: (open/close, entity_name)
+                # Single entity: (open/close/stop, entity_name)
                 entity_name = groups[1] if len(groups) > 1 else ""
                 # Check if entity_name contains batch keywords
                 if self._is_batch_reference(entity_name):
@@ -499,6 +505,26 @@ class ActionAgent(Agent):
 
     def _get_service(self, action_type: ActionType, domain: DeviceDomain) -> str:
         """Get Home Assistant service name for action."""
+        # Domain-specific service mappings (take priority)
+        domain_service_map: dict[tuple[ActionType, DeviceDomain], str] = {
+            # Cover-specific actions
+            (ActionType.STOP, DeviceDomain.COVER): "stop_cover",
+            (ActionType.OPEN, DeviceDomain.COVER): "open_cover",
+            (ActionType.CLOSE, DeviceDomain.COVER): "close_cover",
+            # Media-specific actions
+            (ActionType.PLAY, DeviceDomain.MEDIA_PLAYER): "media_play",
+            (ActionType.PAUSE, DeviceDomain.MEDIA_PLAYER): "media_pause",
+            (ActionType.STOP, DeviceDomain.MEDIA_PLAYER): "media_stop",
+            (ActionType.SKIP, DeviceDomain.MEDIA_PLAYER): "media_next_track",
+        }
+
+        # Check domain-specific mapping first
+        domain_key = (action_type, domain)
+        if domain_key in domain_service_map:
+            service = domain_service_map[domain_key]
+            return f"{domain.value}.{service}"
+
+        # Generic service mappings
         service_map = {
             ActionType.TURN_ON: "turn_on",
             ActionType.TURN_OFF: "turn_off",
@@ -508,12 +534,6 @@ class ActionAgent(Agent):
             ActionType.DECREASE: "turn_on",
             ActionType.LOCK: "lock",
             ActionType.UNLOCK: "unlock",
-            ActionType.OPEN: "open_cover",
-            ActionType.CLOSE: "close_cover",
-            ActionType.PLAY: "media_play",
-            ActionType.PAUSE: "media_pause",
-            ActionType.STOP: "media_stop",
-            ActionType.SKIP: "media_next_track",
             ActionType.ACTIVATE_SCENE: "turn_on",
         }
 

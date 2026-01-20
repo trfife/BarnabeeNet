@@ -187,6 +187,7 @@ ACTION_PATTERNS: list[tuple[str, str]] = [
     (r"^(set|change) .* to .*$", "set"),
     (r"^(dim|brighten) .*$", "light"),
     (r"^(lock|unlock) .*$", "lock"),
+    (r"^(open|close|stop) .*(blind|shade|curtain|cover|garage|window).*$", "cover"),  # Stop covers
     (r"^(open|close) .*$", "cover"),
     (r"^(play|pause|stop|skip) .*$", "media"),
     (r"^activate .*$", "scene"),
