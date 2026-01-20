@@ -201,7 +201,7 @@ class PipelineLogger:
         trace_id: str | None = None,
     ) -> str:
         """Start a new request trace. Returns trace_id.
-        
+
         Args:
             input_text: The input text being processed
             input_type: Type of input (text, voice, etc.)
@@ -218,7 +218,7 @@ class PipelineLogger:
         }
         if trace_id:
             trace_kwargs["trace_id"] = trace_id
-            
+
         trace = RequestTrace(**trace_kwargs)
         self._active_traces[trace.trace_id] = trace
 
@@ -258,13 +258,13 @@ class PipelineLogger:
         **kwargs: Any,
     ) -> None:
         """Log a pipeline signal.
-        
+
         Can be called with a PipelineSignal object OR with keyword arguments.
-        
+
         Examples:
             # With PipelineSignal object
             await logger.log_signal(signal)
-            
+
             # With kwargs
             await logger.log_signal(
                 trace_id="...",

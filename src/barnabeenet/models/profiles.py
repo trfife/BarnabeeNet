@@ -123,7 +123,9 @@ class FamilyMemberProfile(BaseModel):
     enrollment_date: datetime
 
     # Home Assistant Integration
-    ha_person_entity: str | None = None  # e.g., "person.thom" - links to HA person for location tracking
+    ha_person_entity: str | None = (
+        None  # e.g., "person.thom" - links to HA person for location tracking
+    )
 
     # Profile content
     public: PublicProfileBlock = Field(default_factory=PublicProfileBlock)

@@ -528,7 +528,9 @@ class AgentOrchestrator:
 
         try:
             import os
+
             import redis.asyncio as aioredis
+
             from barnabeenet.services.profiles import PrivacyZone, get_profile_service
 
             # Get Redis client for profile storage
@@ -581,59 +583,52 @@ class AgentOrchestrator:
         Returns:
             List of profile summaries for mentioned family members
         """
-        print(f"DEBUG: _get_mentioned_profiles called with text={text!r}")
-        logger.info(f"_get_mentioned_profiles called: text={text!r}, speaker={speaker!r}")
         try:
             import os
+
             import redis.asyncio as aioredis
+
             from barnabeenet.services.profiles import PrivacyZone, get_profile_service
 
             # Get Redis client for profile storage
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
             redis_client = aioredis.from_url(redis_url, decode_responses=True)
-            print(f"DEBUG: Got redis client from {redis_url}")
 
             # Get HA client for location lookups (may not be available)
             ha_client = self._ha_client
             if ha_client is None:
                 # Try to get the global HA client
                 try:
-                    from barnabeenet.api.routes.homeassistant import get_ha_client as get_global_ha_client
+                    from barnabeenet.api.routes.homeassistant import (
+                        get_ha_client as get_global_ha_client,
+                    )
+
                     ha_client = await get_global_ha_client()
-                    print(f"DEBUG: Got global ha_client: {ha_client}")
-                except Exception as e:
-                    print(f"DEBUG: Could not get global HA client: {e}")
+                except Exception:
+                    pass  # HA client not available, location won't be included
 
             # Pass both Redis and HA client for real-time location data
             profile_service = await get_profile_service(
                 redis_client=redis_client, ha_client=ha_client
             )
-            print(f"DEBUG: Got profile_service: {profile_service}")
-            print(f"DEBUG: profile_service._ha_client = {profile_service._ha_client}")
 
             # Get all profiles
             all_profiles = await profile_service.get_all_profiles()
-            print(f"DEBUG: Got {len(all_profiles) if all_profiles else 0} profiles")
             if not all_profiles:
-                logger.info("No profiles found for mentioned lookup")
                 return None
 
             # Find mentions in the text (case-insensitive)
             text_lower = text.lower()
             mentioned = []
 
-            print(f"DEBUG: text_lower={text_lower!r}")
-
             for profile in all_profiles:
                 member_id = profile.member_id.lower()
                 name = profile.name.lower()
                 # Also check first name only for natural speech ("where is Elizabeth")
                 first_name = name.split()[0] if " " in name else name
-                print(f"DEBUG: Checking profile: member_id={member_id}, name={name}, first_name={first_name}")
 
                 # Skip the speaker (we already have their context)
                 if speaker and member_id == speaker.lower():
-                    print(f"DEBUG: Skipping {name} - same as speaker")
                     continue
 
                 # Check if member is mentioned by ID, full name, or first name
@@ -642,20 +637,13 @@ class AgentOrchestrator:
                 name_match = name in text_lower
                 first_name_match = f" {first_name}" in f" {text_lower}"
 
-                print(
-                    f"DEBUG: Profile {name}: id={id_match}, name={name_match}, "
-                    f"first={first_name_match} (checking ' {first_name}' in ' {text_lower}')"
-                )
-
                 if id_match or name_match or first_name_match:
-                    print(f"DEBUG: MATCHED profile {name}")
                     # Get their profile context including location
                     context = await profile_service.get_profile_context(
                         speaker_id=profile.member_id,
                         conversation_participants=[profile.member_id],
                         privacy_zone=PrivacyZone.COMMON_AREA_OCCUPIED,  # Only public info
                     )
-                    print(f"DEBUG: Got context for {name}: location={context.location if context else None}")
 
                     # Create summary with location data
                     profile_summary = {
@@ -672,11 +660,9 @@ class AgentOrchestrator:
                     # Add location if available
                     if context and context.location:
                         profile_summary["location"] = context.location.model_dump()
-                        logger.info(f"Got location for {name}: {context.location.state}")
 
                     mentioned.append(profile_summary)
 
-            logger.info(f"Found {len(mentioned)} mentioned profiles")
             return mentioned if mentioned else None
 
         except Exception as e:

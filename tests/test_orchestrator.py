@@ -293,6 +293,11 @@ class TestPipelineFlow:
             }
         )
 
+        # Mock HA action execution to avoid network calls
+        orch._execute_ha_action = AsyncMock(
+            return_value={"executed": True, "success": True, "message": "Done"}
+        )
+
         result = await orch.process("turn on the lights")
 
         assert result["agent"] == "action"

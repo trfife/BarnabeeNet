@@ -658,9 +658,7 @@ class ProfileService:
         # Fetch real-time location from Home Assistant
         location = None
         if profile.ha_person_entity:
-            print(f"DEBUG get_profile_context: ha_entity={profile.ha_person_entity}, ha_client={self._ha_client}")
             location = await self.get_person_location(profile.ha_person_entity)
-            print(f"DEBUG get_profile_context: location result={location}")
 
         return ProfileContextResponse(
             member_id=profile.member_id,
@@ -862,5 +860,4 @@ async def get_profile_service(
         if ha_client:
             # Always update HA client if provided
             _profile_service.set_ha_client(ha_client)
-            logger.info(f"ProfileService: HA client updated to {ha_client}")
     return _profile_service

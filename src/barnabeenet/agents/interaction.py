@@ -500,10 +500,14 @@ class InteractionAgent(Agent):
                             parts.append(f"- Arrived there: {minutes} minutes ago")
                         elif minutes < 1440:
                             hours = minutes // 60
-                            parts.append(f"- Arrived there: {hours} hour{'s' if hours > 1 else ''} ago")
+                            parts.append(
+                                f"- Arrived there: {hours} hour{'s' if hours > 1 else ''} ago"
+                            )
                         else:
                             days = minutes // 1440
-                            parts.append(f"- At that location for: {days} day{'s' if days > 1 else ''}")
+                            parts.append(
+                                f"- At that location for: {days} day{'s' if days > 1 else ''}"
+                            )
                     except (ValueError, TypeError):
                         pass
             else:

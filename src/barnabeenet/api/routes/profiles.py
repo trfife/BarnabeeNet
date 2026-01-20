@@ -101,12 +101,12 @@ class ActionResponse(BaseModel):
 
 async def _get_service(with_ha_client: bool = False) -> ProfileService:
     """Get or create the profile service.
-    
+
     Args:
         with_ha_client: If True, also initialize the HA client for location lookups
     """
     from barnabeenet.api.routes.homeassistant import get_ha_client as get_ha
-    
+
     try:
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
         redis_client = redis.from_url(redis_url, decode_responses=True)
@@ -552,9 +552,7 @@ async def sync_profiles_from_ha():
     ha_client = await get_ha_client()
 
     if not ha_client or not ha_client.connected:
-        raise HTTPException(
-            status_code=503, detail="Home Assistant not connected"
-        )
+        raise HTTPException(status_code=503, detail="Home Assistant not connected")
 
     created: list[str] = []
     updated: list[str] = []
@@ -565,14 +563,10 @@ async def sync_profiles_from_ha():
     try:
         entities = await ha_client.get_entities("person")
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get HA entities: {e}"
-        ) from None
+        raise HTTPException(status_code=500, detail=f"Failed to get HA entities: {e}") from None
 
     existing_profiles = await service.get_all_profiles()
-    existing_by_ha_entity = {
-        p.ha_person_entity: p for p in existing_profiles if p.ha_person_entity
-    }
+    existing_by_ha_entity = {p.ha_person_entity: p for p in existing_profiles if p.ha_person_entity}
     existing_by_name = {p.name.lower(): p for p in existing_profiles}
 
     for entity in entities:
