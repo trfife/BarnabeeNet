@@ -418,12 +418,26 @@ class ActionAgent(Agent):
             }
             actual_action = cover_action_map.get(cover_action, ActionType.OPEN)
 
-            # Check if this is a batch command (has area/location)
+            # Check if this is a batch command
+            # The batch pattern with "all" doesn't capture "all" in groups, so check original text
+            text_lower = text.lower()
+            has_all_keyword = (
+                " all " in text_lower
+                or text_lower.startswith("open all")
+                or text_lower.startswith("close all")
+                or text_lower.startswith("stop all")
+            )
+
             if len(groups) >= 3 and groups[2]:
                 # Batch with location: (open/close/stop, device_type, location)
                 entity_name = groups[1] if groups[1] else ""
                 target_area = groups[2].strip() if groups[2] else None
                 is_batch = True
+            elif has_all_keyword:
+                # Batch "all" command without specific location: "open all the blinds"
+                entity_name = groups[1] if len(groups) > 1 else ""
+                is_batch = True
+                target_area = None  # Will use all floors in orchestrator
             else:
                 # Single entity: (open/close/stop, entity_name)
                 entity_name = groups[1] if len(groups) > 1 else ""
