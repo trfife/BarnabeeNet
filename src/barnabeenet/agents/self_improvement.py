@@ -291,6 +291,30 @@ class SelfImprovementAgent:
         self.active_sessions: dict[str, ImprovementSession] = {}
         self._on_progress_callbacks: list[Callable] = []
         self._claude_code_available: bool | None = None
+        self._claude_path: str | None = None
+
+    def _find_claude_path(self) -> str | None:
+        """Find the Claude Code CLI executable.
+
+        Checks standard PATH first, then common npm global locations.
+        """
+        # First check standard PATH
+        claude_path = shutil.which("claude")
+        if claude_path:
+            return claude_path
+
+        # Check common npm global install locations
+        common_paths = [
+            Path.home() / ".npm-global" / "bin" / "claude",
+            Path.home() / ".local" / "bin" / "claude",
+            Path("/usr/local/bin/claude"),
+        ]
+
+        for path in common_paths:
+            if path.exists() and path.is_file():
+                return str(path)
+
+        return None
 
     def _verify_claude_code(self) -> bool:
         """Verify Claude Code CLI is installed and authenticated."""
@@ -298,21 +322,28 @@ class SelfImprovementAgent:
             return self._claude_code_available
 
         # Check if claude command exists
-        claude_path = shutil.which("claude")
+        claude_path = self._find_claude_path()
         if not claude_path:
-            logger.warning("Claude Code CLI not found in PATH")
+            logger.warning("Claude Code CLI not found in PATH or common locations")
             self._claude_code_available = False
             return False
 
+        # Store the path for later use
+        self._claude_path = claude_path
+
         try:
             result = subprocess.run(
-                ["claude", "--version"],
+                [claude_path, "--version"],
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
             if result.returncode == 0:
-                logger.info("Claude Code CLI verified", version=result.stdout.strip())
+                logger.info(
+                    "Claude Code CLI verified",
+                    version=result.stdout.strip(),
+                    path=claude_path,
+                )
                 self._claude_code_available = True
                 return True
             else:
@@ -534,9 +565,14 @@ class SelfImprovementAgent:
             await self._emit_progress(session, "diagnosing", {"message": "Analyzing issue..."})
             yield {"event": "diagnosing", "message": "Analyzing issue..."}
 
+            # Get Claude CLI path
+            claude_path = self._find_claude_path()
+            if not claude_path:
+                raise RuntimeError("Claude Code CLI not found")
+
             # Build Claude Code command
             claude_cmd = [
-                "claude",
+                claude_path,
                 "--print",  # Output JSON events
                 "--model",
                 model,

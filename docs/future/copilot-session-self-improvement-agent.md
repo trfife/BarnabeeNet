@@ -113,80 +113,80 @@ case "${1:-help}" in
         limit="${2:-50}"
         curl -s "$API_BASE/api/v1/activity/feed?limit=$limit" | jq '.activities[] | {timestamp, type, source, title, level}'
         ;;
-    
+
     # Get recent conversation traces
     traces)
         limit="${2:-10}"
         curl -s "$API_BASE/api/v1/activity/traces?limit=$limit" | jq '.traces[] | {trace_id, started_at, input: .input[:80], final_response: .final_response[:80], total_latency_ms}'
         ;;
-    
+
     # Get specific trace with full reasoning chain
     trace)
         trace_id="$2"
         curl -s "$API_BASE/api/v1/activity/traces/$trace_id" | jq '.'
         ;;
-    
+
     # Get recent errors from activity log
     errors)
         limit="${2:-20}"
         curl -s "$API_BASE/api/v1/activity/feed?limit=500&level=error" | jq ".activities[:$limit]"
         ;;
-    
+
     # Get LLM call history (recent signals)
     llm-calls)
         limit="${2:-20}"
         redis-cli -u "$REDIS_URL" XREVRANGE barnabeenet:signals:llm + - COUNT "$limit" | head -100
         ;;
-    
+
     # Get activity stream (raw Redis)
     stream)
         limit="${2:-50}"
         redis-cli -u "$REDIS_URL" XREVRANGE barnabeenet:activity:stream + - COUNT "$limit"
         ;;
-    
+
     # Search activity by type (e.g., "agent.decision", "llm.error")
     search)
         activity_type="$2"
         limit="${3:-50}"
         curl -s "$API_BASE/api/v1/activity/feed?limit=$limit&types=$activity_type" | jq '.activities'
         ;;
-    
+
     # Get HA error log
     ha-errors)
         curl -s "$API_BASE/api/v1/ha/error-log" | jq '.'
         ;;
-    
+
     # Get system journal logs
     journal)
         lines="${2:-100}"
         journalctl -u barnabeenet --no-pager -n "$lines"
         ;;
-    
+
     # Get journal errors only
     journal-errors)
         lines="${2:-50}"
         journalctl -u barnabeenet --no-pager -n 500 -p err | head -n "$lines"
         ;;
-    
+
     # Get pipeline stats
     stats)
         curl -s "$API_BASE/api/v1/dashboard/stats" | jq '.'
         ;;
-    
+
     # Get latency history for component
     latency)
         component="${2:-stt}"
         minutes="${3:-60}"
         curl -s "$API_BASE/api/v1/dashboard/latency/$component?window_minutes=$minutes" | jq '.'
         ;;
-    
+
     # Tail activity stream in real-time (requires wscat or websocat)
     tail)
         echo "Connecting to activity WebSocket..."
         websocat "ws://${API_BASE#http://}/ws/activity" || \
         wscat -c "ws://${API_BASE#http://}/ws/activity"
         ;;
-    
+
     help|*)
         cat <<EOF
 BarnabeeNet Debug Log Helper
@@ -298,12 +298,12 @@ Update the agent to include the debug script path:
 ```python
 class SelfImprovementAgent:
     """Agent that uses Claude Code to improve BarnabeeNet's codebase."""
-    
+
     # ... existing code ...
-    
+
     # Debug resources
     DEBUG_SCRIPT = "scripts/debug-logs.sh"
-    
+
     ALLOWED_DEBUG_COMMANDS = [
         "activity", "traces", "trace", "errors", "llm-calls",
         "stream", "search", "ha-errors", "journal", "journal-errors",
@@ -445,17 +445,17 @@ class TokenUsage:
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
-    
+
     def add(self, other: "TokenUsage") -> None:
         """Add another TokenUsage to this one."""
         self.input_tokens += other.input_tokens
         self.output_tokens += other.output_tokens
         self.cache_read_tokens += other.cache_read_tokens
         self.cache_write_tokens += other.cache_write_tokens
-    
+
     def calculate_api_cost(self, model: str = "claude-sonnet-4-5") -> float:
         """Calculate what this would cost via API.
-        
+
         Pricing (per 1M tokens):
         - Sonnet 4.5: $3 input, $15 output
         - Opus 4.5: $15 input, $75 output
@@ -468,10 +468,10 @@ class TokenUsage:
         else:  # sonnet
             input_rate = 3.0 / 1_000_000
             output_rate = 15.0 / 1_000_000
-        
+
         cache_read_rate = input_rate * 0.1
         cache_write_rate = input_rate * 1.25
-        
+
         cost = (
             self.input_tokens * input_rate +
             self.output_tokens * output_rate +
@@ -503,32 +503,32 @@ class ImprovementSession:
     status: ImprovementStatus = ImprovementStatus.PENDING
     started_at: datetime = field(default_factory=datetime.now)
     completed_at: datetime | None = None
-    
+
     # Progress tracking
     operations: list[ClaudeCodeOperation] = field(default_factory=list)
     messages: list[dict[str, Any]] = field(default_factory=list)
-    
+
     # Cost tracking
     token_usage: TokenUsage = field(default_factory=TokenUsage)
     model_used: str = "claude-sonnet-4-5"
-    
+
     # Git tracking
     files_modified: list[str] = field(default_factory=list)
     git_diff: str | None = None
     commit_hash: str | None = None
     branch_name: str | None = None
-    
+
     # Results
     success: bool = False
     error: str | None = None
     summary: str | None = None
-    
+
     # Interactive session control
     proposed_plan: dict[str, Any] | None = None  # Parsed <PLAN> block
     user_input_queue: asyncio.Queue = field(default_factory=asyncio.Queue)
     stop_requested: bool = False
     current_thinking: str = ""  # Live thinking/reasoning text
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -562,7 +562,7 @@ class ImprovementSession:
 
 class SelfImprovementAgent:
     """Agent that uses Claude Code to improve BarnabeeNet's codebase.
-    
+
     This agent:
     1. Receives improvement requests
     2. Creates a feature branch
@@ -570,13 +570,13 @@ class SelfImprovementAgent:
     4. Streams progress to dashboard
     5. Waits for approval before committing
     6. Tracks costs for comparison
-    
+
     Safety boundaries (from Evolver Agent design):
     - ALLOWED: prompt optimization, routing rules, configuration tuning
     - FORBIDDEN: external API changes, security modifications, privacy zones
     - REQUIRES_APPROVAL: code changes, new automations
     """
-    
+
     # Safety boundaries
     FORBIDDEN_PATHS = [
         "secrets",
@@ -584,7 +584,7 @@ class SelfImprovementAgent:
         "infrastructure/secrets",
         "ha-integration/secrets",
     ]
-    
+
     FORBIDDEN_OPERATIONS = [
         "rm -rf",
         "sudo",
@@ -592,10 +592,10 @@ class SelfImprovementAgent:
         "curl | bash",
         "wget | sh",
     ]
-    
+
     # Man-of-war connection for GPU management
     MANOFWAR_HOST = "thom@man-of-war"
-    
+
     def __init__(
         self,
         project_path: str | Path,
@@ -605,10 +605,10 @@ class SelfImprovementAgent:
         self.message_bus = message_bus
         self.active_sessions: dict[str, ImprovementSession] = {}
         self._on_progress_callbacks: list[Callable] = []
-        
+
         # Verify Claude Code is available
         self._verify_claude_code()
-    
+
     def _verify_claude_code(self) -> None:
         """Verify Claude Code CLI is installed and authenticated."""
         try:
@@ -626,7 +626,7 @@ class SelfImprovementAgent:
                 "Claude Code CLI not installed. "
                 "Run: npm install -g @anthropic-ai/claude-code"
             )
-    
+
     def _is_safe_operation(self, command: str, file_path: str | None = None) -> bool:
         """Check if an operation is within safety boundaries."""
         # Check forbidden operations
@@ -634,28 +634,28 @@ class SelfImprovementAgent:
             if forbidden in command.lower():
                 logger.warning("Blocked forbidden operation", command=command)
                 return False
-        
+
         # Check forbidden paths
         if file_path:
             for forbidden_path in self.FORBIDDEN_PATHS:
                 if forbidden_path in file_path:
                     logger.warning("Blocked forbidden path", path=file_path)
                     return False
-        
+
         return True
-    
+
     async def ssh_to_manofwar(self, command: str, timeout: int = 30) -> tuple[bool, str]:
         """Execute a command on Man-of-war via SSH.
-        
+
         Use this for GPU-related operations like:
         - Restarting Parakeet TDT service
         - Checking GPU memory usage
         - Validating CUDA acceleration
-        
+
         Args:
             command: Command to execute on Man-of-war
             timeout: Timeout in seconds
-            
+
         Returns:
             Tuple of (success, output)
         """
@@ -669,32 +669,32 @@ class SelfImprovementAgent:
                 process.communicate(),
                 timeout=timeout,
             )
-            
+
             success = process.returncode == 0
             output = stdout.decode() if success else stderr.decode()
-            
+
             logger.info(
                 "SSH to Man-of-war",
                 command=command,
                 success=success,
                 output_preview=output[:200],
             )
-            
+
             return success, output
-            
+
         except asyncio.TimeoutError:
             logger.error("SSH to Man-of-war timed out", command=command)
             return False, "Timeout"
         except Exception as e:
             logger.error("SSH to Man-of-war failed", command=command, error=str(e))
             return False, str(e)
-    
+
     async def restart_gpu_service(self, service: str) -> bool:
         """Restart a GPU service on Man-of-war.
-        
+
         Args:
             service: Service name (e.g., "parakeet-tdt", "kokoro-tts")
-            
+
         Returns:
             True if successful
         """
@@ -704,11 +704,11 @@ class SelfImprovementAgent:
         if success:
             logger.info("Restarted GPU service", service=service)
         return success
-    
+
     def on_progress(self, callback: Callable) -> None:
         """Register a callback for progress updates."""
         self._on_progress_callbacks.append(callback)
-    
+
     async def _emit_progress(
         self,
         session: ImprovementSession,
@@ -723,7 +723,7 @@ class SelfImprovementAgent:
             "status": session.status.value,
             **data,
         }
-        
+
         # Call registered callbacks
         for callback in self._on_progress_callbacks:
             try:
@@ -733,14 +733,14 @@ class SelfImprovementAgent:
                     callback(event)
             except Exception as e:
                 logger.error("Progress callback error", error=str(e))
-        
+
         # Publish to Redis for dashboard
         if self.message_bus:
             await self.message_bus.publish(
                 "self_improvement:progress",
                 json.dumps(event),
             )
-    
+
     async def improve(
         self,
         request: str,
@@ -749,18 +749,18 @@ class SelfImprovementAgent:
         max_turns: int = 50,
     ) -> AsyncIterator[dict[str, Any]]:
         """Execute an improvement request.
-        
+
         Args:
             request: Natural language description of what to improve
             model: Model to use ("sonnet" or "opus")
             auto_approve: If True, commit without approval (dangerous!)
             max_turns: Maximum number of Claude Code turns
-        
+
         Yields:
             Progress events as dictionaries
         """
         import uuid
-        
+
         session_id = f"improve-{uuid.uuid4().hex[:8]}"
         session = ImprovementSession(
             session_id=session_id,
@@ -768,24 +768,24 @@ class SelfImprovementAgent:
             model_used=f"claude-{model}-4-5",
         )
         self.active_sessions[session_id] = session
-        
+
         try:
             # Phase 1: Create feature branch
             session.status = ImprovementStatus.ANALYZING
             branch_name = f"improve/{session_id}"
             session.branch_name = branch_name
-            
+
             await self._emit_progress(session, "branch_created", {
                 "branch": branch_name,
             })
             yield {"event": "branch_created", "branch": branch_name}
-            
+
             # Create branch
             await self._run_git_command(["checkout", "-b", branch_name])
-            
+
             # Phase 2: Run Claude Code
             session.status = ImprovementStatus.IMPLEMENTING
-            
+
             # Build the command
             claude_cmd = [
                 "claude", "-p", request,
@@ -794,7 +794,7 @@ class SelfImprovementAgent:
                 "--model", model,
                 "--max-turns", str(max_turns),
             ]
-            
+
             # Add system prompt for safety and debugging access
             system_prompt = """You are improving the BarnabeeNet smart home AI system.
 
@@ -818,7 +818,7 @@ DEBUGGING RESOURCES - Use these to understand issues:
 WORKFLOW (MUST FOLLOW THIS ORDER):
 1. Diagnose - Check logs and code to understand the issue
 2. Propose - Output a PLAN block for user approval:
-   
+
    <PLAN>
    ISSUE: [Brief description of what you found]
    ROOT_CAUSE: [Why this is happening]
@@ -827,21 +827,21 @@ WORKFLOW (MUST FOLLOW THIS ORDER):
    RISKS: [Potential conflicts, breaking changes, or concerns]
    TESTS: [What tests you'll add or run]
    </PLAN>
-   
+
    Then STOP and wait for user approval before proceeding.
-   
+
 3. Implement - Only after approval, make minimal targeted changes
 4. Test - Add or update tests, run: pytest tests/ -v
 5. Verify - If tests fail, fix issues and re-test
 
-IMPORTANT: Always output the <PLAN> block and wait for user input before making 
-any code changes. The user may want to adjust your approach or provide additional 
+IMPORTANT: Always output the <PLAN> block and wait for user input before making
+any code changes. The user may want to adjust your approach or provide additional
 context. You will receive their feedback as a new message.
 
 Always explain what you're doing before each action."""
-            
+
             claude_cmd.extend(["--append-system-prompt", system_prompt])
-            
+
             # Run Claude Code and stream output
             process = await asyncio.create_subprocess_exec(
                 *claude_cmd,
@@ -849,7 +849,7 @@ Always explain what you're doing before each action."""
                 stderr=asyncio.subprocess.PIPE,
                 cwd=self.project_path,
             )
-            
+
             async for line in process.stdout:
                 try:
                     event_data = json.loads(line.decode())
@@ -857,22 +857,22 @@ Always explain what you're doing before each action."""
                     yield {"event": "claude_event", "data": event_data}
                 except json.JSONDecodeError:
                     continue
-            
+
             await process.wait()
-            
+
             # Phase 3: Collect results
             session.status = ImprovementStatus.TESTING
-            
+
             # Get git diff
             diff_result = await self._run_git_command(["diff", "--stat"])
             session.git_diff = diff_result
-            
+
             # Get modified files
             files_result = await self._run_git_command(
                 ["diff", "--name-only"]
             )
             session.files_modified = files_result.strip().split("\n") if files_result.strip() else []
-            
+
             await self._emit_progress(session, "changes_ready", {
                 "files_modified": session.files_modified,
                 "diff_stats": diff_result,
@@ -883,7 +883,7 @@ Always explain what you're doing before each action."""
                 "files": session.files_modified,
                 "estimated_cost": session.token_usage.calculate_api_cost(session.model_used),
             }
-            
+
             # Phase 4: Await approval (unless auto_approve)
             if not auto_approve and session.files_modified:
                 session.status = ImprovementStatus.AWAITING_APPROVAL
@@ -900,20 +900,20 @@ Always explain what you're doing before each action."""
                 session.success = True
                 session.summary = "No changes needed"
                 yield {"event": "completed", "message": "No changes needed"}
-            
+
         except Exception as e:
             session.status = ImprovementStatus.FAILED
             session.error = str(e)
             logger.error("Improvement failed", error=str(e), session_id=session_id)
             await self._emit_progress(session, "error", {"error": str(e)})
             yield {"event": "error", "error": str(e)}
-            
+
             # Return to main branch on failure
             await self._run_git_command(["checkout", "main"])
-        
+
         finally:
             session.completed_at = datetime.now()
-    
+
     async def _process_claude_event(
         self,
         session: ImprovementSession,
@@ -921,7 +921,7 @@ Always explain what you're doing before each action."""
     ) -> None:
         """Process a streaming event from Claude Code."""
         event_type = event.get("type")
-        
+
         if event_type == "assistant":
             # Assistant message with content
             content = event.get("message", {}).get("content", [])
@@ -936,7 +936,7 @@ Always explain what you're doing before each action."""
                     # Record the tool operation
                     tool_name = block.get("name", "unknown")
                     tool_input = block.get("input", {})
-                    
+
                     operation = ClaudeCodeOperation(
                         operation_id=block.get("id", ""),
                         timestamp=datetime.now(),
@@ -946,101 +946,101 @@ Always explain what you're doing before each action."""
                         content_preview=str(tool_input)[:200],
                     )
                     session.operations.append(operation)
-                    
+
                     await self._emit_progress(session, "tool_use", {
                         "tool": tool_name,
                         "input_preview": str(tool_input)[:200],
                     })
-        
+
         elif event_type == "result":
             # Final result with usage stats
             session.success = event.get("subtype") == "success"
-            
+
             # Extract token usage for cost calculation
             usage = event.get("usage", {})
             session.token_usage.input_tokens = usage.get("input_tokens", 0)
             session.token_usage.output_tokens = usage.get("output_tokens", 0)
             session.token_usage.cache_read_tokens = usage.get("cache_read_input_tokens", 0)
             session.token_usage.cache_write_tokens = usage.get("cache_creation_input_tokens", 0)
-            
+
             session.summary = event.get("result", "")
-    
+
     async def approve_session(self, session_id: str) -> dict[str, Any]:
         """Approve and commit changes from a session."""
         session = self.active_sessions.get(session_id)
         if not session:
             raise ValueError(f"Session not found: {session_id}")
-        
+
         if session.status != ImprovementStatus.AWAITING_APPROVAL:
             raise ValueError(f"Session not awaiting approval: {session.status}")
-        
+
         session.status = ImprovementStatus.COMMITTING
-        
+
         try:
             # Stage all changes
             await self._run_git_command(["add", "-A"])
-            
+
             # Create commit
             commit_msg = f"[self-improve] {session.request[:50]}...\n\nSession: {session_id}\nEstimated API cost: ${session.token_usage.calculate_api_cost(session.model_used):.4f}"
             await self._run_git_command(["commit", "-m", commit_msg])
-            
+
             # Get commit hash
             hash_result = await self._run_git_command(["rev-parse", "HEAD"])
             session.commit_hash = hash_result.strip()
-            
+
             session.status = ImprovementStatus.COMPLETED
             session.success = True
-            
+
             await self._emit_progress(session, "committed", {
                 "commit_hash": session.commit_hash,
                 "branch": session.branch_name,
             })
-            
+
             return {
                 "status": "committed",
                 "commit_hash": session.commit_hash,
                 "branch": session.branch_name,
                 "files": session.files_modified,
             }
-            
+
         except Exception as e:
             session.status = ImprovementStatus.FAILED
             session.error = str(e)
             raise
-    
+
     async def reject_session(self, session_id: str) -> dict[str, Any]:
         """Reject changes and return to main branch."""
         session = self.active_sessions.get(session_id)
         if not session:
             raise ValueError(f"Session not found: {session_id}")
-        
+
         # Discard changes and return to main
         await self._run_git_command(["checkout", "main"])
         await self._run_git_command(["branch", "-D", session.branch_name])
-        
+
         session.status = ImprovementStatus.REJECTED
         session.completed_at = datetime.now()
-        
+
         await self._emit_progress(session, "rejected", {
             "message": "Changes rejected and discarded",
         })
-        
+
         return {"status": "rejected", "session_id": session_id}
-    
+
     async def stop_session(self, session_id: str) -> dict[str, Any]:
         """Stop an active session immediately."""
         session = self.active_sessions.get(session_id)
         if not session:
             raise ValueError(f"Session not found: {session_id}")
-        
+
         session.stop_requested = True
         session.status = ImprovementStatus.STOPPED
         session.completed_at = datetime.now()
-        
+
         await self._emit_progress(session, "stopped", {
             "message": "Session stopped by user",
         })
-        
+
         # Return to main branch if we created one
         if session.branch_name:
             try:
@@ -1048,12 +1048,12 @@ Always explain what you're doing before each action."""
                 await self._run_git_command(["branch", "-D", session.branch_name])
             except Exception:
                 pass  # Best effort cleanup
-        
+
         return {"status": "stopped", "session_id": session_id}
-    
+
     async def send_user_input(self, session_id: str, message: str) -> dict[str, Any]:
         """Send user input to an active session.
-        
+
         Used for:
         - Approving a proposed plan: "approved" or "proceed"
         - Rejecting a plan: "reject" or providing alternative direction
@@ -1062,57 +1062,57 @@ Always explain what you're doing before each action."""
         session = self.active_sessions.get(session_id)
         if not session:
             raise ValueError(f"Session not found: {session_id}")
-        
+
         # Add to the session's input queue
         await session.user_input_queue.put(message)
-        
+
         await self._emit_progress(session, "user_input", {
             "message": message,
         })
-        
+
         return {"status": "sent", "session_id": session_id, "message": message}
-    
+
     async def approve_plan(self, session_id: str, feedback: str | None = None) -> dict[str, Any]:
         """Approve the proposed plan and continue execution."""
         session = self.active_sessions.get(session_id)
         if not session:
             raise ValueError(f"Session not found: {session_id}")
-        
+
         if session.status != ImprovementStatus.AWAITING_PLAN_APPROVAL:
             raise ValueError(f"Session not awaiting plan approval: {session.status}")
-        
+
         message = "APPROVED. Proceed with the implementation."
         if feedback:
             message += f" Additional guidance: {feedback}"
-        
+
         await session.user_input_queue.put(message)
         session.status = ImprovementStatus.IMPLEMENTING
-        
+
         await self._emit_progress(session, "plan_approved", {
             "feedback": feedback,
         })
-        
+
         return {"status": "approved", "session_id": session_id}
-    
+
     async def reject_plan(self, session_id: str, reason: str) -> dict[str, Any]:
         """Reject the proposed plan with feedback."""
         session = self.active_sessions.get(session_id)
         if not session:
             raise ValueError(f"Session not found: {session_id}")
-        
+
         if session.status != ImprovementStatus.AWAITING_PLAN_APPROVAL:
             raise ValueError(f"Session not awaiting plan approval: {session.status}")
-        
+
         message = f"PLAN REJECTED. {reason} Please revise your approach."
         await session.user_input_queue.put(message)
         session.status = ImprovementStatus.DIAGNOSING  # Back to diagnosis
-        
+
         await self._emit_progress(session, "plan_rejected", {
             "reason": reason,
         })
-        
+
         return {"status": "rejected", "session_id": session_id, "reason": reason}
-    
+
     async def _run_git_command(self, args: list[str]) -> str:
         """Run a git command and return output."""
         process = await asyncio.create_subprocess_exec(
@@ -1122,38 +1122,38 @@ Always explain what you're doing before each action."""
             cwd=self.project_path,
         )
         stdout, stderr = await process.communicate()
-        
+
         if process.returncode != 0:
             raise RuntimeError(f"Git command failed: {stderr.decode()}")
-        
+
         return stdout.decode()
-    
+
     def get_session(self, session_id: str) -> ImprovementSession | None:
         """Get a session by ID."""
         return self.active_sessions.get(session_id)
-    
+
     def get_all_sessions(self) -> list[dict[str, Any]]:
         """Get all sessions as dictionaries."""
         return [s.to_dict() for s in self.active_sessions.values()]
-    
+
     def get_cost_report(self) -> dict[str, Any]:
         """Generate a cost comparison report."""
         total_input = sum(s.token_usage.input_tokens for s in self.active_sessions.values())
         total_output = sum(s.token_usage.output_tokens for s in self.active_sessions.values())
         total_cache_read = sum(s.token_usage.cache_read_tokens for s in self.active_sessions.values())
         total_cache_write = sum(s.token_usage.cache_write_tokens for s in self.active_sessions.values())
-        
+
         total_usage = TokenUsage(
             input_tokens=total_input,
             output_tokens=total_output,
             cache_read_tokens=total_cache_read,
             cache_write_tokens=total_cache_write,
         )
-        
+
         # Calculate costs for different models
         sonnet_cost = total_usage.calculate_api_cost("claude-sonnet-4-5")
         opus_cost = total_usage.calculate_api_cost("claude-opus-4-5")
-        
+
         return {
             "total_sessions": len(self.active_sessions),
             "successful_sessions": sum(1 for s in self.active_sessions.values() if s.success),
@@ -1186,10 +1186,10 @@ async def get_self_improvement_agent() -> SelfImprovementAgent:
     if _agent_instance is None:
         from barnabeenet.core.config import get_settings
         settings = get_settings()
-        
+
         # Get project path (parent of src)
         project_path = Path(__file__).parent.parent.parent.parent
-        
+
         message_bus = await get_message_bus()
         _agent_instance = SelfImprovementAgent(
             project_path=project_path,
@@ -1277,15 +1277,15 @@ class CostReport(BaseModel):
 @router.post("/improve")
 async def start_improvement(req: ImprovementRequest):
     """Start an improvement session.
-    
+
     Returns a session ID. Use /sessions/{session_id} to check status,
     or connect to WebSocket for real-time updates.
     """
     agent = await get_self_improvement_agent()
-    
+
     # Start the improvement in background and return immediately
     import asyncio
-    
+
     async def run_improvement():
         async for event in agent.improve(
             request=req.request,
@@ -1294,12 +1294,12 @@ async def start_improvement(req: ImprovementRequest):
             max_turns=req.max_turns,
         ):
             pass  # Events are broadcast via Redis
-    
+
     asyncio.create_task(run_improvement())
-    
+
     # Wait briefly for session to be created
     await asyncio.sleep(0.5)
-    
+
     # Get the session
     sessions = agent.get_all_sessions()
     if sessions:
@@ -1309,18 +1309,18 @@ async def start_improvement(req: ImprovementRequest):
             "status": "started",
             "message": "Improvement session started. Check status or connect to WebSocket for updates.",
         }
-    
+
     return {"status": "error", "message": "Failed to start session"}
 
 
 @router.post("/improve/stream")
 async def start_improvement_stream(req: ImprovementRequest):
     """Start an improvement session with streaming response.
-    
+
     Returns a stream of JSON events as the improvement progresses.
     """
     agent = await get_self_improvement_agent()
-    
+
     async def event_generator():
         async for event in agent.improve(
             request=req.request,
@@ -1329,7 +1329,7 @@ async def start_improvement_stream(req: ImprovementRequest):
             max_turns=req.max_turns,
         ):
             yield f"data: {json.dumps(event)}\n\n"
-    
+
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
@@ -1348,10 +1348,10 @@ async def get_session(session_id: str):
     """Get details of a specific session."""
     agent = await get_self_improvement_agent()
     session = agent.get_session(session_id)
-    
+
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     return session.to_dict()
 
 
@@ -1359,7 +1359,7 @@ async def get_session(session_id: str):
 async def approve_session(session_id: str):
     """Approve and commit changes from a session."""
     agent = await get_self_improvement_agent()
-    
+
     try:
         result = await agent.approve_session(session_id)
         return result
@@ -1371,7 +1371,7 @@ async def approve_session(session_id: str):
 async def reject_session(session_id: str):
     """Reject changes and discard the session branch."""
     agent = await get_self_improvement_agent()
-    
+
     try:
         result = await agent.reject_session(session_id)
         return result
@@ -1383,7 +1383,7 @@ async def reject_session(session_id: str):
 async def stop_session(session_id: str):
     """Stop an active session immediately."""
     agent = await get_self_improvement_agent()
-    
+
     try:
         result = await agent.stop_session(session_id)
         return result
@@ -1399,12 +1399,12 @@ class UserInputRequest(BaseModel):
 @router.post("/sessions/{session_id}/input")
 async def send_user_input(session_id: str, req: UserInputRequest):
     """Send user input to an active session.
-    
+
     Use this to provide guidance, answer questions, or course-correct
     Claude Code during execution.
     """
     agent = await get_self_improvement_agent()
-    
+
     try:
         result = await agent.send_user_input(session_id, req.message)
         return result
@@ -1421,7 +1421,7 @@ class PlanFeedbackRequest(BaseModel):
 async def approve_plan(session_id: str, req: PlanFeedbackRequest | None = None):
     """Approve the proposed plan and continue execution."""
     agent = await get_self_improvement_agent()
-    
+
     try:
         feedback = req.feedback if req else None
         result = await agent.approve_plan(session_id, feedback)
@@ -1434,10 +1434,10 @@ async def approve_plan(session_id: str, req: PlanFeedbackRequest | None = None):
 async def reject_plan(session_id: str, req: PlanFeedbackRequest):
     """Reject the proposed plan with feedback."""
     agent = await get_self_improvement_agent()
-    
+
     if not req.feedback:
         raise HTTPException(status_code=400, detail="Feedback required when rejecting plan")
-    
+
     try:
         result = await agent.reject_plan(session_id, req.feedback)
         return result
@@ -1448,7 +1448,7 @@ async def reject_plan(session_id: str, req: PlanFeedbackRequest):
 @router.get("/cost-report", response_model=CostReport)
 async def get_cost_report():
     """Get a cost comparison report.
-    
+
     Shows total usage and what it would cost via API vs subscription.
     """
     agent = await get_self_improvement_agent()
@@ -1458,7 +1458,7 @@ async def get_cost_report():
 @router.post("/gpu/restart/{service}")
 async def restart_gpu_service(service: str):
     """Restart a GPU service on Man-of-war.
-    
+
     Available services: parakeet-tdt, kokoro-tts, ecapa-tdnn
     """
     allowed_services = ["parakeet-tdt", "kokoro-tts", "ecapa-tdnn"]
@@ -1467,10 +1467,10 @@ async def restart_gpu_service(service: str):
             status_code=400,
             detail=f"Unknown service. Allowed: {allowed_services}"
         )
-    
+
     agent = await get_self_improvement_agent()
     success = await agent.restart_gpu_service(service)
-    
+
     if success:
         return {"status": "restarted", "service": service}
     raise HTTPException(status_code=500, detail=f"Failed to restart {service}")
@@ -1492,7 +1492,7 @@ from barnabeenet.api.routes import (
 
 def _register_routes(app: FastAPI) -> None:
     # ... existing route registrations ...
-    
+
     # Self-Improvement Agent
     app.include_router(self_improvement.router)
 ```
@@ -1544,7 +1544,7 @@ elif msg_type == "get_cost_report":
 ```javascript
 /**
  * Self-Improvement Panel Component
- * 
+ *
  * Interactive dashboard for Self-Improvement Agent showing:
  * - Live thinking/reasoning stream
  * - Command execution with results
@@ -1560,58 +1560,58 @@ class SelfImprovementPanel {
         this.ws = websocket;
         this.sessions = [];
         this.activeSessionId = null;
-        
+
         this.init();
     }
-    
+
     init() {
         this.render();
         this.subscribeToEvents();
     }
-    
+
     subscribeToEvents() {
         this.ws.send(JSON.stringify({ type: 'get_improvement_sessions' }));
         this.ws.send(JSON.stringify({ type: 'subscribe_self_improvement' }));
-        
+
         this.ws.addEventListener('message', (event) => {
             const data = JSON.parse(event.data);
             this.handleEvent(data);
         });
     }
-    
+
     handleEvent(data) {
         switch (data.type) {
             case 'improvement_sessions':
                 this.sessions = data.sessions;
                 this.renderSessionList();
                 break;
-                
+
             case 'self_improvement:progress':
                 this.handleProgressEvent(data);
                 break;
-                
+
             case 'cost_report':
                 this.renderCostReport(data);
                 break;
         }
     }
-    
+
     handleProgressEvent(event) {
         const sessionId = event.session_id;
-        
+
         // Update session in list
         const existingIdx = this.sessions.findIndex(s => s.session_id === sessionId);
         if (existingIdx >= 0) {
             this.sessions[existingIdx] = { ...this.sessions[existingIdx], ...event };
         }
-        
+
         this.renderSessionList();
-        
+
         // If this is the active session, update the detail view
         if (sessionId === this.activeSessionId) {
             this.updateActiveSessionView(event);
         }
-        
+
         // Handle specific events
         switch (event.event_type) {
             case 'tool_use':
@@ -1625,7 +1625,7 @@ class SelfImprovementPanel {
                 break;
         }
     }
-    
+
     render() {
         this.container.innerHTML = `
             <div class="self-improvement-panel">
@@ -1635,20 +1635,20 @@ class SelfImprovementPanel {
                         + New Request
                     </button>
                 </div>
-                
+
                 <div class="panel-layout">
                     <!-- Left: Session List -->
                     <div class="sessions-sidebar">
                         <h4>Sessions</h4>
                         <div id="session-list"></div>
                     </div>
-                    
+
                     <!-- Center: Active Session View -->
                     <div class="active-session-view">
                         <div id="no-session-selected" class="empty-state">
                             Select a session or start a new improvement request
                         </div>
-                        
+
                         <div id="active-session" class="hidden">
                             <!-- Session Header with Stop Button -->
                             <div class="session-header">
@@ -1660,7 +1660,7 @@ class SelfImprovementPanel {
                                     ⏹ Stop
                                 </button>
                             </div>
-                            
+
                             <!-- Plan Approval Section (shown when awaiting approval) -->
                             <div id="plan-approval" class="plan-approval hidden">
                                 <h4>📋 Proposed Plan</h4>
@@ -1674,33 +1674,33 @@ class SelfImprovementPanel {
                                     </button>
                                 </div>
                                 <div class="plan-feedback">
-                                    <input type="text" id="plan-feedback-input" 
+                                    <input type="text" id="plan-feedback-input"
                                            placeholder="Optional: Add guidance or conditions...">
                                 </div>
                             </div>
-                            
+
                             <!-- Live Thinking/Reasoning Stream -->
                             <div class="thinking-section">
                                 <h4>💭 Thinking</h4>
                                 <div id="thinking-stream" class="thinking-stream"></div>
                             </div>
-                            
+
                             <!-- Command/Operation Log -->
                             <div class="operations-section">
                                 <h4>⚡ Operations</h4>
                                 <div id="operation-log" class="operation-log"></div>
                             </div>
-                            
+
                             <!-- User Input Section -->
                             <div class="user-input-section">
                                 <h4>💬 Send Guidance</h4>
                                 <div class="input-row">
-                                    <input type="text" id="user-input" 
+                                    <input type="text" id="user-input"
                                            placeholder="Course correct, ask questions, or provide context...">
                                     <button id="send-input" class="btn btn-primary">Send</button>
                                 </div>
                             </div>
-                            
+
                             <!-- Final Approval Section (shown when code changes ready) -->
                             <div id="code-approval" class="code-approval hidden">
                                 <h4>📝 Changes Ready for Review</h4>
@@ -1716,7 +1716,7 @@ class SelfImprovementPanel {
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Right: Cost Tracking -->
                     <div class="cost-sidebar">
                         <h4>💰 Cost Tracking</h4>
@@ -1724,12 +1724,12 @@ class SelfImprovementPanel {
                         <button class="btn btn-sm" id="refresh-costs">Refresh</button>
                     </div>
                 </div>
-                
+
                 <!-- New Improvement Modal -->
                 <div id="improvement-modal" class="modal hidden">
                     <div class="modal-content">
                         <h3>Request Improvement</h3>
-                        <textarea id="improvement-request" 
+                        <textarea id="improvement-request"
                                   placeholder="Describe the issue or improvement...&#10;&#10;Examples:&#10;- 'The last voice command didn't work, look into it'&#10;- 'Add better error messages to action agent'&#10;- 'Optimize the STT pipeline latency'"
                                   rows="6"></textarea>
                         <div class="model-select">
@@ -1752,11 +1752,11 @@ class SelfImprovementPanel {
                 </div>
             </div>
         `;
-        
+
         this.attachEventListeners();
         this.requestCostReport();
     }
-    
+
     attachEventListeners() {
         // Modal controls
         document.getElementById('new-improvement').addEventListener('click', () => {
@@ -1768,7 +1768,7 @@ class SelfImprovementPanel {
         document.getElementById('submit-improvement').addEventListener('click', () => {
             this.submitImprovement();
         });
-        
+
         // Session controls
         document.getElementById('stop-session').addEventListener('click', () => {
             this.stopSession();
@@ -1779,7 +1779,7 @@ class SelfImprovementPanel {
         document.getElementById('user-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.sendUserInput();
         });
-        
+
         // Plan approval controls
         document.getElementById('approve-plan').addEventListener('click', () => {
             this.approvePlan();
@@ -1787,7 +1787,7 @@ class SelfImprovementPanel {
         document.getElementById('reject-plan').addEventListener('click', () => {
             this.rejectPlan();
         });
-        
+
         // Code approval controls
         document.getElementById('approve-changes').addEventListener('click', () => {
             this.approveSession();
@@ -1795,70 +1795,70 @@ class SelfImprovementPanel {
         document.getElementById('reject-changes').addEventListener('click', () => {
             this.rejectSession();
         });
-        
+
         // Cost refresh
         document.getElementById('refresh-costs').addEventListener('click', () => {
             this.requestCostReport();
         });
     }
-    
+
     async submitImprovement() {
         const request = document.getElementById('improvement-request').value;
         const model = document.querySelector('input[name="model"]:checked').value;
-        
+
         if (!request.trim()) return;
-        
+
         document.getElementById('improvement-modal').classList.add('hidden');
         document.getElementById('improvement-request').value = '';
-        
+
         try {
             const response = await fetch('/api/v1/self-improve/improve', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ request, model, auto_approve: false }),
             });
-            
+
             const result = await response.json();
             console.log('Improvement started:', result);
-            
+
             // Select the new session
             if (result.session_id) {
                 this.selectSession(result.session_id);
             }
-            
+
             this.ws.send(JSON.stringify({ type: 'get_improvement_sessions' }));
-            
+
         } catch (error) {
             console.error('Failed to start improvement:', error);
         }
     }
-    
+
     selectSession(sessionId) {
         this.activeSessionId = sessionId;
-        
+
         // Show active session view
         document.getElementById('no-session-selected').classList.add('hidden');
         document.getElementById('active-session').classList.remove('hidden');
-        
+
         // Update session list selection
         document.querySelectorAll('.session-item').forEach(el => {
             el.classList.toggle('selected', el.dataset.sessionId === sessionId);
         });
-        
+
         // Load session details
         const session = this.sessions.find(s => s.session_id === sessionId);
         if (session) {
             this.renderActiveSession(session);
         }
     }
-    
+
     renderActiveSession(session) {
-        document.getElementById('session-status-badge').textContent = 
+        document.getElementById('session-status-badge').textContent =
             this.getStatusIcon(session.status) + ' ' + session.status;
-        document.getElementById('session-status-badge').className = 
+        document.getElementById('session-status-badge').className =
             'status-badge status-' + session.status;
         document.getElementById('session-request-text').textContent = session.request;
-        
+
         // Show/hide plan approval section
         const planApproval = document.getElementById('plan-approval');
         if (session.status === 'awaiting_plan_approval' && session.proposed_plan) {
@@ -1867,7 +1867,7 @@ class SelfImprovementPanel {
         } else {
             planApproval.classList.add('hidden');
         }
-        
+
         // Show/hide code approval section
         const codeApproval = document.getElementById('code-approval');
         if (session.status === 'awaiting_approval') {
@@ -1885,13 +1885,13 @@ class SelfImprovementPanel {
         } else {
             codeApproval.classList.add('hidden');
         }
-        
+
         // Update thinking display
         if (session.current_thinking) {
             this.updateThinkingDisplay(session.current_thinking);
         }
     }
-    
+
     renderPlan(plan) {
         const content = document.getElementById('plan-content');
         content.innerHTML = `
@@ -1921,29 +1921,29 @@ class SelfImprovementPanel {
             </div>
         `;
     }
-    
+
     updateThinkingDisplay(text) {
         const stream = document.getElementById('thinking-stream');
         if (!stream) return;
-        
+
         stream.innerHTML = `<pre>${this.escapeHtml(text)}</pre>`;
         stream.scrollTop = stream.scrollHeight;
     }
-    
+
     updateActiveSessionView(event) {
         // Update status badge
         if (event.status) {
-            document.getElementById('session-status-badge').textContent = 
+            document.getElementById('session-status-badge').textContent =
                 this.getStatusIcon(event.status) + ' ' + event.status;
-            document.getElementById('session-status-badge').className = 
+            document.getElementById('session-status-badge').className =
                 'status-badge status-' + event.status;
         }
     }
-    
+
     addOperationToLog(event) {
         const log = document.getElementById('operation-log');
         if (!log) return;
-        
+
         const entry = document.createElement('div');
         entry.className = `operation-entry op-${event.tool?.toLowerCase() || 'unknown'}`;
         entry.innerHTML = `
@@ -1960,23 +1960,23 @@ class SelfImprovementPanel {
                 </div>
             ` : ''}
         `;
-        
+
         log.appendChild(entry);
         log.scrollTop = log.scrollHeight;
-        
+
         // Limit log size
         while (log.children.length > 100) {
             log.removeChild(log.firstChild);
         }
     }
-    
+
     async stopSession() {
         if (!this.activeSessionId) return;
-        
+
         if (!confirm('Stop this session? Any uncommitted changes will be discarded.')) {
             return;
         }
-        
+
         try {
             await fetch(`/api/v1/self-improve/sessions/${this.activeSessionId}/stop`, {
                 method: 'POST',
@@ -1986,23 +1986,23 @@ class SelfImprovementPanel {
             console.error('Failed to stop session:', error);
         }
     }
-    
+
     async sendUserInput() {
         if (!this.activeSessionId) return;
-        
+
         const input = document.getElementById('user-input');
         const message = input.value.trim();
         if (!message) return;
-        
+
         input.value = '';
-        
+
         try {
             await fetch(`/api/v1/self-improve/sessions/${this.activeSessionId}/input`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message }),
             });
-            
+
             // Add to thinking stream as user message
             const stream = document.getElementById('thinking-stream');
             const userMsg = document.createElement('div');
@@ -2010,61 +2010,61 @@ class SelfImprovementPanel {
             userMsg.innerHTML = `<strong>You:</strong> ${this.escapeHtml(message)}`;
             stream.appendChild(userMsg);
             stream.scrollTop = stream.scrollHeight;
-            
+
         } catch (error) {
             console.error('Failed to send input:', error);
         }
     }
-    
+
     async approvePlan() {
         if (!this.activeSessionId) return;
-        
+
         const feedback = document.getElementById('plan-feedback-input').value.trim();
-        
+
         try {
             await fetch(`/api/v1/self-improve/sessions/${this.activeSessionId}/approve-plan`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ feedback: feedback || null }),
             });
-            
+
             document.getElementById('plan-feedback-input').value = '';
             document.getElementById('plan-approval').classList.add('hidden');
             this.ws.send(JSON.stringify({ type: 'get_improvement_sessions' }));
-            
+
         } catch (error) {
             console.error('Failed to approve plan:', error);
         }
     }
-    
+
     async rejectPlan() {
         if (!this.activeSessionId) return;
-        
+
         const feedback = document.getElementById('plan-feedback-input').value.trim();
         if (!feedback) {
             alert('Please provide feedback on why the plan should be revised.');
             document.getElementById('plan-feedback-input').focus();
             return;
         }
-        
+
         try {
             await fetch(`/api/v1/self-improve/sessions/${this.activeSessionId}/reject-plan`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ feedback }),
             });
-            
+
             document.getElementById('plan-feedback-input').value = '';
             this.ws.send(JSON.stringify({ type: 'get_improvement_sessions' }));
-            
+
         } catch (error) {
             console.error('Failed to reject plan:', error);
         }
     }
-    
+
     async approveSession() {
         if (!this.activeSessionId) return;
-        
+
         try {
             await fetch(`/api/v1/self-improve/sessions/${this.activeSessionId}/approve`, {
                 method: 'POST',
@@ -2074,12 +2074,12 @@ class SelfImprovementPanel {
             console.error('Failed to approve session:', error);
         }
     }
-    
+
     async rejectSession() {
         if (!this.activeSessionId) return;
-        
+
         if (!confirm('Reject and discard all changes?')) return;
-        
+
         try {
             await fetch(`/api/v1/self-improve/sessions/${this.activeSessionId}/reject`, {
                 method: 'POST',
@@ -2089,11 +2089,11 @@ class SelfImprovementPanel {
             console.error('Failed to reject session:', error);
         }
     }
-    
+
     renderSessionList() {
         const container = document.getElementById('session-list');
         if (!container) return;
-        
+
         container.innerHTML = this.sessions.map(session => `
             <div class="session-item ${session.status} ${session.session_id === this.activeSessionId ? 'selected' : ''}"
                  data-session-id="${session.session_id}"
@@ -2109,7 +2109,7 @@ class SelfImprovementPanel {
             </div>
         `).join('') || '<div class="empty-state">No sessions</div>';
     }
-    
+
     getStatusIcon(status) {
         const icons = {
             'pending': '⏳',
@@ -2126,15 +2126,15 @@ class SelfImprovementPanel {
         };
         return icons[status] || '❓';
     }
-    
+
     requestCostReport() {
         this.ws.send(JSON.stringify({ type: 'get_cost_report' }));
     }
-    
+
     renderCostReport(report) {
         const container = document.getElementById('cost-tracking');
         if (!container) return;
-        
+
         container.innerHTML = `
             <div class="cost-report">
                 <div class="cost-stat">
@@ -2164,7 +2164,7 @@ class SelfImprovementPanel {
             </div>
         `;
     }
-    
+
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
@@ -2630,7 +2630,7 @@ class TestTokenUsage:
         usage = TokenUsage(input_tokens=1_000_000, output_tokens=100_000)
         # Sonnet: $3/1M input, $15/1M output = $3 + $1.50 = $4.50
         assert usage.calculate_api_cost("claude-sonnet-4-5") == pytest.approx(4.5, rel=0.01)
-    
+
     def test_calculate_api_cost_opus(self):
         usage = TokenUsage(input_tokens=1_000_000, output_tokens=100_000)
         # Opus: $15/1M input, $75/1M output = $15 + $7.50 = $22.50
@@ -2643,19 +2643,19 @@ class TestSelfImprovementAgent:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="1.0.0")
             return SelfImprovementAgent(project_path=tmp_path)
-    
+
     def test_is_safe_operation_blocks_dangerous(self, agent):
         assert not agent._is_safe_operation("rm -rf /", None)
         assert not agent._is_safe_operation("sudo apt install", None)
-    
+
     def test_is_safe_operation_blocks_forbidden_paths(self, agent):
         assert not agent._is_safe_operation("cat", "secrets/api_key.txt")
         assert not agent._is_safe_operation("cat", ".env")
-    
+
     def test_is_safe_operation_allows_safe(self, agent):
         assert agent._is_safe_operation("ls -la", None)
         assert agent._is_safe_operation("pytest tests/", None)
-    
+
     @pytest.mark.asyncio
     async def test_ssh_to_manofwar(self, agent):
         with patch("asyncio.create_subprocess_exec") as mock_exec:
@@ -2663,13 +2663,13 @@ class TestSelfImprovementAgent:
             mock_process.returncode = 0
             mock_process.communicate.return_value = (b"success", b"")
             mock_exec.return_value = mock_process
-            
+
             success, output = await agent.ssh_to_manofwar("echo test")
-            
+
             assert success
             assert output == "success"
             mock_exec.assert_called_once()
-    
+
     @pytest.mark.asyncio
     async def test_stop_session(self, agent):
         # Create a mock session
@@ -2680,15 +2680,15 @@ class TestSelfImprovementAgent:
             branch_name="improve/test-123",
         )
         agent.active_sessions["test-123"] = session
-        
+
         with patch.object(agent, "_run_git_command", new_callable=AsyncMock):
             with patch.object(agent, "_emit_progress", new_callable=AsyncMock):
                 result = await agent.stop_session("test-123")
-        
+
         assert result["status"] == "stopped"
         assert session.status == ImprovementStatus.STOPPED
         assert session.stop_requested is True
-    
+
     @pytest.mark.asyncio
     async def test_send_user_input(self, agent):
         session = ImprovementSession(
@@ -2697,15 +2697,15 @@ class TestSelfImprovementAgent:
             status=ImprovementStatus.AWAITING_PLAN_APPROVAL,
         )
         agent.active_sessions["test-123"] = session
-        
+
         with patch.object(agent, "_emit_progress", new_callable=AsyncMock):
             result = await agent.send_user_input("test-123", "test message")
-        
+
         assert result["status"] == "sent"
         assert not session.user_input_queue.empty()
         msg = await session.user_input_queue.get()
         assert msg == "test message"
-    
+
     @pytest.mark.asyncio
     async def test_approve_plan(self, agent):
         session = ImprovementSession(
@@ -2714,13 +2714,13 @@ class TestSelfImprovementAgent:
             status=ImprovementStatus.AWAITING_PLAN_APPROVAL,
         )
         agent.active_sessions["test-123"] = session
-        
+
         with patch.object(agent, "_emit_progress", new_callable=AsyncMock):
             result = await agent.approve_plan("test-123", "looks good")
-        
+
         assert result["status"] == "approved"
         assert session.status == ImprovementStatus.IMPLEMENTING
-    
+
     @pytest.mark.asyncio
     async def test_reject_plan(self, agent):
         session = ImprovementSession(
@@ -2729,10 +2729,10 @@ class TestSelfImprovementAgent:
             status=ImprovementStatus.AWAITING_PLAN_APPROVAL,
         )
         agent.active_sessions["test-123"] = session
-        
+
         with patch.object(agent, "_emit_progress", new_callable=AsyncMock):
             result = await agent.reject_plan("test-123", "try different approach")
-        
+
         assert result["status"] == "rejected"
         assert session.status == ImprovementStatus.DIAGNOSING
 ```
@@ -2800,14 +2800,14 @@ If Node.js or other dependencies are missing, add to `/etc/nixos/configuration.n
     nodejs_20
     git
     openssh
-    
+
     # Debug script requirements
     jq              # JSON parsing for log queries
     redis           # redis-cli for direct stream access
     websocat        # WebSocket client for real-time log tailing
     curl            # API access
   ];
-  
+
   # Enable nix-ld for npm global packages
   programs.nix-ld.enable = true;
 }
@@ -2816,5 +2816,3 @@ If Node.js or other dependencies are missing, add to `/etc/nixos/configuration.n
 Then rebuild: `sudo nixos-rebuild switch`
 
 ---
-
-**Do NOT commit directly to main. Create feature branch first.**
