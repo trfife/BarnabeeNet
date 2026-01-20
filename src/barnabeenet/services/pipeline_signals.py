@@ -242,27 +242,76 @@ class PipelineLogger:
         """Get an active trace."""
         return self._active_traces.get(trace_id)
 
-    async def log_signal(self, signal: PipelineSignal) -> None:
-        """Log a pipeline signal."""
+    async def log_signal(
+        self,
+        signal: PipelineSignal | None = None,
+        *,
+        trace_id: str | None = None,
+        signal_type: SignalType | None = None,
+        stage: str = "processing",
+        component: str = "pipeline",
+        summary: str = "",
+        latency_ms: float | None = None,
+        success: bool = True,
+        error: str | None = None,
+        extra_data: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Log a pipeline signal.
+        
+        Can be called with a PipelineSignal object OR with keyword arguments.
+        
+        Examples:
+            # With PipelineSignal object
+            await logger.log_signal(signal)
+            
+            # With kwargs
+            await logger.log_signal(
+                trace_id="...",
+                signal_type=SignalType.META_CLASSIFY,
+                summary="Intent: action (95%)",
+                latency_ms=123.45,
+            )
+        """
+        # If signal object provided, use it directly
+        if signal is not None:
+            sig = signal
+        else:
+            # Create signal from kwargs
+            if trace_id is None or signal_type is None:
+                logger.error("log_signal requires trace_id and signal_type")
+                return
+            sig = PipelineSignal(
+                trace_id=trace_id,
+                signal_type=signal_type,
+                stage=stage,
+                component=component,
+                summary=summary,
+                latency_ms=latency_ms,
+                success=success,
+                error=error,
+                output_data=extra_data or {},  # Map extra_data to output_data
+            )
+
         # Add to active trace if exists
-        if signal.trace_id in self._active_traces:
-            self._active_traces[signal.trace_id].signals.append(signal)
+        if sig.trace_id in self._active_traces:
+            self._active_traces[sig.trace_id].signals.append(sig)
 
         # Log to Python logger
-        log_level = logging.INFO if signal.success else logging.WARNING
+        log_level = logging.INFO if sig.success else logging.WARNING
         logger.log(
             log_level,
             "[%s] %s | %s | %s | %.0fms | %s",
-            signal.trace_id[:8],
-            signal.signal_type.value,
-            signal.component,
-            "OK" if signal.success else f"ERR: {signal.error_type}",
-            signal.latency_ms or 0,
-            signal.summary[:80],
+            sig.trace_id[:8],
+            sig.signal_type.value,
+            sig.component,
+            "OK" if sig.success else f"ERR: {sig.error_type}",
+            sig.latency_ms or 0,
+            sig.summary[:80],
         )
 
         if self._redis is None:
-            self._fallback_signals.append(signal)
+            self._fallback_signals.append(sig)
             if len(self._fallback_signals) > 2000:
                 self._fallback_signals.pop(0)
             return
@@ -270,19 +319,19 @@ class PipelineLogger:
         try:
             # Add to stream for real-time updates
             stream_data = {
-                "signal_id": signal.signal_id,
-                "trace_id": signal.trace_id,
-                "signal_type": signal.signal_type.value,
-                "stage": signal.stage,
-                "component": signal.component,
-                "timestamp": signal.timestamp.isoformat(),
-                "success": str(signal.success),
-                "latency_ms": str(signal.latency_ms or 0),
-                "summary": signal.summary[:200],
-                "speaker": signal.speaker or "",
-                "room": signal.room or "",
-                "model": signal.model_used or "",
-                "error": signal.error or "",
+                "signal_id": sig.signal_id,
+                "trace_id": sig.trace_id,
+                "signal_type": sig.signal_type.value,
+                "stage": sig.stage,
+                "component": sig.component,
+                "timestamp": sig.timestamp.isoformat(),
+                "success": str(sig.success),
+                "latency_ms": str(sig.latency_ms or 0),
+                "summary": sig.summary[:200],
+                "speaker": sig.speaker or "",
+                "room": sig.room or "",
+                "model": sig.model_used or "",
+                "error": sig.error or "",
             }
 
             await self._redis.xadd(
@@ -293,7 +342,7 @@ class PipelineLogger:
 
         except Exception as e:
             logger.error("Failed to log signal to Redis: %s", e)
-            self._fallback_signals.append(signal)
+            self._fallback_signals.append(sig)
 
     def _log_signal_sync(self, signal: PipelineSignal) -> None:
         """Synchronous signal logging (for start_trace)."""
