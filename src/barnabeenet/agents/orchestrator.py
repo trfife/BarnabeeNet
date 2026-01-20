@@ -520,6 +520,8 @@ class AgentOrchestrator:
 
         Returns profile context dict with public and optionally private profile blocks
         based on privacy zone (room). Returns None if no profile found.
+
+        Includes real-time location data from Home Assistant if available.
         """
         if not speaker:
             return None
@@ -527,7 +529,8 @@ class AgentOrchestrator:
         try:
             from barnabeenet.services.profiles import PrivacyZone, get_profile_service
 
-            profile_service = await get_profile_service()
+            # Pass HA client for real-time location data
+            profile_service = await get_profile_service(ha_client=self._ha_client)
 
             # Map room to privacy zone
             # Private rooms (bedrooms, offices) get full private context
@@ -561,7 +564,7 @@ class AgentOrchestrator:
         """Look up profiles for any family members mentioned in the text.
 
         This allows Barnabee to answer questions about family members
-        using their profile data.
+        using their profile data, including real-time location.
 
         Args:
             text: The user's input text
@@ -571,9 +574,10 @@ class AgentOrchestrator:
             List of profile summaries for mentioned family members
         """
         try:
-            from barnabeenet.services.profiles import get_profile_service
+            from barnabeenet.services.profiles import PrivacyZone, get_profile_service
 
-            profile_service = await get_profile_service()
+            # Pass HA client for real-time location data
+            profile_service = await get_profile_service(ha_client=self._ha_client)
 
             # Get all profiles
             all_profiles = await profile_service.get_all_profiles()
@@ -594,17 +598,30 @@ class AgentOrchestrator:
 
                 # Check if member is mentioned by ID or name
                 if member_id in text_lower or name in text_lower:
-                    # Create a public-only summary for mentioned people
-                    mentioned.append(
-                        {
-                            "member_id": profile.member_id,
-                            "name": profile.name,
-                            "relationship": profile.relationship_to_primary,
-                            "communication_style": profile.public.communication_style,
-                            "interests": profile.public.interests,
-                            "preferences": profile.public.preferences,
-                        }
+                    # Get their profile context including location
+                    context = await profile_service.get_profile_context(
+                        speaker_id=profile.member_id,
+                        conversation_participants=[profile.member_id],
+                        privacy_zone=PrivacyZone.COMMON_AREA_OCCUPIED,  # Only public info
                     )
+
+                    # Create summary with location data
+                    profile_summary = {
+                        "member_id": profile.member_id,
+                        "name": profile.name,
+                        "relationship": profile.relationship_to_primary.value
+                        if hasattr(profile.relationship_to_primary, "value")
+                        else str(profile.relationship_to_primary),
+                        "communication_style": profile.public.communication_style,
+                        "interests": profile.public.interests,
+                        "preferences": profile.public.preferences,
+                    }
+
+                    # Add location if available
+                    if context and context.location:
+                        profile_summary["location"] = context.location.model_dump()
+
+                    mentioned.append(profile_summary)
 
             return mentioned if mentioned else None
 

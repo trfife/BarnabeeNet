@@ -5,6 +5,7 @@ Provides CRUD operations for family profiles with:
 - Event tracking for profile updates
 - Version history management
 - Profile context injection for agents
+- Home Assistant person entity integration for real-time location
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from barnabeenet.models.profiles import (
     CreateProfileRequest,
     FamilyMemberProfile,
     GuestProfile,
+    PersonLocation,
     PrivacyZone,
     PrivateProfileBlock,
     ProfileContextResponse,
@@ -31,6 +33,8 @@ from barnabeenet.models.profiles import (
 
 if TYPE_CHECKING:
     import redis.asyncio as redis
+
+    from barnabeenet.services.homeassistant.client import HomeAssistantClient
 
 logger = logging.getLogger(__name__)
 
@@ -51,17 +55,31 @@ class ProfileService:
     PROFILE_EVENT_PREFIX = "barnabeenet:profile_event:"
     GUEST_PREFIX = "barnabeenet:guest:"
 
-    def __init__(self, redis_client: redis.Redis | None = None) -> None:
+    def __init__(
+        self,
+        redis_client: redis.Redis | None = None,
+        ha_client: HomeAssistantClient | None = None,
+    ) -> None:
         """Initialize the profile service.
 
         Args:
             redis_client: Redis client for storage. Falls back to in-memory if None.
+            ha_client: Home Assistant client for fetching person location data.
         """
         self._redis = redis_client
+        self._ha_client = ha_client
         self._profiles: dict[str, FamilyMemberProfile] = {}  # In-memory fallback
         self._events: dict[str, list[ProfileEvent]] = {}  # In-memory fallback
         self._history: dict[str, list[dict]] = {}  # In-memory fallback
         self._guests: dict[str, GuestProfile] = {}  # In-memory fallback
+
+    def set_ha_client(self, ha_client: HomeAssistantClient | None) -> None:
+        """Set or update the Home Assistant client.
+
+        Args:
+            ha_client: Home Assistant client for person location data.
+        """
+        self._ha_client = ha_client
 
     async def init(self) -> None:
         """Initialize the service and load existing profiles."""
@@ -517,6 +535,73 @@ class ProfileService:
             self._remove_field(data[path[0]], path[1:])
 
     # =========================================================================
+    # Home Assistant Person Integration
+    # =========================================================================
+
+    async def get_person_location(self, ha_person_entity: str) -> PersonLocation | None:
+        """Get current location for a Home Assistant person entity.
+
+        Args:
+            ha_person_entity: The HA person entity ID (e.g., "person.thom")
+
+        Returns:
+            PersonLocation with current state and coordinates, or None if unavailable.
+        """
+        if not self._ha_client or not ha_person_entity:
+            return None
+
+        try:
+            state = await self._ha_client.get_state(ha_person_entity)
+            if not state:
+                return None
+
+            attrs = state.attributes or {}
+
+            # Parse last_changed timestamp
+            last_changed = None
+            if state.last_changed:
+                try:
+                    # Handle ISO format timestamp
+                    if isinstance(state.last_changed, str):
+                        last_changed = datetime.fromisoformat(
+                            state.last_changed.replace("Z", "+00:00")
+                        )
+                    else:
+                        last_changed = state.last_changed
+                except (ValueError, TypeError):
+                    pass
+
+            return PersonLocation(
+                state=state.state,
+                is_home=state.state.lower() == "home",
+                zone=state.state if state.state.lower() not in ("home", "not_home") else None,
+                latitude=attrs.get("latitude"),
+                longitude=attrs.get("longitude"),
+                gps_accuracy=attrs.get("gps_accuracy"),
+                last_changed=last_changed,
+                source=attrs.get("source"),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to get person location for {ha_person_entity}: {e}")
+            return None
+
+    async def get_all_family_locations(self) -> dict[str, PersonLocation]:
+        """Get current locations for all family members with HA person entities.
+
+        Returns:
+            Dict mapping member_id to their PersonLocation.
+        """
+        locations: dict[str, PersonLocation] = {}
+
+        for member_id, profile in self._profiles.items():
+            if profile.ha_person_entity:
+                location = await self.get_person_location(profile.ha_person_entity)
+                if location:
+                    locations[member_id] = location
+
+        return locations
+
+    # =========================================================================
     # Profile Context (for Agent Injection)
     # =========================================================================
 
@@ -534,7 +619,7 @@ class ProfileService:
             privacy_zone: Current privacy context
 
         Returns:
-            Profile context with appropriate privacy filtering
+            Profile context with appropriate privacy filtering and real-time location
         """
         profile = await self.get_profile(speaker_id)
 
@@ -565,12 +650,19 @@ class ProfileService:
             and speaker_id == participants[0]
         )
 
+        # Fetch real-time location from Home Assistant
+        location = None
+        if profile.ha_person_entity:
+            location = await self.get_person_location(profile.ha_person_entity)
+
         return ProfileContextResponse(
             member_id=profile.member_id,
             name=profile.name,
             context_type="private" if is_private else "public_only",
             public=profile.public.model_dump(),
             private=profile.private.model_dump() if is_private else None,
+            location=location,
+            ha_person_entity=profile.ha_person_entity,
         )
 
     # =========================================================================
@@ -738,17 +830,24 @@ class ProfileService:
 _profile_service: ProfileService | None = None
 
 
-async def get_profile_service(redis_client: redis.Redis | None = None) -> ProfileService:
+async def get_profile_service(
+    redis_client: redis.Redis | None = None,
+    ha_client: HomeAssistantClient | None = None,
+) -> ProfileService:
     """Get the singleton profile service.
 
     Args:
         redis_client: Optional Redis client
+        ha_client: Optional Home Assistant client for person location tracking
 
     Returns:
         The profile service instance
     """
     global _profile_service
     if _profile_service is None:
-        _profile_service = ProfileService(redis_client)
+        _profile_service = ProfileService(redis_client, ha_client)
         await _profile_service.init()
+    elif ha_client and _profile_service._ha_client is None:
+        # Update HA client if it wasn't set before
+        _profile_service.set_ha_client(ha_client)
     return _profile_service

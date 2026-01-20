@@ -121,6 +121,9 @@ class FamilyMemberProfile(BaseModel):
     relationship_to_primary: ProfileRelationship
     enrollment_date: datetime
 
+    # Home Assistant Integration
+    ha_person_entity: str | None = None  # e.g., "person.thom" - links to HA person for location tracking
+
     # Profile content
     public: PublicProfileBlock = Field(default_factory=PublicProfileBlock)
     private: PrivateProfileBlock = Field(default_factory=PrivateProfileBlock)
@@ -397,6 +400,19 @@ class ProfileStatsResponse(BaseModel):
     total_events_unprocessed: int
 
 
+class PersonLocation(BaseModel):
+    """Real-time location info from Home Assistant person entity."""
+
+    state: str  # "home", "not_home", or zone name like "Work"
+    is_home: bool
+    zone: str | None = None  # Zone name if in a known zone
+    latitude: float | None = None
+    longitude: float | None = None
+    gps_accuracy: int | None = None  # meters
+    last_changed: datetime | None = None  # When they arrived/left
+    source: str | None = None  # e.g., "device_tracker.thom_phone"
+
+
 class ProfileContextResponse(BaseModel):
     """Profile context for injection into agent prompts."""
 
@@ -405,6 +421,10 @@ class ProfileContextResponse(BaseModel):
     context_type: str  # "private", "public_only", or "guest"
     public: dict[str, Any]
     private: dict[str, Any] | None = None
+
+    # Real-time data from Home Assistant
+    location: PersonLocation | None = None  # Current location from HA person entity
+    ha_person_entity: str | None = None  # The HA entity ID for reference
 
 
 # =============================================================================

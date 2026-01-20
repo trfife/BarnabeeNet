@@ -365,6 +365,39 @@ class InteractionAgent(Agent):
         if name:
             parts.append(f"- Name: {name}")
 
+        # Add real-time location from Home Assistant
+        location = profile.get("location")
+        if location:
+            loc_state = location.get("state", "unknown")
+            is_home = location.get("is_home", False)
+            if is_home:
+                parts.append("- Current location: Home")
+            elif loc_state.lower() == "not_home":
+                parts.append("- Current location: Away from home")
+            else:
+                # Zone name like "Work", "School", etc.
+                parts.append(f"- Current location: {loc_state}")
+
+            # Add time since location change
+            last_changed = location.get("last_changed")
+            if last_changed:
+                try:
+                    if isinstance(last_changed, str):
+                        changed_dt = datetime.fromisoformat(last_changed.replace("Z", "+00:00"))
+                    else:
+                        changed_dt = last_changed
+                    delta = datetime.now(changed_dt.tzinfo or None) - changed_dt
+                    minutes = int(delta.total_seconds() / 60)
+                    if minutes < 5:
+                        parts.append("- Arrived: just now")
+                    elif minutes < 60:
+                        parts.append(f"- Arrived: {minutes} minutes ago")
+                    elif minutes < 1440:  # 24 hours
+                        hours = minutes // 60
+                        parts.append(f"- Arrived: {hours} hour{'s' if hours > 1 else ''} ago")
+                except (ValueError, TypeError):
+                    pass
+
         # Add context type indicator
         context_type = profile.get("context_type", "public_only")
         if context_type == "guest":
@@ -420,7 +453,7 @@ class InteractionAgent(Agent):
         """Build section with info about mentioned family members.
 
         This allows Barnabee to answer questions about family members
-        using their profile data.
+        using their profile data, including real-time location.
 
         Args:
             profiles: List of profile dicts for mentioned family members
@@ -438,6 +471,43 @@ class InteractionAgent(Agent):
             relationship = profile.get("relationship")
             if relationship:
                 parts.append(f"- Relationship: {relationship}")
+
+            # Real-time location from Home Assistant (critical for "where is X?" queries)
+            location = profile.get("location")
+            if location:
+                loc_state = location.get("state", "unknown")
+                is_home = location.get("is_home", False)
+                if is_home:
+                    parts.append("- Current location: Home")
+                elif loc_state.lower() == "not_home":
+                    parts.append("- Current location: Away from home")
+                else:
+                    parts.append(f"- Current location: {loc_state}")
+
+                # Add time since location change
+                last_changed = location.get("last_changed")
+                if last_changed:
+                    try:
+                        if isinstance(last_changed, str):
+                            changed_dt = datetime.fromisoformat(last_changed.replace("Z", "+00:00"))
+                        else:
+                            changed_dt = last_changed
+                        delta = datetime.now(changed_dt.tzinfo or None) - changed_dt
+                        minutes = int(delta.total_seconds() / 60)
+                        if minutes < 5:
+                            parts.append("- Arrived there: just now")
+                        elif minutes < 60:
+                            parts.append(f"- Arrived there: {minutes} minutes ago")
+                        elif minutes < 1440:
+                            hours = minutes // 60
+                            parts.append(f"- Arrived there: {hours} hour{'s' if hours > 1 else ''} ago")
+                        else:
+                            days = minutes // 1440
+                            parts.append(f"- At that location for: {days} day{'s' if days > 1 else ''}")
+                    except (ValueError, TypeError):
+                        pass
+            else:
+                parts.append("- Current location: Unknown (no tracking data)")
 
             comm_style = profile.get("communication_style")
             if comm_style:
