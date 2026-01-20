@@ -610,16 +610,18 @@ class AgentOrchestrator:
             text_lower = text.lower()
             mentioned = []
 
-            logger.info(f"Mentioned profile lookup: text={text_lower!r}, profiles={len(all_profiles)}")
+            print(f"DEBUG: text_lower={text_lower!r}")
 
             for profile in all_profiles:
                 member_id = profile.member_id.lower()
                 name = profile.name.lower()
                 # Also check first name only for natural speech ("where is Elizabeth")
                 first_name = name.split()[0] if " " in name else name
+                print(f"DEBUG: Checking profile: member_id={member_id}, name={name}, first_name={first_name}")
 
                 # Skip the speaker (we already have their context)
                 if speaker and member_id == speaker.lower():
+                    print(f"DEBUG: Skipping {name} - same as speaker")
                     continue
 
                 # Check if member is mentioned by ID, full name, or first name
