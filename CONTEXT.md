@@ -3,10 +3,10 @@
 > **This file is Copilot's "memory". Update it after each work session.**
 
 ## Last Updated
-2026-01-20 (Logic Browser Phase 7.3-7.4: AI correction assistant with "Mark as Wrong" flow)
+2026-01-19 (ViewAssist Integration: Complete documentation for tablet voice assistants)
 
 ## Current Phase
-**Phases 1–4 done; 5–6 partial; Phase 7.1-7.4 (Logic as Data + AI Correction) complete.** Full pipeline (STT/TTS/agents/HA/memory), dashboard, E2E, VM deploy. Next: ViewAssist, mobile.
+**Phases 1–4 done; 5–6 partial; Phase 7 complete (Logic + AI Correction); ViewAssist docs complete.** Full pipeline (STT/TTS/agents/HA/memory), dashboard, E2E, VM deploy. Next: mobile client, Proactive Agent.
 
 ## Development Workflow
 
@@ -123,13 +123,13 @@ To continue: Read this file → Check next steps → Create/execute session plan
 - [x] **Logic Browser System (Phase 7.1)** - Complete externalization of BarnabeeNet's decision logic: (1) **YAML Config Files**: `config/patterns.yaml` (all pattern definitions by group: emergency, instant, action, memory, query, gesture), `config/routing.yaml` (intent→agent routing, priority rules, confidence thresholds), `config/overrides.yaml` (user/room/time-based behavior modifications, entity aliases). (2) **LogicRegistry** (`core/logic_registry.py`): Loads/manages YAML patterns, hot-reload support, pattern matching, change tracking with reason logging, API for runtime updates. (3) **DecisionRegistry** (`core/decision_registry.py`): Captures every decision point (pattern match, routing, override) with context manager for tracing, rolling buffer storage, trace_id correlation. (4) **Logic API** (`api/routes/logic.py`): REST endpoints for browsing/editing patterns (GET/PUT /patterns/{group}/{name}), routing rules, overrides, entity aliases, pattern testing (POST /patterns/test), change history. (5) **Dashboard Logic Page**: Stats cards (patterns/routing/overrides/aliases), tabbed UI (Patterns/Routing/Overrides/Aliases/Test), collapsible pattern groups, edit modal with regex/confidence/enabled fields, pattern tester for live classification testing. (6) **MetaAgent Integration**: Backward-compatible - tries LogicRegistry first, falls back to hardcoded patterns. 628 tests pass.
 - [x] **Pipeline Trace Visualization (Phase 7.2 partial)** - Enhanced Logic Browser with: (1) **Waterfall Timeline**: Visual timeline showing timing of each pipeline signal with colored bars per component type (meta=purple, action=orange, interaction=blue, llm=indigo, etc.), relative positioning based on timestamps, duration labels. (2) **History Filters**: Agent type filter (instant/action/interaction/memory), success/error status filter, text search with debounce, filter results count display. (3) **Trace Detail Modal**: Shows full pipeline info including waterfall, input/output, classification, HA actions, LLM usage, signals list, raw JSON.
 - [x] **AI Correction Assistant (Phase 7.3-7.4)** - Complete AI-assisted pattern correction system: (1) **"Mark as Wrong" Button**: Added to trace detail modal header, opens correction flow modal. (2) **Correction Modal UI**: Two-step flow - Step 1: select issue type (wrong_entity, wrong_action, wrong_routing, clarification_needed, tone_content) and describe expected result. Step 2: AI analysis results with suggestions. (3) **AICorrectionService** (`services/ai_correction.py`): Analyzes traces using LLM to diagnose root cause, generates fix suggestions (pattern_modify, entity_alias, routing_change, prompt_edit), test/apply methods for suggestions. (4) **Correction API**: POST `/api/v1/logic/corrections/analyze` analyzes trace and returns suggestions, POST `/api/v1/logic/corrections/{analysis_id}/suggestions/{suggestion_id}/test` tests a suggestion against historical data, POST `/api/v1/logic/corrections/{analysis_id}/suggestions/{suggestion_id}/apply` applies fix. (5) **Suggestion Cards**: Styled cards showing suggestion type, title, description, impact level (low/medium/high), confidence score, diff preview (before/after), reasoning. (6) **JavaScript Functions**: `openCorrectionModal()`, `analyzeCorrection()`, `renderCorrectionAnalysis()`, `testSuggestion()`, `applySuggestion()`, `markAsWrongOnly()`. 628 tests pass.
+- [x] **ViewAssist Integration Documentation** - Complete ViewAssist integration guide at `docs/VIEWASSIST_INTEGRATION.md`. Documents full setup: (1) Install BarnabeeNet HA custom component. (2) Create Assist Pipeline with BarnabeeNet as conversation agent. (3) Install ViewAssist Companion App (VACA) on tablet. (4) Configure VACA to use BarnabeeNet Assist Pipeline. Architecture diagram shows flow: Tablet → VACA → HA Assist Pipeline → HA Cloud STT → BarnabeeNet Agent → Response. Direct API endpoints documented for advanced users (`/api/v1/chat`, `/api/v1/input/audio`). Updated `docs/INTEGRATION.md` with complete HA custom component instructions.
 
 ### In Progress
 None
 
 ### Not Started (Deferred)
 
-- **ViewAssist integration** — APIs ready (`/api/v1/chat`, `/api/v1/input/audio`); connect ViewAssist Companion on tablets
 - **Mobile client** — Placeholder at `docs/future/MOBILE_STT_CLIENT.md`
 - **Proactive Agent** — Spec only
 - **Evolver Agent** — Spec only
@@ -174,8 +174,8 @@ None
 
 ## Next Steps (Ordered)
 
-1. ViewAssist Integration — Accept audio/text from ViewAssist Companion App on tablets
-2. Mobile app / remote access
+1. Mobile app / remote access — Android client with BT audio capture, WebSocket streaming
+2. Proactive Agent — Time-based notifications, context-aware suggestions
 
 ## Voice Architecture Decision
 

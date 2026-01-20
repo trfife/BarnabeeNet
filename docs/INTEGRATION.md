@@ -102,22 +102,39 @@ shell_command:
   barnabee: 'curl -s "http://192.168.86.51:8000/api/v1/chat?text={{ text | urlencode }}"'
 ```
 
-### Option 3: Custom Conversation Agent
+### Option 3: Custom Conversation Agent (Recommended)
 
-Coming soon - BarnabeeNet as a native HA conversation agent.
+Install the BarnabeeNet custom component to use BarnabeeNet as a native HA conversation agent.
+This is the best integration method - it automatically detects speaker from HA user and room from device area.
+
+1. Copy `ha-integration/custom_components/barnabeenet/` to your HA `custom_components/` directory
+2. Restart Home Assistant
+3. Add BarnabeeNet integration: **Settings** → **Devices & Services** → **Add Integration** → "BarnabeeNet"
+4. Enter URL: `http://192.168.86.51:8000`
+5. Create an Assist Pipeline using BarnabeeNet as the conversation agent
 
 ---
 
 ## ViewAssist Integration
 
-ViewAssist Companion App can send audio or text to BarnabeeNet:
+**For complete ViewAssist setup, see [VIEWASSIST_INTEGRATION.md](VIEWASSIST_INTEGRATION.md)**
 
-**Text mode:**
+ViewAssist tablets work with BarnabeeNet through Home Assistant's Assist pipeline:
+
+1. Install BarnabeeNet HA custom component (see above)
+2. Create an Assist Pipeline with BarnabeeNet as conversation agent
+3. Install ViewAssist Companion App (VACA) on your tablet
+4. Configure VACA to use the BarnabeeNet Assist Pipeline
+
+**Direct API access** (for advanced use):
+
+Text mode:
 ```
-POST http://192.168.86.51:8000/api/v1/chat?text=...
+POST http://192.168.86.51:8000/api/v1/chat
+{"text": "turn on the lights", "speaker": "thom", "room": "living_room"}
 ```
 
-**Audio mode (with transcription):**
+Audio mode (with transcription):
 ```
 POST http://192.168.86.51:8000/api/v1/input/audio
 Content-Type: multipart/form-data
