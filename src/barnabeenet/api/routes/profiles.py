@@ -99,12 +99,19 @@ class ActionResponse(BaseModel):
 # ============================================================================
 
 
-async def _get_service() -> ProfileService:
-    """Get or create the profile service."""
+async def _get_service(with_ha_client: bool = False) -> ProfileService:
+    """Get or create the profile service.
+    
+    Args:
+        with_ha_client: If True, also initialize the HA client for location lookups
+    """
+    from barnabeenet.api.routes.homeassistant import get_ha_client as get_ha
+    
     try:
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
         redis_client = redis.from_url(redis_url, decode_responses=True)
-        return await get_profile_service(redis_client)
+        ha_client = await get_ha() if with_ha_client else None
+        return await get_profile_service(redis_client, ha_client=ha_client)
     except Exception as e:
         logger.warning(f"Could not connect to Redis: {e}")
         return await get_profile_service(None)
@@ -441,7 +448,7 @@ async def get_profile_context(
     This endpoint returns the appropriate profile context based on
     privacy settings - public only vs full private context.
     """
-    service = await _get_service()
+    service = await _get_service(with_ha_client=True)  # Need HA client for location
 
     # Parse participants
     participant_list = participants.split(",") if participants else None
