@@ -591,13 +591,20 @@ class AgentOrchestrator:
             for profile in all_profiles:
                 member_id = profile.member_id.lower()
                 name = profile.name.lower()
+                # Also check first name only for natural speech ("where is Elizabeth")
+                first_name = name.split()[0] if " " in name else name
 
                 # Skip the speaker (we already have their context)
                 if speaker and member_id == speaker.lower():
                     continue
 
-                # Check if member is mentioned by ID or name
-                if member_id in text_lower or name in text_lower:
+                # Check if member is mentioned by ID, full name, or first name
+                # Use word boundary check for first name to avoid false positives
+                if (
+                    member_id in text_lower
+                    or name in text_lower
+                    or f" {first_name}" in f" {text_lower}"  # Word boundary match
+                ):
                     # Get their profile context including location
                     context = await profile_service.get_profile_context(
                         speaker_id=profile.member_id,
