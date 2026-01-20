@@ -592,12 +592,14 @@ class AgentOrchestrator:
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
             redis_client = aioredis.from_url(redis_url, decode_responses=True)
             print(f"DEBUG: Got redis client from {redis_url}")
+            print(f"DEBUG: self._ha_client = {self._ha_client}")
 
             # Pass both Redis and HA client for real-time location data
             profile_service = await get_profile_service(
                 redis_client=redis_client, ha_client=self._ha_client
             )
             print(f"DEBUG: Got profile_service: {profile_service}")
+            print(f"DEBUG: profile_service._ha_client = {profile_service._ha_client}")
 
             # Get all profiles
             all_profiles = await profile_service.get_all_profiles()
