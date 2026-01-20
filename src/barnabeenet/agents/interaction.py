@@ -284,9 +284,17 @@ class InteractionAgent(Agent):
         # Add current context
         parts.append("\n## Current Situation")
 
-        # Time context
+        # Current date and time (actual values for accurate responses)
+        now = datetime.now()
+        current_time = now.strftime("%I:%M %p").lstrip("0")
+        current_date = now.strftime("%A, %B %d, %Y")
+        timezone = "Central Time (Chicago)"  # TODO: Make configurable
+        parts.append(f"- Current time: {current_time} {timezone}")
+        parts.append(f"- Current date: {current_date}")
+
+        # Time-of-day context for tone
         time_phrase = TIME_GREETINGS.get(conv_ctx.time_of_day, "today")
-        parts.append(f"- Time: It's {time_phrase}")
+        parts.append(f"- Time of day: {time_phrase}")
 
         # Speaker context
         if conv_ctx.speaker:
