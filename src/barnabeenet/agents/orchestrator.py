@@ -630,18 +630,20 @@ class AgentOrchestrator:
                 name_match = name in text_lower
                 first_name_match = f" {first_name}" in f" {text_lower}"
 
-                logger.info(
-                    f"Profile {name}: id={id_match}, name={name_match}, "
-                    f"first={first_name_match} (first_name={first_name!r})"
+                print(
+                    f"DEBUG: Profile {name}: id={id_match}, name={name_match}, "
+                    f"first={first_name_match} (checking ' {first_name}' in ' {text_lower}')"
                 )
 
                 if id_match or name_match or first_name_match:
+                    print(f"DEBUG: MATCHED profile {name}")
                     # Get their profile context including location
                     context = await profile_service.get_profile_context(
                         speaker_id=profile.member_id,
                         conversation_participants=[profile.member_id],
                         privacy_zone=PrivacyZone.COMMON_AREA_OCCUPIED,  # Only public info
                     )
+                    print(f"DEBUG: Got context for {name}: location={context.location if context else None}")
 
                     # Create summary with location data
                     profile_summary = {
