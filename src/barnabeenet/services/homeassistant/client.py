@@ -759,6 +759,7 @@ class HomeAssistantClient:
         self,
         service: str,
         entity_id: str | None = None,
+        target: dict[str, Any] | None = None,
         **service_data: Any,
     ) -> ServiceCallResult:
         """Call a Home Assistant service.
@@ -766,6 +767,9 @@ class HomeAssistantClient:
         Args:
             service: Service name in format "domain.service" (e.g., "light.turn_on")
             entity_id: Target entity ID (optional for some services)
+            target: Target specification with floor_id, area_id, or entity_id arrays
+                    e.g., {"floor_id": ["first_floor", "second_floor"]}
+                    or {"area_id": ["living_room", "kitchen"]}
             **service_data: Additional service data (e.g., brightness=255)
 
         Returns:
@@ -793,7 +797,11 @@ class HomeAssistantClient:
 
             # Build request data
             data: dict[str, Any] = dict(service_data)
-            if entity_id:
+
+            # Support HA's target parameter for floor/area/entity targeting
+            if target:
+                data["target"] = target
+            elif entity_id:
                 data["entity_id"] = entity_id
 
             # Make the API call
@@ -806,10 +814,18 @@ class HomeAssistantClient:
             # HA returns array of affected states
             affected_states = response.json()
 
+            # Build description of what was targeted
+            target_desc = entity_id or "all"
+            if target:
+                if "floor_id" in target:
+                    target_desc = f"floors: {target['floor_id']}"
+                elif "area_id" in target:
+                    target_desc = f"areas: {target['area_id']}"
+
             logger.info(
                 "Service call %s on %s successful, affected %d entities",
                 service,
-                entity_id or "all",
+                target_desc,
                 len(affected_states) if affected_states else 0,
             )
 

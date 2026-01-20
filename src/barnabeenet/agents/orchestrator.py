@@ -952,6 +952,9 @@ class AgentOrchestrator:
     ) -> dict[str, Any]:
         """Execute a batch action on multiple entities.
 
+        Uses HA's native floor/area targeting when possible for efficiency.
+        Falls back to individual entity calls when needed.
+
         Args:
             action_spec: Action specification with target_area and device type
             ctx: Request context for logging
@@ -959,12 +962,13 @@ class AgentOrchestrator:
         Returns:
             Dict with execution results for all entities
         """
-        from barnabeenet.services.homeassistant.smart_resolver import SmartEntityResolver
+        from barnabeenet.services.homeassistant.smart_resolver import (
+            FLOOR_ALIASES,
+            SmartEntityResolver,
+        )
 
         # HA client is guaranteed to be connected at this point
         assert self._ha_client is not None
-
-        resolver = SmartEntityResolver(self._ha_client)
 
         # Get action details
         entity_name = action_spec.get("entity_name", "")  # device type like "lights", "blinds"
@@ -972,6 +976,85 @@ class AgentOrchestrator:
         service = action_spec.get("service")
         service_data = action_spec.get("service_data", {})
         domain = action_spec.get("domain")
+
+        # Try to use HA's native targeting (more efficient)
+        # Check if we can use floor_id or area_id targeting
+        target: dict[str, Any] | None = None
+        target_desc = ""
+
+        if not target_area:
+            # "all the blinds" / "all lights" - target all floors
+            all_floors = list(FLOOR_ALIASES.keys())
+            if all_floors:
+                target = {"floor_id": all_floors}
+                target_desc = "all floors"
+                logger.info("Batch action using floor targeting: %s on %s", service, all_floors)
+        else:
+            # Check if target_area is a floor reference
+            target_area_lower = target_area.lower()
+            resolver = SmartEntityResolver(self._ha_client)
+            floor_id = resolver.resolve_floor(target_area_lower)
+
+            if floor_id:
+                # It's a floor reference like "downstairs"
+                target = {"floor_id": [floor_id]}
+                target_desc = f"floor: {floor_id}"
+                logger.info("Batch action using floor targeting: %s on %s", service, floor_id)
+            else:
+                # Try area targeting
+                area = resolver.resolve_area(target_area)
+                if area:
+                    target = {"area_id": [area.id]}
+                    target_desc = f"area: {area.id}"
+                    logger.info("Batch action using area targeting: %s on %s", service, area.id)
+
+        # If we have a target, use HA's native targeting
+        if target and service:
+            try:
+                result = await self._ha_client.call_service(
+                    service,
+                    target=target,
+                    **service_data,
+                )
+
+                if result.success:
+                    # Get count of affected entities from response
+                    affected = (
+                        result.response_data.get("affected_states", [])
+                        if result.response_data
+                        else []
+                    )
+                    count = len(affected) if affected else 0
+                    message = f"Successfully controlled {entity_name}"
+                    if target_area:
+                        message += f" {target_area}"
+                    elif count:
+                        message += f" ({count} entities)"
+
+                    logger.info(
+                        "Batch action via %s successful, affected %d entities",
+                        target_desc,
+                        count,
+                    )
+
+                    return {
+                        "executed": True,
+                        "success": True,
+                        "message": message,
+                        "target": target,
+                        "target_desc": target_desc,
+                        "affected_count": count,
+                    }
+                else:
+                    logger.warning("Batch action via %s failed: %s", target_desc, result.message)
+                    # Fall through to entity-by-entity execution
+            except Exception as e:
+                logger.warning("Batch action via %s failed with exception: %s", target_desc, e)
+                # Fall through to entity-by-entity execution
+
+        # Fallback: resolve individual entities and call each one
+        logger.info("Falling back to entity-by-entity execution")
+        resolver = SmartEntityResolver(self._ha_client)
 
         # Build the query for the resolver
         if target_area:
