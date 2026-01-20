@@ -516,3 +516,101 @@ async def check_update_trigger(member_id: str):
         "threshold": 3.0,
         "days_since_update": (datetime.now(UTC) - profile.last_updated.replace(tzinfo=UTC)).days,
     }
+
+
+# ============================================================================
+# Home Assistant Sync
+# ============================================================================
+
+
+class HASyncResult(BaseModel):
+    """Result of syncing profiles from Home Assistant."""
+
+    created: list[str]
+    updated: list[str]
+    unchanged: list[str]
+    errors: list[str]
+
+
+@router.post("/sync-from-ha", response_model=HASyncResult)
+async def sync_profiles_from_ha():
+    """Sync family profiles from Home Assistant person entities.
+
+    Creates new profiles for HA persons that don't exist in BarnabeeNet,
+    and updates existing profiles with ha_person_entity links if missing.
+    """
+    from barnabeenet.api.routes.homeassistant import get_ha_client
+
+    service = await _get_service()
+    ha_client = await get_ha_client()
+
+    if not ha_client or not ha_client.connected:
+        raise HTTPException(
+            status_code=503, detail="Home Assistant not connected"
+        )
+
+    created: list[str] = []
+    updated: list[str] = []
+    unchanged: list[str] = []
+    errors: list[str] = []
+
+    # Get all person entities from HA
+    try:
+        entities = await ha_client.get_entities("person")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get HA entities: {e}"
+        ) from None
+
+    existing_profiles = await service.get_all_profiles()
+    existing_by_ha_entity = {
+        p.ha_person_entity: p for p in existing_profiles if p.ha_person_entity
+    }
+    existing_by_name = {p.name.lower(): p for p in existing_profiles}
+
+    for entity in entities:
+        entity_id = entity.entity_id
+        friendly_name = entity.name or entity_id.replace("person.", "").replace("_", " ").title()
+
+        try:
+            # Check if already linked by ha_person_entity
+            if entity_id in existing_by_ha_entity:
+                unchanged.append(f"{friendly_name} (already linked)")
+                continue
+
+            # Check if exists by name match (update with ha_person_entity)
+            name_key = friendly_name.lower()
+            if name_key in existing_by_name:
+                profile = existing_by_name[name_key]
+                if not profile.ha_person_entity:
+                    # Update with HA entity link
+                    await service.update_profile(
+                        profile.member_id,
+                        ha_person_entity=entity_id,
+                        increment_version=False,
+                    )
+                    updated.append(f"{friendly_name} → {entity_id}")
+                else:
+                    unchanged.append(f"{friendly_name} (already linked)")
+                continue
+
+            # Create new profile
+            member_id = entity_id.replace("person.", "")
+            request = CreateProfileRequest(
+                member_id=member_id,
+                name=friendly_name,
+                ha_person_entity=entity_id,
+            )
+            await service.create_profile(request)
+            created.append(f"{friendly_name} ({entity_id})")
+
+        except Exception as e:
+            errors.append(f"{friendly_name}: {e}")
+            logger.exception(f"Error syncing profile for {entity_id}")
+
+    return HASyncResult(
+        created=created,
+        updated=updated,
+        unchanged=unchanged,
+        errors=errors,
+    )

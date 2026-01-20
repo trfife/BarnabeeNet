@@ -189,6 +189,7 @@ class ProfileService:
         member_id: str,
         public: PublicProfileBlock | None = None,
         private: PrivateProfileBlock | None = None,
+        ha_person_entity: str | None = None,
         increment_version: bool = True,
     ) -> FamilyMemberProfile:
         """Update an existing profile.
@@ -197,6 +198,7 @@ class ProfileService:
             member_id: The member's ID
             public: New public block (optional)
             private: New private block (optional)
+            ha_person_entity: HA person entity ID to link (optional)
             increment_version: Whether to increment version number
 
         Returns:
@@ -218,6 +220,8 @@ class ProfileService:
             profile.public = public
         if private:
             profile.private = private
+        if ha_person_entity is not None:
+            profile.ha_person_entity = ha_person_entity
         if increment_version:
             profile.version += 1
         profile.last_updated = datetime.now(UTC)

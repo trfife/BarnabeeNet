@@ -24,6 +24,7 @@ class ProfileRelationship(str, Enum):
     PARENT = "parent"
     SIBLING = "sibling"
     EXTENDED_FAMILY = "extended_family"
+    FAMILY = "family"  # Generic family member (used for HA sync)
     GUEST = "guest"
 
 
@@ -351,7 +352,10 @@ class CreateProfileRequest(BaseModel):
 
     member_id: str = Field(..., min_length=1, max_length=50, pattern=r"^[a-z0-9_]+$")
     name: str = Field(..., min_length=1, max_length=100)
-    relationship: ProfileRelationship
+    relationship: ProfileRelationship = ProfileRelationship.FAMILY  # Default for HA sync
+
+    # Home Assistant integration
+    ha_person_entity: str | None = None  # e.g., "person.thom_fife"
 
     # Optional initial data
     public: PublicProfileBlock | None = None
@@ -360,6 +364,9 @@ class CreateProfileRequest(BaseModel):
 
 class UpdateProfileRequest(BaseModel):
     """Request to manually update profile fields."""
+
+    # Home Assistant integration
+    ha_person_entity: str | None = None  # e.g., "person.thom_fife"
 
     public: PublicProfileBlock | None = None
     private: PrivateProfileBlock | None = None
