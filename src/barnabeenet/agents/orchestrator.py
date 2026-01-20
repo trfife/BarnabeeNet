@@ -294,7 +294,7 @@ class AgentOrchestrator:
 
         # Start pipeline trace
         if self._pipeline_logger:
-            await self._pipeline_logger.start_trace(
+            self._pipeline_logger.start_trace(
                 trace_id=ctx.trace_id,
                 input_text=text,
                 input_type="voice",

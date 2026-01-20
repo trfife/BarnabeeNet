@@ -125,7 +125,7 @@ class PipelineSignal(BaseModel):
 class RequestTrace(BaseModel):
     """Complete trace of a single request through the pipeline."""
 
-    trace_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    trace_id: str = Field(default_factory=lambda: str(uuid.uuid4()))  # Can be overridden
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = None
 
@@ -198,14 +198,28 @@ class PipelineLogger:
         input_type: str = "text",
         speaker: str | None = None,
         room: str | None = None,
+        trace_id: str | None = None,
     ) -> str:
-        """Start a new request trace. Returns trace_id."""
-        trace = RequestTrace(
-            input_text=input_text,
-            input_type=input_type,
-            speaker=speaker,
-            room=room,
-        )
+        """Start a new request trace. Returns trace_id.
+        
+        Args:
+            input_text: The input text being processed
+            input_type: Type of input (text, voice, etc.)
+            speaker: The speaker/user name
+            room: The room/location
+            trace_id: Optional pre-generated trace_id to use (for correlation with orchestrator)
+        """
+        # Use provided trace_id or let RequestTrace generate one
+        trace_kwargs = {
+            "input_text": input_text,
+            "input_type": input_type,
+            "speaker": speaker,
+            "room": room,
+        }
+        if trace_id:
+            trace_kwargs["trace_id"] = trace_id
+            
+        trace = RequestTrace(**trace_kwargs)
         self._active_traces[trace.trace_id] = trace
 
         # Log start signal
