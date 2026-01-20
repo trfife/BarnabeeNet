@@ -582,14 +582,14 @@ class AgentOrchestrator:
             # Get all profiles
             all_profiles = await profile_service.get_all_profiles()
             if not all_profiles:
-                logger.debug("No profiles found")
+                logger.info("No profiles found for mentioned lookup")
                 return None
 
             # Find mentions in the text (case-insensitive)
             text_lower = text.lower()
             mentioned = []
 
-            logger.debug(f"Looking for mentions in: {text_lower!r}, profiles: {len(all_profiles)}")
+            logger.info(f"Mentioned profile lookup: text={text_lower!r}, profiles={len(all_profiles)}")
 
             for profile in all_profiles:
                 member_id = profile.member_id.lower()
@@ -607,9 +607,9 @@ class AgentOrchestrator:
                 name_match = name in text_lower
                 first_name_match = f" {first_name}" in f" {text_lower}"
 
-                logger.debug(
-                    f"Profile {name}: id_match={id_match}, name_match={name_match}, "
-                    f"first_name_match={first_name_match} (first_name={first_name!r})"
+                logger.info(
+                    f"Profile {name}: id={id_match}, name={name_match}, "
+                    f"first={first_name_match} (first_name={first_name!r})"
                 )
 
                 if id_match or name_match or first_name_match:
@@ -635,11 +635,11 @@ class AgentOrchestrator:
                     # Add location if available
                     if context and context.location:
                         profile_summary["location"] = context.location.model_dump()
-                        logger.debug(f"Got location for {name}: {context.location.state}")
+                        logger.info(f"Got location for {name}: {context.location.state}")
 
                     mentioned.append(profile_summary)
 
-            logger.debug(f"Found {len(mentioned)} mentioned profiles")
+            logger.info(f"Found {len(mentioned)} mentioned profiles")
             return mentioned if mentioned else None
 
         except Exception as e:
