@@ -597,9 +597,16 @@ async def _process_chat(
     conversation_id: str | None = None,
 ) -> dict:
     """Internal helper for chat processing."""
-    from barnabeenet.agents.orchestrator import get_orchestrator
+    from barnabeenet.main import app_state
 
-    orchestrator = get_orchestrator()
+    # Use the properly initialized orchestrator from app_state (has pipeline_logger)
+    # Fall back to get_orchestrator() if not yet initialized
+    orchestrator = app_state.orchestrator
+    if orchestrator is None:
+        from barnabeenet.agents.orchestrator import get_orchestrator
+
+        orchestrator = get_orchestrator()
+
     result = await orchestrator.process(
         text=text,
         speaker=speaker,
