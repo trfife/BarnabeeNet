@@ -124,6 +124,7 @@ class ProfileService:
             name=request.name,
             relationship_to_primary=request.relationship,
             enrollment_date=datetime.now(UTC),
+            ha_person_entity=request.ha_person_entity,
             public=request.public or PublicProfileBlock(),
             private=request.private or PrivateProfileBlock(),
         )
