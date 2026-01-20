@@ -592,11 +592,21 @@ class AgentOrchestrator:
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
             redis_client = aioredis.from_url(redis_url, decode_responses=True)
             print(f"DEBUG: Got redis client from {redis_url}")
-            print(f"DEBUG: self._ha_client = {self._ha_client}")
+
+            # Get HA client for location lookups (may not be available)
+            ha_client = self._ha_client
+            if ha_client is None:
+                # Try to get the global HA client
+                try:
+                    from barnabeenet.api.routes.homeassistant import get_ha_client as get_global_ha_client
+                    ha_client = await get_global_ha_client()
+                    print(f"DEBUG: Got global ha_client: {ha_client}")
+                except Exception as e:
+                    print(f"DEBUG: Could not get global HA client: {e}")
 
             # Pass both Redis and HA client for real-time location data
             profile_service = await get_profile_service(
-                redis_client=redis_client, ha_client=self._ha_client
+                redis_client=redis_client, ha_client=ha_client
             )
             print(f"DEBUG: Got profile_service: {profile_service}")
             print(f"DEBUG: profile_service._ha_client = {profile_service._ha_client}")
