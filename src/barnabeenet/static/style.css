@@ -9433,8 +9433,15 @@ textarea:focus-visible {
 }
 
 @keyframes si-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
 }
 
 #si-status-text {
@@ -9566,7 +9573,8 @@ textarea:focus-visible {
     line-height: 1.5;
 }
 
-.cli-waiting, .cli-empty {
+.cli-waiting,
+.cli-empty {
     color: var(--text-secondary);
     font-style: italic;
 }
@@ -9592,7 +9600,8 @@ textarea:focus-visible {
     font-weight: 500;
 }
 
-.cli-op-cmd, .cli-op-file {
+.cli-op-cmd,
+.cli-op-file {
     color: var(--text-secondary);
     margin-left: 0.5rem;
 }
@@ -9701,6 +9710,13 @@ textarea:focus-visible {
 /* End Self-Improvement Section */
 
 @keyframes highlight-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 157, 0); }
-    50% { box-shadow: 0 0 20px 5px rgba(0, 255, 157, 0.3); }
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(0, 255, 157, 0);
+    }
+
+    50% {
+        box-shadow: 0 0 20px 5px rgba(0, 255, 157, 0.3);
+    }
 }

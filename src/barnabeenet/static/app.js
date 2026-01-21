@@ -8243,7 +8243,7 @@ async function runPatternTest() {
 
 /**
  * Simplified Self-Improvement UI
- * 
+ *
  * Shows:
  * - Status bar at top
  * - Plan approval section (when plan proposed)
@@ -8254,6 +8254,8 @@ async function runPatternTest() {
 const SelfImprovement = {
     activeSessionId: null,
     eventSource: null,
+    pollInterval: null,
+    pollingSessionId: null,
 
     async init() {
         console.log('Initializing Self-Improvement page...');
@@ -8333,20 +8335,25 @@ const SelfImprovement = {
         try {
             const response = await fetch(`${API_BASE}/api/v1/self-improve/sessions`);
             const sessions = await response.json();
-            
+
             // Find most recent active session
-            const activeSession = sessions.find(s => 
+            const activeSession = sessions.find(s =>
                 !['completed', 'failed', 'rejected', 'stopped'].includes(s.status)
             );
-            
+
             if (activeSession) {
                 this.activeSessionId = activeSession.session_id;
                 this.renderSession(activeSession);
-                this.startStreaming(activeSession.session_id);
+                // Start polling for updates
+                this.startPolling(activeSession.session_id);
             } else if (sessions.length > 0) {
                 // Show most recent session
                 this.activeSessionId = sessions[0].session_id;
                 this.renderSession(sessions[0]);
+                // Stop polling for completed sessions
+                this.stopPolling();
+            } else {
+                this.stopPolling();
             }
         } catch (error) {
             console.error('Failed to load sessions:', error);
@@ -8361,7 +8368,7 @@ const SelfImprovement = {
         const statusText = document.getElementById('si-status-text');
         const requestText = document.getElementById('si-request-text');
         const stopBtn = document.getElementById('si-stop-btn');
-        
+
         const statusLabels = {
             'pending': '⏳ Pending',
             'diagnosing': '🔍 Diagnosing',
@@ -8375,10 +8382,10 @@ const SelfImprovement = {
             'rejected': '🚫 Rejected',
             'stopped': '⏹️ Stopped',
         };
-        
+
         statusText.textContent = statusLabels[session.status] || session.status;
         requestText.textContent = session.request || '';
-        
+
         // Show/hide stop button
         const isActive = !['completed', 'failed', 'rejected', 'stopped'].includes(session.status);
         stopBtn?.classList.toggle('hidden', !isActive);
@@ -8396,11 +8403,11 @@ const SelfImprovement = {
         const cliSection = document.getElementById('si-cli-section');
         const cliOutput = document.getElementById('si-cli-output');
         const cliStatus = document.getElementById('si-cli-status');
-        
+
         if (isActive) {
             cliSection?.classList.remove('hidden');
             cliStatus.textContent = '(live)';
-            
+
             // Only render full output if there's existing content (not when streaming is active)
             if (session.current_thinking || session.messages?.length > 0 || session.operations?.length > 0) {
                 this.renderCliOutput(session);
@@ -8522,8 +8529,17 @@ const SelfImprovement = {
     },
 
     startPolling(sessionId) {
-        console.log('Starting polling fallback for session:', sessionId);
+        // Don't start if already polling for this session
+        if (this.pollInterval && this.pollingSessionId === sessionId) {
+            return;
+        }
         
+        // Stop any existing polling
+        this.stopPolling();
+        
+        this.pollingSessionId = sessionId;
+        console.log('Starting polling for session:', sessionId);
+
         // Poll every 2 seconds
         this.pollInterval = setInterval(async () => {
             try {
@@ -8531,17 +8547,24 @@ const SelfImprovement = {
                 if (response.ok) {
                     const session = await response.json();
                     this.renderSession(session);
-                    
+
                     // Stop polling if session is complete
                     if (['completed', 'failed', 'rejected', 'stopped'].includes(session.status)) {
-                        clearInterval(this.pollInterval);
-                        this.pollInterval = null;
+                        this.stopPolling();
                     }
                 }
             } catch (e) {
                 console.error('Poll failed:', e);
             }
         }, 2000);
+    },
+
+    stopPolling() {
+        if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+            this.pollingSessionId = null;
+        }
     },
 
     handleStreamEvent(event) {
@@ -8596,16 +8619,16 @@ const SelfImprovement = {
         const output = document.getElementById('si-cli-output');
         const cliSection = document.getElementById('si-cli-section');
         if (!output) return;
-        
+
         cliSection?.classList.remove('hidden');
-        
+
         // Remove "waiting" message if present
         const waiting = output.querySelector('.cli-waiting, .cli-empty');
         if (waiting) waiting.remove();
-        
+
         output.insertAdjacentHTML('beforeend', html);
         output.scrollTop = output.scrollHeight;
-        
+
         // Limit size
         while (output.children.length > 500) {
             output.removeChild(output.firstChild);
@@ -8640,7 +8663,7 @@ const SelfImprovement = {
                 this.activeSessionId = result.session_id;
                 this.startStreaming(result.session_id);
             }
-            
+
             await this.loadActiveSession();
 
         } catch (error) {
@@ -8686,7 +8709,7 @@ const SelfImprovement = {
     async rejectPlan() {
         if (!this.activeSessionId) return;
         const feedback = document.getElementById('si-plan-feedback')?.value?.trim();
-        
+
         if (!feedback) {
             showToast({ title: 'Required', message: 'Please provide feedback', type: 'warning' });
             document.getElementById('si-plan-feedback')?.focus();
