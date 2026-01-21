@@ -19,13 +19,29 @@ let isOnline = navigator.onLine;
 
 /**
  * Show a toast notification
- * @param {Object} options - Toast options
- * @param {string} options.title - Toast title
- * @param {string} options.message - Toast message
- * @param {string} options.type - 'success' | 'error' | 'warning' | 'info'
- * @param {number} options.duration - Auto-dismiss duration in ms (0 = manual)
+ * @param {Object|string} optionsOrMessage - Toast options object OR message string (legacy)
+ * @param {string} optionsOrMessage.title - Toast title
+ * @param {string} optionsOrMessage.message - Toast message
+ * @param {string} optionsOrMessage.type - 'success' | 'error' | 'warning' | 'info'
+ * @param {number} optionsOrMessage.duration - Auto-dismiss duration in ms (0 = manual)
+ * @param {string} legacyType - Legacy: type if first arg is string
  */
-function showToast({ title, message, type = 'info', duration = 5000 }) {
+function showToast(optionsOrMessage, legacyType = 'success') {
+    // Handle both old style: showToast('message', 'type')
+    // and new style: showToast({ title, message, type, duration })
+    let title, message, type, duration;
+    
+    if (typeof optionsOrMessage === 'string') {
+        // Legacy style: showToast('message', 'type')
+        message = optionsOrMessage;
+        type = legacyType;
+        title = type === 'error' ? 'Error' : type === 'warning' ? 'Warning' : 'Notice';
+        duration = 5000;
+    } else {
+        // New style: showToast({ title, message, type, duration })
+        ({ title, message, type = 'info', duration = 5000 } = optionsOrMessage);
+    }
+    
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
@@ -3689,14 +3705,9 @@ async function showAreaEntities(areaId, areaName) {
     }
 }
 
-// Toast notification helper
-function showToast(message, type = 'success') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-}
+// Toast notification helper - REMOVED: Using the proper showToast at the top of the file
+// This was conflicting with the object-style showToast function
+// function showToast(message, type = 'success') { ... }
 
 async function refreshHAData() {
     const btn = document.getElementById('refresh-entities');
