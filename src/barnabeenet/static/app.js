@@ -8447,6 +8447,111 @@ const SelfImprovement = {
         } else {
             codeApproval?.classList.add('hidden');
         }
+
+        // Session summary (shown for terminal states)
+        const summarySection = document.getElementById('si-session-summary');
+        const summaryContent = document.getElementById('si-summary-content');
+        if (summarySection && summaryContent) {
+            const isTerminal = ['completed', 'failed', 'rejected', 'stopped'].includes(session.status);
+            if (isTerminal) {
+                summarySection.classList.remove('hidden');
+                summaryContent.innerHTML = this.renderSessionSummary(session);
+            } else {
+                summarySection.classList.add('hidden');
+            }
+        }
+
+        // Update thinking display with existing content
+        if (session.current_thinking) {
+            this.updateThinkingDisplay(session.current_thinking);
+        }
+    },
+
+    renderSessionSummary(session) {
+        const tokens = session.token_usage || {};
+        const totalTokens = (tokens.input_tokens || 0) + (tokens.output_tokens || 0);
+        const apiCost = session.estimated_api_cost_usd || 0;
+
+        let statusClass = 'success';
+        let statusIcon = '✅';
+        if (session.status === 'failed') {
+            statusClass = 'error';
+            statusIcon = '❌';
+        } else if (session.status === 'rejected') {
+            statusClass = 'warning';
+            statusIcon = '🚫';
+        } else if (session.status === 'stopped') {
+            statusClass = 'info';
+            statusIcon = '⏹️';
+        }
+
+        return `
+            <div class="summary-status ${statusClass}">
+                <span class="icon">${statusIcon}</span>
+                <span>${session.status.replace('_', ' ').toUpperCase()}</span>
+            </div>
+
+            ${session.error ? `
+                <div class="summary-error">
+                    <strong>Error:</strong> ${this.escapeHtml(session.error)}
+                </div>
+            ` : ''}
+
+            ${session.summary ? `
+                <div class="summary-message">
+                    ${this.escapeHtml(session.summary)}
+                </div>
+            ` : ''}
+
+            <div class="summary-stats">
+                <div class="stat">
+                    <span class="stat-value">${session.operations_count || 0}</span>
+                    <span class="stat-label">Operations</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">${session.files_modified?.length || 0}</span>
+                    <span class="stat-label">Files Changed</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">${totalTokens.toLocaleString()}</span>
+                    <span class="stat-label">Tokens</span>
+                </div>
+            </div>
+
+            <div class="summary-cost">
+                <div class="cost-comparison">
+                    <div class="cost-item">
+                        <span class="cost-label">If using API:</span>
+                        <span class="cost-value api-cost">$${apiCost.toFixed(4)}</span>
+                    </div>
+                    <div class="cost-item actual">
+                        <span class="cost-label">Actual (Max):</span>
+                        <span class="cost-value max-cost">$0.00</span>
+                    </div>
+                    <div class="cost-item savings">
+                        <span class="cost-label">Savings:</span>
+                        <span class="cost-value">$${apiCost.toFixed(4)}</span>
+                    </div>
+                </div>
+            </div>
+
+            ${session.commit_hash ? `
+                <div class="summary-commit">
+                    <strong>Committed:</strong>
+                    <code>${session.commit_hash.substring(0, 8)}</code>
+                    ${session.branch_name ? `on branch <code>${this.escapeHtml(session.branch_name)}</code>` : ''}
+                </div>
+            ` : ''}
+
+            ${session.files_modified?.length > 0 ? `
+                <div class="summary-files">
+                    <strong>Files modified:</strong>
+                    <ul>
+                        ${session.files_modified.map(f => `<li>${this.escapeHtml(f)}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+        `;
     },
 
     renderPlan(plan) {
@@ -8509,6 +8614,35 @@ const SelfImprovement = {
         console.log('Stream event:', event);
 
         switch (event.event_type) {
+            case 'init':
+                // Initial session state on connection
+                if (event.session) {
+                    const idx = this.sessions.findIndex(s => s.session_id === event.session.session_id);
+                    if (idx >= 0) {
+                        this.sessions[idx] = event.session;
+                    } else {
+                        this.sessions.push(event.session);
+                    }
+                    this.renderSessionList();
+                    this.renderActiveSession(event.session);
+                    // Show existing thinking/operations
+                    if (event.session.current_thinking) {
+                        this.updateThinkingDisplay(event.session.current_thinking);
+                    }
+                    if (event.session.operations) {
+                        event.session.operations.forEach(op => this.addOperationToLog({
+                            tool: op.operation_type,
+                            timestamp: op.timestamp,
+                            input_preview: op.command || op.file_path || '',
+                            output_preview: op.content_preview || '',
+                        }));
+                    }
+                }
+                break;
+            case 'started':
+            case 'diagnosing':
+                this.loadSessions();
+                break;
             case 'thinking':
                 this.updateThinkingDisplay(event.text);
                 break;
@@ -8516,20 +8650,54 @@ const SelfImprovement = {
                 this.addOperationToLog(event);
                 break;
             case 'status_change':
-                this.loadSessions(); // Refresh session list
-                if (this.activeSessionId) {
-                    const session = this.sessions.find(s => s.session_id === this.activeSessionId);
-                    if (session) this.renderActiveSession(session);
-                }
+                this.loadSessions().then(() => {
+                    if (this.activeSessionId) {
+                        const session = this.sessions.find(s => s.session_id === this.activeSessionId);
+                        if (session) this.renderActiveSession(session);
+                    }
+                });
                 break;
             case 'plan_proposed':
-                this.loadSessions();
+                this.loadSessions().then(() => {
+                    if (this.activeSessionId) {
+                        const session = this.sessions.find(s => s.session_id === this.activeSessionId);
+                        if (session) {
+                            this.renderActiveSession(session);
+                            // Flash the plan section
+                            const planSection = document.getElementById('si-plan-approval');
+                            planSection?.classList.add('highlight');
+                            setTimeout(() => planSection?.classList.remove('highlight'), 2000);
+                        }
+                    }
+                });
+                showToast({ title: 'Plan Ready', message: 'Claude has proposed a plan for review', type: 'info' });
+                break;
+            case 'awaiting_approval':
+                this.loadSessions().then(() => {
+                    if (this.activeSessionId) {
+                        const session = this.sessions.find(s => s.session_id === this.activeSessionId);
+                        if (session) this.renderActiveSession(session);
+                    }
+                });
+                showToast({ title: 'Changes Ready', message: 'Code changes ready for review', type: 'info' });
                 break;
             case 'completed':
+                this.loadSessions();
+                this.eventSource?.close();
+                showToast({ title: 'Completed', message: 'Improvement session completed successfully', type: 'success' });
+                break;
             case 'failed':
+                this.loadSessions();
+                this.eventSource?.close();
+                showToast({ title: 'Failed', message: event.error || 'Session failed', type: 'error' });
+                break;
             case 'stopped':
                 this.loadSessions();
                 this.eventSource?.close();
+                showToast({ title: 'Stopped', message: 'Session stopped by user', type: 'info' });
+                break;
+            case 'error':
+                showToast({ title: 'Error', message: event.error || 'Unknown error', type: 'error' });
                 break;
         }
     },

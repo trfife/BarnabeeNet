@@ -263,6 +263,90 @@ async def reject_plan(session_id: str, req: PlanFeedbackRequest) -> dict[str, An
         raise HTTPException(status_code=400, detail=str(e)) from None
 
 
+@router.get("/sessions/{session_id}/stream")
+async def stream_session(session_id: str) -> StreamingResponse:
+    """Stream session events via Server-Sent Events (SSE).
+
+    Connect to this endpoint to receive real-time updates for a session.
+    Events include: thinking, tool_use, status_change, plan_proposed, completed, failed.
+    """
+    import asyncio
+    import os
+
+    import redis.asyncio as aioredis
+
+    async def event_generator():
+        """Generate SSE events from Redis stream."""
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis_client = aioredis.from_url(redis_url, decode_responses=True)
+
+        # Get the current session state first
+        agent = await get_self_improvement_agent()
+        session = agent.get_session(session_id)
+        if session:
+            # Send current state as initial event
+            yield f"data: {json.dumps({'event_type': 'init', 'session': session.to_dict()})}\n\n"
+
+        # Track last ID for stream reads
+        last_id = "$"  # Start from now
+
+        try:
+            while True:
+                # Read from Redis stream
+                try:
+                    messages = await redis_client.xread(
+                        {"barnabeenet:self_improvement:events": last_id},
+                        count=10,
+                        block=5000,  # 5 second timeout
+                    )
+
+                    if messages:
+                        for _stream_name, stream_messages in messages:
+                            for msg_id, msg_data in stream_messages:
+                                last_id = msg_id
+                                try:
+                                    event_data = json.loads(msg_data.get("data", "{}"))
+                                    # Only send events for this session
+                                    if event_data.get("session_id") == session_id:
+                                        yield f"data: {json.dumps(event_data)}\n\n"
+
+                                        # Check for terminal states
+                                        if event_data.get("event_type") in [
+                                            "completed",
+                                            "failed",
+                                            "stopped",
+                                        ]:
+                                            return
+                                except json.JSONDecodeError:
+                                    continue
+
+                    # Check if session still exists and is active
+                    session = agent.get_session(session_id)
+                    if not session:
+                        yield f"data: {json.dumps({'event_type': 'session_not_found'})}\n\n"
+                        return
+
+                    # Send heartbeat to keep connection alive
+                    yield ": heartbeat\n\n"
+
+                except Exception as e:
+                    logger.warning(f"Redis stream read error: {e}")
+                    await asyncio.sleep(1)
+
+        finally:
+            await redis_client.close()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
+    )
+
+
 @router.get("/cost-report", response_model=CostReport)
 async def get_cost_report() -> dict[str, Any]:
     """Get a cost comparison report.
