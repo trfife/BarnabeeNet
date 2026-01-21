@@ -658,14 +658,26 @@ class ProfileService:
         # Fetch real-time location from Home Assistant
         location = None
         person_entity_details = None
-        if profile.ha_person_entity:
-            location = await self.get_person_location(profile.ha_person_entity)
+        
+        # Try to find person entity - first from profile, then by name
+        person_entity_id = profile.ha_person_entity
+        if not person_entity_id and self._ha_client:
+            # Fallback: try to find person entity by name
+            # Person entities in HA are typically "person.{name_lowercase}"
+            person_entity_id = f"person.{speaker_id.lower()}"
+            # Verify it exists
+            person_state = await self._ha_client.get_state(person_entity_id)
+            if not person_state:
+                person_entity_id = None
+        
+        if person_entity_id:
+            location = await self.get_person_location(person_entity_id)
             
             # Get person entity details including linked devices and entities
             if self._ha_client:
                 try:
                     person_entity_details = await self._ha_client.get_person_entity_details(
-                        profile.ha_person_entity
+                        person_entity_id
                     )
                 except Exception as e:
                     logger.debug(f"Could not get person entity details: {e}")
