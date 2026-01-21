@@ -579,6 +579,7 @@ class SelfImprovementAgent:
                 model,
                 "--output-format",
                 "stream-json",
+                "--verbose",  # Required for stream-json output format
                 "--dangerously-skip-permissions",  # We're in a controlled environment
             ]
 
