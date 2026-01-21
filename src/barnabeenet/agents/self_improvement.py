@@ -440,6 +440,40 @@ class SelfImprovementAgent:
             logger.info("Restarted GPU service", service=service)
         return success
 
+    async def _read_lines_safe(self, stream: asyncio.StreamReader) -> AsyncIterator[bytes]:
+        """Read lines from stream, handling very long lines gracefully.
+
+        The default asyncio readline() has a 64KB limit. When Claude CLI outputs
+        large JSON events (e.g., file contents), this can fail. This method
+        reads in chunks and yields complete lines.
+        """
+        buffer = b""
+        while True:
+            try:
+                # Try normal readline first (faster for short lines)
+                line = await stream.readline()
+                if not line:
+                    # EOF - yield any remaining buffer
+                    if buffer:
+                        yield buffer
+                    break
+                yield line
+            except ValueError as e:
+                if "Separator is not found" in str(e) or "limit" in str(e):
+                    # Line too long - read in chunks until we find newline
+                    chunk = await stream.read(1024 * 1024)  # 1MB chunks
+                    if not chunk:
+                        if buffer:
+                            yield buffer
+                        break
+                    buffer += chunk
+                    # Check for complete lines in buffer
+                    while b"\n" in buffer:
+                        line, buffer = buffer.split(b"\n", 1)
+                        yield line + b"\n"
+                else:
+                    raise
+
     def on_progress(self, callback: Callable) -> None:
         """Register a callback for progress updates."""
         self._on_progress_callbacks.append(callback)
@@ -592,17 +626,22 @@ class SelfImprovementAgent:
             logger.info("Running Claude CLI", command=" ".join(claude_cmd[:6]) + "...")
 
             # Run Claude Code and stream output
+            # Use larger buffer limit (10MB) to handle large JSON lines from Claude CLI
+            # when it reads/outputs large file contents
             process = await asyncio.create_subprocess_exec(
                 *claude_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=self.project_path,
+                limit=10 * 1024 * 1024,  # 10MB line buffer
             )
             session._process = process
 
             # Process output stream
             plan_detected = False
-            async for line in process.stdout:
+            if process.stdout is None:
+                raise RuntimeError("Failed to capture Claude CLI stdout")
+            async for line in self._read_lines_safe(process.stdout):
                 if session.stop_requested:
                     process.terminate()
                     break
