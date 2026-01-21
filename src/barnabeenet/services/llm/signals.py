@@ -70,6 +70,7 @@ class LLMSignal(BaseModel):
     output_tokens: int | None = None
     total_tokens: int | None = None
     cost_usd: float | None = None
+    cached: bool = False  # Whether this response was served from cache
 
     # Status
     success: bool = False

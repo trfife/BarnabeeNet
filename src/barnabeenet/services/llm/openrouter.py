@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 from pydantic import BaseModel
 
+from barnabeenet.services.llm.cache import get_llm_cache
 from barnabeenet.services.llm.signals import LLMSignal, get_signal_logger
 
 if TYPE_CHECKING:
@@ -159,6 +160,7 @@ class OpenRouterClient:
         self.site_name = site_name
         self._client: httpx.AsyncClient | None = None
         self._signal_logger = get_signal_logger()
+        self._cache = get_llm_cache()
 
     async def init(self) -> None:
         """Initialize the HTTP client."""
@@ -324,6 +326,55 @@ class OpenRouterClient:
 
         start_time = time.perf_counter()
 
+        # Check cache first
+        cache_key_text = user_input or (msg_dicts[-1].get("content", "") if msg_dicts else "")
+        cached_response = None
+        if self._cache and cache_key_text:
+            cached_entry = await self._cache.get(
+                query_text=cache_key_text,
+                agent_type=activity or agent_type,
+                model=actual_model,
+                temperature=actual_temp,
+            )
+            if cached_entry:
+                # Return cached response
+                latency_ms = (time.perf_counter() - start_time) * 1000
+                cached_response = ChatResponse(
+                    text=cached_entry.response_text,
+                    model=cached_entry.model,
+                    input_tokens=cached_entry.input_tokens,
+                    output_tokens=cached_entry.output_tokens,
+                    total_tokens=cached_entry.input_tokens + cached_entry.output_tokens,
+                    finish_reason="cache_hit",
+                    cost_usd=0.0,  # Cached responses cost nothing
+                    latency_ms=latency_ms,
+                )
+
+                # Update signal with cached response
+                signal.completed_at = datetime.now(UTC)
+                signal.response_text = cached_entry.response_text
+                signal.response_tokens = cached_entry.output_tokens
+                signal.finish_reason = "cache_hit"
+                signal.input_tokens = cached_entry.input_tokens
+                signal.output_tokens = cached_entry.output_tokens
+                signal.total_tokens = cached_entry.input_tokens + cached_entry.output_tokens
+                signal.cost_usd = 0.0
+                signal.latency_ms = latency_ms
+                signal.success = True
+                signal.cached = True
+
+                # Log signal for dashboard
+                await self._signal_logger.log_signal(signal)
+
+                logger.debug(
+                    "LLM cache hit",
+                    agent_type=activity or agent_type,
+                    model=actual_model,
+                    latency_ms=f"{latency_ms:.2f}",
+                )
+
+                return cached_response
+
         try:
             response = await self._client.post("/chat/completions", json=payload)
             response.raise_for_status()
@@ -355,6 +406,19 @@ class OpenRouterClient:
 
             # Log signal for dashboard
             await self._signal_logger.log_signal(signal)
+
+            # Cache the response
+            if self._cache and cache_key_text:
+                await self._cache.set(
+                    query_text=cache_key_text,
+                    response_text=message["content"],
+                    agent_type=activity or agent_type,
+                    model=actual_model,
+                    temperature=actual_temp,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cost_usd=cost_usd,
+                )
 
             return ChatResponse(
                 text=message["content"],

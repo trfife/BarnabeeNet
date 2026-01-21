@@ -273,6 +273,7 @@ class MemoryStorage:
         time_context: str | None = None,
         day_context: str | None = None,
         memory_id: str | None = None,
+        generate_embedding_async: bool = True,
     ) -> StoredMemory:
         """Store a new memory with embedding.
 
@@ -285,14 +286,12 @@ class MemoryStorage:
             time_context: Time of day (morning, afternoon, evening, night).
             day_context: Day type (weekday, weekend).
             memory_id: Optional specific ID.
+            generate_embedding_async: If True, generate embedding in background task.
 
         Returns:
             Stored memory object.
         """
-        # Generate embedding
-        embedding = await self._embedding_service.embed(content)
-
-        # Create memory object
+        # Create memory object (embedding will be None initially if async)
         memory = StoredMemory(
             id=memory_id or f"mem_{uuid.uuid4().hex[:12]}",
             content=content,
@@ -302,20 +301,70 @@ class MemoryStorage:
             tags=tags or [],
             time_context=time_context,
             day_context=day_context,
-            embedding=embedding,
+            embedding=None,  # Will be set later
         )
 
-        # Store
-        if self._use_redis and self._redis:
-            await self._store_memory_redis(memory, embedding)
-        else:
-            self._store_memory_fallback(memory, embedding)
+        if generate_embedding_async:
+            # Store immediately without embedding
+            if self._use_redis and self._redis:
+                await self._store_memory_redis(memory, None)
+            else:
+                self._store_memory_fallback(memory, None)
 
-        logger.debug(f"Stored memory: {memory.id} ({memory_type})")
+            # Generate embedding in background
+            import asyncio
+
+            asyncio.create_task(self._generate_and_store_embedding(memory.id, content))
+            logger.debug(f"Stored memory (embedding generating in background): {memory.id} ({memory_type})")
+        else:
+            # Generate embedding synchronously (for backward compatibility)
+            embedding = await self._embedding_service.embed(content)
+            memory.embedding = embedding
+
+            # Store with embedding
+            if self._use_redis and self._redis:
+                await self._store_memory_redis(memory, embedding)
+            else:
+                self._store_memory_fallback(memory, embedding)
+
+            logger.debug(f"Stored memory: {memory.id} ({memory_type})")
+
         return memory
 
+    async def _generate_and_store_embedding(self, memory_id: str, content: str) -> None:
+        """Generate embedding in background and update memory record."""
+        try:
+            # Generate embedding
+            embedding = await self._embedding_service.embed(content)
+
+            # Update memory with embedding
+            memory = await self.get_memory(memory_id)
+            if memory:
+                memory.embedding = embedding
+
+                # Update storage
+                if self._use_redis and self._redis:
+                    # Update embedding key
+                    embedding_key = f"{self.config.embedding_prefix}{memory_id}"
+                    await self._redis.set(embedding_key, embedding.tobytes())
+
+                    # Update memory record
+                    memory_key = f"{self.config.memory_prefix}{memory_id}"
+                    await self._redis.set(memory_key, json.dumps(memory.to_dict()))
+                else:
+                    # Update fallback storage
+                    self._memory_fallback[memory_id] = memory
+                    self._embedding_fallback[memory_id] = embedding
+
+                logger.debug(f"Generated and stored embedding for memory: {memory_id}")
+            else:
+                logger.warning(f"Memory not found when updating embedding: {memory_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to generate embedding for memory {memory_id}: {e}")
+
     async def _store_memory_redis(
-        self, memory: StoredMemory, embedding: NDArray[np.float32]
+        self, memory: StoredMemory, embedding: NDArray[np.float32] | None
     ) -> None:
         """Store memory in Redis."""
         memory_key = f"{self.config.memory_prefix}{memory.id}"
@@ -324,8 +373,9 @@ class MemoryStorage:
         # Store memory data as JSON
         await self._redis.set(memory_key, json.dumps(memory.to_dict()))
 
-        # Store embedding as binary (more efficient than JSON)
-        await self._redis.set(embedding_key, embedding.tobytes())
+        # Store embedding as binary if available (more efficient than JSON)
+        if embedding is not None:
+            await self._redis.set(embedding_key, embedding.tobytes())
 
         # Add to memory index (sorted set by importance for retrieval)
         await self._redis.zadd(
@@ -346,10 +396,13 @@ class MemoryStorage:
             memory.id,
         )
 
-    def _store_memory_fallback(self, memory: StoredMemory, embedding: NDArray[np.float32]) -> None:
+    def _store_memory_fallback(
+        self, memory: StoredMemory, embedding: NDArray[np.float32] | None
+    ) -> None:
         """Store memory in fallback storage."""
         self._memory_fallback[memory.id] = memory
-        self._embedding_fallback[memory.id] = embedding
+        if embedding is not None:
+            self._embedding_fallback[memory.id] = embedding
 
     async def get_memory(self, memory_id: str) -> StoredMemory | None:
         """Get a specific memory by ID.
@@ -700,6 +753,157 @@ class MemoryStorage:
     # =========================================================================
     # Batch Operations
     # =========================================================================
+
+    async def batch_get_memories(self, memory_ids: list[str]) -> list[StoredMemory]:
+        """Get multiple memories efficiently using Redis pipeline.
+
+        Args:
+            memory_ids: List of memory IDs to retrieve.
+
+        Returns:
+            List of memories (None entries for not found).
+        """
+        if not memory_ids:
+            return []
+
+        if self._use_redis and self._redis:
+            # Use pipeline for batch retrieval
+            pipe = self._redis.pipeline()
+            for memory_id in memory_ids:
+                memory_key = f"{self.config.memory_prefix}{memory_id}"
+                pipe.get(memory_key)
+            results = await pipe.execute()
+
+            memories = []
+            for i, data in enumerate(results):
+                if data:
+                    # Handle both bytes and str
+                    if isinstance(data, bytes):
+                        data = data.decode("utf-8")
+                    try:
+                        memory = StoredMemory.from_dict(json.loads(data))
+                        # Load embedding
+                        embedding_key = f"{self.config.embedding_prefix}{memory_ids[i]}"
+                        emb_bytes = await self._redis.get(embedding_key)
+                        if emb_bytes:
+                            memory.embedding = np.frombuffer(emb_bytes, dtype=np.float32)
+                        memories.append(memory)
+                    except Exception as e:
+                        logger.debug(f"Failed to parse memory {memory_ids[i]}: {e}")
+                        memories.append(None)
+                else:
+                    memories.append(None)
+
+            return memories
+        else:
+            # Fallback: individual lookups
+            return [self._memory_fallback.get(mid) for mid in memory_ids]
+
+    async def batch_store_memories(
+        self,
+        memories: list[StoredMemory],
+        embeddings: list[NDArray[np.float32] | None] | None = None,
+    ) -> None:
+        """Store multiple memories efficiently using Redis pipeline.
+
+        Args:
+            memories: List of memory objects to store.
+            embeddings: Optional list of embeddings (must match memories length).
+        """
+        if not memories:
+            return
+
+        if embeddings is None:
+            embeddings = [None] * len(memories)
+
+        if self._use_redis and self._redis:
+            # Use pipeline for batch storage
+            pipe = self._redis.pipeline()
+            
+            for memory, embedding in zip(memories, embeddings):
+                memory_key = f"{self.config.memory_prefix}{memory.id}"
+                embedding_key = f"{self.config.embedding_prefix}{memory.id}"
+
+                # Store memory data
+                pipe.set(memory_key, json.dumps(memory.to_dict()))
+
+                # Store embedding if available
+                if embedding is not None:
+                    pipe.set(embedding_key, embedding.tobytes())
+
+                # Add to index
+                pipe.zadd(
+                    f"{self.config.memory_prefix}index",
+                    {memory.id: memory.importance},
+                )
+
+                # Add to type index
+                pipe.sadd(
+                    f"{self.config.memory_prefix}type:{memory.memory_type}",
+                    memory.id,
+                )
+
+                # Add to participant indices
+                for participant in memory.participants:
+                    pipe.sadd(
+                        f"{self.config.memory_prefix}participant:{participant}",
+                        memory.id,
+                    )
+
+            await pipe.execute()
+            logger.debug(f"Batch stored {len(memories)} memories")
+        else:
+            # Fallback: individual storage
+            for memory, embedding in zip(memories, embeddings):
+                self._store_memory_fallback(memory, embedding)
+
+    async def batch_search_memories(
+        self,
+        queries: list[str],
+        memory_type: str | None = None,
+        participants: list[str] | None = None,
+        max_results_per_query: int = 5,
+    ) -> list[list[tuple[StoredMemory, float]]]:
+        """Search multiple queries efficiently.
+
+        Args:
+            queries: List of search queries.
+            memory_type: Optional type filter.
+            participants: Optional participant filter.
+            max_results_per_query: Max results per query.
+
+        Returns:
+            List of result lists (one per query).
+        """
+        # Generate embeddings for all queries in batch
+        if not self._embedding_service:
+            logger.warning("No embedding service available for batch search")
+            return [[] for _ in queries]
+
+        query_embeddings = await self._embedding_service.embed_batch(queries)
+
+        # Search for each query (can be parallelized in future)
+        results = []
+        for query_embedding in query_embeddings:
+            if self._use_redis and self._redis:
+                query_results = await self._search_memories_redis(
+                    query_embedding,
+                    memory_type,
+                    participants,
+                    max_results_per_query,
+                    self.config.min_similarity_score,
+                )
+            else:
+                query_results = self._search_memories_fallback(
+                    query_embedding,
+                    memory_type,
+                    participants,
+                    max_results_per_query,
+                    self.config.min_similarity_score,
+                )
+            results.append(query_results)
+
+        return results
 
     async def update_memory_access(self, memory_id: str) -> None:
         """Update memory access metadata.

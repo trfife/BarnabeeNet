@@ -143,9 +143,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         manager = get_activity_config_manager()
         await manager.load_redis_overrides(app_state.redis_client)
+
+        # Initialize LLM response cache
+        from barnabeenet.services.llm.cache import init_llm_cache
+
+        await init_llm_cache(redis_client=app_state.redis_client, enabled=True)
+        logger.info("LLM response cache initialized")
     except Exception as e:
         logger.error("Redis connection failed", error=str(e))
         # Continue without Redis for now - not critical for Phase 1
+        # Initialize LLM cache without Redis (in-memory fallback)
+        try:
+            from barnabeenet.services.llm.cache import init_llm_cache
+
+            await init_llm_cache(redis_client=None, enabled=True)
+            logger.info("LLM response cache initialized (in-memory fallback)")
+        except Exception as cache_error:
+            logger.warning("LLM cache initialization failed", error=str(cache_error))
 
     # Initialize Pipeline Logger for dashboard
     try:

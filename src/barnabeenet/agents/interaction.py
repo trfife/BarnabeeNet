@@ -46,6 +46,8 @@ class ConversationContext:
     meta_context: dict[str, Any] | None = None  # From MetaAgent
     time_of_day: str = "day"  # morning, afternoon, evening, night
     children_present: bool = False  # For child-appropriate responses
+    loaded_conversations: list[dict[str, Any]] = field(default_factory=list)  # Past conversations loaded
+    recall_candidates: list[Any] = field(default_factory=list)  # Conversation summaries for user selection
 
 
 @dataclass
@@ -133,6 +135,7 @@ class InteractionAgent(Agent):
         self.config = config or InteractionConfig()
         self._conversations: dict[str, ConversationContext] = {}
         self._initialized = False
+        self._context_manager = None
 
     async def init(self) -> None:
         """Initialize the agent."""
@@ -160,6 +163,21 @@ class InteractionAgent(Agent):
                     "No LLM client provided and LLM_OPENROUTER_API_KEY not set. "
                     "Agent will return fallback responses."
                 )
+
+        # Initialize conversation context manager
+        try:
+            from barnabeenet.services.conversation import ConversationContextManager
+            from barnabeenet.services.memory.storage import get_memory_storage
+
+            memory_storage = get_memory_storage()
+            self._context_manager = ConversationContextManager(
+                memory_storage=memory_storage,
+                llm_client=self._llm_client,
+            )
+            logger.info("Conversation context manager initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize context manager: {e}")
+            self._context_manager = None
 
         self._initialized = True
         logger.info("InteractionAgent initialized")
@@ -196,6 +214,27 @@ class InteractionAgent(Agent):
 
         # Build conversation context
         conv_ctx = self._get_or_create_context(ctx)
+
+        # Track conversation start time and source
+        if self._context_manager:
+            self._context_manager.track_conversation_start(
+                conv_ctx.conversation_id or "unknown",
+                conv_ctx.room,
+            )
+
+        # Check for conversation recall requests or selection
+        if self._context_manager:
+            # Check if user is selecting from recall candidates
+            if hasattr(conv_ctx, "recall_candidates") and conv_ctx.recall_candidates:
+                selection_result = await self._handle_recall_selection(text, conv_ctx)
+                if selection_result:
+                    return selection_result
+            
+            # Check if this is a new recall request
+            if self._is_recall_request(text):
+                recall_result = await self._handle_conversation_recall(text, conv_ctx, ctx)
+                if recall_result:
+                    return recall_result
 
         # Add the user's message to history
         conv_ctx.history.append(
@@ -366,6 +405,12 @@ class InteractionAgent(Agent):
                 parts.append(f"\n- User appears: {tone}")
                 if tone in ("stressed", "negative", "urgent"):
                     parts.append("- Respond with extra patience and empathy")
+
+        # Loaded past conversations
+        if hasattr(conv_ctx, "loaded_conversations") and conv_ctx.loaded_conversations:
+            parts.append("\n## Previous Conversations (Loaded for Context)")
+            for loaded_conv in conv_ctx.loaded_conversations:
+                parts.append(f"- {loaded_conv['summary']} (from {loaded_conv['timestamp'][:10]})")
 
         # Retrieved memories
         if conv_ctx.retrieved_memories:
@@ -649,12 +694,33 @@ class InteractionAgent(Agent):
         conv_ctx: ConversationContext,
         system_prompt: str,
     ) -> list[ChatMessage]:
-        """Build the message list for the LLM."""
+        """Build the message list for the LLM with context management."""
         messages = [ChatMessage(role="system", content=system_prompt)]
 
-        # Add conversation history (excluding the just-added user message)
-        for turn in conv_ctx.history[:-1]:
-            messages.append(ChatMessage(role=turn.role, content=turn.content))
+        # Convert history to message format
+        history_messages = []
+        for turn in conv_ctx.history[:-1]:  # Exclude just-added user message
+            history_messages.append({"role": turn.role, "content": turn.content})
+
+        # Manage context (summarize if needed)
+        if self._context_manager:
+            optimized_messages, summary = await self._context_manager.manage_context(
+                conv_ctx,
+                system_prompt,
+                [{"role": "system", "content": system_prompt}] + history_messages + [{"role": "user", "content": current_text}],
+            )
+            # Convert back to ChatMessage objects
+            messages = []
+            for msg in optimized_messages:
+                if msg["role"] == "system" and msg != optimized_messages[0]:
+                    # Additional system message (summary)
+                    messages.append(ChatMessage(role="system", content=msg["content"]))
+                else:
+                    messages.append(ChatMessage(role=msg["role"], content=msg["content"]))
+        else:
+            # No context management - use all history
+            for turn in conv_ctx.history[:-1]:
+                messages.append(ChatMessage(role=turn.role, content=turn.content))
 
         # Add current user message
         messages.append(ChatMessage(role="user", content=current_text))
@@ -828,6 +894,148 @@ class InteractionAgent(Agent):
     def get_active_conversations(self) -> list[str]:
         """Get list of active conversation IDs."""
         return list(self._conversations.keys())
+
+    def _is_recall_request(self, text: str) -> bool:
+        """Check if user is asking to recall a past conversation."""
+        text_lower = text.lower()
+        recall_keywords = [
+            "remember what we were talking about",
+            "remember our conversation",
+            "what were we discussing",
+            "continue our conversation",
+            "yesterday we talked",
+            "earlier we discussed",
+        ]
+        return any(keyword in text_lower for keyword in recall_keywords)
+
+    async def _handle_conversation_recall(
+        self,
+        text: str,
+        conv_ctx: ConversationContext,
+        user_ctx: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Handle conversation recall request.
+
+        Returns response dict if handled, None if not a recall request.
+        """
+        if not self._context_manager:
+            return None
+
+        try:
+            # Search for past conversations
+            summaries = await self._context_manager.recall_conversations(
+                query=text,
+                speaker=conv_ctx.speaker,
+                room=conv_ctx.room,
+                limit=5,
+            )
+
+            if not summaries:
+                # No past conversations found
+                return {
+                    "response": "I don't have any past conversations stored that match that. We can start fresh!",
+                    "agent": self.name,
+                    "conversation_id": conv_ctx.conversation_id,
+                    "speaker": conv_ctx.speaker,
+                    "turn_count": len(conv_ctx.history),
+                    "used_llm": False,
+                    "latency_ms": 0,
+                }
+
+            # Present options to user
+            if len(summaries) == 1:
+                # Single match - load it directly
+                summary = summaries[0]
+                await self._context_manager.load_conversation_into_context(
+                    summary.conversation_id,
+                    conv_ctx,
+                )
+                return {
+                    "response": f"I found our conversation about: {summary.summary}. Let's continue from there!",
+                    "agent": self.name,
+                    "conversation_id": conv_ctx.conversation_id,
+                    "speaker": conv_ctx.speaker,
+                    "turn_count": len(conv_ctx.history),
+                    "used_llm": False,
+                    "latency_ms": 0,
+                }
+            else:
+                # Multiple matches - ask user to choose
+                options_text = "\n".join(
+                    f"{i+1}. {s.summary[:100]}..." for i, s in enumerate(summaries[:3])
+                )
+                response = f"I found {len(summaries)} past conversations. Which one did you mean?\n\n{options_text}\n\nJust say the number or describe which one."
+                
+                # Store summaries in context for follow-up
+                conv_ctx.recall_candidates = summaries
+                
+                return {
+                    "response": response,
+                    "agent": self.name,
+                    "conversation_id": conv_ctx.conversation_id,
+                    "speaker": conv_ctx.speaker,
+                    "turn_count": len(conv_ctx.history),
+                    "used_llm": False,
+                    "latency_ms": 0,
+                }
+
+        except Exception as e:
+            logger.error(f"Conversation recall failed: {e}")
+            return None
+
+    async def _handle_recall_selection(
+        self,
+        text: str,
+        conv_ctx: ConversationContext,
+    ) -> dict[str, Any] | None:
+        """Handle user selection from recall candidates."""
+        if not hasattr(conv_ctx, "recall_candidates") or not conv_ctx.recall_candidates:
+            return None
+
+        # Try to match selection (number or description)
+        text_lower = text.lower().strip()
+        
+        # Check for number selection
+        import re
+        number_match = re.search(r'\b(\d+)\b', text)
+        if number_match:
+            selection_num = int(number_match.group(1))
+            if 1 <= selection_num <= len(conv_ctx.recall_candidates):
+                selected = conv_ctx.recall_candidates[selection_num - 1]
+                await self._context_manager.load_conversation_into_context(
+                    selected.conversation_id,
+                    conv_ctx,
+                )
+                conv_ctx.recall_candidates = []  # Clear candidates
+                return {
+                    "response": f"Got it! I've loaded our conversation about: {selected.summary}. Let's continue!",
+                    "agent": self.name,
+                    "conversation_id": conv_ctx.conversation_id,
+                    "speaker": conv_ctx.speaker,
+                    "turn_count": len(conv_ctx.history),
+                    "used_llm": False,
+                    "latency_ms": 0,
+                }
+
+        # Try semantic matching
+        for candidate in conv_ctx.recall_candidates:
+            if any(word in text_lower for word in candidate.summary.lower().split()[:5]):
+                await self._context_manager.load_conversation_into_context(
+                    candidate.conversation_id,
+                    conv_ctx,
+                )
+                conv_ctx.recall_candidates = []
+                return {
+                    "response": f"Perfect! I've loaded our conversation about: {candidate.summary}. Let's continue!",
+                    "agent": self.name,
+                    "conversation_id": conv_ctx.conversation_id,
+                    "speaker": conv_ctx.speaker,
+                    "turn_count": len(conv_ctx.history),
+                    "used_llm": False,
+                    "latency_ms": 0,
+                }
+
+        return None
 
 
 __all__ = [
