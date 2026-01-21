@@ -151,8 +151,8 @@ class SafetyScore:
     can_auto_approve: bool  # True if score >= threshold
     risk_factors: list[str]  # Specific risks identified
 
-    # Default threshold for auto-approval
-    AUTO_APPROVE_THRESHOLD: float = 0.85
+    # Default threshold for auto-approval (not used - agent instance threshold is used)
+    AUTO_APPROVE_THRESHOLD: float = 0.85  # Legacy - kept for compatibility
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
