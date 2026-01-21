@@ -571,22 +571,24 @@ class SelfImprovementAgent:
                 raise RuntimeError("Claude Code CLI not found")
 
             # Build Claude Code command
+            # Using --print mode for non-interactive output with JSON streaming
             claude_cmd = [
                 claude_path,
-                "--print",  # Output JSON events
+                "--print",
                 "--model",
                 model,
-                "--max-turns",
-                str(max_turns),
                 "--output-format",
                 "stream-json",
+                "--dangerously-skip-permissions",  # We're in a controlled environment
             ]
 
             # Add system prompt
             claude_cmd.extend(["--append-system-prompt", SYSTEM_PROMPT])
 
             # Add the request as the prompt
-            claude_cmd.extend(["-p", request])
+            claude_cmd.append(request)
+
+            logger.info("Running Claude CLI", command=" ".join(claude_cmd[:6]) + "...")
 
             # Run Claude Code and stream output
             process = await asyncio.create_subprocess_exec(
