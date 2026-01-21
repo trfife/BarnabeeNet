@@ -373,11 +373,13 @@ IMPORTANT:
 # System prompt for Phase 2: Implementation (after plan approval)
 IMPLEMENTATION_SYSTEM_PROMPT = """You are implementing an approved plan for the BarnabeeNet smart home AI system.
 
-SAFETY RULES (MUST FOLLOW):
-- Do NOT modify files in: secrets/, .env, infrastructure/secrets/
-- Do NOT run: rm -rf, sudo, chmod 777, or pipe curl/wget to shell
-- Do NOT modify authentication, permissions, or security code
-- Do NOT change privacy zone configurations
+SAFETY RULES (MINIMAL - FULL AUTONOMY ENABLED):
+- Do NOT modify actual secret files: .env.local, secrets/private_keys, secrets/api_keys
+- Do NOT run destructive system commands: rm -rf /, rm -rf ~, sudo rm -rf, dd if=, mkfs
+- Do NOT pipe untrusted scripts with sudo: curl | sudo bash, wget | sudo sh
+- You CAN modify: .env (config), all code files, all config files, all documentation
+- You CAN run: git commands, pytest, ruff, standard development tools
+- You CAN modify: authentication code, permissions, security code (user has git rollback)
 
 ═══════════════════════════════════════════════════════════════════════════════
 BARNABEENET ARCHITECTURE REFERENCE
