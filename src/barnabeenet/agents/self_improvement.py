@@ -213,8 +213,8 @@ class ImprovementSession:
             "started_at": self.started_at.isoformat(),
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "operations_count": len(self.operations),
-            "operations": [op.to_dict() for op in self.operations[-20:]],  # Last 20
-            "messages": self.messages[-50:],  # Last 50
+            "operations": [op.to_dict() for op in self.operations],  # ALL operations (no limit)
+            "messages": self.messages,  # ALL messages (no limit)
             "token_usage": self.token_usage.to_dict(),
             "model_used": self.model_used,
             "files_modified": self.files_modified,
@@ -226,7 +226,7 @@ class ImprovementSession:
             "summary": self.summary,
             "proposed_plan": self.proposed_plan,
             "stop_requested": self.stop_requested,
-            "current_thinking": self.current_thinking[-2000:] if self.current_thinking else "",
+            "current_thinking": self.current_thinking if self.current_thinking else "",  # Full thinking (no limit)
             "estimated_api_cost_usd": self.token_usage.calculate_api_cost(self.model_used),
             "safety_score": self.safety_score.to_dict() if self.safety_score else None,
         }
@@ -317,13 +317,22 @@ DEBUGGING RESOURCES - Use these to understand issues:
 8. Search by type: ./scripts/debug-logs.sh search <type>
    Types: user.input, meta.classify, agent.decision, llm.error, etc.
 
-WORKFLOW:
+WORKFLOW (FOLLOW STEP-BY-STEP):
 1. Read relevant code files to understand the issue
+   - THINK: What does this code do? What's the expected behavior?
+   - DOCUMENT: Your understanding in your reasoning
    - Start with the agent prompt file if behavior-related
    - Check agent code if logic-related
    - Review orchestrator if initialization-related
 2. Analyze the problem and identify root cause
-3. Output a <PLAN> block with your proposed fix
+   - THINK: Why is this failing? What changed recently?
+   - DOCUMENT: Root cause hypothesis
+   - Check error logs: ./scripts/debug-logs.sh errors
+   - Review recent changes: git log --oneline -10
+3. Propose solution
+   - THINK: What's the minimal change needed?
+   - DOCUMENT: Alternative approaches considered
+   - Output a <PLAN> block with your proposed fix
 
 FORMAT YOUR PLAN EXACTLY LIKE THIS:
 
@@ -336,12 +345,29 @@ RISKS: [Potential conflicts, breaking changes, or concerns]
 TESTS: [What tests you'll add or run]
 </PLAN>
 
+TECHNICAL CONSTRAINTS:
+- Python 3.12+ only (no older versions)
+- Async-first design required (use async def and await for I/O)
+- Pydantic v2 models (use BaseModel with ConfigDict, not class-based config)
+- No blocking operations in async functions
+- Maximum file size: 10MB
+- Test timeout: 30 seconds per test
+
+ERROR HANDLING PATTERNS:
+- Network errors: Retry with exponential backoff (max 3 attempts)
+- File not found: Check alternative paths, log helpful error message
+- Permission errors: Suggest fix, don't fail silently
+- Import errors: Check virtual environment, verify dependencies in requirements.txt
+- Test failures: Show full traceback, suggest specific fixes
+- LLM API errors: Handle 401 (auth), 402 (payment), 403 (forbidden), 404 (model unavailable), 429 (rate limit), 5xx (server error) with user-friendly messages
+
 IMPORTANT:
 - DO NOT modify any files in this phase
 - DO NOT run any tests yet
 - ONLY read files and analyze the issue
 - End your response after outputting the <PLAN> block
-- When diagnosing, check BOTH the prompt file AND the agent code file"""
+- When diagnosing, check BOTH the prompt file AND the agent code file
+- Reference CLAUDE.md in project root for code style and testing requirements"""
 
 
 # System prompt for Phase 2: Implementation (after plan approval)
@@ -388,14 +414,41 @@ COMMON FIX PATTERNS:
 • Fixing initialization → Modify agents/orchestrator.py
 • Fixing model config → Modify config/llm.yaml
 
-TESTING AFTER CHANGES:
+TESTING REQUIREMENTS:
 ───────────────────────────────────────────────────────────────────────────────
-• Run: pytest (runs all tests)
-• Run: pytest tests/test_{agent}.py (test specific agent)
+• Always run: pytest (uses testmon for incremental testing)
+• For new features: Add tests in tests/test_{module}.py
+• Test structure:
+  - Use pytest fixtures for setup
+  - Mock external dependencies (Redis, HA, LLM)
+  - Test both success and error paths
+  - Use descriptive test names: test_{function}_{scenario}_{expected_result}
+• Coverage: Aim for >80% on new code
+• Run full suite before committing: pytest --no-testmon
 • Check logs: ./scripts/debug-logs.sh errors
 • Verify agent initialization: Check orchestrator.py init() method
 • For prompt changes: Edit prompts/*.txt files directly (no UI), restart service to reload
 • For model changes: Edit config/llm.yaml agents section, restart service
+
+ERROR HANDLING PATTERNS:
+───────────────────────────────────────────────────────────────────────────────
+• Network errors: Retry with exponential backoff (max 3 attempts)
+• File not found: Check alternative paths, log helpful error message
+• Permission errors: Suggest fix, don't fail silently
+• Import errors: Check virtual environment, verify dependencies in requirements.txt
+• Test failures: Show full traceback, suggest specific fixes
+• LLM API errors: Handle 401 (auth), 402 (payment), 403 (forbidden), 404 (model unavailable), 429 (rate limit), 5xx (server error) with user-friendly messages
+
+TECHNICAL CONSTRAINTS:
+───────────────────────────────────────────────────────────────────────────────
+• Python 3.12+ only (no older versions)
+• Async-first design required (use async def and await for I/O)
+• Pydantic v2 models (use BaseModel with ConfigDict, not class-based config)
+• No blocking operations in async functions
+• Maximum file size: 10MB
+• Test timeout: 30 seconds per test
+• Line length: 100 characters max
+• Use ruff for formatting: ruff format .
 
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -404,20 +457,31 @@ YOUR APPROVED PLAN:
 
 {user_guidance}
 
-WORKFLOW:
+WORKFLOW (FOLLOW STEP-BY-STEP):
 1. Make the minimal targeted changes described in the plan
+   - THINK: What exactly needs to change? Why?
+   - DOCUMENT: Your approach before making changes
    - If modifying prompts: Edit the .txt file in prompts/ directory (no UI exists)
    - If modifying code: Edit the .py file in agents/ directory
    - If modifying config: Edit the .yaml file in config/ directory
    - If modifying models: Edit config/llm.yaml agents section (one model per agent)
+   - Format code: Run `ruff format .` after changes
 2. Run tests: pytest (uses testmon for fast incremental runs)
+   - THINK: What tests should pass? What might break?
+   - DOCUMENT: Test results and any failures
 3. If tests fail, fix issues and re-test
+   - THINK: Why did the test fail? What's the root cause?
+   - DOCUMENT: Fix approach and rationale
 4. Verify the change works as expected
+   - THINK: Does this solve the original issue?
+   - DOCUMENT: Verification steps taken
 
 IMPORTANT: The plan has been approved. Proceed with implementation.
-Always explain what you're doing before each action.
-When modifying agent prompts, remember they control the LLM's behavior for that agent.
-There is NO prompts page UI - edit files directly in src/barnabeenet/prompts/*.txt."""
+- Always explain what you're doing before each action
+- When modifying agent prompts, remember they control the LLM's behavior for that agent
+- There is NO prompts page UI - edit files directly in src/barnabeenet/prompts/*.txt
+- Reference CLAUDE.md in project root for code style, testing, and git workflow
+- Handle errors gracefully with helpful messages (see ERROR HANDLING PATTERNS above)"""
 
 
 # Legacy combined prompt (kept for reference)
@@ -483,20 +547,25 @@ class SelfImprovementAgent:
     - REQUIRES_APPROVAL: code changes, new automations
     """
 
-    # Safety boundaries
+    # Safety boundaries - RELAXED for full autonomy
+    # Only truly dangerous operations are forbidden
+    # User has robust git repo and can rollback easily
     FORBIDDEN_PATHS = [
-        "secrets",
-        ".env",
-        "infrastructure/secrets",
-        "ha-integration/secrets",
+        # Only block actual secret files, not config files
+        ".env.local",
+        "secrets/private_keys",
+        "secrets/api_keys",
     ]
 
     FORBIDDEN_OPERATIONS = [
-        "rm -rf",
-        "sudo",
-        "chmod 777",
-        "curl | bash",
-        "wget | sh",
+        # Only block operations that could damage the system
+        "rm -rf /",
+        "rm -rf ~",
+        "sudo rm -rf",
+        "dd if=",  # Disk destruction
+        "mkfs",  # Format disk
+        "curl | sudo bash",  # Only block with sudo
+        "wget | sudo sh",  # Only block with sudo
     ]
 
     # Man-of-war connection for GPU management
@@ -505,8 +574,9 @@ class SelfImprovementAgent:
     # HA notification target for user's phone
     NOTIFICATION_TARGET = "mobile_app_thomphone"
 
-    # Auto-approve threshold - plans scoring above this can be auto-approved
-    AUTO_APPROVE_THRESHOLD = 0.80
+    # Auto-approve threshold - LOWERED for more autonomy
+    # User has robust git repo and can rollback easily
+    AUTO_APPROVE_THRESHOLD = 0.50  # Lower threshold = more autonomy
 
     # Safe file paths (changes here are low-risk)
     SAFE_PATHS = [
@@ -528,12 +598,12 @@ class SelfImprovementAgent:
         ".css",  # Stylesheets
     ]
 
-    # Risky file paths (changes here need manual approval)
+    # Risky file paths - RELAXED (most paths are now safe)
+    # Only truly critical system files are risky
     RISKY_PATHS = [
-        "main.py",
-        "api/routes/",
-        "services/homeassistant/",
-        "agents/",
+        # Only core system files that could break everything
+        "src/barnabeenet/main.py",  # Entry point
+        "src/barnabeenet/config.py",  # Config loading
     ]
 
     def __init__(
@@ -736,7 +806,7 @@ class SelfImprovementAgent:
         Returns:
             SafetyScore with score, reasons, and auto_approve eligibility
         """
-        score = 0.7  # Base score
+        score = 0.8  # Higher base score (more permissive)
         reasons: list[str] = []
         risk_factors: list[str] = []
 
@@ -775,9 +845,9 @@ class SelfImprovementAgent:
             score += safe_count * 0.1
             reasons.append(f"{safe_count} files in safe paths")
 
-            score -= risky_count * 0.15
+            score -= risky_count * 0.10  # Less penalty for risky paths
             if risky_count > 0:
-                reasons.append(f"{risky_count} files in risky paths")
+                reasons.append(f"{risky_count} files in risky paths (lower penalty)")
                 risk_factors.append(f"Modifies {risky_count} core file(s)")
 
         # Single-file changes are safer

@@ -8009,29 +8009,62 @@ const SelfImprovement = {
         `;
     },
 
-    renderCliOutput(session) {
+    async renderCliOutput(session) {
         const output = document.getElementById('si-cli-output');
         if (!output) return;
 
+        // Fetch full CLI output from API if available
+        let fullCliOutput = null;
+        if (session.session_id) {
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/self-improve/sessions/${session.session_id}/cli-output`);
+                if (response.ok) {
+                    const data = await response.json();
+                    fullCliOutput = data.cli_output || [];
+                }
+            } catch (e) {
+                console.warn('Failed to fetch full CLI output:', e);
+            }
+        }
+
         let html = '';
 
-        // Add messages (Claude's explanations)
-        if (session.messages?.length > 0) {
-            for (const msg of session.messages) {
-                html += `<span class="cli-line stdout">${this.escapeHtml(msg.content || '')}</span>\n`;
+        // Use full CLI output if available, otherwise use session data
+        if (fullCliOutput && fullCliOutput.length > 0) {
+            // Render full CLI output from API
+            for (const item of fullCliOutput) {
+                if (item.type === 'message') {
+                    html += `<div class="cli-line stdout">${this.escapeHtml(item.content || '')}</div>`;
+                } else if (item.type === 'operation') {
+                    const cmd = item.command ? this.escapeHtml(item.command) : '';
+                    const path = item.file_path ? this.escapeHtml(item.file_path) : '';
+                    html += `<div class="cli-line json-event">[${item.operation_type || 'operation'}] ${cmd} ${path}</div>`;
+                } else if (item.type === 'thinking') {
+                    html += `<div class="cli-thinking">${this.escapeHtml(item.content || '')}</div>`;
+                }
             }
-        }
-
-        // Add operations (tool uses)
-        if (session.operations?.length > 0) {
-            for (const op of session.operations) {
-                html += `<span class="cli-line json-event">[${op.operation_type}] ${op.command ? this.escapeHtml(op.command) : ''} ${op.file_path ? this.escapeHtml(op.file_path) : ''}</span>\n`;
+        } else {
+            // Fallback to session data (for backwards compatibility)
+            // Add messages (Claude's explanations) - ALL messages
+            if (session.messages?.length > 0) {
+                for (const msg of session.messages) {
+                    html += `<div class="cli-line stdout">${this.escapeHtml(msg.content || '')}</div>`;
+                }
             }
-        }
 
-        // Add current thinking
-        if (session.current_thinking) {
-            html += `<span class="cli-thinking">${this.escapeHtml(session.current_thinking)}</span>`;
+            // Add operations (tool uses) - ALL operations
+            if (session.operations?.length > 0) {
+                for (const op of session.operations) {
+                    const cmd = op.command ? this.escapeHtml(op.command) : '';
+                    const path = op.file_path ? this.escapeHtml(op.file_path) : '';
+                    html += `<div class="cli-line json-event">[${op.operation_type || 'operation'}] ${cmd} ${path}</div>`;
+                }
+            }
+
+            // Add current thinking - FULL thinking
+            if (session.current_thinking) {
+                html += `<div class="cli-thinking">${this.escapeHtml(session.current_thinking)}</div>`;
+            }
         }
 
         output.innerHTML = html || '<span class="cli-empty">No output yet</span>';
