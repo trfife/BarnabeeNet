@@ -374,7 +374,15 @@ class MetaAgent(Agent):
 
         if self._use_registry and self._logic_registry:
             # Load patterns from registry
-            for group_name in ["emergency", "instant", "gesture", "action", "memory", "query"]:
+            for group_name in [
+                "emergency",
+                "instant",
+                "gesture",
+                "self_improvement",
+                "action",
+                "memory",
+                "query",
+            ]:
                 patterns = self._logic_registry.get_patterns_as_tuples(group_name)
                 self._compiled_patterns[group_name] = [
                     (re.compile(p, re.IGNORECASE), c) for p, c in patterns
