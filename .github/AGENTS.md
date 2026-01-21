@@ -30,6 +30,23 @@
 | `fetch` | Get web page content |
 | `githubRepo` | Search GitHub repos |
 
+## Quick Architecture Reference
+
+### Key Files
+- **Agent prompts:** `src/barnabeenet/prompts/*.txt` (edit directly, no UI)
+- **Model config:** `config/llm.yaml` (agents section)
+- **Dashboard:** `src/barnabeenet/static/` (HTML/JS/CSS)
+- **API routes:** `src/barnabeenet/api/routes/`
+
+### Dashboard Pages
+Dashboard, Chat, Memory, Logic, Self-Improve, Logs, Family, Entities, Config
+
+### Common Tasks
+- **Change agent behavior:** Edit `prompts/{agent}_agent.txt`
+- **Change model:** Edit `config/llm.yaml` → `agents.{agent}.model`
+- **Add dashboard page:** HTML div + nav link + JS init + CSS
+- **Add API endpoint:** Route file + register in `main.py` + tests
+
 ## Multi-Machine Commands
 
 ### Run on VM

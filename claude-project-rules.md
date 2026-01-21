@@ -1,7 +1,7 @@
 # Claude Project Rules for BarnabeeNet
 
 **Purpose:** Guidelines for Claude during BarnabeeNet development sessions.
-**Last Updated:** January 17, 2026
+**Last Updated:** January 21, 2026
 
 ---
 
@@ -100,6 +100,12 @@ Before ending a Claude session, ensure:
 ### 8. Test Assumptions
 - If unsure about system state, ask me to check OR create a Copilot task to verify
 - Don't assume commands succeeded without output
+
+### 9. Architecture Awareness
+- **Agent prompts:** Edit `src/barnabeenet/prompts/*.txt` directly (no UI)
+- **Model config:** Edit `config/llm.yaml` agents section (one model per agent)
+- **Dashboard:** 9 pages (Dashboard, Chat, Memory, Logic, Self-Improve, Logs, Family, Entities, Config)
+- **REMOVED:** Prompts page, complex model selection UI, non-functional config sections
 
 ---
 

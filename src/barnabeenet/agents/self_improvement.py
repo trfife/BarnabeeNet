@@ -385,7 +385,8 @@ TESTING AFTER CHANGES:
 • Run: pytest tests/test_{agent}.py (test specific agent)
 • Check logs: ./scripts/debug-logs.sh errors
 • Verify agent initialization: Check orchestrator.py init() method
-• For prompt changes: Restart service to reload prompts
+• For prompt changes: Edit prompts/*.txt files directly (no UI), restart service to reload
+• For model changes: Edit config/llm.yaml agents section, restart service
 
 ═══════════════════════════════════════════════════════════════════════════════
 

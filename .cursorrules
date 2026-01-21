@@ -1,0 +1,53 @@
+# Cursor Rules for BarnabeeNet
+
+## Project Context
+BarnabeeNet is a privacy-first, multi-agent AI smart home assistant built with FastAPI, Redis, and vanilla JavaScript.
+
+## Key Architecture Points
+
+### Agents
+- **MetaAgent**: Intent classification (runs on every request)
+- **InstantAgent**: Pattern-matched responses (no LLM)
+- **ActionAgent**: Device control via Home Assistant
+- **InteractionAgent**: Complex conversations (uses Claude/GPT-4)
+- **MemoryAgent**: Memory storage/retrieval
+- **SelfImprovementAgent**: AI-assisted code improvements
+
+### File Structure
+- Agent prompts: `src/barnabeenet/prompts/*.txt` - **EDIT DIRECTLY, NO UI**
+- Agent code: `src/barnabeenet/agents/*.py`
+- Model config: `config/llm.yaml` (one model per agent)
+- Dashboard: `src/barnabeenet/static/` (HTML/JS/CSS)
+
+### Dashboard Pages
+- Dashboard, Chat, Memory, Logic, Self-Improve, Logs, Family, Entities, Config
+- **REMOVED:** Prompts page (edit files directly)
+
+### Model Configuration
+- Each agent has ONE model in `config/llm.yaml`
+- Dashboard shows read-only display
+- Edit YAML file to change models
+
+## Development Rules
+
+1. **Always run tests:** `pytest` (uses testmon for fast incremental runs)
+2. **Deploy to VM:** Use `./scripts/deploy-vm.sh` or `ssh thom@192.168.86.51 'cd ~/barnabeenet && git pull && bash scripts/restart.sh'`
+3. **WSL Usage:** Only for GPU workers, NOT main API
+4. **Edit prompts:** Direct file edit in `prompts/*.txt`, no UI
+5. **Change models:** Edit `config/llm.yaml`, restart service
+
+## Code Style
+- Python 3.12+ with strict typing
+- Pydantic v2 models
+- Async-first design
+- Ruff for formatting
+
+## Safety
+- Never modify `secrets/`, `.env`, authentication code
+- Never run destructive commands (`rm -rf`, `sudo`, etc.)
+- Never commit secrets
+
+## Testing
+- Run `pytest` after changes (testmon auto-selects affected tests)
+- ~690 tests currently passing
+- Use `pytest --no-testmon` for full test suite

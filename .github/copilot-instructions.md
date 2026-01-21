@@ -4,12 +4,20 @@
 
 When user says "continue the project":
 
-1. **READ**: `CONTEXT.md` for current state
+1. **READ**: `CONTEXT.md` for current state and `CLAUDE.md` for architecture
 2. **DO TASKS**: Execute items from "Next Steps" until complete
 3. **VALIDATE**: Run `./scripts/validate.sh` before commits
 4. **UPDATE**: Edit `CONTEXT.md` - move tasks to "What's Working", update date
 5. **COMMIT**: `git add -A && git commit -m "<type>: <description>" && git push`
 6. **CONTINUE**: Keep working until the overall task/feature is done
+
+## Architecture Awareness
+
+**Before making changes, understand:**
+- Agent prompts are in `src/barnabeenet/prompts/*.txt` (edit directly, no UI)
+- Model config is in `config/llm.yaml` (one model per agent)
+- Dashboard pages: Dashboard, Chat, Memory, Logic, Self-Improve, Logs, Family, Entities, Config
+- **REMOVED:** Prompts page, complex model selection UI, non-functional config sections
 
 ## Checkpoint Pattern
 
@@ -76,3 +84,6 @@ DO NOT attempt inline nohup/uvicorn commands - they will hang SSH.
 - Never skip validation before commit
 - Never force push
 - Never do multiple tasks in one session
+- Never run main API in WSL (only GPU workers)
+- Never create prompts page UI (edit files directly)
+- Never add non-functional config sections
