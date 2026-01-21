@@ -574,6 +574,28 @@ memory:
 # SELF-IMPROVEMENT PATTERNS - Code fixes, bugs, improvements
 # =============================================================================
 self_improvement:
+  self_service_keyword:
+    pattern: ".*(self[- ]?service|self[- ]?improve|use self).*"
+    sub_category: "self"
+    confidence: 0.95
+    enabled: true
+    description: "Explicit self-service or self-improvement keywords"
+    examples:
+      - "use self-service to fix this"
+      - "self-improvement agent should handle this"
+      - "use self service"
+
+  fix_this:
+    pattern: ".*fix (this|that|it).*"
+    sub_category: "fix"
+    confidence: 0.92
+    enabled: true
+    description: "Explicit requests to fix something"
+    examples:
+      - "fix this"
+      - "fix that"
+      - "please fix it"
+
   fix_bug:
     pattern: ".*(fix|broken|doesn'?t work|not working|bug|issue|problem|error).*"
     sub_category: "fix"

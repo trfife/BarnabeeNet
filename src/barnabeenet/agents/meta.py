@@ -250,6 +250,35 @@ EMERGENCY_PATTERNS: list[tuple[str, str]] = [
     (r".*(fall|fallen|can'?t get up|hurt).*", "medical"),
 ]
 
+SELF_IMPROVEMENT_PATTERNS: list[tuple[str, str]] = [
+    # Explicit self-service keyword (highest priority)
+    (r".*self[- ]?service.*", "self"),
+    (r".*self[- ]?improve.*", "self"),
+    (r".*use self.*", "self"),
+    # Direct fix requests
+    (r".*fix (this|that|it).*", "fix"),
+    (r".*please fix.*", "fix"),
+    (r".*(that'?s|it'?s|this is) broken.*", "fix"),
+    (r".*(doesn'?t|does not|don'?t|do not) work.*", "fix"),
+    (r".*not working.*", "fix"),
+    (r".*(there'?s|there is) a bug.*", "fix"),
+    (r".*(there'?s|there is) an? (issue|problem|error).*", "fix"),
+    # Improvement requests
+    (r".*improve (the |this |that |my )?.*", "improve"),
+    (r".*enhance (the |this |that )?.*", "improve"),
+    (r".*upgrade (the |this |that )?.*", "improve"),
+    (r".*make .* better.*", "improve"),
+    (r".*optimize (the |this |that )?.*", "improve"),
+    # Self-referential
+    (r".*(fix|improve|update|change) yourself.*", "self"),
+    (r".*(fix|improve|update|change) your (own )?code.*", "self"),
+    (r".*(fix|improve|update|change) barnabeenet.*", "self"),
+    (r".*(fix|improve|update|change) barnabee.*", "self"),
+    # Code changes
+    (r".*(change|modify|update|edit) (the |this |that )?(code|file|source).*", "modify"),
+    (r".*(add|implement|create) (a |the )?(new )?feature.*", "add"),
+]
+
 # Map intent categories to target agents
 INTENT_TO_AGENT: dict[IntentCategory, str] = {
     IntentCategory.INSTANT: "instant",
@@ -360,6 +389,9 @@ class MetaAgent(Agent):
                 "emergency": [(re.compile(p, re.IGNORECASE), c) for p, c in EMERGENCY_PATTERNS],
                 "instant": [(re.compile(p, re.IGNORECASE), c) for p, c in INSTANT_PATTERNS],
                 "gesture": [(re.compile(p, re.IGNORECASE), c) for p, c in GESTURE_PATTERNS],
+                "self_improvement": [
+                    (re.compile(p, re.IGNORECASE), c) for p, c in SELF_IMPROVEMENT_PATTERNS
+                ],
                 "action": [(re.compile(p, re.IGNORECASE), c) for p, c in ACTION_PATTERNS],
                 "memory": [(re.compile(p, re.IGNORECASE), c) for p, c in MEMORY_PATTERNS],
                 "query": [(re.compile(p, re.IGNORECASE), c) for p, c in QUERY_PATTERNS],
@@ -372,7 +404,15 @@ class MetaAgent(Agent):
     async def reload_patterns(self) -> None:
         """Reload patterns from LogicRegistry (for hot-reload)."""
         if self._logic_registry and self._use_registry:
-            for group_name in ["emergency", "instant", "gesture", "action", "memory", "query"]:
+            for group_name in [
+                "emergency",
+                "instant",
+                "gesture",
+                "self_improvement",
+                "action",
+                "memory",
+                "query",
+            ]:
                 patterns = self._logic_registry.get_patterns_as_tuples(group_name)
                 self._compiled_patterns[group_name] = [
                     (re.compile(p, re.IGNORECASE), c) for p, c in patterns
