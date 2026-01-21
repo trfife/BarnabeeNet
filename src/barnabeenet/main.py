@@ -300,10 +300,14 @@ async def _model_health_check_loop() -> None:
     while True:
         try:
             from barnabeenet.api.routes.config import run_scheduled_health_check
-            from barnabeenet.services.secrets import SecretsService
+            from barnabeenet.services.secrets import get_secrets_service
 
-            secrets = SecretsService()
-            await secrets.initialize()
+            # Get secrets service with Redis client
+            import redis.asyncio as redis
+            from barnabeenet.config import get_settings
+            settings = get_settings()
+            redis_client = redis.from_url(settings.redis.url, decode_responses=True)
+            secrets = await get_secrets_service(redis_client)
 
             result = await run_scheduled_health_check(secrets, limit=20)
             if result:

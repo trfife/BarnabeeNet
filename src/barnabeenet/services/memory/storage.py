@@ -819,7 +819,7 @@ class MemoryStorage:
         if self._use_redis and self._redis:
             # Use pipeline for batch storage
             pipe = self._redis.pipeline()
-            
+
             for memory, embedding in zip(memories, embeddings):
                 memory_key = f"{self.config.memory_prefix}{memory.id}"
                 embedding_key = f"{self.config.embedding_prefix}{memory.id}"

@@ -229,7 +229,7 @@ class InteractionAgent(Agent):
                 selection_result = await self._handle_recall_selection(text, conv_ctx)
                 if selection_result:
                     return selection_result
-            
+
             # Check if this is a new recall request
             if self._is_recall_request(text):
                 recall_result = await self._handle_conversation_recall(text, conv_ctx, ctx)
@@ -688,7 +688,7 @@ class InteractionAgent(Agent):
         }
         return family_names.get(speaker_id, speaker_id.title())
 
-    def _build_messages(
+    async def _build_messages(
         self,
         current_text: str,
         conv_ctx: ConversationContext,
@@ -743,7 +743,7 @@ class InteractionAgent(Agent):
         assert self._llm_client is not None  # Caller checks this
 
         system_prompt = self._build_system_prompt(conv_ctx, user_ctx)
-        messages = self._build_messages(text, conv_ctx, system_prompt)
+        messages = await self._build_messages(text, conv_ctx, system_prompt)
 
         try:
             response = await self._llm_client.chat(
@@ -965,10 +965,10 @@ class InteractionAgent(Agent):
                     f"{i+1}. {s.summary[:100]}..." for i, s in enumerate(summaries[:3])
                 )
                 response = f"I found {len(summaries)} past conversations. Which one did you mean?\n\n{options_text}\n\nJust say the number or describe which one."
-                
+
                 # Store summaries in context for follow-up
                 conv_ctx.recall_candidates = summaries
-                
+
                 return {
                     "response": response,
                     "agent": self.name,
@@ -994,7 +994,7 @@ class InteractionAgent(Agent):
 
         # Try to match selection (number or description)
         text_lower = text.lower().strip()
-        
+
         # Check for number selection
         import re
         number_match = re.search(r'\b(\d+)\b', text)

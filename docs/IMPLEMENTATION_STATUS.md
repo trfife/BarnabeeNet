@@ -3,8 +3,9 @@
 ## Completed ✅
 
 ### 1. LLM Response Caching (Semantic Similarity)
+
 - **Status**: ✅ Implemented
-- **Files**: 
+- **Files**:
   - `src/barnabeenet/services/llm/cache.py` (new)
   - `src/barnabeenet/services/llm/openrouter.py` (updated)
   - `src/barnabeenet/services/llm/signals.py` (added `cached` field)
@@ -17,11 +18,13 @@
 - **Impact**: 30-50% cost reduction, 200-500ms latency improvement for cached responses
 
 ### 2. Streaming LLM Responses Explanation
+
 - **Status**: ✅ Documented
 - **File**: `docs/STREAMING_LLM_RESPONSES.md`
 - **Content**: Complete explanation of streaming, benefits, implementation approaches, and integration points
 
 ### 3. Background Embedding Generation
+
 - **Status**: ✅ Implemented
 - **Files**: `src/barnabeenet/services/memory/storage.py` (updated)
 - **Features**:
@@ -32,6 +35,7 @@
 - **Impact**: 50-100ms latency reduction for memory storage operations
 
 ### 4. Adaptive Model Selection Verification
+
 - **Status**: ✅ Verified
 - **Finding**: System already correctly uses activity-based configuration
   - Each agent type maps to specific activity (e.g., "meta" → "meta.classify_intent")
@@ -42,6 +46,7 @@
 ## In Progress 🚧
 
 ### 5. Context Window Management
+
 - **Status**: 🚧 Design phase
 - **Requirements**:
   - Track conversation source (room/device)
@@ -52,23 +57,29 @@
 - **Next Steps**: Implement in `InteractionAgent`
 
 ### 6. Batch Memory Operations
+
 - **Status**: 🚧 Pending
 - **Planned**: Use Redis pipelines for multiple memory operations
 
 ### 7. Parallel STT + Speaker ID
+
 - **Status**: 🚧 Pending (preparation for future ECAPA-TDNN)
 - **Note**: Currently speaker ID is contextual (HA user), not voice-based
 
 ## Configuration
 
 ### LLM Cache Settings
+
 The cache is enabled by default. To disable:
+
 ```python
 await init_llm_cache(redis_client=redis_client, enabled=False)
 ```
 
 ### Background Embedding Generation
+
 Enabled by default. To use synchronous generation (backward compatibility):
+
 ```python
 await memory_storage.store_memory(
     content="...",
