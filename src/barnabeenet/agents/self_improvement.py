@@ -11,6 +11,9 @@ Architecture:
 - Tracks costs for comparison reporting
 - Manages git operations with approval workflow
 - SSHs to Man-of-war only when GPU management is needed
+- Logs all activities to ActivityLogger for dashboard visibility
+- Can send HA notifications to user's phone
+- Auto-approves low-risk changes above safety threshold
 """
 
 from __future__ import annotations
@@ -135,6 +138,32 @@ class ClaudeCodeOperation:
 
 
 @dataclass
+class SafetyScore:
+    """Safety assessment for a proposed plan.
+
+    Plans are scored from 0.0 (dangerous) to 1.0 (very safe).
+    Plans above the auto_approve_threshold can be auto-approved.
+    """
+
+    score: float  # 0.0 to 1.0
+    reasons: list[str]  # Why this score was given
+    can_auto_approve: bool  # True if score >= threshold
+    risk_factors: list[str]  # Specific risks identified
+
+    # Default threshold for auto-approval
+    AUTO_APPROVE_THRESHOLD: float = 0.85
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "score": self.score,
+            "reasons": self.reasons,
+            "can_auto_approve": self.can_auto_approve,
+            "risk_factors": self.risk_factors,
+        }
+
+
+@dataclass
 class ImprovementSession:
     """A complete improvement session."""
 
@@ -169,6 +198,9 @@ class ImprovementSession:
     stop_requested: bool = False
     current_thinking: str = ""  # Live thinking/reasoning text
 
+    # Safety scoring
+    safety_score: SafetyScore | None = None
+
     # Process handle for cancellation
     _process: asyncio.subprocess.Process | None = field(default=None, repr=False)
 
@@ -196,6 +228,7 @@ class ImprovementSession:
             "stop_requested": self.stop_requested,
             "current_thinking": self.current_thinking[-2000:] if self.current_thinking else "",
             "estimated_api_cost_usd": self.token_usage.calculate_api_cost(self.model_used),
+            "safety_score": self.safety_score.to_dict() if self.safety_score else None,
         }
 
 
@@ -343,17 +376,243 @@ class SelfImprovementAgent:
     # Man-of-war connection for GPU management
     MANOFWAR_HOST = "thom@man-of-war"
 
+    # HA notification target for user's phone
+    NOTIFICATION_TARGET = "mobile_app_thomphone"
+
+    # Auto-approve threshold - plans scoring above this can be auto-approved
+    AUTO_APPROVE_THRESHOLD = 0.85
+
+    # Safe file paths (changes here are low-risk)
+    SAFE_PATHS = [
+        "config/",
+        "docs/",
+        "prompts/",
+        "tests/",
+        ".copilot/",
+    ]
+
+    # Risky file paths (changes here need manual approval)
+    RISKY_PATHS = [
+        "main.py",
+        "api/routes/",
+        "services/homeassistant/",
+        "agents/",
+    ]
+
     def __init__(
         self,
         project_path: str | Path,
         redis_client: Redis | None = None,
+        ha_client: Any | None = None,  # HomeAssistantClient for notifications
     ):
         self.project_path = Path(project_path)
         self.redis_client = redis_client
+        self.ha_client = ha_client
         self.active_sessions: dict[str, ImprovementSession] = {}
         self._on_progress_callbacks: list[Callable] = []
         self._claude_code_available: bool | None = None
         self._claude_path: str | None = None
+        self._activity_logger: Any | None = None
+
+    def _get_activity_logger(self) -> Any:
+        """Get the activity logger, lazy-loading to avoid import cycles."""
+        if self._activity_logger is None:
+            from barnabeenet.services.activity_log import get_activity_logger
+
+            self._activity_logger = get_activity_logger()
+        return self._activity_logger
+
+    async def _log_activity(
+        self,
+        session: ImprovementSession,
+        activity_type: str,
+        title: str,
+        detail: str | None = None,
+        **data: Any,
+    ) -> None:
+        """Log a self-improvement activity to the dashboard."""
+        try:
+            from barnabeenet.services.activity_log import ActivityLevel, ActivityType
+
+            # Map activity type string to enum
+            type_map = {
+                "start": ActivityType.SELF_IMPROVE_START,
+                "diagnosing": ActivityType.SELF_IMPROVE_DIAGNOSING,
+                "plan_proposed": ActivityType.SELF_IMPROVE_PLAN_PROPOSED,
+                "plan_approved": ActivityType.SELF_IMPROVE_PLAN_APPROVED,
+                "implementing": ActivityType.SELF_IMPROVE_IMPLEMENTING,
+                "testing": ActivityType.SELF_IMPROVE_TESTING,
+                "awaiting_approval": ActivityType.SELF_IMPROVE_AWAITING_APPROVAL,
+                "committed": ActivityType.SELF_IMPROVE_COMMITTED,
+                "failed": ActivityType.SELF_IMPROVE_FAILED,
+                "stopped": ActivityType.SELF_IMPROVE_STOPPED,
+            }
+
+            activity_enum = type_map.get(activity_type, ActivityType.SELF_IMPROVE_START)
+            level = ActivityLevel.ERROR if "fail" in activity_type else ActivityLevel.INFO
+
+            activity_logger = self._get_activity_logger()
+            await activity_logger.log_quick(
+                type=activity_enum,
+                source="self_improvement",
+                title=title,
+                detail=detail,
+                level=level,
+                trace_id=session.session_id,
+                session_id=session.session_id,
+                status=session.status.value,
+                **data,
+            )
+        except Exception as e:
+            logger.warning("Failed to log activity", error=str(e))
+
+    async def _send_notification(
+        self,
+        title: str,
+        message: str,
+        data: dict[str, Any] | None = None,
+    ) -> bool:
+        """Send a notification to the user's phone via Home Assistant.
+
+        Args:
+            title: Notification title
+            message: Notification body
+            data: Optional additional data (e.g., actions, URLs)
+
+        Returns:
+            True if notification was sent successfully
+        """
+        # Try to get HA client if not already set
+        if self.ha_client is None:
+            try:
+                from barnabeenet.api.routes.homeassistant import get_ha_client
+
+                self.ha_client = await get_ha_client()
+            except Exception:
+                pass
+
+        if self.ha_client is None:
+            logger.debug("No HA client available for notifications")
+            return False
+
+        try:
+            service_data: dict[str, Any] = {
+                "title": title,
+                "message": message,
+            }
+            if data:
+                service_data["data"] = data
+
+            result = await self.ha_client.call_service(
+                f"notify.{self.NOTIFICATION_TARGET}",
+                **service_data,
+            )
+
+            success = result.success if hasattr(result, "success") else True
+            if success:
+                logger.info("Sent notification", title=title)
+            return success
+        except Exception as e:
+            logger.warning("Failed to send notification", error=str(e))
+            return False
+
+    def _calculate_safety_score(self, plan: dict[str, Any]) -> SafetyScore:
+        """Calculate a safety score for a proposed plan.
+
+        Scoring criteria:
+        - Files in safe paths: +0.1 per file
+        - Files in risky paths: -0.15 per file
+        - Files in forbidden paths: -1.0 (immediate fail)
+        - Only config/doc changes: +0.3 bonus
+        - Tests included: +0.1 bonus
+        - Risk factors mentioned: -0.05 per risk
+
+        Returns:
+            SafetyScore with score, reasons, and auto_approve eligibility
+        """
+        score = 0.7  # Base score
+        reasons: list[str] = []
+        risk_factors: list[str] = []
+
+        files_affected = plan.get("files_affected", [])
+        if not files_affected:
+            files_affected = []
+        elif isinstance(files_affected, str):
+            files_affected = [f.strip() for f in files_affected.split(",")]
+
+        # Check each affected file
+        safe_count = 0
+        risky_count = 0
+        forbidden_count = 0
+
+        for file_path in files_affected:
+            # Check forbidden paths
+            for forbidden in self.FORBIDDEN_PATHS:
+                if forbidden in file_path:
+                    forbidden_count += 1
+                    risk_factors.append(f"Modifies forbidden path: {file_path}")
+
+            # Check safe paths
+            is_safe = any(safe in file_path for safe in self.SAFE_PATHS)
+            is_risky = any(risky in file_path for risky in self.RISKY_PATHS)
+
+            if is_safe:
+                safe_count += 1
+            elif is_risky:
+                risky_count += 1
+
+        # Apply scoring
+        if forbidden_count > 0:
+            score = 0.0
+            reasons.append(f"Touches {forbidden_count} forbidden path(s)")
+        else:
+            score += safe_count * 0.1
+            reasons.append(f"{safe_count} files in safe paths")
+
+            score -= risky_count * 0.15
+            if risky_count > 0:
+                reasons.append(f"{risky_count} files in risky paths")
+                risk_factors.append(f"Modifies {risky_count} core file(s)")
+
+        # Check if only config/doc changes
+        only_config_docs = all(
+            any(safe in f for safe in ["config/", "docs/", ".md", ".yaml", ".yml"])
+            for f in files_affected
+        )
+        if only_config_docs and files_affected:
+            score += 0.3
+            reasons.append("Only config/doc changes")
+
+        # Check if tests are mentioned
+        tests_mentioned = plan.get("tests", "")
+        if tests_mentioned and "pytest" in tests_mentioned.lower():
+            score += 0.1
+            reasons.append("Includes test plan")
+
+        # Check risks mentioned in plan
+        plan_risks = plan.get("risks", "")
+        if plan_risks:
+            risk_count = len([r for r in plan_risks.split(",") if r.strip()])
+            if risk_count > 0:
+                score -= risk_count * 0.05
+                risk_factors.append(f"{risk_count} risk(s) identified in plan")
+
+        # Clamp score
+        score = max(0.0, min(1.0, score))
+
+        can_auto_approve = score >= self.AUTO_APPROVE_THRESHOLD and forbidden_count == 0
+
+        if can_auto_approve:
+            reasons.append(f"Score {score:.2f} >= threshold {self.AUTO_APPROVE_THRESHOLD}")
+        else:
+            reasons.append(f"Score {score:.2f} < threshold {self.AUTO_APPROVE_THRESHOLD}")
+
+        return SafetyScore(
+            score=score,
+            reasons=reasons,
+            can_auto_approve=can_auto_approve,
+            risk_factors=risk_factors,
+        )
 
     def _find_claude_path(self) -> str | None:
         """Find the Claude Code CLI executable.
@@ -646,6 +905,16 @@ class SelfImprovementAgent:
             branch_name = f"self-improve/{session_id}"
             session.branch_name = branch_name
 
+            # Log session start to activity feed
+            await self._log_activity(
+                session,
+                "start",
+                f"🤖 Self-improvement started: {request[:50]}...",
+                detail=f"Branch: {branch_name}\nModel: {model}",
+                request=request,
+                model=model,
+            )
+
             await self._emit_progress(session, "started", {"branch": branch_name})
             yield {"event": "started", "session_id": session_id, "branch": branch_name}
 
@@ -658,6 +927,13 @@ class SelfImprovementAgent:
 
             # Phase 2: Run Claude Code
             session.status = ImprovementStatus.DIAGNOSING
+
+            await self._log_activity(
+                session,
+                "diagnosing",
+                "🔍 Analyzing issue...",
+            )
+
             await self._emit_progress(session, "diagnosing", {"message": "Analyzing issue..."})
             yield {"event": "diagnosing", "message": "Analyzing issue..."}
 
@@ -731,9 +1007,42 @@ class SelfImprovementAgent:
                             if plan and not plan_detected:
                                 plan_detected = True
                                 session.proposed_plan = plan
+
+                                # Calculate safety score for the plan
+                                safety_score = self._calculate_safety_score(plan)
+                                session.safety_score = safety_score
+
                                 session.status = ImprovementStatus.AWAITING_PLAN_APPROVAL
-                                await self._emit_progress(session, "plan_proposed", {"plan": plan})
-                                yield {"event": "plan_proposed", "plan": plan}
+
+                                # Log to activity feed
+                                await self._log_activity(
+                                    session,
+                                    "plan_proposed",
+                                    f"📋 Plan proposed for: {request[:50]}...",
+                                    detail=f"Safety score: {safety_score.score:.2f}",
+                                    plan=plan,
+                                    safety_score=safety_score.to_dict(),
+                                )
+
+                                # Send notification about plan
+                                await self._send_notification(
+                                    "🤖 BarnabeeNet Plan Ready",
+                                    f"Self-improvement plan ready for: {request[:80]}...\n"
+                                    f"Safety: {safety_score.score:.0%} "
+                                    f"({'✅ Auto-approve eligible' if safety_score.can_auto_approve else '⚠️ Manual review needed'})",
+                                    data={"session_id": session_id},
+                                )
+
+                                await self._emit_progress(
+                                    session,
+                                    "plan_proposed",
+                                    {"plan": plan, "safety_score": safety_score.to_dict()},
+                                )
+                                yield {
+                                    "event": "plan_proposed",
+                                    "plan": plan,
+                                    "safety_score": safety_score.to_dict(),
+                                }
 
                         yield {"event": "claude_event", "data": event_data}
 
@@ -777,27 +1086,72 @@ class SelfImprovementAgent:
             if plan_detected and session.proposed_plan:
                 logger.info("Plan proposed, waiting for approval", session_id=session_id)
 
-                # Wait for user approval or rejection
-                # The status is already AWAITING_PLAN_APPROVAL
-                # User calls approve_plan() or reject_plan() which puts message in queue
-                try:
-                    approval_message = await asyncio.wait_for(
-                        session.user_input_queue.get(),
-                        timeout=3600,  # 1 hour timeout
-                    )
+                # Check if plan can be auto-approved based on safety score
+                if (
+                    session.safety_score
+                    and session.safety_score.can_auto_approve
+                    and not auto_approve  # Don't double-auto-approve
+                ):
                     logger.info(
-                        "Received plan approval/rejection",
+                        "Plan auto-approved based on safety score",
                         session_id=session_id,
-                        message=approval_message[:100],
+                        safety_score=session.safety_score.score,
                     )
-                except TimeoutError:
-                    session.status = ImprovementStatus.FAILED
-                    session.error = "Plan approval timed out after 1 hour"
-                    yield {"event": "error", "error": session.error}
-                    return
+
+                    # Log auto-approval
+                    await self._log_activity(
+                        session,
+                        "plan_approved",
+                        f"✅ Plan auto-approved (safety: {session.safety_score.score:.0%})",
+                        detail="High safety score allowed automatic approval",
+                    )
+
+                    # Notify about auto-approval
+                    await self._send_notification(
+                        "✅ Plan Auto-Approved",
+                        f"Safety score {session.safety_score.score:.0%} - implementing: {request[:60]}...",
+                    )
+
+                    # Skip waiting, go straight to implementation
+                    approval_message = "AUTO_APPROVED based on high safety score."
+                    session.status = ImprovementStatus.IMPLEMENTING
+                else:
+                    # Wait for user approval or rejection
+                    # The status is already AWAITING_PLAN_APPROVAL
+                    # User calls approve_plan() or reject_plan() which puts message in queue
+                    try:
+                        approval_message = await asyncio.wait_for(
+                            session.user_input_queue.get(),
+                            timeout=3600,  # 1 hour timeout
+                        )
+                        logger.info(
+                            "Received plan approval/rejection",
+                            session_id=session_id,
+                            message=approval_message[:100],
+                        )
+                    except TimeoutError:
+                        session.status = ImprovementStatus.FAILED
+                        session.error = "Plan approval timed out after 1 hour"
+
+                        await self._log_activity(
+                            session,
+                            "failed",
+                            "⏰ Plan approval timed out",
+                            detail="No response received within 1 hour",
+                        )
+
+                        yield {"event": "error", "error": session.error}
+                        return
 
                 if session.stop_requested:
                     session.status = ImprovementStatus.STOPPED
+
+                    await self._log_activity(
+                        session,
+                        "stopped",
+                        "🛑 Session stopped by user",
+                    )
+
                     yield {"event": "stopped", "session_id": session_id}
                     return
 
@@ -808,11 +1162,26 @@ class SelfImprovementAgent:
                     session.status = ImprovementStatus.COMPLETED
                     session.success = False
                     session.summary = f"Plan rejected: {approval_message}"
+
+                    await self._log_activity(
+                        session,
+                        "stopped",
+                        f"❌ Plan rejected: {approval_message[:50]}...",
+                    )
+
                     yield {"event": "completed", "message": session.summary}
                     return
 
                 # Plan approved - run implementation phase
                 session.status = ImprovementStatus.IMPLEMENTING
+
+                await self._log_activity(
+                    session,
+                    "implementing",
+                    "🔧 Implementing approved plan...",
+                    detail=f"Request: {request[:100]}",
+                )
+
                 await self._emit_progress(
                     session, "implementing", {"message": "Implementing approved plan..."}
                 )
@@ -895,6 +1264,13 @@ class SelfImprovementAgent:
 
             # Phase 3: Collect results
             session.status = ImprovementStatus.TESTING
+
+            await self._log_activity(
+                session,
+                "testing",
+                "🧪 Checking changes...",
+            )
+
             await self._emit_progress(session, "testing", {"message": "Checking changes..."})
 
             # Get git diff
@@ -928,6 +1304,31 @@ class SelfImprovementAgent:
             # Phase 4: Await approval (unless auto_approve)
             if not auto_approve and session.files_modified:
                 session.status = ImprovementStatus.AWAITING_APPROVAL
+
+                files_summary = f"{len(session.files_modified)} file(s): {', '.join(session.files_modified[:3])}"
+                if len(session.files_modified) > 3:
+                    files_summary += f" +{len(session.files_modified) - 3} more"
+
+                await self._log_activity(
+                    session,
+                    "awaiting_approval",
+                    f"✅ Changes ready for review: {files_summary}",
+                    detail=diff_result,
+                    files_modified=session.files_modified,
+                )
+
+                # Send notification that changes are ready to commit
+                await self._send_notification(
+                    "📝 BarnabeeNet Changes Ready",
+                    f"Ready to commit: {files_summary}\n"
+                    f"Request: {request[:60]}...\n"
+                    "Approve or reject in dashboard.",
+                    data={
+                        "session_id": session_id,
+                        "action": "commit_ready",
+                    },
+                )
+
                 await self._emit_progress(
                     session,
                     "awaiting_approval",
@@ -942,12 +1343,27 @@ class SelfImprovementAgent:
                 session.status = ImprovementStatus.COMPLETED
                 session.success = True
                 session.summary = "No changes needed"
+
+                await self._log_activity(
+                    session,
+                    "committed",  # Use committed as closest match
+                    "✓ Analysis complete - no changes needed",
+                )
+
                 yield {"event": "completed", "message": "No changes needed"}
 
         except Exception as e:
             session.status = ImprovementStatus.FAILED
             session.error = str(e)
             logger.error("Improvement failed", error=str(e), session_id=session_id)
+
+            await self._log_activity(
+                session,
+                "failed",
+                f"❌ Improvement failed: {str(e)[:50]}...",
+                detail=str(e),
+            )
+
             await self._emit_progress(session, "error", {"error": str(e)})
             yield {"event": "error", "error": str(e)}
 
@@ -1028,14 +1444,38 @@ class SelfImprovementAgent:
 
             # Merge to main
             await self._run_git_command(["checkout", "main"])
-            await self._run_git_command(["merge", session.branch_name])
+            if session.branch_name:
+                await self._run_git_command(["merge", session.branch_name])
 
-            # Delete feature branch
-            await self._run_git_command(["branch", "-d", session.branch_name])
+                # Delete feature branch
+                await self._run_git_command(["branch", "-d", session.branch_name])
 
             session.status = ImprovementStatus.COMPLETED
             session.success = True
             session.completed_at = datetime.now()
+
+            # Log to activity feed
+            files_summary = f"{len(session.files_modified)} file(s)"
+            await self._log_activity(
+                session,
+                "committed",
+                f"🚀 Changes committed: {files_summary}",
+                detail=f"Commit: {session.commit_hash}\nRequest: {session.request}",
+                commit_hash=session.commit_hash,
+                files_modified=session.files_modified,
+            )
+
+            # Send notification about successful commit
+            await self._send_notification(
+                "🚀 BarnabeeNet Code Updated",
+                f"Successfully committed: {session.request[:60]}...\n"
+                f"Commit: {session.commit_hash[:8]}\n"
+                f"Files: {files_summary}",
+                data={
+                    "session_id": session_id,
+                    "commit_hash": session.commit_hash,
+                },
+            )
 
             await self._emit_progress(
                 session,
@@ -1053,6 +1493,14 @@ class SelfImprovementAgent:
         except Exception as e:
             session.status = ImprovementStatus.FAILED
             session.error = str(e)
+
+            await self._log_activity(
+                session,
+                "failed",
+                f"❌ Commit failed: {str(e)[:50]}...",
+                detail=str(e),
+            )
+
             raise
 
     async def reject_session(self, session_id: str) -> dict[str, Any]:

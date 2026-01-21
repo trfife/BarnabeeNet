@@ -8533,10 +8533,10 @@ const SelfImprovement = {
         if (this.pollInterval && this.pollingSessionId === sessionId) {
             return;
         }
-        
+
         // Stop any existing polling
         this.stopPolling();
-        
+
         this.pollingSessionId = sessionId;
         console.log('Starting polling for session:', sessionId);
 

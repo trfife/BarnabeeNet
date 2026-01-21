@@ -73,6 +73,18 @@ class ActivityType(str, Enum):
     SYSTEM_ERROR = "system.error"
     SYSTEM_HEALTH = "system.health"
 
+    # Self-improvement activities
+    SELF_IMPROVE_START = "self_improve.start"
+    SELF_IMPROVE_DIAGNOSING = "self_improve.diagnosing"
+    SELF_IMPROVE_PLAN_PROPOSED = "self_improve.plan_proposed"
+    SELF_IMPROVE_PLAN_APPROVED = "self_improve.plan_approved"
+    SELF_IMPROVE_IMPLEMENTING = "self_improve.implementing"
+    SELF_IMPROVE_TESTING = "self_improve.testing"
+    SELF_IMPROVE_AWAITING_APPROVAL = "self_improve.awaiting_approval"
+    SELF_IMPROVE_COMMITTED = "self_improve.committed"
+    SELF_IMPROVE_FAILED = "self_improve.failed"
+    SELF_IMPROVE_STOPPED = "self_improve.stopped"
+
 
 class ActivityLevel(str, Enum):
     """Activity importance levels."""
