@@ -234,6 +234,15 @@ function showPage(pageId) {
             siPage.dataset.initialized = 'true';
         }
     }
+    
+    // Initialize Agents page when navigating to it
+    if (pageId === 'agents') {
+        const agentsPage = document.getElementById('page-agents');
+        if (agentsPage && !agentsPage.dataset.initialized) {
+            loadSelfImprovementConfig();
+            agentsPage.dataset.initialized = 'true';
+        }
+    }
 }
 
 // =============================================================================
@@ -8368,4 +8377,202 @@ const SelfImprovement = {
         return div.innerHTML;
     }
 };
+
+// =============================================================================
+// Agents Page
+// =============================================================================
+
+async function loadSelfImprovementConfig() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/agents/self-improvement`);
+        const data = await response.json();
+        
+        // Set radio button
+        const radio = document.getElementById(`si-model-${data.model}`);
+        if (radio) {
+            radio.checked = true;
+        }
+    } catch (e) {
+        console.error('Failed to load Self-Improvement config:', e);
+    }
+}
+
+async function saveSelfImprovementModel() {
+    const selected = document.querySelector('input[name="si-model"]:checked');
+    if (!selected) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/agents/self-improvement`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: selected.value }),
+        });
+        
+        if (response.ok) {
+            showToast({ title: 'Success', message: 'Self-Improvement Agent model updated', type: 'success' });
+        } else {
+            throw new Error('Failed to save');
+        }
+    } catch (e) {
+        showToast({ title: 'Error', message: 'Failed to save model selection', type: 'error' });
+    }
+}
+
+async function analyzeModels() {
+    const btn = document.getElementById('analyze-models-btn');
+    const resultsDiv = document.getElementById('model-finder-results');
+    const applyBtn = document.getElementById('apply-recommendations-btn');
+    
+    if (!btn) return;
+    
+    btn.disabled = true;
+    btn.textContent = 'Analyzing...';
+    
+    try {
+        const params = {
+            free_only: document.getElementById('mf-free-only')?.checked || false,
+            azure_free: document.getElementById('mf-azure-free')?.checked || true,
+            prefer_speed: document.getElementById('mf-prefer-speed')?.checked || true,
+            prefer_quality: document.getElementById('mf-prefer-quality')?.checked || false,
+        };
+        
+        const response = await fetch(`${API_BASE}/api/v1/agents/model-finder/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params),
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayModelRecommendations(data.recommendations);
+            if (resultsDiv) resultsDiv.style.display = 'block';
+            if (applyBtn) applyBtn.style.display = 'inline-block';
+            window._currentRecommendations = data.recommendations;
+        } else {
+            showToast({ title: 'Error', message: data.error || 'Analysis failed', type: 'error' });
+        }
+    } catch (e) {
+        showToast({ title: 'Error', message: 'Failed to analyze models', type: 'error' });
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 Analyze Models';
+    }
+}
+
+function displayModelRecommendations(recommendations) {
+    const container = document.getElementById('model-recommendations-list');
+    if (!container) return;
+    
+    let html = '<div class="recommendations-grid">';
+    
+    for (const rec of recommendations) {
+        html += `
+            <div class="recommendation-card">
+                <div class="rec-header">
+                    <h5>${rec.agent}</h5>
+                    ${rec.is_free ? '<span class="badge badge-free">Free</span>' : ''}
+                </div>
+                <div class="rec-model"><code>${rec.recommended_model}</code></div>
+                <div class="rec-provider">Provider: ${rec.provider}</div>
+                <div class="rec-reasoning">${rec.reasoning}</div>
+                <div class="rec-cost">Cost: $${rec.estimated_cost_per_1m_tokens.toFixed(4)}/1M tokens</div>
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+async function applyModelRecommendations() {
+    if (!window._currentRecommendations) {
+        showToast({ title: 'Error', message: 'No recommendations to apply', type: 'error' });
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/agents/model-finder/apply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(window._currentRecommendations),
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast({ title: 'Success', message: `Applied ${data.updated_activities} model recommendations`, type: 'success' });
+        } else {
+            throw new Error('Failed to apply');
+        }
+    } catch (e) {
+        showToast({ title: 'Error', message: 'Failed to apply recommendations', type: 'error' });
+    }
+}
+
+async function analyzeFeatures() {
+    const btn = document.getElementById('analyze-features-btn');
+    const resultsDiv = document.getElementById('feature-agent-results');
+    
+    if (!btn) return;
+    
+    btn.disabled = true;
+    btn.textContent = 'Analyzing...';
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/agents/feature/analyze`, {
+            method: 'POST',
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayFeatureRecommendations(data.recommendations);
+            if (resultsDiv) resultsDiv.style.display = 'block';
+        } else {
+            showToast({ title: 'Error', message: data.error || 'Analysis failed', type: 'error' });
+        }
+    } catch (e) {
+        showToast({ title: 'Error', message: 'Failed to analyze features', type: 'error' });
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '💡 Analyze Features';
+    }
+}
+
+function displayFeatureRecommendations(recommendations) {
+    const container = document.getElementById('feature-recommendations-list');
+    if (!container) return;
+    
+    let html = '<div class="feature-recommendations-list">';
+    
+    for (const rec of recommendations) {
+        const priorityClass = rec.priority === 'high' ? 'priority-high' : rec.priority === 'medium' ? 'priority-medium' : 'priority-low';
+        html += `
+            <div class="feature-recommendation-card">
+                <div class="feature-header">
+                    <h5>${rec.feature}</h5>
+                    <span class="priority-badge ${priorityClass}">${rec.priority}</span>
+                </div>
+                <p class="feature-description">${rec.description}</p>
+                <div class="feature-details">
+                    <div class="feature-reasoning"><strong>Why:</strong> ${rec.reasoning}</div>
+                    <div class="feature-effort"><strong>Effort:</strong> ${rec.estimated_effort}</div>
+                    ${rec.related_intents.length > 0 ? `<div class="feature-related">Related intents: ${rec.related_intents.join(', ')}</div>` : ''}
+                </div>
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Initialize agents page event listeners
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('save-si-model')?.addEventListener('click', saveSelfImprovementModel);
+    document.getElementById('analyze-models-btn')?.addEventListener('click', analyzeModels);
+    document.getElementById('apply-recommendations-btn')?.addEventListener('click', applyModelRecommendations);
+    document.getElementById('analyze-features-btn')?.addEventListener('click', analyzeFeatures);
+});
 

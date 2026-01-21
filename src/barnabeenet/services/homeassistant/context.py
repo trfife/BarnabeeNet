@@ -163,10 +163,10 @@ class HAContextService:
                 # This allows existing code to work, but without loading states
                 if ha_client and ha_client._entity_registry:
                     from barnabeenet.services.homeassistant.entities import Entity, EntityState
-                    
+
                     # Clear existing registry
                     ha_client._entity_registry.clear()
-                    
+
                     # Add entities with metadata only (no state)
                     for meta in self._entity_metadata.values():
                         entity = Entity(
@@ -385,19 +385,19 @@ class HAContextService:
         self, name: str, domain: str | None = None
     ) -> dict[str, Any] | None:
         """Resolve entity by name and load its state just-in-time.
-        
+
         Returns entity metadata + current state, or None if not found.
         """
         await self.refresh_metadata()
-        
+
         # Find matching entities
         matches = self.find_entities_by_name(name, domain)
         if not matches:
             return None
-        
+
         # Use best match (first one)
         meta = matches[0]
-        
+
         # Load state just-in-time
         ha_client = await self.get_ha_client()
         state_data = None
@@ -408,7 +408,7 @@ class HAContextService:
                     state_data = response.json()
             except Exception:
                 pass
-        
+
         return {
             "entity_id": meta.entity_id,
             "domain": meta.domain,

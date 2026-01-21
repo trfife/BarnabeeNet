@@ -38,6 +38,7 @@
             <a href="#" class="nav-link" data-page="logs">Logs</a>
             <a href="#" class="nav-link" data-page="family">Family</a>
             <a href="#" class="nav-link" data-page="entities">Entities</a>
+            <a href="#" class="nav-link" data-page="agents">Agents</a>
             <a href="#" class="nav-link" data-page="config">Configuration</a>
         </div>
         <div class="nav-status">
@@ -1346,6 +1347,106 @@
                             <button id="si-submit" class="btn btn-primary">
                                 Start Investigation
                             </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Agents Page -->
+        <div id="page-agents" class="page">
+            <div class="page-header">
+                <h1>🤖 Agents</h1>
+                <p>Manage and configure AI agents</p>
+            </div>
+
+            <div class="agents-container">
+                <!-- Self-Improvement Agent -->
+                <div class="agent-card">
+                    <div class="agent-card-header">
+                        <h3>🔧 Self-Improvement Agent</h3>
+                        <p class="agent-description">AI-powered code improvements with human approval gates</p>
+                    </div>
+                    <div class="agent-card-body">
+                        <div class="agent-setting">
+                            <label>Model Selection:</label>
+                            <div class="model-toggle-group">
+                                <label class="toggle-option">
+                                    <input type="radio" name="si-model" value="auto" id="si-model-auto">
+                                    <span>🔄 Auto</span>
+                                    <small>Opus for planning, Sonnet for implementation</small>
+                                </label>
+                                <label class="toggle-option">
+                                    <input type="radio" name="si-model" value="opus" id="si-model-opus">
+                                    <span>🧠 Opus 4.5</span>
+                                    <small>Best reasoning (slower, uses more quota)</small>
+                                </label>
+                                <label class="toggle-option">
+                                    <input type="radio" name="si-model" value="sonnet" id="si-model-sonnet">
+                                    <span>⚡ Sonnet 4.5</span>
+                                    <small>Fast and capable</small>
+                                </label>
+                            </div>
+                            <button class="btn btn-primary btn-sm" id="save-si-model">Save</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Model Finder Agent -->
+                <div class="agent-card">
+                    <div class="agent-card-header">
+                        <h3>🔍 Model Finder Agent</h3>
+                        <p class="agent-description">Analyze all available models and recommend best for each agent</p>
+                    </div>
+                    <div class="agent-card-body">
+                        <div class="agent-setting">
+                            <label>Analysis Preferences:</label>
+                            <div class="preference-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="mf-free-only">
+                                    <span>Free models only</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="mf-azure-free" checked>
+                                    <span>Azure is free (150 credits/month)</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="mf-prefer-speed" checked>
+                                    <span>Prefer speed</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="mf-prefer-quality">
+                                    <span>Prefer quality</span>
+                                </label>
+                            </div>
+                            <div class="agent-actions">
+                                <button class="btn btn-primary" id="analyze-models-btn">🔍 Analyze Models</button>
+                                <button class="btn btn-secondary" id="apply-recommendations-btn" style="display: none;">Apply Recommendations</button>
+                            </div>
+                        </div>
+                        <div id="model-finder-results" class="agent-results" style="display: none;">
+                            <h4>Recommendations</h4>
+                            <div id="model-recommendations-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feature Agent -->
+                <div class="agent-card">
+                    <div class="agent-card-header">
+                        <h3>💡 Feature Agent</h3>
+                        <p class="agent-description">Analyze usage patterns and recommend new features</p>
+                    </div>
+                    <div class="agent-card-body">
+                        <div class="agent-setting">
+                            <p class="agent-note">Runs automatically once per day. You can also trigger manual analysis.</p>
+                            <div class="agent-actions">
+                                <button class="btn btn-primary" id="analyze-features-btn">💡 Analyze Features</button>
+                            </div>
+                        </div>
+                        <div id="feature-agent-results" class="agent-results" style="display: none;">
+                            <h4>Feature Recommendations</h4>
+                            <div id="feature-recommendations-list"></div>
                         </div>
                     </div>
                 </div>

@@ -93,7 +93,7 @@ async def get_status() -> dict[str, Any]:
 
 
 @router.post("/improve")
-async def start_improvement(req: ImprovementRequest) -> dict[str, Any]:
+async def start_improvement(req: ImprovementRequest, request: Request) -> dict[str, Any]:
     """Start an improvement session.
 
     Returns a session ID. Use /sessions/{session_id} to check status,
@@ -109,11 +109,28 @@ async def start_improvement(req: ImprovementRequest) -> dict[str, Any]:
             detail="Claude Code CLI not available. Install with: npm install -g @anthropic-ai/claude-code",
         )
 
+    # Get model from Redis if not provided or if "auto" is requested
+    model = req.model
+    if model == "auto" or not model:
+        redis = request.app.state.redis
+        stored_model = await redis.get("barnabeenet:agents:self_improvement:model")
+        if stored_model:
+            model = stored_model.decode() if isinstance(stored_model, bytes) else stored_model
+            # Map "auto" to "opusplan"
+            if model == "auto":
+                model = "opusplan"
+            elif model == "opus":
+                model = "opus"
+            elif model == "sonnet":
+                model = "sonnet"
+        else:
+            model = "opusplan"  # Default
+
     # Start the improvement in background and return immediately
     async def run_improvement() -> None:
         async for _event in agent.improve(
             request=req.request,
-            model=req.model,
+            model=model,
             auto_approve=req.auto_approve,
             max_turns=req.max_turns,
             source=req.source,
@@ -140,7 +157,7 @@ async def start_improvement(req: ImprovementRequest) -> dict[str, Any]:
 
 
 @router.post("/improve/stream")
-async def start_improvement_stream(req: ImprovementRequest) -> StreamingResponse:
+async def start_improvement_stream(req: ImprovementRequest, request: Request) -> StreamingResponse:
     """Start an improvement session with streaming response.
 
     Returns a stream of JSON events as the improvement progresses.
@@ -156,7 +173,7 @@ async def start_improvement_stream(req: ImprovementRequest) -> StreamingResponse
     async def event_generator():
         async for event in agent.improve(
             request=req.request,
-            model=req.model,
+            model=model,
             auto_approve=req.auto_approve,
             max_turns=req.max_turns,
             source=req.source,

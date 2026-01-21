@@ -614,11 +614,11 @@ class MetaAgent(Agent):
         ha_context: dict | None = None,
     ) -> ClassificationResult:
         """Classify intent using tiered approach: pattern → heuristic → LLM.
-        
+
         Uses HA context (entity names, domains) to improve device detection.
         """
         ha_context = ha_context or {}
-        
+
         # Phase 1: Pattern matching (fast path)
         result = self._pattern_match(text)
         if result.confidence >= self._config.pattern_match_confidence_threshold:
@@ -758,7 +758,7 @@ class MetaAgent(Agent):
                 }
                 words = text_lower.split()
                 has_command = any(word in command_verbs for word in words[:3])
-                
+
                 if has_command:
                     return ClassificationResult(
                         intent=IntentCategory.ACTION,

@@ -983,7 +983,7 @@ class HomeAssistantClient:
         # EntityRegistry is populated by HAContextService with metadata (no states)
         # This allows fast resolution without loading all states upfront
         entity = self._entity_registry.find_by_name(name, domain)
-        
+
         # If entity found but state is placeholder, state will be loaded just-in-time when needed
         # For now, return entity (state can be loaded via load_entity_state() if needed)
         return entity
