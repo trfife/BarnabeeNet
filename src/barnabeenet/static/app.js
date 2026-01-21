@@ -1965,7 +1965,7 @@ function initModelSelection() {
             }
         });
     });
-    
+
     // Load on initial page load if models section is active
     const modelsNav = document.querySelector('.config-nav li[data-config="models"]');
     if (modelsNav && modelsNav.classList.contains('active')) {
@@ -1979,7 +1979,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initProviderConfig();
     initModelSelection();
     initHomeAssistant();
-    
+
     // Load agent models if on config page
     if (document.getElementById('agent-models-list')) {
         loadAgentModels();
@@ -4612,11 +4612,6 @@ async function fetchTraceEnhancements(traceId, flowEl) {
     }
 }
 
-async function fetchAndDisplayAgentChain(traceId) {
-    // Legacy function - now handled by showProcessingFlow
-    // Kept for compatibility
-    return;
-}
 
 function getAgentIcon(agent) {
     const icons = {
@@ -5049,10 +5044,7 @@ async function processVoiceRecording(audioBlob) {
 
             updateChatStatus('Ready to chat');
 
-            // Fetch and display agent chain if we have a trace_id
-            if (traceId) {
-                setTimeout(() => fetchAndDisplayAgentChain(traceId), 100);
-            }
+            // Agent chain is displayed via showProcessingFlow above
         } else {
             // Error response - handle both string and object errors
             let errorMsg = 'Voice processing failed';
