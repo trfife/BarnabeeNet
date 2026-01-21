@@ -9383,3 +9383,543 @@ textarea:focus-visible {
     padding-top: 16px;
     border-top: 1px solid var(--border);
 }
+
+/* =============================================================================
+   Self-Improvement Panel Styles
+   ============================================================================= */
+
+.self-improvement-panel {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 200px);
+    gap: 1rem;
+}
+
+.self-improvement-panel .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.self-improvement-panel .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.self-improvement-panel .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    animation: pulse 2s infinite;
+}
+
+.self-improvement-panel .status-dot.available {
+    background: var(--success);
+}
+
+.self-improvement-panel .status-dot.unavailable {
+    background: var(--danger);
+    animation: none;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.self-improvement-panel .panel-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr 220px;
+    gap: 1rem;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Sessions Sidebar */
+.self-improvement-panel .sessions-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+.self-improvement-panel .sessions-sidebar h4 {
+    margin: 0 0 0.75rem 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.si-session-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.si-session-item:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--border);
+}
+
+.si-session-item.selected {
+    background: var(--primary-dim);
+    border-color: var(--primary);
+}
+
+.si-session-status-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.si-session-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.si-session-request-preview {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 0.25rem;
+}
+
+.si-session-meta {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+/* Active Session View */
+.self-improvement-panel .active-session-view {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.self-improvement-panel .session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.self-improvement-panel .session-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1;
+    min-width: 0;
+}
+
+#si-request-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.self-improvement-panel .status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.status-badge.status-pending { background: var(--bg-tertiary); color: var(--text-secondary); }
+.status-badge.status-diagnosing { background: #2a4a6a; color: #8ac; }
+.status-badge.status-awaiting_plan_approval { background: #6a4a2a; color: #ca8; }
+.status-badge.status-implementing { background: #2a6a4a; color: #8ca; }
+.status-badge.status-testing { background: #4a2a6a; color: #a8c; }
+.status-badge.status-awaiting_approval { background: #6a6a2a; color: #cc8; }
+.status-badge.status-completed { background: #2a6a2a; color: #8c8; }
+.status-badge.status-failed { background: #6a2a2a; color: #c88; }
+.status-badge.status-rejected { background: #5a2a3a; color: #c8a; }
+.status-badge.status-stopped { background: #4a4a4a; color: #aaa; }
+
+/* Plan Approval Section */
+.self-improvement-panel .plan-approval {
+    background: var(--warning-dim);
+    border: 1px solid var(--warning);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.self-improvement-panel .plan-approval h4 {
+    margin: 0 0 1rem 0;
+}
+
+.self-improvement-panel .plan-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.self-improvement-panel .plan-field {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 0.5rem;
+}
+
+.self-improvement-panel .plan-field label {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.self-improvement-panel .plan-field.has-risks {
+    background: rgba(220, 80, 80, 0.15);
+    padding: 0.5rem;
+    border-radius: 4px;
+}
+
+.self-improvement-panel .plan-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.self-improvement-panel .plan-feedback input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+}
+
+/* Thinking Stream */
+.self-improvement-panel .thinking-section,
+.self-improvement-panel .operations-section {
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 1rem;
+}
+
+.self-improvement-panel .thinking-section h4,
+.self-improvement-panel .operations-section h4 {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.self-improvement-panel .thinking-stream {
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    background: var(--bg-primary);
+    border-radius: 4px;
+    padding: 0.75rem;
+}
+
+.self-improvement-panel .thinking-stream pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.self-improvement-panel .thinking-stream .user-message {
+    background: var(--primary-dim);
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    margin: 0.5rem 0;
+    border-left: 3px solid var(--primary);
+}
+
+/* Operation Log */
+.self-improvement-panel .operation-log {
+    max-height: 300px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.self-improvement-panel .operation-entry {
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    border-left: 3px solid var(--border);
+}
+
+.self-improvement-panel .operation-entry.op-bash { border-left-color: var(--success); }
+.self-improvement-panel .operation-entry.op-read { border-left-color: var(--primary); }
+.self-improvement-panel .operation-entry.op-write { border-left-color: var(--danger); }
+.self-improvement-panel .operation-entry.op-edit { border-left-color: var(--warning); }
+
+.self-improvement-panel .op-header {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+.self-improvement-panel .op-time {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.self-improvement-panel .op-tool {
+    font-weight: 500;
+    color: var(--primary);
+}
+
+.self-improvement-panel .op-content pre,
+.self-improvement-panel .op-result pre {
+    margin: 0;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.self-improvement-panel .op-result {
+    margin-top: 0.25rem;
+    padding-top: 0.25rem;
+    border-top: 1px solid var(--border);
+    color: var(--text-secondary);
+}
+
+/* User Input Section */
+.self-improvement-panel .user-input-section {
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 1rem;
+}
+
+.self-improvement-panel .user-input-section h4 {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.self-improvement-panel .input-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.self-improvement-panel .input-row input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+}
+
+.self-improvement-panel .input-row input:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+/* Code Approval Section */
+.self-improvement-panel .code-approval {
+    background: var(--success-dim);
+    border: 1px solid var(--success);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.self-improvement-panel .code-approval h4 {
+    margin: 0 0 1rem 0;
+}
+
+.self-improvement-panel .diff-preview {
+    margin-bottom: 1rem;
+}
+
+.self-improvement-panel .diff-stats {
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.self-improvement-panel .files-list {
+    margin: 0;
+    padding-left: 1.5rem;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.85rem;
+}
+
+.self-improvement-panel .code-approval-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+/* Cost Sidebar */
+.self-improvement-panel .cost-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 1rem;
+}
+
+.self-improvement-panel .cost-sidebar h4 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.self-improvement-panel .cost-report {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.self-improvement-panel .cost-stat {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.self-improvement-panel .cost-stat.api-cost {
+    color: var(--text-secondary);
+}
+
+.self-improvement-panel .cost-stat.subscription {
+    background: var(--success-dim);
+    border: 1px solid var(--success);
+}
+
+.self-improvement-panel .cost-stat.savings {
+    background: var(--success-dim);
+    border: 1px solid var(--success);
+    font-weight: 500;
+}
+
+/* Empty States */
+.self-improvement-panel .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    color: var(--text-secondary);
+    font-style: italic;
+    text-align: center;
+}
+
+/* Self-Improvement Modal */
+#si-modal .modal-content {
+    max-width: 500px;
+}
+
+#si-modal textarea {
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    resize: vertical;
+    font-family: inherit;
+    font-size: 0.9rem;
+    min-height: 120px;
+}
+
+#si-modal textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+#si-modal .model-select {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 1rem 0;
+}
+
+#si-modal .model-select label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#si-modal .model-select label:hover {
+    background: var(--bg-tertiary);
+}
+
+#si-modal .model-select input[type="radio"] {
+    accent-color: var(--primary);
+}
+
+#si-modal .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .self-improvement-panel .panel-layout {
+        grid-template-columns: 220px 1fr 180px;
+    }
+}
+
+@media (max-width: 900px) {
+    .self-improvement-panel .panel-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto;
+    }
+    
+    .self-improvement-panel .sessions-sidebar {
+        max-height: 150px;
+    }
+    
+    .self-improvement-panel .cost-sidebar {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .self-improvement-panel .cost-sidebar h4 {
+        width: 100%;
+    }
+    
+    .self-improvement-panel .cost-report {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .self-improvement-panel .cost-stat {
+        flex: 1 1 45%;
+    }
+}
