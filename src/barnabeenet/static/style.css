@@ -9399,10 +9399,10 @@ textarea:focus-visible {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.75rem;
-    background: var(--card-bg);
+    padding: 0.75rem 1rem;
+    background: var(--bg-card);
     border-radius: 8px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
 }
 
 .self-improvement-panel .status-indicator {
@@ -9416,19 +9416,19 @@ textarea:focus-visible {
     height: 10px;
     border-radius: 50%;
     background: var(--text-secondary);
-    animation: pulse 2s infinite;
+    animation: si-pulse 2s infinite;
 }
 
 .self-improvement-panel .status-dot.available {
-    background: var(--success);
+    background: var(--accent-primary);
 }
 
 .self-improvement-panel .status-dot.unavailable {
-    background: var(--danger);
+    background: var(--accent-error);
     animation: none;
 }
 
-@keyframes pulse {
+@keyframes si-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
 }
@@ -9446,9 +9446,9 @@ textarea:focus-visible {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    background: var(--card-bg);
+    background: var(--bg-card);
     border-radius: 8px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
     padding: 1rem;
     overflow-y: auto;
 }
@@ -9474,13 +9474,13 @@ textarea:focus-visible {
 }
 
 .si-session-item:hover {
-    background: var(--bg-tertiary);
-    border-color: var(--border);
+    background: var(--bg-hover);
+    border-color: var(--border-color);
 }
 
 .si-session-item.selected {
-    background: var(--primary-dim);
-    border-color: var(--primary);
+    background: rgba(0, 255, 157, 0.1);
+    border-color: var(--accent-primary);
 }
 
 .si-session-status-icon {
@@ -9520,9 +9520,9 @@ textarea:focus-visible {
     justify-content: space-between;
     align-items: center;
     padding: 1rem;
-    background: var(--card-bg);
+    background: var(--bg-card);
     border-radius: 8px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
 }
 
 .self-improvement-panel .session-title {
@@ -9547,7 +9547,7 @@ textarea:focus-visible {
     white-space: nowrap;
 }
 
-.status-badge.status-pending { background: var(--bg-tertiary); color: var(--text-secondary); }
+.status-badge.status-pending { background: var(--bg-hover); color: var(--text-secondary); }
 .status-badge.status-diagnosing { background: #2a4a6a; color: #8ac; }
 .status-badge.status-awaiting_plan_approval { background: #6a4a2a; color: #ca8; }
 .status-badge.status-implementing { background: #2a6a4a; color: #8ca; }
@@ -9560,8 +9560,8 @@ textarea:focus-visible {
 
 /* Plan Approval Section */
 .self-improvement-panel .plan-approval {
-    background: var(--warning-dim);
-    border: 1px solid var(--warning);
+    background: rgba(255, 165, 0, 0.1);
+    border: 1px solid var(--accent-warning);
     border-radius: 8px;
     padding: 1rem;
 }
@@ -9590,7 +9590,7 @@ textarea:focus-visible {
 }
 
 .self-improvement-panel .plan-field.has-risks {
-    background: rgba(220, 80, 80, 0.15);
+    background: rgba(255, 71, 87, 0.15);
     padding: 0.5rem;
     border-radius: 4px;
 }
@@ -9605,7 +9605,7 @@ textarea:focus-visible {
     width: 100%;
     padding: 0.5rem 0.75rem;
     background: var(--bg-primary);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     color: var(--text-primary);
 }
@@ -9613,9 +9613,9 @@ textarea:focus-visible {
 /* Thinking Stream */
 .self-improvement-panel .thinking-section,
 .self-improvement-panel .operations-section {
-    background: var(--card-bg);
+    background: var(--bg-card);
     border-radius: 8px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
     padding: 1rem;
 }
 
@@ -9644,11 +9644,11 @@ textarea:focus-visible {
 }
 
 .self-improvement-panel .thinking-stream .user-message {
-    background: var(--primary-dim);
+    background: rgba(0, 255, 157, 0.1);
     padding: 0.5rem 0.75rem;
     border-radius: 4px;
     margin: 0.5rem 0;
-    border-left: 3px solid var(--primary);
+    border-left: 3px solid var(--accent-primary);
 }
 
 /* Operation Log */
@@ -9665,13 +9665,13 @@ textarea:focus-visible {
     border-radius: 4px;
     padding: 0.5rem 0.75rem;
     font-size: 0.85rem;
-    border-left: 3px solid var(--border);
+    border-left: 3px solid var(--border-color);
 }
 
-.self-improvement-panel .operation-entry.op-bash { border-left-color: var(--success); }
-.self-improvement-panel .operation-entry.op-read { border-left-color: var(--primary); }
-.self-improvement-panel .operation-entry.op-write { border-left-color: var(--danger); }
-.self-improvement-panel .operation-entry.op-edit { border-left-color: var(--warning); }
+.self-improvement-panel .operation-entry.op-bash { border-left-color: var(--accent-primary); }
+.self-improvement-panel .operation-entry.op-read { border-left-color: var(--accent-secondary); }
+.self-improvement-panel .operation-entry.op-write { border-left-color: var(--accent-error); }
+.self-improvement-panel .operation-entry.op-edit { border-left-color: var(--accent-warning); }
 
 .self-improvement-panel .op-header {
     display: flex;
@@ -9686,7 +9686,7 @@ textarea:focus-visible {
 
 .self-improvement-panel .op-tool {
     font-weight: 500;
-    color: var(--primary);
+    color: var(--accent-secondary);
 }
 
 .self-improvement-panel .op-content pre,
@@ -9701,15 +9701,15 @@ textarea:focus-visible {
 .self-improvement-panel .op-result {
     margin-top: 0.25rem;
     padding-top: 0.25rem;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border-color);
     color: var(--text-secondary);
 }
 
 /* User Input Section */
 .self-improvement-panel .user-input-section {
-    background: var(--card-bg);
+    background: var(--bg-card);
     border-radius: 8px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
     padding: 1rem;
 }
 
@@ -9728,20 +9728,20 @@ textarea:focus-visible {
     flex: 1;
     padding: 0.5rem 0.75rem;
     background: var(--bg-primary);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     color: var(--text-primary);
 }
 
 .self-improvement-panel .input-row input:focus {
     outline: none;
-    border-color: var(--primary);
+    border-color: var(--accent-primary);
 }
 
 /* Code Approval Section */
 .self-improvement-panel .code-approval {
-    background: var(--success-dim);
-    border: 1px solid var(--success);
+    background: rgba(0, 255, 157, 0.1);
+    border: 1px solid var(--accent-primary);
     border-radius: 8px;
     padding: 1rem;
 }
@@ -9776,9 +9776,9 @@ textarea:focus-visible {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    background: var(--card-bg);
+    background: var(--bg-card);
     border-radius: 8px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
     padding: 1rem;
 }
 
@@ -9811,13 +9811,13 @@ textarea:focus-visible {
 }
 
 .self-improvement-panel .cost-stat.subscription {
-    background: var(--success-dim);
-    border: 1px solid var(--success);
+    background: rgba(0, 255, 157, 0.1);
+    border: 1px solid var(--accent-primary);
 }
 
 .self-improvement-panel .cost-stat.savings {
-    background: var(--success-dim);
-    border: 1px solid var(--success);
+    background: rgba(0, 255, 157, 0.15);
+    border: 1px solid var(--accent-primary);
     font-weight: 500;
 }
 
@@ -9841,7 +9841,7 @@ textarea:focus-visible {
     width: 100%;
     padding: 0.75rem;
     background: var(--bg-primary);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     color: var(--text-primary);
     resize: vertical;
@@ -9852,7 +9852,7 @@ textarea:focus-visible {
 
 #si-modal textarea:focus {
     outline: none;
-    border-color: var(--primary);
+    border-color: var(--accent-primary);
 }
 
 #si-modal .model-select {
@@ -9874,11 +9874,11 @@ textarea:focus-visible {
 }
 
 #si-modal .model-select label:hover {
-    background: var(--bg-tertiary);
+    background: var(--bg-hover);
 }
 
 #si-modal .model-select input[type="radio"] {
-    accent-color: var(--primary);
+    accent-color: var(--accent-primary);
 }
 
 #si-modal .modal-actions {
