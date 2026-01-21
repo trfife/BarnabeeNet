@@ -397,16 +397,18 @@ YOUR APPROVED PLAN:
 
 WORKFLOW:
 1. Make the minimal targeted changes described in the plan
-   - If modifying prompts: Edit the .txt file in prompts/ directory
+   - If modifying prompts: Edit the .txt file in prompts/ directory (no UI exists)
    - If modifying code: Edit the .py file in agents/ directory
    - If modifying config: Edit the .yaml file in config/ directory
-2. Run tests: pytest
+   - If modifying models: Edit config/llm.yaml agents section (one model per agent)
+2. Run tests: pytest (uses testmon for fast incremental runs)
 3. If tests fail, fix issues and re-test
 4. Verify the change works as expected
 
 IMPORTANT: The plan has been approved. Proceed with implementation.
 Always explain what you're doing before each action.
-When modifying agent prompts, remember they control the LLM's behavior for that agent."""
+When modifying agent prompts, remember they control the LLM's behavior for that agent.
+There is NO prompts page UI - edit files directly in src/barnabeenet/prompts/*.txt."""
 
 
 # Legacy combined prompt (kept for reference)
