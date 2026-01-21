@@ -984,26 +984,22 @@ class HomeAssistantClient:
         # This allows fast resolution without loading all states upfront
         entity = self._entity_registry.find_by_name(name, domain)
         
-        # If entity found but state is placeholder, load state just-in-time
-        if entity and entity.state.state == "unknown":
-            # State will be loaded when needed via async method
-            # For now, return entity with placeholder state
-            pass
-        
+        # If entity found but state is placeholder, state will be loaded just-in-time when needed
+        # For now, return entity (state can be loaded via load_entity_state() if needed)
         return entity
-    
+
     async def load_entity_state(self, entity_id: str) -> EntityState | None:
         """Load entity state just-in-time.
-        
+
         Args:
             entity_id: Entity ID to load state for
-            
+
         Returns:
             EntityState or None if not found
         """
         if not self._client:
             return None
-        
+
         try:
             response = await self._client.get(f"/api/states/{entity_id}")
             if response.status_code == 200:
@@ -1017,7 +1013,7 @@ class HomeAssistantClient:
                 )
         except Exception as e:
             logger.debug("Failed to load state for %s: %s", entity_id, e)
-        
+
         return None
 
     def _parse_entity(self, state_data: dict[str, Any]) -> Entity:
