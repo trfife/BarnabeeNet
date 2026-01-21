@@ -289,11 +289,20 @@ HOW AGENTS ARE INITIALIZED:
 
 COMMON FIX PATTERNS:
 ───────────────────────────────────────────────────────────────────────────────
-• Fixing agent behavior → Modify prompts/{agent}_agent.txt
+• Fixing agent behavior → Modify prompts/{agent}_agent.txt (edit file directly, no UI)
 • Fixing routing/classification → Modify agents/meta.py or config/routing.yaml
 • Fixing agent logic → Modify agents/{agent}.py
 • Fixing initialization → Modify agents/orchestrator.py
-• Fixing model config → Modify config/llm.yaml
+• Fixing model config → Modify config/llm.yaml (agents section, one model per agent)
+• Adding dashboard page → Add HTML div, nav link, JS init, CSS styles
+• Adding API endpoint → Create route file, register in main.py, add tests
+
+IMPORTANT RECENT CHANGES:
+───────────────────────────────────────────────────────────────────────────────
+• Prompts page REMOVED - edit prompt files directly in prompts/*.txt
+• Model selection SIMPLIFIED - one model per agent in config/llm.yaml
+• Config sections REMOVED - general, voice, memory, advanced (non-functional)
+• Dashboard pages: Dashboard, Chat, Memory, Logic, Self-Improve, Logs, Family, Entities, Config
 
 ═══════════════════════════════════════════════════════════════════════════════
 
