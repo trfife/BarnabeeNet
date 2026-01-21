@@ -30,7 +30,7 @@ function showToast(optionsOrMessage, legacyType = 'success') {
     // Handle both old style: showToast('message', 'type')
     // and new style: showToast({ title, message, type, duration })
     let title, message, type, duration;
-    
+
     if (typeof optionsOrMessage === 'string') {
         // Legacy style: showToast('message', 'type')
         message = optionsOrMessage;
@@ -41,7 +41,7 @@ function showToast(optionsOrMessage, legacyType = 'success') {
         // New style: showToast({ title, message, type, duration })
         ({ title, message, type = 'info', duration = 5000 } = optionsOrMessage);
     }
-    
+
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
@@ -8238,23 +8238,20 @@ async function runPatternTest() {
 // Logic page initialization is now handled in showPage() function
 
 // =============================================================================
-// Self-Improvement Page
+// Self-Improvement Page (Simplified)
 // =============================================================================
 
 /**
- * Self-Improvement Panel
- *
- * Interactive dashboard for the Self-Improvement Agent showing:
- * - Live thinking/reasoning stream
- * - Command execution with results
- * - Plan approval workflow
- * - User input for course correction
- * - Stop button for immediate halt
- * - Cost tracking
+ * Simplified Self-Improvement UI
+ * 
+ * Shows:
+ * - Status bar at top
+ * - Plan approval section (when plan proposed)
+ * - CLI output (all Claude activity)
+ * - Commit section (when changes ready)
  */
 
 const SelfImprovement = {
-    sessions: [],
     activeSessionId: null,
     eventSource: null,
 
@@ -8262,8 +8259,7 @@ const SelfImprovement = {
         console.log('Initializing Self-Improvement page...');
         this.bindEvents();
         await this.checkAvailability();
-        await this.loadSessions();
-        await this.loadCostReport();
+        await this.loadActiveSession();
     },
 
     bindEvents() {
@@ -8289,14 +8285,6 @@ const SelfImprovement = {
             this.stopSession();
         });
 
-        document.getElementById('si-send-input')?.addEventListener('click', () => {
-            this.sendUserInput();
-        });
-
-        document.getElementById('si-user-input')?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.sendUserInput();
-        });
-
         // Plan approval
         document.getElementById('si-approve-plan')?.addEventListener('click', () => {
             this.approvePlan();
@@ -8314,11 +8302,6 @@ const SelfImprovement = {
         document.getElementById('si-reject-changes')?.addEventListener('click', () => {
             this.rejectSession();
         });
-
-        // Cost refresh
-        document.getElementById('si-refresh-costs')?.addEventListener('click', () => {
-            this.loadCostReport();
-        });
     },
 
     async checkAvailability() {
@@ -8326,14 +8309,14 @@ const SelfImprovement = {
             const response = await fetch(`${API_BASE}/api/v1/self-improve/status`);
             const data = await response.json();
 
-            const statusDot = document.querySelector('.self-improvement-panel .status-dot');
-            const statusText = document.getElementById('self-improve-status-text');
+            const statusDot = document.getElementById('si-status-dot');
+            const statusText = document.getElementById('si-status-text');
             const newBtn = document.getElementById('new-improvement-btn');
 
             if (data.available) {
                 statusDot?.classList.add('available');
                 statusDot?.classList.remove('unavailable');
-                statusText.textContent = `Available (${data.claude_path || 'claude'})`;
+                statusText.textContent = 'Ready';
                 newBtn.disabled = false;
             } else {
                 statusDot?.classList.add('unavailable');
@@ -8342,227 +8325,106 @@ const SelfImprovement = {
                 newBtn.disabled = true;
             }
         } catch (error) {
-            console.error('Failed to check self-improvement availability:', error);
-            const statusText = document.getElementById('self-improve-status-text');
-            statusText.textContent = 'Error checking availability';
+            console.error('Failed to check availability:', error);
         }
     },
 
-    async loadSessions() {
+    async loadActiveSession() {
         try {
             const response = await fetch(`${API_BASE}/api/v1/self-improve/sessions`);
-            this.sessions = await response.json();
-            this.renderSessionList();
+            const sessions = await response.json();
+            
+            // Find most recent active session
+            const activeSession = sessions.find(s => 
+                !['completed', 'failed', 'rejected', 'stopped'].includes(s.status)
+            );
+            
+            if (activeSession) {
+                this.activeSessionId = activeSession.session_id;
+                this.renderSession(activeSession);
+                this.startStreaming(activeSession.session_id);
+            } else if (sessions.length > 0) {
+                // Show most recent session
+                this.activeSessionId = sessions[0].session_id;
+                this.renderSession(sessions[0]);
+            }
         } catch (error) {
             console.error('Failed to load sessions:', error);
         }
     },
 
-    renderSessionList() {
-        const container = document.getElementById('si-session-list');
-        if (!container) return;
+    renderSession(session) {
+        // Hide empty state
+        document.getElementById('si-empty-state')?.classList.add('hidden');
 
-        if (this.sessions.length === 0) {
-            container.innerHTML = '<div class="empty-state">No sessions yet</div>';
-            return;
-        }
-
-        container.innerHTML = this.sessions.map(session => `
-            <div class="si-session-item ${session.status} ${session.session_id === this.activeSessionId ? 'selected' : ''}"
-                 data-session-id="${session.session_id}"
-                 onclick="SelfImprovement.selectSession('${session.session_id}')">
-                <div class="si-session-status-icon">${this.getStatusIcon(session.status)}</div>
-                <div class="si-session-info">
-                    <div class="si-session-request-preview">${this.escapeHtml(session.request?.substring(0, 50) || 'Unknown')}...</div>
-                    <div class="si-session-meta">
-                        ${session.files_modified?.length || 0} files |
-                        $${(session.estimated_api_cost_usd || 0).toFixed(4)}
-                    </div>
-                </div>
-            </div>
-        `).join('');
-    },
-
-    getStatusIcon(status) {
-        const icons = {
-            'pending': '⏳',
-            'diagnosing': '🔍',
-            'awaiting_plan_approval': '📋',
-            'implementing': '⚙️',
-            'testing': '🧪',
-            'awaiting_approval': '⏸️',
-            'committing': '💾',
-            'completed': '✅',
-            'failed': '❌',
-            'rejected': '🚫',
-            'stopped': '⏹️',
+        // Update status bar
+        const statusText = document.getElementById('si-status-text');
+        const requestText = document.getElementById('si-request-text');
+        const stopBtn = document.getElementById('si-stop-btn');
+        
+        const statusLabels = {
+            'pending': '⏳ Pending',
+            'diagnosing': '🔍 Diagnosing',
+            'awaiting_plan_approval': '📋 Plan Ready',
+            'implementing': '⚙️ Implementing',
+            'testing': '🧪 Testing',
+            'awaiting_approval': '📝 Changes Ready',
+            'committing': '💾 Committing',
+            'completed': '✅ Completed',
+            'failed': '❌ Failed',
+            'rejected': '🚫 Rejected',
+            'stopped': '⏹️ Stopped',
         };
-        return icons[status] || '❓';
-    },
+        
+        statusText.textContent = statusLabels[session.status] || session.status;
+        requestText.textContent = session.request || '';
+        
+        // Show/hide stop button
+        const isActive = !['completed', 'failed', 'rejected', 'stopped'].includes(session.status);
+        stopBtn?.classList.toggle('hidden', !isActive);
 
-    selectSession(sessionId) {
-        this.activeSessionId = sessionId;
-
-        // Update UI
-        document.getElementById('si-no-session')?.classList.add('hidden');
-        document.getElementById('si-active-session')?.classList.remove('hidden');
-
-        // Update selection in list
-        document.querySelectorAll('.si-session-item').forEach(el => {
-            el.classList.toggle('selected', el.dataset.sessionId === sessionId);
-        });
-
-        // Load session details
-        const session = this.sessions.find(s => s.session_id === sessionId);
-        if (session) {
-            this.renderActiveSession(session);
-        }
-
-        // Start streaming for this session
-        this.startStreaming(sessionId);
-    },
-
-    renderActiveSession(session) {
-        // Status badge
-        const badge = document.getElementById('si-status-badge');
-        if (badge) {
-            badge.textContent = `${this.getStatusIcon(session.status)} ${session.status}`;
-            badge.className = `status-badge status-${session.status}`;
-        }
-
-        // Request text
-        document.getElementById('si-request-text').textContent = session.request || '';
-
-        // Plan approval section
-        const planApproval = document.getElementById('si-plan-approval');
+        // Plan section
+        const planSection = document.getElementById('si-plan-section');
         if (session.status === 'awaiting_plan_approval' && session.proposed_plan) {
-            planApproval?.classList.remove('hidden');
+            planSection?.classList.remove('hidden');
             this.renderPlan(session.proposed_plan);
         } else {
-            planApproval?.classList.add('hidden');
+            planSection?.classList.add('hidden');
         }
 
-        // Code approval section
-        const codeApproval = document.getElementById('si-code-approval');
+        // CLI output section - always show if we have content
+        const cliSection = document.getElementById('si-cli-section');
+        const cliOutput = document.getElementById('si-cli-output');
+        const cliStatus = document.getElementById('si-cli-status');
+        
+        if (session.current_thinking || session.messages?.length > 0 || session.operations?.length > 0) {
+            cliSection?.classList.remove('hidden');
+            cliStatus.textContent = isActive ? '(live)' : '';
+            this.renderCliOutput(session);
+        } else if (isActive) {
+            cliSection?.classList.remove('hidden');
+            cliStatus.textContent = '(waiting...)';
+            cliOutput.innerHTML = '<div class="cli-waiting">Waiting for Claude to start...</div>';
+        } else {
+            cliSection?.classList.add('hidden');
+        }
+
+        // Commit section
+        const commitSection = document.getElementById('si-commit-section');
         if (session.status === 'awaiting_approval') {
-            codeApproval?.classList.remove('hidden');
-            document.getElementById('si-diff-preview').innerHTML = `
-                <div class="diff-stats">
-                    <strong>${session.files_modified?.length || 0}</strong> files changed |
-                    Est. API cost: <strong>$${(session.estimated_api_cost_usd || 0).toFixed(4)}</strong>
+            commitSection?.classList.remove('hidden');
+            document.getElementById('si-changes-summary').innerHTML = `
+                <div class="changes-stats">
+                    <strong>${session.files_modified?.length || 0}</strong> files changed
+                    ${session.estimated_api_cost_usd ? ` · Est. API cost: $${session.estimated_api_cost_usd.toFixed(4)}` : ''}
                 </div>
-                <ul class="files-list">
+                <ul class="changes-files">
                     ${(session.files_modified || []).map(f => `<li>${this.escapeHtml(f)}</li>`).join('')}
                 </ul>
             `;
         } else {
-            codeApproval?.classList.add('hidden');
+            commitSection?.classList.add('hidden');
         }
-
-        // Session summary (shown for terminal states)
-        const summarySection = document.getElementById('si-session-summary');
-        const summaryContent = document.getElementById('si-summary-content');
-        if (summarySection && summaryContent) {
-            const isTerminal = ['completed', 'failed', 'rejected', 'stopped'].includes(session.status);
-            if (isTerminal) {
-                summarySection.classList.remove('hidden');
-                summaryContent.innerHTML = this.renderSessionSummary(session);
-            } else {
-                summarySection.classList.add('hidden');
-            }
-        }
-
-        // Update thinking display with existing content
-        if (session.current_thinking) {
-            this.updateThinkingDisplay(session.current_thinking);
-        }
-    },
-
-    renderSessionSummary(session) {
-        const tokens = session.token_usage || {};
-        const totalTokens = (tokens.input_tokens || 0) + (tokens.output_tokens || 0);
-        const apiCost = session.estimated_api_cost_usd || 0;
-
-        let statusClass = 'success';
-        let statusIcon = '✅';
-        if (session.status === 'failed') {
-            statusClass = 'error';
-            statusIcon = '❌';
-        } else if (session.status === 'rejected') {
-            statusClass = 'warning';
-            statusIcon = '🚫';
-        } else if (session.status === 'stopped') {
-            statusClass = 'info';
-            statusIcon = '⏹️';
-        }
-
-        return `
-            <div class="summary-status ${statusClass}">
-                <span class="icon">${statusIcon}</span>
-                <span>${session.status.replace('_', ' ').toUpperCase()}</span>
-            </div>
-
-            ${session.error ? `
-                <div class="summary-error">
-                    <strong>Error:</strong> ${this.escapeHtml(session.error)}
-                </div>
-            ` : ''}
-
-            ${session.summary ? `
-                <div class="summary-message">
-                    ${this.escapeHtml(session.summary)}
-                </div>
-            ` : ''}
-
-            <div class="summary-stats">
-                <div class="stat">
-                    <span class="stat-value">${session.operations_count || 0}</span>
-                    <span class="stat-label">Operations</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-value">${session.files_modified?.length || 0}</span>
-                    <span class="stat-label">Files Changed</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-value">${totalTokens.toLocaleString()}</span>
-                    <span class="stat-label">Tokens</span>
-                </div>
-            </div>
-
-            <div class="summary-cost">
-                <div class="cost-comparison">
-                    <div class="cost-item">
-                        <span class="cost-label">If using API:</span>
-                        <span class="cost-value api-cost">$${apiCost.toFixed(4)}</span>
-                    </div>
-                    <div class="cost-item actual">
-                        <span class="cost-label">Actual (Max):</span>
-                        <span class="cost-value max-cost">$0.00</span>
-                    </div>
-                    <div class="cost-item savings">
-                        <span class="cost-label">Savings:</span>
-                        <span class="cost-value">$${apiCost.toFixed(4)}</span>
-                    </div>
-                </div>
-            </div>
-
-            ${session.commit_hash ? `
-                <div class="summary-commit">
-                    <strong>Committed:</strong>
-                    <code>${session.commit_hash.substring(0, 8)}</code>
-                    ${session.branch_name ? `on branch <code>${this.escapeHtml(session.branch_name)}</code>` : ''}
-                </div>
-            ` : ''}
-
-            ${session.files_modified?.length > 0 ? `
-                <div class="summary-files">
-                    <strong>Files modified:</strong>
-                    <ul>
-                        ${session.files_modified.map(f => `<li>${this.escapeHtml(f)}</li>`).join('')}
-                    </ul>
-                </div>
-            ` : ''}
-        `;
     },
 
     renderPlan(plan) {
@@ -8570,40 +8432,53 @@ const SelfImprovement = {
         if (!content) return;
 
         content.innerHTML = `
-            <div class="plan-field">
-                <label>Issue:</label>
-                <div>${this.escapeHtml(plan.issue || 'Not specified')}</div>
-            </div>
-            <div class="plan-field">
-                <label>Root Cause:</label>
-                <div>${this.escapeHtml(plan.root_cause || 'Not specified')}</div>
-            </div>
-            <div class="plan-field">
-                <label>Proposed Fix:</label>
-                <div>${this.escapeHtml(plan.proposed_fix || 'Not specified')}</div>
-            </div>
-            <div class="plan-field">
-                <label>Files Affected:</label>
-                <div>${this.escapeHtml(plan.files_affected || 'Not specified')}</div>
-            </div>
-            <div class="plan-field ${plan.risks ? 'has-risks' : ''}">
-                <label>⚠️ Risks:</label>
-                <div>${this.escapeHtml(plan.risks || 'None identified')}</div>
-            </div>
-            <div class="plan-field">
-                <label>Tests:</label>
-                <div>${this.escapeHtml(plan.tests || 'Not specified')}</div>
-            </div>
+            <div class="plan-field"><label>Issue:</label><div>${this.escapeHtml(plan.issue || 'N/A')}</div></div>
+            <div class="plan-field"><label>Root Cause:</label><div>${this.escapeHtml(plan.root_cause || 'N/A')}</div></div>
+            <div class="plan-field"><label>Proposed Fix:</label><div>${this.escapeHtml(plan.proposed_fix || 'N/A')}</div></div>
+            <div class="plan-field"><label>Files:</label><div>${this.escapeHtml(plan.files_affected || 'N/A')}</div></div>
+            <div class="plan-field risks"><label>Risks:</label><div>${this.escapeHtml(plan.risks || 'None')}</div></div>
+            <div class="plan-field"><label>Tests:</label><div>${this.escapeHtml(plan.tests || 'N/A')}</div></div>
         `;
     },
 
+    renderCliOutput(session) {
+        const output = document.getElementById('si-cli-output');
+        if (!output) return;
+
+        let html = '';
+
+        // Add messages (Claude's explanations)
+        if (session.messages?.length > 0) {
+            for (const msg of session.messages) {
+                html += `<div class="cli-message">${this.escapeHtml(msg.content || '')}</div>\n`;
+            }
+        }
+
+        // Add operations (tool uses)
+        if (session.operations?.length > 0) {
+            for (const op of session.operations) {
+                html += `<div class="cli-op">
+                    <span class="cli-op-type">[${op.operation_type}]</span>
+                    ${op.command ? `<span class="cli-op-cmd">${this.escapeHtml(op.command)}</span>` : ''}
+                    ${op.file_path ? `<span class="cli-op-file">${this.escapeHtml(op.file_path)}</span>` : ''}
+                </div>\n`;
+            }
+        }
+
+        // Add current thinking
+        if (session.current_thinking) {
+            html += `<pre class="cli-thinking">${this.escapeHtml(session.current_thinking)}</pre>`;
+        }
+
+        output.innerHTML = html || '<div class="cli-empty">No output yet</div>';
+        output.scrollTop = output.scrollHeight;
+    },
+
     startStreaming(sessionId) {
-        // Close existing stream
         if (this.eventSource) {
             this.eventSource.close();
         }
 
-        // Start SSE stream for this session
         this.eventSource = new EventSource(`${API_BASE}/api/v1/self-improve/sessions/${sessionId}/stream`);
 
         this.eventSource.onmessage = (event) => {
@@ -8611,144 +8486,77 @@ const SelfImprovement = {
                 const data = JSON.parse(event.data);
                 this.handleStreamEvent(data);
             } catch (e) {
-                console.error('Failed to parse SSE event:', e);
+                console.error('Failed to parse SSE:', e);
             }
         };
 
-        this.eventSource.onerror = (error) => {
-            console.error('SSE error:', error);
-            // Don't close immediately - let it reconnect
+        this.eventSource.onerror = () => {
+            // SSE will auto-reconnect
         };
     },
 
     handleStreamEvent(event) {
-        console.log('Stream event:', event);
+        console.log('Stream event:', event.event_type);
+
+        if (event.session) {
+            this.renderSession(event.session);
+        }
 
         switch (event.event_type) {
             case 'init':
-                // Initial session state on connection
                 if (event.session) {
-                    const idx = this.sessions.findIndex(s => s.session_id === event.session.session_id);
-                    if (idx >= 0) {
-                        this.sessions[idx] = event.session;
-                    } else {
-                        this.sessions.push(event.session);
-                    }
-                    this.renderSessionList();
-                    this.renderActiveSession(event.session);
-                    // Show existing thinking/operations
-                    if (event.session.current_thinking) {
-                        this.updateThinkingDisplay(event.session.current_thinking);
-                    }
-                    if (event.session.operations) {
-                        event.session.operations.forEach(op => this.addOperationToLog({
-                            tool: op.operation_type,
-                            timestamp: op.timestamp,
-                            input_preview: op.command || op.file_path || '',
-                            output_preview: op.content_preview || '',
-                        }));
-                    }
+                    this.renderSession(event.session);
                 }
                 break;
-            case 'started':
-            case 'diagnosing':
-                this.loadSessions();
-                break;
             case 'thinking':
-                this.updateThinkingDisplay(event.text);
+                this.appendCliOutput(`<div class="cli-thinking-line">${this.escapeHtml(event.text)}</div>`);
                 break;
             case 'tool_use':
-                this.addOperationToLog(event);
-                break;
-            case 'status_change':
-                this.loadSessions().then(() => {
-                    if (this.activeSessionId) {
-                        const session = this.sessions.find(s => s.session_id === this.activeSessionId);
-                        if (session) this.renderActiveSession(session);
-                    }
-                });
+                this.appendCliOutput(`<div class="cli-op"><span class="cli-op-type">[${event.tool}]</span> ${this.escapeHtml(event.input_preview || '')}</div>`);
                 break;
             case 'plan_proposed':
-                this.loadSessions().then(() => {
-                    if (this.activeSessionId) {
-                        const session = this.sessions.find(s => s.session_id === this.activeSessionId);
-                        if (session) {
-                            this.renderActiveSession(session);
-                            // Flash the plan section
-                            const planSection = document.getElementById('si-plan-approval');
-                            planSection?.classList.add('highlight');
-                            setTimeout(() => planSection?.classList.remove('highlight'), 2000);
-                        }
-                    }
-                });
-                showToast({ title: 'Plan Ready', message: 'Claude has proposed a plan for review', type: 'info' });
+                this.loadActiveSession();
+                showToast({ title: 'Plan Ready', message: 'Review the proposed plan', type: 'info' });
                 break;
             case 'awaiting_approval':
-                this.loadSessions().then(() => {
-                    if (this.activeSessionId) {
-                        const session = this.sessions.find(s => s.session_id === this.activeSessionId);
-                        if (session) this.renderActiveSession(session);
-                    }
-                });
-                showToast({ title: 'Changes Ready', message: 'Code changes ready for review', type: 'info' });
+                this.loadActiveSession();
+                showToast({ title: 'Changes Ready', message: 'Review and commit changes', type: 'info' });
                 break;
             case 'completed':
-                this.loadSessions();
+                this.loadActiveSession();
                 this.eventSource?.close();
-                showToast({ title: 'Completed', message: 'Improvement session completed successfully', type: 'success' });
+                showToast({ title: 'Completed', message: 'Session completed', type: 'success' });
                 break;
             case 'failed':
-                this.loadSessions();
+                this.loadActiveSession();
                 this.eventSource?.close();
                 showToast({ title: 'Failed', message: event.error || 'Session failed', type: 'error' });
                 break;
             case 'stopped':
-                this.loadSessions();
+                this.loadActiveSession();
                 this.eventSource?.close();
-                showToast({ title: 'Stopped', message: 'Session stopped by user', type: 'info' });
-                break;
-            case 'error':
-                showToast({ title: 'Error', message: event.error || 'Unknown error', type: 'error' });
+                showToast({ title: 'Stopped', message: 'Session stopped', type: 'info' });
                 break;
         }
     },
 
-    updateThinkingDisplay(text) {
-        const stream = document.getElementById('si-thinking-stream');
-        if (!stream) return;
-
-        stream.innerHTML = `<pre>${this.escapeHtml(text)}</pre>`;
-        stream.scrollTop = stream.scrollHeight;
-    },
-
-    addOperationToLog(event) {
-        const log = document.getElementById('si-operation-log');
-        if (!log) return;
-
-        const entry = document.createElement('div');
-        const toolClass = (event.tool || 'unknown').toLowerCase().replace(/[^a-z]/g, '');
-        entry.className = `operation-entry op-${toolClass}`;
-        entry.innerHTML = `
-            <div class="op-header">
-                <span class="op-time">${new Date(event.timestamp || Date.now()).toLocaleTimeString()}</span>
-                <span class="op-tool">${this.escapeHtml(event.tool || 'unknown')}</span>
-            </div>
-            <div class="op-content">
-                <pre>${this.escapeHtml(event.input_preview || '')}</pre>
-            </div>
-            ${event.output_preview ? `
-                <div class="op-result">
-                    <pre>${this.escapeHtml(event.output_preview)}</pre>
-                </div>
-            ` : ''}
-        `;
-
-        log.appendChild(entry);
-        log.scrollTop = log.scrollHeight;
-
-        // Limit log size
-        while (log.children.length > 100) {
-            log.removeChild(log.firstChild);
+    appendCliOutput(html) {
+        const output = document.getElementById('si-cli-output');
+        const cliSection = document.getElementById('si-cli-section');
+        if (!output) return;
+        
+        cliSection?.classList.remove('hidden');
+        
+        // Remove "waiting" message if present
+        const waiting = output.querySelector('.cli-waiting, .cli-empty');
+        if (waiting) waiting.remove();
+        
+        output.insertAdjacentHTML('beforeend', html);
+        output.scrollTop = output.scrollHeight;
+        
+        // Limit size
+        while (output.children.length > 500) {
+            output.removeChild(output.firstChild);
         }
     },
 
@@ -8771,82 +8579,41 @@ const SelfImprovement = {
                 body: JSON.stringify({ request, model, auto_approve: false }),
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
             const result = await response.json();
-            console.log('Improvement started:', result);
+            showToast({ title: 'Started', message: 'Investigation started', type: 'success' });
 
-            showToast({ title: 'Started', message: 'Improvement investigation started', type: 'success' });
-
-            // Reload sessions and select the new one
-            await this.loadSessions();
             if (result.session_id) {
-                this.selectSession(result.session_id);
+                this.activeSessionId = result.session_id;
+                this.startStreaming(result.session_id);
             }
+            
+            await this.loadActiveSession();
 
         } catch (error) {
-            console.error('Failed to start improvement:', error);
+            console.error('Failed to start:', error);
             showToast({ title: 'Error', message: error.message, type: 'error' });
         }
     },
 
     async stopSession() {
         if (!this.activeSessionId) return;
-
-        if (!confirm('Stop this session? Any uncommitted changes will be discarded.')) {
-            return;
-        }
+        if (!confirm('Stop this session?')) return;
 
         try {
             await fetch(`${API_BASE}/api/v1/self-improve/sessions/${this.activeSessionId}/stop`, {
                 method: 'POST',
             });
-
             showToast({ title: 'Stopped', message: 'Session stopped', type: 'info' });
-            this.loadSessions();
+            this.loadActiveSession();
         } catch (error) {
-            console.error('Failed to stop session:', error);
-            showToast({ title: 'Error', message: 'Failed to stop session', type: 'error' });
-        }
-    },
-
-    async sendUserInput() {
-        if (!this.activeSessionId) return;
-
-        const input = document.getElementById('si-user-input');
-        const message = input?.value?.trim();
-        if (!message) return;
-
-        input.value = '';
-
-        try {
-            await fetch(`${API_BASE}/api/v1/self-improve/sessions/${this.activeSessionId}/input`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message }),
-            });
-
-            // Add to thinking stream
-            const stream = document.getElementById('si-thinking-stream');
-            if (stream) {
-                const userMsg = document.createElement('div');
-                userMsg.className = 'user-message';
-                userMsg.innerHTML = `<strong>You:</strong> ${this.escapeHtml(message)}`;
-                stream.appendChild(userMsg);
-                stream.scrollTop = stream.scrollHeight;
-            }
-
-        } catch (error) {
-            console.error('Failed to send input:', error);
-            showToast({ title: 'Error', message: 'Failed to send message', type: 'error' });
+            showToast({ title: 'Error', message: 'Failed to stop', type: 'error' });
         }
     },
 
     async approvePlan() {
         if (!this.activeSessionId) return;
-
         const feedback = document.getElementById('si-plan-feedback')?.value?.trim();
 
         try {
@@ -8857,23 +8624,19 @@ const SelfImprovement = {
             });
 
             document.getElementById('si-plan-feedback').value = '';
-            document.getElementById('si-plan-approval')?.classList.add('hidden');
-
-            showToast({ title: 'Approved', message: 'Plan approved, proceeding...', type: 'success' });
-            this.loadSessions();
-
+            showToast({ title: 'Approved', message: 'Proceeding with implementation', type: 'success' });
+            this.loadActiveSession();
         } catch (error) {
-            console.error('Failed to approve plan:', error);
-            showToast({ title: 'Error', message: 'Failed to approve plan', type: 'error' });
+            showToast({ title: 'Error', message: 'Failed to approve', type: 'error' });
         }
     },
 
     async rejectPlan() {
         if (!this.activeSessionId) return;
-
         const feedback = document.getElementById('si-plan-feedback')?.value?.trim();
+        
         if (!feedback) {
-            showToast({ title: 'Required', message: 'Please provide feedback for revision', type: 'warning' });
+            showToast({ title: 'Required', message: 'Please provide feedback', type: 'warning' });
             document.getElementById('si-plan-feedback')?.focus();
             return;
         }
@@ -8886,13 +8649,10 @@ const SelfImprovement = {
             });
 
             document.getElementById('si-plan-feedback').value = '';
-
-            showToast({ title: 'Rejected', message: 'Plan rejected, revising...', type: 'info' });
-            this.loadSessions();
-
+            showToast({ title: 'Rejected', message: 'Plan rejected', type: 'info' });
+            this.loadActiveSession();
         } catch (error) {
-            console.error('Failed to reject plan:', error);
-            showToast({ title: 'Error', message: 'Failed to reject plan', type: 'error' });
+            showToast({ title: 'Error', message: 'Failed to reject', type: 'error' });
         }
     },
 
@@ -8903,77 +8663,26 @@ const SelfImprovement = {
             await fetch(`${API_BASE}/api/v1/self-improve/sessions/${this.activeSessionId}/approve`, {
                 method: 'POST',
             });
-
-            showToast({ title: 'Approved', message: 'Changes committed', type: 'success' });
-            this.loadSessions();
+            showToast({ title: 'Committed', message: 'Changes committed', type: 'success' });
+            this.loadActiveSession();
         } catch (error) {
-            console.error('Failed to approve session:', error);
-            showToast({ title: 'Error', message: 'Failed to commit changes', type: 'error' });
+            showToast({ title: 'Error', message: 'Failed to commit', type: 'error' });
         }
     },
 
     async rejectSession() {
         if (!this.activeSessionId) return;
-
-        if (!confirm('Reject and discard all changes?')) return;
+        if (!confirm('Discard all changes?')) return;
 
         try {
             await fetch(`${API_BASE}/api/v1/self-improve/sessions/${this.activeSessionId}/reject`, {
                 method: 'POST',
             });
-
-            showToast({ title: 'Rejected', message: 'Changes discarded', type: 'info' });
-            this.loadSessions();
+            showToast({ title: 'Discarded', message: 'Changes discarded', type: 'info' });
+            this.loadActiveSession();
         } catch (error) {
-            console.error('Failed to reject session:', error);
-            showToast({ title: 'Error', message: 'Failed to discard changes', type: 'error' });
+            showToast({ title: 'Error', message: 'Failed to discard', type: 'error' });
         }
-    },
-
-    async loadCostReport() {
-        try {
-            const response = await fetch(`${API_BASE}/api/v1/self-improve/cost-report`);
-            const report = await response.json();
-            this.renderCostReport(report);
-        } catch (error) {
-            console.error('Failed to load cost report:', error);
-            document.getElementById('si-cost-tracking').innerHTML =
-                '<div class="empty-state">Failed to load costs</div>';
-        }
-    },
-
-    renderCostReport(report) {
-        const container = document.getElementById('si-cost-tracking');
-        if (!container) return;
-
-        container.innerHTML = `
-            <div class="cost-report">
-                <div class="cost-stat">
-                    <label>Sessions</label>
-                    <span>${report.total_sessions || 0} (${report.successful_sessions || 0} ✓)</span>
-                </div>
-                <div class="cost-stat">
-                    <label>Tokens</label>
-                    <span>${((report.total_tokens?.total || 0)).toLocaleString()}</span>
-                </div>
-                <div class="cost-stat api-cost">
-                    <label>If Sonnet API</label>
-                    <span>${report.estimated_api_costs?.if_sonnet_4_5 || '$0.00'}</span>
-                </div>
-                <div class="cost-stat api-cost">
-                    <label>If Opus API</label>
-                    <span>${report.estimated_api_costs?.if_opus_4_5 || '$0.00'}</span>
-                </div>
-                <div class="cost-stat subscription">
-                    <label>Actual Cost</label>
-                    <span>${report.subscription_cost || '$20/mo'}</span>
-                </div>
-                <div class="cost-stat savings">
-                    <label>Savings</label>
-                    <span>${report.savings_vs_api || 'N/A'}</span>
-                </div>
-            </div>
-        `;
     },
 
     escapeHtml(text) {
@@ -8984,5 +8693,3 @@ const SelfImprovement = {
     }
 };
 
-// Make it available globally for onclick handlers
-window.SelfImprovement = SelfImprovement;

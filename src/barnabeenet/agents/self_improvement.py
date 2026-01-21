@@ -231,7 +231,7 @@ RISKS: [Potential conflicts, breaking changes, or concerns]
 TESTS: [What tests you'll add or run]
 </PLAN>
 
-IMPORTANT: 
+IMPORTANT:
 - DO NOT modify any files in this phase
 - DO NOT run any tests yet
 - ONLY read files and analyze the issue

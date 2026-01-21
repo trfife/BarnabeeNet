@@ -1232,116 +1232,64 @@
         <div id="page-self-improve" class="page">
             <div class="page-header">
                 <h1>🔧 Self-Improvement Agent</h1>
-                <p>Claude Code-powered autonomous code improvements with human oversight</p>
+                <p>Opus 4.5-powered autonomous code improvements with human oversight</p>
             </div>
 
             <div class="self-improvement-panel">
-                <div class="panel-header">
-                    <div class="status-indicator" id="self-improve-status">
-                        <span class="status-dot"></span>
-                        <span id="self-improve-status-text">Checking availability...</span>
+                <!-- Top Bar: Status + New Request -->
+                <div class="si-top-bar">
+                    <div class="si-status" id="si-status-section">
+                        <span class="status-dot" id="si-status-dot"></span>
+                        <span id="si-status-text">Ready</span>
+                        <span id="si-request-text" class="si-request-text"></span>
                     </div>
-                    <button class="btn btn-primary" id="new-improvement-btn">
-                        + New Request
-                    </button>
+                    <div class="si-actions">
+                        <button id="si-stop-btn" class="btn btn-danger btn-sm hidden">⏹ Stop</button>
+                        <button class="btn btn-primary btn-sm" id="new-improvement-btn">+ New Request</button>
+                    </div>
                 </div>
 
-                <div class="panel-layout">
-                    <!-- Left: Session List -->
-                    <div class="sessions-sidebar">
-                        <h4>Sessions</h4>
-                        <div id="si-session-list">
-                            <div class="empty-state">No sessions yet</div>
-                        </div>
+                <!-- Main Content Area -->
+                <div id="si-content" class="si-content">
+                    <div id="si-empty-state" class="si-empty-state">
+                        <p>No active session. Click "+ New Request" to start.</p>
                     </div>
 
-                    <!-- Center: Active Session View -->
-                    <div class="active-session-view">
-                        <div id="si-no-session" class="empty-state">
-                            Select a session or start a new improvement request
+                    <!-- Plan Approval Section -->
+                    <div id="si-plan-section" class="si-section hidden">
+                        <div class="si-section-header">
+                            <h4>📋 Proposed Plan</h4>
                         </div>
-
-                        <div id="si-active-session" class="hidden">
-                            <!-- Session Header with Stop Button -->
-                            <div class="session-header">
-                                <div class="session-title">
-                                    <span id="si-status-badge" class="status-badge"></span>
-                                    <span id="si-request-text"></span>
-                                </div>
-                                <button id="si-stop-btn" class="btn btn-danger">
-                                    ⏹ Stop
-                                </button>
-                            </div>
-
-                            <!-- Plan Approval Section -->
-                            <div id="si-plan-approval" class="plan-approval hidden">
-                                <h4>📋 Proposed Plan</h4>
-                                <div id="si-plan-content" class="plan-content"></div>
-                                <div class="plan-actions">
-                                    <button id="si-reject-plan" class="btn btn-secondary">
-                                        ✗ Reject & Revise
-                                    </button>
-                                    <button id="si-approve-plan" class="btn btn-success">
-                                        ✓ Approve & Proceed
-                                    </button>
-                                </div>
-                                <div class="plan-feedback">
-                                    <input type="text" id="si-plan-feedback"
-                                        placeholder="Optional: Add guidance or conditions...">
-                                </div>
-                            </div>
-
-                            <!-- Live Thinking/Reasoning Stream -->
-                            <div class="thinking-section">
-                                <h4>💭 Thinking</h4>
-                                <div id="si-thinking-stream" class="thinking-stream"></div>
-                            </div>
-
-                            <!-- Command/Operation Log -->
-                            <div class="operations-section">
-                                <h4>⚡ Operations</h4>
-                                <div id="si-operation-log" class="operation-log"></div>
-                            </div>
-
-                            <!-- User Input Section -->
-                            <div class="user-input-section">
-                                <h4>💬 Send Guidance</h4>
-                                <div class="input-row">
-                                    <input type="text" id="si-user-input"
-                                        placeholder="Course correct, ask questions, or provide context...">
-                                    <button id="si-send-input" class="btn btn-primary">Send</button>
-                                </div>
-                            </div>
-
-                            <!-- Code Approval Section -->
-                            <div id="si-code-approval" class="code-approval hidden">
-                                <h4>📝 Changes Ready for Review</h4>
-                                <div id="si-diff-preview" class="diff-preview"></div>
-                                <div class="code-approval-actions">
-                                    <button id="si-reject-changes" class="btn btn-danger">
-                                        ✗ Reject Changes
-                                    </button>
-                                    <button id="si-approve-changes" class="btn btn-success">
-                                        ✓ Commit Changes
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Session Summary (shown when completed/failed) -->
-                            <div id="si-session-summary" class="session-summary hidden">
-                                <h4>📊 Session Summary</h4>
-                                <div id="si-summary-content" class="summary-content"></div>
+                        <div id="si-plan-content" class="si-plan-content"></div>
+                        <div class="si-plan-actions">
+                            <input type="text" id="si-plan-feedback" 
+                                placeholder="Optional: Add guidance or conditions...">
+                            <div class="si-plan-buttons">
+                                <button id="si-reject-plan" class="btn btn-secondary">✗ Reject & Revise</button>
+                                <button id="si-approve-plan" class="btn btn-success">✓ Approve & Proceed</button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Right: Cost Tracking -->
-                    <div class="cost-sidebar">
-                        <h4>💰 Cost Tracking</h4>
-                        <div id="si-cost-tracking">
-                            <div class="loading-spinner">Loading...</div>
+                    <!-- CLI Output Section -->
+                    <div id="si-cli-section" class="si-section hidden">
+                        <div class="si-section-header">
+                            <h4>💻 Claude CLI Output</h4>
+                            <span id="si-cli-status" class="si-cli-status"></span>
                         </div>
-                        <button class="btn btn-sm" id="si-refresh-costs">Refresh</button>
+                        <div id="si-cli-output" class="si-cli-output"></div>
+                    </div>
+
+                    <!-- Commit Section -->
+                    <div id="si-commit-section" class="si-section hidden">
+                        <div class="si-section-header">
+                            <h4>📝 Changes Ready</h4>
+                        </div>
+                        <div id="si-changes-summary" class="si-changes-summary"></div>
+                        <div class="si-commit-actions">
+                            <button id="si-reject-changes" class="btn btn-danger">✗ Discard Changes</button>
+                            <button id="si-approve-changes" class="btn btn-success">✓ Commit Changes</button>
+                        </div>
                     </div>
                 </div>
             </div>
