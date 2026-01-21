@@ -8568,9 +8568,6 @@ const SelfImprovement = {
     },
 
     renderSession(session) {
-        // Hide empty state
-        document.getElementById('si-empty-state')?.classList.add('hidden');
-
         // Update timeline
         this.updateTimeline(session.status);
 
@@ -8603,45 +8600,39 @@ const SelfImprovement = {
         const isActive = !['completed', 'failed', 'rejected', 'stopped'].includes(session.status);
         stopBtn?.classList.toggle('hidden', !isActive);
 
-        // Plan section with safety score
-        const planSection = document.getElementById('si-plan-section');
+        // Plan modal - show when awaiting approval
+        const planModal = document.getElementById('si-plan-modal');
         if (session.status === 'awaiting_plan_approval' && session.proposed_plan) {
-            planSection?.classList.remove('hidden');
             this.renderPlan(session.proposed_plan, session.safety_score);
+            planModal.style.display = 'flex';
         } else {
-            planSection?.classList.add('hidden');
+            planModal.style.display = 'none';
         }
 
-        // CLI output section - always show for active sessions
-        const cliSection = document.getElementById('si-cli-section');
+        // CLI output - always visible
         const cliOutput = document.getElementById('si-cli-output');
         const cliStatus = document.getElementById('si-cli-status');
 
         if (isActive) {
-            cliSection?.classList.remove('hidden');
-            cliStatus.textContent = '(live)';
+            cliStatus.textContent = '● live';
 
-            // Only render full output if there's existing content (not when streaming is active)
             if (session.current_thinking || session.messages?.length > 0 || session.operations?.length > 0) {
                 this.renderCliOutput(session);
             } else {
-                // Only show "waiting" if the CLI output is completely empty
-                if (!cliOutput.textContent || cliOutput.textContent.includes('Waiting')) {
+                if (!cliOutput.textContent || cliOutput.textContent.includes('Waiting') || cliOutput.textContent.includes('No active')) {
                     cliOutput.innerHTML = '<span class="cli-waiting">Waiting for Claude to start...</span>';
                 }
             }
         } else if (session.current_thinking || session.messages?.length > 0 || session.operations?.length > 0) {
-            cliSection?.classList.remove('hidden');
             cliStatus.textContent = '';
             this.renderCliOutput(session);
         } else {
-            cliSection?.classList.add('hidden');
+            cliStatus.textContent = '';
         }
 
-        // Commit section
-        const commitSection = document.getElementById('si-commit-section');
+        // Commit modal - show when awaiting approval
+        const commitModal = document.getElementById('si-commit-modal');
         if (session.status === 'awaiting_approval') {
-            commitSection?.classList.remove('hidden');
             document.getElementById('si-changes-summary').innerHTML = `
                 <div class="changes-stats">
                     <strong>${session.files_modified?.length || 0}</strong> files changed
@@ -8651,8 +8642,9 @@ const SelfImprovement = {
                     ${(session.files_modified || []).map(f => `<li>${this.escapeHtml(f)}</li>`).join('')}
                 </ul>
             `;
+            commitModal.style.display = 'flex';
         } else {
-            commitSection?.classList.add('hidden');
+            commitModal.style.display = 'none';
         }
     },
 
@@ -8718,7 +8710,7 @@ const SelfImprovement = {
                 buttons.innerHTML = `
                     <button class="btn btn-success btn-sm" onclick="SelfImprovement.approvePlan()">✓ Approve Plan</button>
                     <button class="btn btn-danger btn-sm" onclick="SelfImprovement.rejectPlan()">✗ Reject</button>
-                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('si-plan-section').scrollIntoView({behavior:'smooth'})">View Plan ↓</button>
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('si-plan-modal').style.display='flex'">View Plan</button>
                 `;
                 break;
 
@@ -8728,7 +8720,7 @@ const SelfImprovement = {
                 buttons.innerHTML = `
                     <button class="btn btn-success btn-sm" onclick="SelfImprovement.approveSession()">✓ Commit Changes</button>
                     <button class="btn btn-danger btn-sm" onclick="SelfImprovement.rejectSession()">✗ Reject</button>
-                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('si-commit-section').scrollIntoView({behavior:'smooth'})">View Diff ↓</button>
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('si-commit-modal').style.display='flex'">View Changes</button>
                 `;
                 break;
 
@@ -8950,17 +8942,19 @@ const SelfImprovement = {
 
     appendCliOutput(html) {
         const output = document.getElementById('si-cli-output');
-        const cliSection = document.getElementById('si-cli-section');
         if (!output) return;
 
-        cliSection?.classList.remove('hidden');
-
-        // Remove "waiting" message if present
+        // Remove "waiting" or "no active" message if present
         const waiting = output.querySelector('.cli-waiting, .cli-empty');
         if (waiting) waiting.remove();
 
         output.insertAdjacentHTML('beforeend', html);
-        output.scrollTop = output.scrollHeight;
+        
+        // Auto-scroll if enabled
+        if (document.getElementById('cli-auto-scroll')?.checked) {
+            const terminal = document.getElementById('cli-terminal');
+            if (terminal) terminal.scrollTop = terminal.scrollHeight;
+        }
 
         // Limit size
         while (output.children.length > 500) {

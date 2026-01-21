@@ -1300,7 +1300,7 @@
 
             <div class="page-header">
                 <h1>🔧 Self-Improvement Agent</h1>
-                <p>Claude Code-powered autonomous code improvements with human oversight</p>
+                <p>AI-powered code improvements with human approval gates</p>
             </div>
 
             <div class="self-improvement-panel">
@@ -1317,18 +1317,36 @@
                     </div>
                 </div>
 
-                <!-- Main Content Area -->
-                <div id="si-content" class="si-content">
-                    <div id="si-empty-state" class="si-empty-state">
-                        <p>No active session. Click "+ New Request" to start.</p>
-                    </div>
-
-                    <!-- Plan Approval Section -->
-                    <div id="si-plan-section" class="si-section hidden">
-                        <div class="si-section-header">
-                            <h4>📋 Proposed Plan</h4>
-                            <div id="si-safety-score" class="si-safety-score"></div>
+                <!-- CLI Output - Main Focus -->
+                <div id="si-cli-section" class="si-cli-main">
+                    <div class="cli-header">
+                        <div class="cli-title">
+                            <span>💻 Claude Code CLI</span>
+                            <span id="si-cli-status" class="si-cli-status"></span>
                         </div>
+                        <div class="cli-controls">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="cli-auto-scroll" checked>
+                                Auto-scroll
+                            </label>
+                            <button class="btn btn-sm" onclick="SelfImprovement.clearCLI()">Clear</button>
+                            <button class="btn btn-sm" onclick="SelfImprovement.copyCLI()">Copy</button>
+                        </div>
+                    </div>
+                    <div class="cli-terminal" id="cli-terminal">
+                        <pre id="si-cli-output"><span class="cli-empty">No active session. Click "+ New Request" to start.</span></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plan Approval Modal -->
+            <div id="si-plan-modal" class="modal" style="display: none;">
+                <div class="modal-content modal-large">
+                    <div class="modal-header">
+                        <h3>📋 Proposed Plan</h3>
+                        <div id="si-safety-score" class="si-safety-score"></div>
+                    </div>
+                    <div class="modal-body">
                         <div id="si-plan-content" class="si-plan-content"></div>
                         <div class="si-plan-actions">
                             <input type="text" id="si-plan-feedback"
@@ -1339,35 +1357,17 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <!-- CLI Output Section (Full Terminal View) -->
-                    <div id="si-cli-section" class="si-section si-cli-full hidden">
-                        <div class="si-section-header">
-                            <h4>💻 Claude Code CLI Output</h4>
-                            <div class="cli-controls">
-                                <label class="toggle-label">
-                                    <input type="checkbox" id="cli-auto-scroll" checked>
-                                    Auto-scroll
-                                </label>
-                                <label class="toggle-label">
-                                    <input type="checkbox" id="cli-show-stderr" checked>
-                                    Show stderr
-                                </label>
-                                <button class="btn btn-sm" onclick="SelfImprovement.clearCLI()">Clear</button>
-                                <button class="btn btn-sm" onclick="SelfImprovement.copyCLI()">Copy</button>
-                                <span id="si-cli-status" class="si-cli-status"></span>
-                            </div>
-                        </div>
-                        <div class="cli-terminal" id="cli-terminal">
-                            <pre id="si-cli-output"></pre>
-                        </div>
+            <!-- Commit Approval Modal -->
+            <div id="si-commit-modal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>📝 Changes Ready</h3>
+                        <button class="btn btn-small modal-close-btn" onclick="document.getElementById('si-commit-modal').style.display='none'">✕</button>
                     </div>
-
-                    <!-- Commit Section -->
-                    <div id="si-commit-section" class="si-section hidden">
-                        <div class="si-section-header">
-                            <h4>📝 Changes Ready</h4>
-                        </div>
+                    <div class="modal-body">
                         <div id="si-changes-summary" class="si-changes-summary"></div>
                         <div class="si-commit-actions">
                             <button id="si-reject-changes" class="btn btn-danger">✗ Discard Changes</button>
