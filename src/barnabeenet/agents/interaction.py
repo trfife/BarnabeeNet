@@ -288,7 +288,7 @@ class InteractionAgent(Agent):
         now = datetime.now()
         current_time = now.strftime("%I:%M %p").lstrip("0")
         current_date = now.strftime("%A, %B %d, %Y")
-        
+
         # Determine timezone - default to EST/EDT
         import time
         tz_name = time.tzname[0] if time.daylight == 0 else time.tzname[1]
@@ -299,10 +299,26 @@ class InteractionAgent(Agent):
         else:
             # Default to EST if unknown
             timezone = "Eastern Time (EST/EDT)"
-        
+
         parts.append(f"- Current time: {current_time} {timezone}")
         parts.append(f"- Current date: {current_date}")
-        parts.append(f"- IMPORTANT: When calculating times in other timezones, use {timezone} as the base timezone, NOT Chicago or Central Time")
+        parts.append(f"\n## ⚠️ CRITICAL TIMEZONE INSTRUCTION - READ CAREFULLY ⚠️")
+        parts.append(f"YOUR CURRENT TIMEZONE IS: {timezone}")
+        parts.append(f"YOUR CURRENT TIME IS: {current_time} {timezone}")
+        parts.append(f"")
+        parts.append(f"ABSOLUTE RULES FOR TIMEZONE CALCULATIONS:")
+        parts.append(f"1. YOU ARE IN {timezone} - THIS IS YOUR ONLY REFERENCE POINT")
+        parts.append(f"2. NEVER mention 'Central Time', 'Chicago', 'CST', or 'CDT' in any response")
+        parts.append(f"3. NEVER say '1 hour behind Central Time' or similar phrases")
+        parts.append(f"4. When asked about times in other timezones:")
+        parts.append(f"   - ALWAYS start from {timezone} (your current timezone)")
+        parts.append(f"   - Calculate the difference FROM {timezone}")
+        parts.append(f"   - Example: 'What time is it in Utah?'")
+        parts.append(f"     * Current time: {current_time} {timezone}")
+        parts.append(f"     * Utah is in Mountain Time Zone")
+        parts.append(f"     * Mountain Time is 2 hours BEHIND {timezone}")
+        parts.append(f"     * Answer: 'It's [calculated time] Mountain Time' (2 hours earlier than {current_time})")
+        parts.append(f"5. If you catch yourself about to mention Central Time or Chicago, STOP and recalculate from {timezone}")
 
         # Time-of-day context for tone
         time_phrase = TIME_GREETINGS.get(conv_ctx.time_of_day, "today")
@@ -424,12 +440,12 @@ class InteractionAgent(Agent):
         person_details = profile.get("person_entity_details")
         if person_details:
             parts.append("\n### Person Entity Devices & Entities")
-            
+
             # Linked devices
             linked_devices = person_details.get("linked_devices", [])
             if linked_devices:
                 parts.append(f"- Linked devices: {len(linked_devices)} device(s)")
-            
+
             # Linked entities (notifications, alarms, location, etc.)
             linked_entities = person_details.get("linked_entities", [])
             if linked_entities:
@@ -441,12 +457,12 @@ class InteractionAgent(Agent):
                     if domain not in by_domain:
                         by_domain[domain] = []
                     by_domain[domain].append(friendly_name)
-                
+
                 for domain, names in by_domain.items():
                     parts.append(f"- {domain.title()} entities: {', '.join(names[:5])}")
                     if len(names) > 5:
                         parts.append(f"  (and {len(names) - 5} more)")
-            
+
             # Home address if available
             address = person_details.get("address")
             if address and address.get("latitude"):
@@ -454,7 +470,7 @@ class InteractionAgent(Agent):
                     parts.append(f"- Home address: {address['formatted']}")
                 else:
                     parts.append(f"- Home address coordinates: {address['latitude']:.4f}, {address['longitude']:.4f}")
-        
+
         # Add explicit instructions for location questions
         if location or person_details:
             parts.append("\n### IMPORTANT: Location Information")

@@ -865,10 +865,10 @@ class HomeAssistantClient:
 
     async def get_person_entity_details(self, person_entity_id: str) -> dict[str, Any] | None:
         """Get detailed information about a person entity including linked devices and entities.
-        
+
         Args:
             person_entity_id: The person entity ID (e.g., "person.thom")
-            
+
         Returns:
             Dict with person details including:
             - state: Current state (home, not_home, zone name)
@@ -881,13 +881,13 @@ class HomeAssistantClient:
         """
         if not self._client:
             return None
-            
+
         try:
             # Get person entity state
             state = await self.get_state(person_entity_id)
             if not state:
                 return None
-                
+
             attrs = state.attributes or {}
             result = {
                 "state": state.state,
@@ -903,7 +903,7 @@ class HomeAssistantClient:
                 },
                 "address": None,
             }
-            
+
             # Get device trackers and find their devices
             device_trackers = attrs.get("device_trackers", [])
             for tracker_id in device_trackers:
@@ -913,7 +913,7 @@ class HomeAssistantClient:
                     device = self._devices.get(tracker_entity.device_id)
                     if device and device.id not in result["linked_devices"]:
                         result["linked_devices"].append(device.id)
-                        
+
                         # Get all entities for this device
                         device_entities = [
                             e for e in self._entity_registry.get_all()
@@ -928,7 +928,7 @@ class HomeAssistantClient:
                             }
                             if entity_info not in result["linked_entities"]:
                                 result["linked_entities"].append(entity_info)
-            
+
             # Always try to get home address from zone (regardless of person's current location)
             # This allows answering "where is [person]" even when they're away
             home_zone = await self.get_state("zone.home")
@@ -942,7 +942,7 @@ class HomeAssistantClient:
                 # Try to get formatted address if available in zone attributes
                 if "address" in home_zone.attributes:
                     result["address"]["formatted"] = home_zone.attributes.get("address")
-            
+
             return result
         except Exception as e:
             logger.warning(f"Failed to get person entity details for {person_entity_id}: {e}")
