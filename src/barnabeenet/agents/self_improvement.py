@@ -199,7 +199,69 @@ class ImprovementSession:
         }
 
 
-# System prompt for Claude Code
+# System prompt for Phase 1: Diagnosis and Planning ONLY
+DIAGNOSIS_SYSTEM_PROMPT = """You are diagnosing an issue in the BarnabeeNet smart home AI system.
+
+YOUR TASK: Analyze the issue and propose a plan. Do NOT make any code changes yet.
+
+DEBUGGING RESOURCES - Use these to understand issues:
+1. Conversation traces: ./scripts/debug-logs.sh traces 10
+2. Specific trace: ./scripts/debug-logs.sh trace <trace_id>
+3. Activity feed: ./scripts/debug-logs.sh activity 50
+4. Errors: ./scripts/debug-logs.sh errors
+5. LLM calls: ./scripts/debug-logs.sh llm-calls 20
+6. Journal: ./scripts/debug-logs.sh journal 100
+7. HA errors: ./scripts/debug-logs.sh ha-errors
+8. Search by type: ./scripts/debug-logs.sh search <type>
+   Types: user.input, meta.classify, agent.decision, llm.error, etc.
+
+WORKFLOW:
+1. Read relevant code files to understand the issue
+2. Analyze the problem and identify root cause
+3. Output a <PLAN> block with your proposed fix
+
+FORMAT YOUR PLAN EXACTLY LIKE THIS:
+
+<PLAN>
+ISSUE: [Brief description of what you found]
+ROOT_CAUSE: [Why this is happening]
+PROPOSED_FIX: [What you plan to change]
+FILES_AFFECTED: [List of files you'll modify]
+RISKS: [Potential conflicts, breaking changes, or concerns]
+TESTS: [What tests you'll add or run]
+</PLAN>
+
+IMPORTANT: 
+- DO NOT modify any files in this phase
+- DO NOT run any tests yet
+- ONLY read files and analyze the issue
+- End your response after outputting the <PLAN> block"""
+
+
+# System prompt for Phase 2: Implementation (after plan approval)
+IMPLEMENTATION_SYSTEM_PROMPT = """You are implementing an approved plan for the BarnabeeNet smart home AI system.
+
+SAFETY RULES (MUST FOLLOW):
+- Do NOT modify files in: secrets/, .env, infrastructure/secrets/
+- Do NOT run: rm -rf, sudo, chmod 777, or pipe curl/wget to shell
+- Do NOT modify authentication, permissions, or security code
+- Do NOT change privacy zone configurations
+
+YOUR APPROVED PLAN:
+{approved_plan}
+
+{user_guidance}
+
+WORKFLOW:
+1. Make the minimal targeted changes described in the plan
+2. Run tests: pytest tests/ -v
+3. If tests fail, fix issues and re-test
+
+IMPORTANT: The plan has been approved. Proceed with implementation.
+Always explain what you're doing before each action."""
+
+
+# Legacy combined prompt (kept for reference)
 SYSTEM_PROMPT = """You are improving the BarnabeeNet smart home AI system.
 
 SAFETY RULES (MUST FOLLOW):
@@ -617,13 +679,15 @@ class SelfImprovementAgent:
                 "--dangerously-skip-permissions",  # We're in a controlled environment
             ]
 
-            # Add system prompt
-            claude_cmd.extend(["--append-system-prompt", SYSTEM_PROMPT])
+            # PHASE 2A: Run diagnosis/planning with DIAGNOSIS_SYSTEM_PROMPT
+            claude_cmd.extend(["--append-system-prompt", DIAGNOSIS_SYSTEM_PROMPT])
 
             # Add the request as the prompt
             claude_cmd.append(request)
 
-            logger.info("Running Claude CLI", command=" ".join(claude_cmd[:6]) + "...")
+            logger.info(
+                "Running Claude CLI (diagnosis phase)", command=" ".join(claude_cmd[:6]) + "..."
+            )
 
             # Run Claude Code and stream output
             # Use larger buffer limit (10MB) to handle large JSON lines from Claude CLI
@@ -688,7 +752,7 @@ class SelfImprovementAgent:
                 stderr_data = await process.stderr.read()
                 stderr_output = stderr_data.decode() if stderr_data else ""
                 if stderr_output:
-                    logger.warning("Claude CLI stderr", stderr=stderr_output[:500])
+                    logger.warning("Claude CLI stderr (diagnosis)", stderr=stderr_output[:500])
                     session.current_thinking += f"\n[STDERR]: {stderr_output}\n"
 
             await process.wait()
@@ -696,7 +760,7 @@ class SelfImprovementAgent:
             # Check return code
             if process.returncode != 0:
                 logger.error(
-                    "Claude CLI exited with error",
+                    "Claude CLI exited with error (diagnosis)",
                     returncode=process.returncode,
                     stderr=stderr_output[:500],
                 )
@@ -708,6 +772,126 @@ class SelfImprovementAgent:
                 session.status = ImprovementStatus.STOPPED
                 yield {"event": "stopped", "session_id": session_id}
                 return
+
+            # PHASE 2B: Wait for plan approval if a plan was proposed
+            if plan_detected and session.proposed_plan:
+                logger.info("Plan proposed, waiting for approval", session_id=session_id)
+
+                # Wait for user approval or rejection
+                # The status is already AWAITING_PLAN_APPROVAL
+                # User calls approve_plan() or reject_plan() which puts message in queue
+                try:
+                    approval_message = await asyncio.wait_for(
+                        session.user_input_queue.get(),
+                        timeout=3600,  # 1 hour timeout
+                    )
+                    logger.info(
+                        "Received plan approval/rejection",
+                        session_id=session_id,
+                        message=approval_message[:100],
+                    )
+                except TimeoutError:
+                    session.status = ImprovementStatus.FAILED
+                    session.error = "Plan approval timed out after 1 hour"
+                    yield {"event": "error", "error": session.error}
+                    return
+
+                if session.stop_requested:
+                    session.status = ImprovementStatus.STOPPED
+                    yield {"event": "stopped", "session_id": session_id}
+                    return
+
+                # Check if it was a rejection (plan rejected returns to DIAGNOSING)
+                if session.status == ImprovementStatus.DIAGNOSING:
+                    # Plan was rejected - loop back or handle as needed
+                    # For now, mark as completed with feedback
+                    session.status = ImprovementStatus.COMPLETED
+                    session.success = False
+                    session.summary = f"Plan rejected: {approval_message}"
+                    yield {"event": "completed", "message": session.summary}
+                    return
+
+                # Plan approved - run implementation phase
+                session.status = ImprovementStatus.IMPLEMENTING
+                await self._emit_progress(
+                    session, "implementing", {"message": "Implementing approved plan..."}
+                )
+                yield {"event": "implementing", "message": "Implementing approved plan..."}
+
+                # Format the approved plan for the implementation prompt
+                plan_text = "\n".join(f"{k}: {v}" for k, v in session.proposed_plan.items())
+                user_guidance = ""
+                if "Additional guidance:" in approval_message:
+                    user_guidance = f"User guidance: {approval_message.split('Additional guidance:')[1].strip()}"
+
+                impl_system_prompt = IMPLEMENTATION_SYSTEM_PROMPT.format(
+                    approved_plan=plan_text,
+                    user_guidance=user_guidance,
+                )
+
+                # Build implementation command
+                impl_cmd = [
+                    claude_path,
+                    "--print",
+                    "--model",
+                    model,
+                    "--output-format",
+                    "stream-json",
+                    "--verbose",
+                    "--dangerously-skip-permissions",
+                ]
+                impl_cmd.extend(["--append-system-prompt", impl_system_prompt])
+                impl_cmd.append(f"Implement this approved plan: {request}")
+
+                logger.info(
+                    "Running Claude CLI (implementation phase)",
+                    command=" ".join(impl_cmd[:6]) + "...",
+                )
+
+                # Run implementation
+                impl_process = await asyncio.create_subprocess_exec(
+                    *impl_cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=self.project_path,
+                    limit=10 * 1024 * 1024,
+                )
+                session._process = impl_process
+
+                if impl_process.stdout is None:
+                    raise RuntimeError("Failed to capture Claude CLI stdout (implementation)")
+
+                async for line in self._read_lines_safe(impl_process.stdout):
+                    if session.stop_requested:
+                        impl_process.terminate()
+                        break
+
+                    try:
+                        line_text = line.decode().strip()
+                        if not line_text:
+                            continue
+
+                        try:
+                            event_data = json.loads(line_text)
+                            await self._process_claude_event(session, event_data)
+                            yield {"event": "claude_event", "data": event_data}
+                        except json.JSONDecodeError:
+                            session.current_thinking += line_text + "\n"
+                            await self._emit_progress(session, "thinking", {"text": line_text})
+                            yield {"event": "thinking", "text": line_text}
+
+                    except Exception as e:
+                        logger.warning("Error processing Claude output", error=str(e))
+
+                # Capture implementation stderr
+                if impl_process.stderr:
+                    impl_stderr = await impl_process.stderr.read()
+                    if impl_stderr:
+                        stderr_text = impl_stderr.decode()
+                        logger.warning("Claude CLI stderr (impl)", stderr=stderr_text[:500])
+                        session.current_thinking += f"\n[IMPL STDERR]: {stderr_text}\n"
+
+                await impl_process.wait()
 
             # Phase 3: Collect results
             session.status = ImprovementStatus.TESTING
