@@ -234,7 +234,7 @@ function showPage(pageId) {
             siPage.dataset.initialized = 'true';
         }
     }
-    
+
     // Initialize Agents page when navigating to it
     if (pageId === 'agents') {
         const agentsPage = document.getElementById('page-agents');
@@ -8386,7 +8386,7 @@ async function loadSelfImprovementConfig() {
     try {
         const response = await fetch(`${API_BASE}/api/v1/agents/self-improvement`);
         const data = await response.json();
-        
+
         // Set radio button
         const radio = document.getElementById(`si-model-${data.model}`);
         if (radio) {
@@ -8400,14 +8400,14 @@ async function loadSelfImprovementConfig() {
 async function saveSelfImprovementModel() {
     const selected = document.querySelector('input[name="si-model"]:checked');
     if (!selected) return;
-    
+
     try {
         const response = await fetch(`${API_BASE}/api/v1/agents/self-improvement`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ model: selected.value }),
         });
-        
+
         if (response.ok) {
             showToast({ title: 'Success', message: 'Self-Improvement Agent model updated', type: 'success' });
         } else {
@@ -8422,12 +8422,12 @@ async function analyzeModels() {
     const btn = document.getElementById('analyze-models-btn');
     const resultsDiv = document.getElementById('model-finder-results');
     const applyBtn = document.getElementById('apply-recommendations-btn');
-    
+
     if (!btn) return;
-    
+
     btn.disabled = true;
     btn.textContent = 'Analyzing...';
-    
+
     try {
         const params = {
             free_only: document.getElementById('mf-free-only')?.checked || false,
@@ -8435,15 +8435,15 @@ async function analyzeModels() {
             prefer_speed: document.getElementById('mf-prefer-speed')?.checked || true,
             prefer_quality: document.getElementById('mf-prefer-quality')?.checked || false,
         };
-        
+
         const response = await fetch(`${API_BASE}/api/v1/agents/model-finder/analyze`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(params),
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             displayModelRecommendations(data.recommendations);
             if (resultsDiv) resultsDiv.style.display = 'block';
@@ -8463,9 +8463,9 @@ async function analyzeModels() {
 function displayModelRecommendations(recommendations) {
     const container = document.getElementById('model-recommendations-list');
     if (!container) return;
-    
+
     let html = '<div class="recommendations-grid">';
-    
+
     for (const rec of recommendations) {
         html += `
             <div class="recommendation-card">
@@ -8480,7 +8480,7 @@ function displayModelRecommendations(recommendations) {
             </div>
         `;
     }
-    
+
     html += '</div>';
     container.innerHTML = html;
 }
@@ -8490,16 +8490,16 @@ async function applyModelRecommendations() {
         showToast({ title: 'Error', message: 'No recommendations to apply', type: 'error' });
         return;
     }
-    
+
     try {
         const response = await fetch(`${API_BASE}/api/v1/agents/model-finder/apply`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(window._currentRecommendations),
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             showToast({ title: 'Success', message: `Applied ${data.updated_activities} model recommendations`, type: 'success' });
         } else {
@@ -8513,19 +8513,19 @@ async function applyModelRecommendations() {
 async function analyzeFeatures() {
     const btn = document.getElementById('analyze-features-btn');
     const resultsDiv = document.getElementById('feature-agent-results');
-    
+
     if (!btn) return;
-    
+
     btn.disabled = true;
     btn.textContent = 'Analyzing...';
-    
+
     try {
         const response = await fetch(`${API_BASE}/api/v1/agents/feature/analyze`, {
             method: 'POST',
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             displayFeatureRecommendations(data.recommendations);
             if (resultsDiv) resultsDiv.style.display = 'block';
@@ -8543,9 +8543,9 @@ async function analyzeFeatures() {
 function displayFeatureRecommendations(recommendations) {
     const container = document.getElementById('feature-recommendations-list');
     if (!container) return;
-    
+
     let html = '<div class="feature-recommendations-list">';
-    
+
     for (const rec of recommendations) {
         const priorityClass = rec.priority === 'high' ? 'priority-high' : rec.priority === 'medium' ? 'priority-medium' : 'priority-low';
         html += `
@@ -8563,7 +8563,7 @@ function displayFeatureRecommendations(recommendations) {
             </div>
         `;
     }
-    
+
     html += '</div>';
     container.innerHTML = html;
 }

@@ -427,7 +427,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(self_improvement.router, tags=["Self-Improvement"])
     app.include_router(metrics.router, tags=["Metrics"])
     app.include_router(websocket.router, prefix="/api/v1", tags=["WebSocket"])
-    
+
     # Agents management
     from barnabeenet.api.routes import agents
     app.include_router(agents.router, prefix="/api/v1", tags=["Agents"])

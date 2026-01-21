@@ -44,12 +44,12 @@ async def get_self_improvement_config(request: Request) -> SelfImprovementConfig
     """Get Self-Improvement Agent configuration."""
     redis = request.app.state.redis
     model = await redis.get("barnabeenet:agents:self_improvement:model")
-    
+
     if model is None:
         model = "auto"  # Default
     else:
         model = model.decode() if isinstance(model, bytes) else model
-    
+
     return SelfImprovementConfigResponse(
         model=model,
         description="AI-powered code improvements with human approval gates",
@@ -66,12 +66,12 @@ async def update_self_improvement_config(
         raise HTTPException(
             status_code=400, detail="Model must be 'auto', 'opus', or 'sonnet'"
         )
-    
+
     redis = request.app.state.redis
     await redis.set("barnabeenet:agents:self_improvement:model", config.model)
-    
+
     logger.info(f"Updated Self-Improvement Agent model to: {config.model}")
-    
+
     return {"success": True, "model": config.model}
 
 
@@ -116,7 +116,7 @@ async def analyze_models(
     request: Request, params: ModelFinderRequest
 ) -> ModelFinderResponse:
     """Analyze all available models and recommend best for each agent.
-    
+
     Considers:
     - Speed (latency)
     - Cost (pricing per 1M tokens)
@@ -126,7 +126,7 @@ async def analyze_models(
     """
     from barnabeenet.api.routes.config import list_models
     from barnabeenet.services.secrets import get_secrets_service
-    
+
     try:
         # Get all available models
         secrets_service = await get_secrets_service(request.app.state.redis)
@@ -136,10 +136,10 @@ async def analyze_models(
             include_failed=False,
             secrets=secrets_service,
         )
-        
+
         # Filter models based on criteria
         available_models = models_response.models
-        
+
         if params.free_only:
             available_models = [m for m in available_models if m.is_free]
         elif params.azure_free:
@@ -148,13 +148,13 @@ async def analyze_models(
                 m for m in available_models
                 if m.is_free or (m.provider == "azure" and params.azure_free)
             ]
-        
+
         if params.max_cost_per_1m_tokens:
             available_models = [
                 m for m in available_models
                 if (m.pricing_prompt + m.pricing_completion) <= params.max_cost_per_1m_tokens
             ]
-        
+
         if not available_models:
             return ModelFinderResponse(
                 success=False,
@@ -162,24 +162,24 @@ async def analyze_models(
                 analysis_summary="No models match the criteria",
                 error="No models available matching criteria",
             )
-        
+
         # Get agent requirements
         from barnabeenet.services.llm.activities import DEFAULT_ACTIVITY_CONFIGS
-        
+
         recommendations = []
         for activity_name, activity_config in DEFAULT_ACTIVITY_CONFIGS.items():
             agent = activity_name.split(".")[0]
             priority = activity_config.get("priority", "balanced")
-            
+
             # Score models for this agent
             best_model = None
             best_score = -1
             best_reasoning = ""
-            
+
             for model in available_models:
                 score = 0.0
                 reasoning_parts = []
-                
+
                 # Speed score (lower latency = higher score)
                 if params.prefer_speed:
                     # Assume context_length correlates with speed (smaller = faster)
@@ -189,7 +189,7 @@ async def analyze_models(
                     elif model.context_length < 500000:
                         score += 0.2
                         reasoning_parts.append("moderate speed")
-                
+
                 # Quality score
                 if params.prefer_quality:
                     # Prefer models with higher context or known quality
@@ -199,7 +199,7 @@ async def analyze_models(
                     elif "sonnet" in model.id or "gemini" in model.id:
                         score += 0.3
                         reasoning_parts.append("good quality")
-                
+
                 # Cost score (cheaper = higher score)
                 cost_per_1m = model.pricing_prompt + model.pricing_completion
                 if model.is_free or (model.provider == "azure" and params.azure_free):
@@ -211,7 +211,7 @@ async def analyze_models(
                 elif cost_per_1m < 5.0:
                     score += 0.1
                     reasoning_parts.append("moderate cost")
-                
+
                 # Priority match
                 if priority == "speed" and params.prefer_speed:
                     score += 0.2
@@ -219,12 +219,12 @@ async def analyze_models(
                     score += 0.2
                 elif priority == "balanced":
                     score += 0.1
-                
+
                 if score > best_score:
                     best_score = score
                     best_model = model
                     best_reasoning = ", ".join(reasoning_parts) if reasoning_parts else "good match"
-            
+
             if best_model:
                 recommendations.append(
                     ModelRecommendation(
@@ -239,21 +239,21 @@ async def analyze_models(
                         is_free=best_model.is_free or (best_model.provider == "azure" and params.azure_free),
                     )
                 )
-        
+
         # Group by agent (take first recommendation per agent)
         agent_recs: dict[str, ModelRecommendation] = {}
         for rec in recommendations:
             if rec.agent not in agent_recs:
                 agent_recs[rec.agent] = rec
-        
+
         summary = f"Analyzed {len(available_models)} models, recommended {len(agent_recs)} models for {len(agent_recs)} agents"
-        
+
         return ModelFinderResponse(
             success=True,
             recommendations=list(agent_recs.values()),
             analysis_summary=summary,
         )
-    
+
     except Exception as e:
         logger.exception("Model Finder Agent analysis failed")
         return ModelFinderResponse(
@@ -271,19 +271,19 @@ async def apply_model_recommendations(
     """Apply model recommendations to agent configurations."""
     from barnabeenet.api.routes.config import ACTIVITY_CONFIGS_KEY
     import json
-    
+
     redis = request.app.state.redis
-    
+
     # Map agent names to activity names
     from barnabeenet.services.llm.activities import DEFAULT_ACTIVITY_CONFIGS
-    
+
     agent_to_activities: dict[str, list[str]] = {}
     for activity_name in DEFAULT_ACTIVITY_CONFIGS:
         agent = activity_name.split(".")[0]
         if agent not in agent_to_activities:
             agent_to_activities[agent] = []
         agent_to_activities[agent].append(activity_name)
-    
+
     updated = 0
     for rec in recommendations:
         if rec.agent in agent_to_activities:
@@ -291,9 +291,9 @@ async def apply_model_recommendations(
                 override = {"model": rec.recommended_model}
                 await redis.hset(ACTIVITY_CONFIGS_KEY, activity_name, json.dumps(override))
                 updated += 1
-    
+
     logger.info(f"Applied {len(recommendations)} model recommendations to {updated} activities")
-    
+
     return {"success": True, "updated_activities": updated}
 
 
@@ -327,7 +327,7 @@ class FeatureAgentResponse(BaseModel):
 @router.post("/feature/analyze", response_model=FeatureAgentResponse)
 async def analyze_features(request: Request) -> FeatureAgentResponse:
     """Analyze usage patterns and recommend new features.
-    
+
     Runs analysis on:
     - Intent patterns (what users ask for)
     - Action patterns (what devices are controlled)
@@ -337,7 +337,7 @@ async def analyze_features(request: Request) -> FeatureAgentResponse:
     """
     try:
         redis = request.app.state.redis
-        
+
         # Get recent activity data
         # This is a simplified version - in production, would analyze more data
         usage_patterns = {
@@ -346,14 +346,14 @@ async def analyze_features(request: Request) -> FeatureAgentResponse:
             "action_distribution": {},
             "error_rate": 0.0,
         }
-        
+
         # Analyze recent traces (last 7 days)
         # In production, would query ActivityLogger or metrics store
         recommendations = []
-        
+
         # Example recommendations based on common patterns
         # In production, would use LLM to analyze actual usage data
-        
+
         recommendations.append(
             FeatureRecommendation(
                 feature="Routine Automation",
@@ -365,7 +365,7 @@ async def analyze_features(request: Request) -> FeatureAgentResponse:
                 related_actions=["scene", "automation"],
             )
         )
-        
+
         recommendations.append(
             FeatureRecommendation(
                 feature="Multi-Room Audio Control",
@@ -377,16 +377,16 @@ async def analyze_features(request: Request) -> FeatureAgentResponse:
                 related_actions=["media_player"],
             )
         )
-        
+
         summary = f"Analyzed usage patterns, generated {len(recommendations)} feature recommendations"
-        
+
         return FeatureAgentResponse(
             success=True,
             recommendations=recommendations,
             analysis_summary=summary,
             usage_patterns=usage_patterns,
         )
-    
+
     except Exception as e:
         logger.exception("Feature Agent analysis failed")
         return FeatureAgentResponse(
@@ -402,9 +402,9 @@ async def get_last_feature_analysis(request: Request) -> dict[str, Any]:
     """Get the last Feature Agent analysis results."""
     redis = request.app.state.redis
     last_analysis = await redis.get("barnabeenet:agents:feature:last_analysis")
-    
+
     if last_analysis:
         import json
         return json.loads(last_analysis.decode() if isinstance(last_analysis, bytes) else last_analysis)
-    
+
     return {"success": False, "message": "No analysis available"}
