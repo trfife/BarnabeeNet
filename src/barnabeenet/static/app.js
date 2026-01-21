@@ -1097,7 +1097,7 @@ async function loadActiveSISessions() {
         // Filter to recent/active sessions (last 24 hours or not completed)
         const recentSessions = sessions
             .filter(s => !['completed', 'failed', 'rejected', 'stopped'].includes(s.status) ||
-                        (new Date() - new Date(s.started_at)) < 24 * 60 * 60 * 1000)
+                (new Date() - new Date(s.started_at)) < 24 * 60 * 60 * 1000)
             .slice(0, 5);
 
         if (recentSessions.length === 0) {
@@ -7921,7 +7921,7 @@ function renderCorrectionAnalysis(analysis) {
 }
 
 // Fix with Self-Improve - launch self-improvement agent with correction context
-window.fixWithSelfImprove = async function(traceId) {
+window.fixWithSelfImprove = async function (traceId) {
     // Get the current correction analysis data
     const analysis = window.currentCorrectionAnalysis;
     if (!analysis) {
@@ -8711,7 +8711,7 @@ const SelfImprovement = {
 
         banner?.classList.remove('hidden');
 
-        switch(type) {
+        switch (type) {
             case 'plan_approval':
                 title.textContent = '📋 Plan Review Required';
                 desc.textContent = 'Claude has proposed a plan. Review and approve or reject.';
@@ -8802,7 +8802,7 @@ const SelfImprovement = {
         }
 
         output.innerHTML = html || '<span class="cli-empty">No output yet</span>';
-        
+
         // Auto-scroll if enabled
         if (document.getElementById('cli-auto-scroll')?.checked) {
             const terminal = document.getElementById('cli-terminal');

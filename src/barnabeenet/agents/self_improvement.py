@@ -388,6 +388,7 @@ class SelfImprovementAgent:
         "docs/",
         "prompts/",
         "tests/",
+        "static/",  # UI files - cosmetic changes
         ".copilot/",
         "__init__.py",  # Version files and package markers
         "__version__",
@@ -397,6 +398,8 @@ class SelfImprovementAgent:
         ".md",  # Markdown docs
         ".yaml",  # Config files
         ".yml",
+        ".html",  # UI templates
+        ".css",  # Stylesheets
     ]
 
     # Risky file paths (changes here need manual approval)

@@ -9750,8 +9750,15 @@ textarea:focus-visible {
 }
 
 @keyframes pulse-attention {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.85; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.85;
+    }
 }
 
 /* Progress Timeline */
@@ -9832,8 +9839,15 @@ textarea:focus-visible {
 }
 
 @keyframes pulse-dot {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.2); }
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.2);
+    }
 }
 
 /* Full CLI Terminal Styles */
