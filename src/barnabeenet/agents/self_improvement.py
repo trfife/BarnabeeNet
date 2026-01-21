@@ -380,7 +380,7 @@ class SelfImprovementAgent:
     NOTIFICATION_TARGET = "mobile_app_thomphone"
 
     # Auto-approve threshold - plans scoring above this can be auto-approved
-    AUTO_APPROVE_THRESHOLD = 0.85
+    AUTO_APPROVE_THRESHOLD = 0.80
 
     # Safe file paths (changes here are low-risk)
     SAFE_PATHS = [
@@ -389,6 +389,14 @@ class SelfImprovementAgent:
         "prompts/",
         "tests/",
         ".copilot/",
+        "__init__.py",  # Version files and package markers
+        "__version__",
+        "README",
+        "CONTEXT.md",
+        "pyproject.toml",  # Metadata changes
+        ".md",  # Markdown docs
+        ".yaml",  # Config files
+        ".yml",
     ]
 
     # Risky file paths (changes here need manual approval)
@@ -488,11 +496,16 @@ class SelfImprovementAgent:
                 from barnabeenet.api.routes.homeassistant import get_ha_client
 
                 self.ha_client = await get_ha_client()
-            except Exception:
-                pass
+                if self.ha_client:
+                    logger.info("Loaded HA client for notifications")
+            except Exception as e:
+                logger.warning("Failed to load HA client", error=str(e))
 
         if self.ha_client is None:
-            logger.debug("No HA client available for notifications")
+            logger.warning(
+                "No HA client available for notifications - check HA configuration",
+                title=title,
+            )
             return False
 
         try:
@@ -574,9 +587,14 @@ class SelfImprovementAgent:
                 reasons.append(f"{risky_count} files in risky paths")
                 risk_factors.append(f"Modifies {risky_count} core file(s)")
 
+        # Single-file changes are safer
+        if len(files_affected) == 1:
+            score += 0.1
+            reasons.append("Single file change")
+
         # Check if only config/doc changes
         only_config_docs = all(
-            any(safe in f for safe in ["config/", "docs/", ".md", ".yaml", ".yml"])
+            any(safe in f for safe in ["config/", "docs/", ".md", ".yaml", ".yml", "__init__.py"])
             for f in files_affected
         )
         if only_config_docs and files_affected:
