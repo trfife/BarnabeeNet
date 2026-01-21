@@ -229,6 +229,7 @@ class LogicRegistry:
                 "query",
                 "memory",
                 "gesture",
+                "self_improvement",
             ]:
                 if group_name in data:
                     group = PatternGroup(name=group_name)
