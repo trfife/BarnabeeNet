@@ -283,7 +283,7 @@ class InteractionAgent(Agent):
         now = datetime.now()
         current_time = now.strftime("%I:%M %p").lstrip("0")
         current_date = now.strftime("%A, %B %d, %Y")
-        
+
         tz_name = time.tzname[0] if time.daylight == 0 else time.tzname[1]
         if "EST" in tz_name or "EDT" in tz_name or "Eastern" in tz_name:
             timezone = "Eastern Time (EST/EDT)"
@@ -314,7 +314,7 @@ class InteractionAgent(Agent):
             "---",
             "",
         ]
-        
+
         # Now add persona
         parts.append(BARNABEE_PERSONA)
 
