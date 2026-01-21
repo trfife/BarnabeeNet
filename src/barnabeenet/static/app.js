@@ -207,7 +207,7 @@ function showPage(pageId) {
             logicPage.dataset.initialized = 'true';
         }
     }
-    
+
     // Initialize Self-Improve page when navigating to it
     if (pageId === 'self-improve') {
         const siPage = document.getElementById('page-self-improve');
@@ -8232,7 +8232,7 @@ async function runPatternTest() {
 
 /**
  * Self-Improvement Panel
- * 
+ *
  * Interactive dashboard for the Self-Improvement Agent showing:
  * - Live thinking/reasoning stream
  * - Command execution with results
@@ -8246,7 +8246,7 @@ const SelfImprovement = {
     sessions: [],
     activeSessionId: null,
     eventSource: null,
-    
+
     async init() {
         console.log('Initializing Self-Improvement page...');
         this.bindEvents();
@@ -8254,71 +8254,71 @@ const SelfImprovement = {
         await this.loadSessions();
         await this.loadCostReport();
     },
-    
+
     bindEvents() {
         // Modal controls
         document.getElementById('new-improvement-btn')?.addEventListener('click', () => {
             document.getElementById('si-modal').style.display = 'flex';
         });
-        
+
         document.getElementById('si-modal-close')?.addEventListener('click', () => {
             document.getElementById('si-modal').style.display = 'none';
         });
-        
+
         document.getElementById('si-cancel')?.addEventListener('click', () => {
             document.getElementById('si-modal').style.display = 'none';
         });
-        
+
         document.getElementById('si-submit')?.addEventListener('click', () => {
             this.submitImprovement();
         });
-        
+
         // Session controls
         document.getElementById('si-stop-btn')?.addEventListener('click', () => {
             this.stopSession();
         });
-        
+
         document.getElementById('si-send-input')?.addEventListener('click', () => {
             this.sendUserInput();
         });
-        
+
         document.getElementById('si-user-input')?.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.sendUserInput();
         });
-        
+
         // Plan approval
         document.getElementById('si-approve-plan')?.addEventListener('click', () => {
             this.approvePlan();
         });
-        
+
         document.getElementById('si-reject-plan')?.addEventListener('click', () => {
             this.rejectPlan();
         });
-        
+
         // Code approval
         document.getElementById('si-approve-changes')?.addEventListener('click', () => {
             this.approveSession();
         });
-        
+
         document.getElementById('si-reject-changes')?.addEventListener('click', () => {
             this.rejectSession();
         });
-        
+
         // Cost refresh
         document.getElementById('si-refresh-costs')?.addEventListener('click', () => {
             this.loadCostReport();
         });
     },
-    
+
     async checkAvailability() {
         try {
             const response = await fetch(`${API_BASE}/api/v1/self-improve/status`);
             const data = await response.json();
-            
+
             const statusDot = document.querySelector('.self-improvement-panel .status-dot');
             const statusText = document.getElementById('self-improve-status-text');
             const newBtn = document.getElementById('new-improvement-btn');
-            
+
             if (data.available) {
                 statusDot?.classList.add('available');
                 statusDot?.classList.remove('unavailable');
@@ -8336,7 +8336,7 @@ const SelfImprovement = {
             statusText.textContent = 'Error checking availability';
         }
     },
-    
+
     async loadSessions() {
         try {
             const response = await fetch(`${API_BASE}/api/v1/self-improve/sessions`);
@@ -8346,16 +8346,16 @@ const SelfImprovement = {
             console.error('Failed to load sessions:', error);
         }
     },
-    
+
     renderSessionList() {
         const container = document.getElementById('si-session-list');
         if (!container) return;
-        
+
         if (this.sessions.length === 0) {
             container.innerHTML = '<div class="empty-state">No sessions yet</div>';
             return;
         }
-        
+
         container.innerHTML = this.sessions.map(session => `
             <div class="si-session-item ${session.status} ${session.session_id === this.activeSessionId ? 'selected' : ''}"
                  data-session-id="${session.session_id}"
@@ -8371,7 +8371,7 @@ const SelfImprovement = {
             </div>
         `).join('');
     },
-    
+
     getStatusIcon(status) {
         const icons = {
             'pending': '⏳',
@@ -8388,29 +8388,29 @@ const SelfImprovement = {
         };
         return icons[status] || '❓';
     },
-    
+
     selectSession(sessionId) {
         this.activeSessionId = sessionId;
-        
+
         // Update UI
         document.getElementById('si-no-session')?.classList.add('hidden');
         document.getElementById('si-active-session')?.classList.remove('hidden');
-        
+
         // Update selection in list
         document.querySelectorAll('.si-session-item').forEach(el => {
             el.classList.toggle('selected', el.dataset.sessionId === sessionId);
         });
-        
+
         // Load session details
         const session = this.sessions.find(s => s.session_id === sessionId);
         if (session) {
             this.renderActiveSession(session);
         }
-        
+
         // Start streaming for this session
         this.startStreaming(sessionId);
     },
-    
+
     renderActiveSession(session) {
         // Status badge
         const badge = document.getElementById('si-status-badge');
@@ -8418,10 +8418,10 @@ const SelfImprovement = {
             badge.textContent = `${this.getStatusIcon(session.status)} ${session.status}`;
             badge.className = `status-badge status-${session.status}`;
         }
-        
+
         // Request text
         document.getElementById('si-request-text').textContent = session.request || '';
-        
+
         // Plan approval section
         const planApproval = document.getElementById('si-plan-approval');
         if (session.status === 'awaiting_plan_approval' && session.proposed_plan) {
@@ -8430,7 +8430,7 @@ const SelfImprovement = {
         } else {
             planApproval?.classList.add('hidden');
         }
-        
+
         // Code approval section
         const codeApproval = document.getElementById('si-code-approval');
         if (session.status === 'awaiting_approval') {
@@ -8448,11 +8448,11 @@ const SelfImprovement = {
             codeApproval?.classList.add('hidden');
         }
     },
-    
+
     renderPlan(plan) {
         const content = document.getElementById('si-plan-content');
         if (!content) return;
-        
+
         content.innerHTML = `
             <div class="plan-field">
                 <label>Issue:</label>
@@ -8480,16 +8480,16 @@ const SelfImprovement = {
             </div>
         `;
     },
-    
+
     startStreaming(sessionId) {
         // Close existing stream
         if (this.eventSource) {
             this.eventSource.close();
         }
-        
+
         // Start SSE stream for this session
         this.eventSource = new EventSource(`${API_BASE}/api/v1/self-improve/sessions/${sessionId}/stream`);
-        
+
         this.eventSource.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
@@ -8498,16 +8498,16 @@ const SelfImprovement = {
                 console.error('Failed to parse SSE event:', e);
             }
         };
-        
+
         this.eventSource.onerror = (error) => {
             console.error('SSE error:', error);
             // Don't close immediately - let it reconnect
         };
     },
-    
+
     handleStreamEvent(event) {
         console.log('Stream event:', event);
-        
+
         switch (event.event_type) {
             case 'thinking':
                 this.updateThinkingDisplay(event.text);
@@ -8533,19 +8533,19 @@ const SelfImprovement = {
                 break;
         }
     },
-    
+
     updateThinkingDisplay(text) {
         const stream = document.getElementById('si-thinking-stream');
         if (!stream) return;
-        
+
         stream.innerHTML = `<pre>${this.escapeHtml(text)}</pre>`;
         stream.scrollTop = stream.scrollHeight;
     },
-    
+
     addOperationToLog(event) {
         const log = document.getElementById('si-operation-log');
         if (!log) return;
-        
+
         const entry = document.createElement('div');
         const toolClass = (event.tool || 'unknown').toLowerCase().replace(/[^a-z]/g, '');
         entry.className = `operation-entry op-${toolClass}`;
@@ -8563,68 +8563,68 @@ const SelfImprovement = {
                 </div>
             ` : ''}
         `;
-        
+
         log.appendChild(entry);
         log.scrollTop = log.scrollHeight;
-        
+
         // Limit log size
         while (log.children.length > 100) {
             log.removeChild(log.firstChild);
         }
     },
-    
+
     async submitImprovement() {
         const request = document.getElementById('si-improvement-request')?.value;
         const model = document.querySelector('input[name="si-model"]:checked')?.value || 'sonnet';
-        
+
         if (!request?.trim()) {
             showToast({ title: 'Error', message: 'Please describe the improvement', type: 'error' });
             return;
         }
-        
+
         document.getElementById('si-modal').style.display = 'none';
         document.getElementById('si-improvement-request').value = '';
-        
+
         try {
             const response = await fetch(`${API_BASE}/api/v1/self-improve/improve`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ request, model, auto_approve: false }),
             });
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
-            
+
             const result = await response.json();
             console.log('Improvement started:', result);
-            
+
             showToast({ title: 'Started', message: 'Improvement investigation started', type: 'success' });
-            
+
             // Reload sessions and select the new one
             await this.loadSessions();
             if (result.session_id) {
                 this.selectSession(result.session_id);
             }
-            
+
         } catch (error) {
             console.error('Failed to start improvement:', error);
             showToast({ title: 'Error', message: error.message, type: 'error' });
         }
     },
-    
+
     async stopSession() {
         if (!this.activeSessionId) return;
-        
+
         if (!confirm('Stop this session? Any uncommitted changes will be discarded.')) {
             return;
         }
-        
+
         try {
             await fetch(`${API_BASE}/api/v1/self-improve/sessions/${this.activeSessionId}/stop`, {
                 method: 'POST',
             });
-            
+
             showToast({ title: 'Stopped', message: 'Session stopped', type: 'info' });
             this.loadSessions();
         } catch (error) {
@@ -8632,23 +8632,23 @@ const SelfImprovement = {
             showToast({ title: 'Error', message: 'Failed to stop session', type: 'error' });
         }
     },
-    
+
     async sendUserInput() {
         if (!this.activeSessionId) return;
-        
+
         const input = document.getElementById('si-user-input');
         const message = input?.value?.trim();
         if (!message) return;
-        
+
         input.value = '';
-        
+
         try {
             await fetch(`${API_BASE}/api/v1/self-improve/sessions/${this.activeSessionId}/input`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message }),
             });
-            
+
             // Add to thinking stream
             const stream = document.getElementById('si-thinking-stream');
             if (stream) {
@@ -8658,73 +8658,73 @@ const SelfImprovement = {
                 stream.appendChild(userMsg);
                 stream.scrollTop = stream.scrollHeight;
             }
-            
+
         } catch (error) {
             console.error('Failed to send input:', error);
             showToast({ title: 'Error', message: 'Failed to send message', type: 'error' });
         }
     },
-    
+
     async approvePlan() {
         if (!this.activeSessionId) return;
-        
+
         const feedback = document.getElementById('si-plan-feedback')?.value?.trim();
-        
+
         try {
             await fetch(`${API_BASE}/api/v1/self-improve/sessions/${this.activeSessionId}/approve-plan`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ feedback: feedback || null }),
             });
-            
+
             document.getElementById('si-plan-feedback').value = '';
             document.getElementById('si-plan-approval')?.classList.add('hidden');
-            
+
             showToast({ title: 'Approved', message: 'Plan approved, proceeding...', type: 'success' });
             this.loadSessions();
-            
+
         } catch (error) {
             console.error('Failed to approve plan:', error);
             showToast({ title: 'Error', message: 'Failed to approve plan', type: 'error' });
         }
     },
-    
+
     async rejectPlan() {
         if (!this.activeSessionId) return;
-        
+
         const feedback = document.getElementById('si-plan-feedback')?.value?.trim();
         if (!feedback) {
             showToast({ title: 'Required', message: 'Please provide feedback for revision', type: 'warning' });
             document.getElementById('si-plan-feedback')?.focus();
             return;
         }
-        
+
         try {
             await fetch(`${API_BASE}/api/v1/self-improve/sessions/${this.activeSessionId}/reject-plan`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ feedback }),
             });
-            
+
             document.getElementById('si-plan-feedback').value = '';
-            
+
             showToast({ title: 'Rejected', message: 'Plan rejected, revising...', type: 'info' });
             this.loadSessions();
-            
+
         } catch (error) {
             console.error('Failed to reject plan:', error);
             showToast({ title: 'Error', message: 'Failed to reject plan', type: 'error' });
         }
     },
-    
+
     async approveSession() {
         if (!this.activeSessionId) return;
-        
+
         try {
             await fetch(`${API_BASE}/api/v1/self-improve/sessions/${this.activeSessionId}/approve`, {
                 method: 'POST',
             });
-            
+
             showToast({ title: 'Approved', message: 'Changes committed', type: 'success' });
             this.loadSessions();
         } catch (error) {
@@ -8732,17 +8732,17 @@ const SelfImprovement = {
             showToast({ title: 'Error', message: 'Failed to commit changes', type: 'error' });
         }
     },
-    
+
     async rejectSession() {
         if (!this.activeSessionId) return;
-        
+
         if (!confirm('Reject and discard all changes?')) return;
-        
+
         try {
             await fetch(`${API_BASE}/api/v1/self-improve/sessions/${this.activeSessionId}/reject`, {
                 method: 'POST',
             });
-            
+
             showToast({ title: 'Rejected', message: 'Changes discarded', type: 'info' });
             this.loadSessions();
         } catch (error) {
@@ -8750,7 +8750,7 @@ const SelfImprovement = {
             showToast({ title: 'Error', message: 'Failed to discard changes', type: 'error' });
         }
     },
-    
+
     async loadCostReport() {
         try {
             const response = await fetch(`${API_BASE}/api/v1/self-improve/cost-report`);
@@ -8758,15 +8758,15 @@ const SelfImprovement = {
             this.renderCostReport(report);
         } catch (error) {
             console.error('Failed to load cost report:', error);
-            document.getElementById('si-cost-tracking').innerHTML = 
+            document.getElementById('si-cost-tracking').innerHTML =
                 '<div class="empty-state">Failed to load costs</div>';
         }
     },
-    
+
     renderCostReport(report) {
         const container = document.getElementById('si-cost-tracking');
         if (!container) return;
-        
+
         container.innerHTML = `
             <div class="cost-report">
                 <div class="cost-stat">
@@ -8796,7 +8796,7 @@ const SelfImprovement = {
             </div>
         `;
     },
-    
+
     escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');

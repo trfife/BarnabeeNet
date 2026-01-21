@@ -40,6 +40,7 @@ class IntentCategory(Enum):
     MEMORY = "memory"  # Remember/recall operations
     EMERGENCY = "emergency"  # Safety-critical
     GESTURE = "gesture"  # Physical input from wearable
+    SELF_IMPROVEMENT = "self_improvement"  # Code fixes, improvements, bugs
     UNKNOWN = "unknown"
 
 
@@ -258,6 +259,7 @@ INTENT_TO_AGENT: dict[IntentCategory, str] = {
     IntentCategory.MEMORY: "memory",
     IntentCategory.EMERGENCY: "action",  # Emergencies need immediate action
     IntentCategory.GESTURE: "instant",
+    IntentCategory.SELF_IMPROVEMENT: "self_improvement",  # Code fixes and improvements
     IntentCategory.UNKNOWN: "interaction",  # Default to interaction
 }
 
@@ -283,6 +285,7 @@ class MetaAgent(Agent):
         ("emergency", IntentCategory.EMERGENCY, 0.99),
         ("instant", IntentCategory.INSTANT, 0.95),
         ("gesture", IntentCategory.GESTURE, 0.95),
+        ("self_improvement", IntentCategory.SELF_IMPROVEMENT, 0.92),
         ("action", IntentCategory.ACTION, 0.90),
         ("memory", IntentCategory.MEMORY, 0.90),
         ("query", IntentCategory.QUERY, 0.85),

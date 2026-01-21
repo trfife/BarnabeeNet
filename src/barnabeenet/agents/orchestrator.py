@@ -860,6 +860,59 @@ class AgentOrchestrator:
             ctx.agent_response = await self._interaction_agent.handle_input(ctx.text, agent_context)
             agent_name = "interaction"
 
+        elif intent == IntentCategory.SELF_IMPROVEMENT:
+            # Self-improvement: Route to Self-Improvement Agent
+            import asyncio
+
+            from barnabeenet.agents.self_improvement import get_self_improvement_agent
+
+            agent_name = "self_improvement"
+            try:
+                si_agent = await get_self_improvement_agent()
+                if not si_agent.is_available():
+                    ctx.agent_response = {
+                        "_agent_name": agent_name,
+                        "response": "Sorry, the self-improvement system isn't available right now. "
+                        "Claude Code CLI needs to be installed and authenticated.",
+                        "error": "Claude Code not available",
+                    }
+                else:
+                    # Start the improvement in background (like the API does)
+                    async def run_improvement() -> None:
+                        async for _event in si_agent.improve(request=ctx.text):
+                            pass  # Events broadcast via Redis
+
+                    asyncio.create_task(run_improvement())
+
+                    # Wait briefly for session to be created
+                    await asyncio.sleep(0.5)
+
+                    # Get the latest session
+                    sessions = si_agent.get_all_sessions()
+                    if sessions:
+                        latest = sessions[-1]
+                        ctx.agent_response = {
+                            "_agent_name": agent_name,
+                            "response": f"I'll work on that improvement. Session {latest['session_id']} started. "
+                            f"Check the Self-Improvement dashboard for progress.",
+                            "session_id": latest["session_id"],
+                            "status": latest["status"],
+                        }
+                    else:
+                        ctx.agent_response = {
+                            "_agent_name": agent_name,
+                            "response": "I started working on that improvement but couldn't get the session info. "
+                            "Check the Self-Improvement dashboard.",
+                        }
+            except Exception as e:
+                logger.exception("Self-improvement agent error")
+                ctx.agent_response = {
+                    "_agent_name": agent_name,
+                    "response": f"Sorry, I couldn't start the improvement: {e}. "
+                    "Please check if Claude Code is configured correctly.",
+                    "error": str(e),
+                }
+
         else:
             # CONVERSATION, QUERY, UNKNOWN → Interaction Agent
             ctx.agent_response = await self._interaction_agent.handle_input(ctx.text, agent_context)

@@ -9429,8 +9429,15 @@ textarea:focus-visible {
 }
 
 @keyframes si-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
 }
 
 .self-improvement-panel .panel-layout {
@@ -9547,16 +9554,55 @@ textarea:focus-visible {
     white-space: nowrap;
 }
 
-.status-badge.status-pending { background: var(--bg-hover); color: var(--text-secondary); }
-.status-badge.status-diagnosing { background: #2a4a6a; color: #8ac; }
-.status-badge.status-awaiting_plan_approval { background: #6a4a2a; color: #ca8; }
-.status-badge.status-implementing { background: #2a6a4a; color: #8ca; }
-.status-badge.status-testing { background: #4a2a6a; color: #a8c; }
-.status-badge.status-awaiting_approval { background: #6a6a2a; color: #cc8; }
-.status-badge.status-completed { background: #2a6a2a; color: #8c8; }
-.status-badge.status-failed { background: #6a2a2a; color: #c88; }
-.status-badge.status-rejected { background: #5a2a3a; color: #c8a; }
-.status-badge.status-stopped { background: #4a4a4a; color: #aaa; }
+.status-badge.status-pending {
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+}
+
+.status-badge.status-diagnosing {
+    background: #2a4a6a;
+    color: #8ac;
+}
+
+.status-badge.status-awaiting_plan_approval {
+    background: #6a4a2a;
+    color: #ca8;
+}
+
+.status-badge.status-implementing {
+    background: #2a6a4a;
+    color: #8ca;
+}
+
+.status-badge.status-testing {
+    background: #4a2a6a;
+    color: #a8c;
+}
+
+.status-badge.status-awaiting_approval {
+    background: #6a6a2a;
+    color: #cc8;
+}
+
+.status-badge.status-completed {
+    background: #2a6a2a;
+    color: #8c8;
+}
+
+.status-badge.status-failed {
+    background: #6a2a2a;
+    color: #c88;
+}
+
+.status-badge.status-rejected {
+    background: #5a2a3a;
+    color: #c8a;
+}
+
+.status-badge.status-stopped {
+    background: #4a4a4a;
+    color: #aaa;
+}
 
 /* Plan Approval Section */
 .self-improvement-panel .plan-approval {
@@ -9668,10 +9714,21 @@ textarea:focus-visible {
     border-left: 3px solid var(--border-color);
 }
 
-.self-improvement-panel .operation-entry.op-bash { border-left-color: var(--accent-primary); }
-.self-improvement-panel .operation-entry.op-read { border-left-color: var(--accent-secondary); }
-.self-improvement-panel .operation-entry.op-write { border-left-color: var(--accent-error); }
-.self-improvement-panel .operation-entry.op-edit { border-left-color: var(--accent-warning); }
+.self-improvement-panel .operation-entry.op-bash {
+    border-left-color: var(--accent-primary);
+}
+
+.self-improvement-panel .operation-entry.op-read {
+    border-left-color: var(--accent-secondary);
+}
+
+.self-improvement-panel .operation-entry.op-write {
+    border-left-color: var(--accent-error);
+}
+
+.self-improvement-panel .operation-entry.op-edit {
+    border-left-color: var(--accent-warning);
+}
 
 .self-improvement-panel .op-header {
     display: flex;
@@ -9900,25 +9957,25 @@ textarea:focus-visible {
         grid-template-columns: 1fr;
         grid-template-rows: auto 1fr auto;
     }
-    
+
     .self-improvement-panel .sessions-sidebar {
         max-height: 150px;
     }
-    
+
     .self-improvement-panel .cost-sidebar {
         flex-direction: row;
         flex-wrap: wrap;
     }
-    
+
     .self-improvement-panel .cost-sidebar h4 {
         width: 100%;
     }
-    
+
     .self-improvement-panel .cost-report {
         flex-direction: row;
         flex-wrap: wrap;
     }
-    
+
     .self-improvement-panel .cost-stat {
         flex: 1 1 45%;
     }

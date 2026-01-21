@@ -653,7 +653,7 @@ class SelfImprovementAgent:
                     session.current_thinking += f"\n[STDERR]: {stderr_output}\n"
 
             await process.wait()
-            
+
             # Check return code
             if process.returncode != 0:
                 logger.error(
@@ -661,7 +661,9 @@ class SelfImprovementAgent:
                     returncode=process.returncode,
                     stderr=stderr_output[:500],
                 )
-                session.error = f"Claude CLI error (code {process.returncode}): {stderr_output[:200]}"
+                session.error = (
+                    f"Claude CLI error (code {process.returncode}): {stderr_output[:200]}"
+                )
 
             if session.stop_requested:
                 session.status = ImprovementStatus.STOPPED

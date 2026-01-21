@@ -571,6 +571,67 @@ memory:
       - "forget what I told you"
 
 # =============================================================================
+# SELF-IMPROVEMENT PATTERNS - Code fixes, bugs, improvements
+# =============================================================================
+self_improvement:
+  fix_bug:
+    pattern: ".*(fix|broken|doesn'?t work|not working|bug|issue|problem|error).*"
+    sub_category: "fix"
+    confidence: 0.90
+    enabled: true
+    description: "Requests to fix bugs or broken features"
+    examples:
+      - "that's broken, please fix it"
+      - "the TTS doesn't work"
+      - "there's a bug in the dashboard"
+      - "fix the error in the lights"
+
+  improve_feature:
+    pattern: ".*(improve|enhance|upgrade|better|optimize).*"
+    sub_category: "improve"
+    confidence: 0.88
+    enabled: true
+    description: "Requests to improve or enhance features"
+    examples:
+      - "improve the voice quality"
+      - "make the dashboard better"
+      - "enhance the TTS"
+      - "optimize the response time"
+
+  add_feature:
+    pattern: ".*(add|implement|create|build|make).*(feature|function|ability|capability).*"
+    sub_category: "add"
+    confidence: 0.85
+    enabled: true
+    description: "Requests to add new features"
+    examples:
+      - "add a feature to dim lights"
+      - "implement voice feedback"
+      - "create a new dashboard panel"
+
+  change_code:
+    pattern: ".*(change|modify|update|edit).*(code|file|source|script).*"
+    sub_category: "modify"
+    confidence: 0.90
+    enabled: true
+    description: "Direct requests to change code"
+    examples:
+      - "change the code in the TTS module"
+      - "modify the source file"
+      - "update the config"
+
+  self_reference:
+    pattern: ".*(yourself|your own code|your code|barnabeenet|barnabee).*"
+    sub_category: "self"
+    confidence: 0.85
+    enabled: true
+    description: "Self-referential improvement requests"
+    examples:
+      - "fix yourself"
+      - "improve your own code"
+      - "make yourself better"
+
+# =============================================================================
 # GESTURE PATTERNS - Physical input from wearables
 # =============================================================================
 gesture:
