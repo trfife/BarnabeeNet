@@ -642,7 +642,25 @@ class SelfImprovementAgent:
                 except Exception as e:
                     logger.warning("Error processing Claude output", error=str(e))
 
+            # Capture stderr for debugging
+            stderr_output = ""
+            if process.stderr:
+                stderr_data = await process.stderr.read()
+                stderr_output = stderr_data.decode() if stderr_data else ""
+                if stderr_output:
+                    logger.warning("Claude CLI stderr", stderr=stderr_output[:500])
+                    session.current_thinking += f"\n[STDERR]: {stderr_output}\n"
+
             await process.wait()
+            
+            # Check return code
+            if process.returncode != 0:
+                logger.error(
+                    "Claude CLI exited with error",
+                    returncode=process.returncode,
+                    stderr=stderr_output[:500],
+                )
+                session.error = f"Claude CLI error (code {process.returncode}): {stderr_output[:200]}"
 
             if session.stop_requested:
                 session.status = ImprovementStatus.STOPPED
