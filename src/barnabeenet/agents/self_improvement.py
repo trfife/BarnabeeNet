@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -191,6 +192,7 @@ class ImprovementSession:
     success: bool = False
     error: str | None = None
     summary: str | None = None
+    test_results: dict[str, Any] | None = None  # Test execution results
 
     # Interactive session control
     proposed_plan: dict[str, Any] | None = None  # Parsed <PLAN> block
@@ -229,6 +231,7 @@ class ImprovementSession:
             "current_thinking": self.current_thinking if self.current_thinking else "",  # Full thinking (no limit)
             "estimated_api_cost_usd": self.token_usage.calculate_api_cost(self.model_used),
             "safety_score": self.safety_score.to_dict() if self.safety_score else None,
+            "test_results": self.test_results,
         }
 
 
@@ -468,9 +471,10 @@ WORKFLOW (FOLLOW STEP-BY-STEP):
    - If modifying config: Edit the .yaml file in config/ directory
    - If modifying models: Edit config/llm.yaml agents section (one model per agent)
    - Format code: Run `ruff format .` after changes
-2. Run tests: pytest (uses testmon for fast incremental runs)
+2. Run tests: pytest (uses testmon - automatically runs only tests for changed files)
    - THINK: What tests should pass? What might break?
    - DOCUMENT: Test results and any failures
+   - NOTE: Tests will be run automatically after implementation - you don't need to run them manually
 3. If tests fail, fix issues and re-test
    - THINK: Why did the test fail? What's the root cause?
    - DOCUMENT: Fix approach and rationale
@@ -1547,16 +1551,64 @@ class SelfImprovementAgent:
 
                 await impl_process.wait()
 
-            # Phase 3: Collect results
+            # Phase 3: Run tests (only for changed files via pytest-testmon)
             session.status = ImprovementStatus.TESTING
 
             await self._log_activity(
                 session,
                 "testing",
-                "🧪 Checking changes...",
+                "🧪 Running tests for changed files...",
             )
 
-            await self._emit_progress(session, "testing", {"message": "Checking changes..."})
+            await self._emit_progress(session, "testing", {"message": "Running tests for changed files..."})
+            yield {"event": "testing", "message": "Running tests for changed files..."}
+
+            # Run pytest with testmon (automatically runs only tests for changed files)
+            test_result = await self._run_tests()
+            session.test_results = test_result
+
+            if test_result["failed"] > 0:
+                logger.warning(
+                    "Tests failed",
+                    session_id=session_id,
+                    failed=test_result["failed"],
+                    passed=test_result["passed"],
+                )
+                await self._emit_progress(
+                    session,
+                    "tests_failed",
+                    {
+                        "message": f"⚠️ {test_result['failed']} test(s) failed",
+                        "test_results": test_result,
+                    },
+                )
+                yield {
+                    "event": "tests_failed",
+                    "failed": test_result["failed"],
+                    "passed": test_result["passed"],
+                    "output": test_result.get("output", "")[:1000],  # First 1000 chars
+                }
+            else:
+                logger.info(
+                    "All tests passed",
+                    session_id=session_id,
+                    passed=test_result["passed"],
+                )
+                await self._emit_progress(
+                    session,
+                    "tests_passed",
+                    {
+                        "message": f"✅ All {test_result['passed']} test(s) passed",
+                        "test_results": test_result,
+                    },
+                )
+                yield {
+                    "event": "tests_passed",
+                    "passed": test_result["passed"],
+                }
+
+            # Phase 4: Collect results
+            await self._emit_progress(session, "collecting_results", {"message": "Collecting change summary..."})
 
             # Get git diff
             diff_result = await self._run_git_command(["diff", "--stat"])
@@ -1894,6 +1946,69 @@ class SelfImprovementAgent:
             raise RuntimeError(f"Git command failed: {stderr.decode()}")
 
         return stdout.decode()
+
+    async def _run_tests(self) -> dict[str, Any]:
+        """Run pytest with testmon (only tests for changed files).
+
+        Returns:
+            Dictionary with test results: {passed, failed, skipped, output}
+        """
+        try:
+            # Run pytest with testmon - automatically runs only tests for changed files
+            process = await asyncio.create_subprocess_exec(
+                "pytest",
+                "-v",
+                "--tb=short",  # Short traceback format
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,  # Combine stderr into stdout
+                cwd=self.project_path,
+                env={**os.environ, "PYTHONPATH": str(self.project_path)},
+            )
+
+            stdout, _ = await process.communicate()
+            output = stdout.decode() if stdout else ""
+
+            # Parse pytest output for results
+            # Look for "X passed, Y failed, Z skipped" pattern
+            passed = 0
+            failed = 0
+            skipped = 0
+
+            # Try to parse pytest summary line
+            import re
+
+            summary_match = re.search(
+                r"(\d+)\s+passed|(\d+)\s+failed|(\d+)\s+skipped", output, re.IGNORECASE
+            )
+            if summary_match:
+                # Look for full summary line like "32 passed, 0 failed, 11 warnings"
+                full_summary = re.search(
+                    r"(\d+)\s+passed(?:,\s*(\d+)\s+failed)?(?:,\s*(\d+)\s+skipped)?",
+                    output,
+                    re.IGNORECASE,
+                )
+                if full_summary:
+                    passed = int(full_summary.group(1) or 0)
+                    failed = int(full_summary.group(2) or 0)
+                    skipped = int(full_summary.group(3) or 0)
+
+            return {
+                "passed": passed,
+                "failed": failed,
+                "skipped": skipped,
+                "output": output,
+                "success": process.returncode == 0,
+            }
+
+        except Exception as e:
+            logger.warning("Test execution failed", error=str(e))
+            return {
+                "passed": 0,
+                "failed": 0,
+                "skipped": 0,
+                "output": f"Error running tests: {str(e)}",
+                "success": False,
+            }
 
     def get_session(self, session_id: str) -> ImprovementSession | None:
         """Get a session by ID."""
