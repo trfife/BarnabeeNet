@@ -63,9 +63,9 @@ ssh host 'nohup command > /tmp/log 2>&1 </dev/null &'
 
 ### BarnabeeNet VM Restart - MANDATORY
 
-**Always use the start script to restart BarnabeeNet. Never run uvicorn inline via SSH.**
+**Always use the restart script to restart BarnabeeNet. Never run uvicorn inline via SSH.**
 ```bash
-ssh -o ConnectTimeout=5 thom@192.168.86.51 'bash ~/barnabeenet/start.sh'
+ssh -o ConnectTimeout=5 thom@192.168.86.51 'cd ~/barnabeenet && bash scripts/restart.sh'
 ```
 
 DO NOT attempt inline nohup/uvicorn commands - they will hang SSH.
