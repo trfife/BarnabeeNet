@@ -3862,7 +3862,7 @@ function escapeHtml(str) {
 
 // Initialize logs page when navigating to it
 document.addEventListener('DOMContentLoaded', () => {
-    // Watch for navigation to logs and prompts pages
+    // Watch for navigation to logs page
     document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', () => {
             if (link.dataset.page === 'logs') {

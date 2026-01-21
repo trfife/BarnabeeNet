@@ -195,7 +195,7 @@
 ## Phase 5: Multi-Modal & Advanced Features
 **Status:** 🔄 Partially Complete
 
-- [x] Dashboard – Chat (text + voice mic), Memory, HA, Config, Prompts, Logs, Activity
+- [x] Dashboard – Chat (text + voice mic), Memory, HA, Config, Logs, Activity
 - [x] Azure STT, tiered STT (COMMAND/REALTIME/AMBIENT), `/ws/transcribe`
 - [x] Family profiles, ProfileAgent, privacy-aware context
 - [x] Observability: Prometheus, Grafana, metrics, traces, waterfall, health checks

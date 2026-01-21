@@ -97,7 +97,7 @@ stt:
 - [x] STT (Parakeet + Distil-Whisper + Azure), TTS (Kokoro), GPU worker, health-check routing
 - [x] Meta, Instant, Action, Interaction, Memory, Profile agents; Orchestrator
 - [x] HA client, topology, compound commands, timers, conversation agent, mock HA for E2E
-- [x] Dashboard (Chat, Memory, HA, Config, Prompts, Logs), observability
+- [x] Dashboard (Chat, Memory, HA, Config, Logs), observability
 - [ ] ViewAssist integration (APIs ready), mobile client (placeholder), Proactive/Evolver, voice Speaker ID
 
 See **barnabeenet-project-log.md** for phase details; **CONTEXT.md** for live checklist.
