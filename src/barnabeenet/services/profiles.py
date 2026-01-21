@@ -657,8 +657,18 @@ class ProfileService:
 
         # Fetch real-time location from Home Assistant
         location = None
+        person_entity_details = None
         if profile.ha_person_entity:
             location = await self.get_person_location(profile.ha_person_entity)
+            
+            # Get person entity details including linked devices and entities
+            if self._ha_client:
+                try:
+                    person_entity_details = await self._ha_client.get_person_entity_details(
+                        profile.ha_person_entity
+                    )
+                except Exception as e:
+                    logger.debug(f"Could not get person entity details: {e}")
 
         return ProfileContextResponse(
             member_id=profile.member_id,
@@ -668,6 +678,7 @@ class ProfileService:
             private=profile.private.model_dump() if is_private else None,
             location=location,
             ha_person_entity=profile.ha_person_entity,
+            person_entity_details=person_entity_details,
         )
 
     # =========================================================================

@@ -8949,7 +8949,7 @@ const SelfImprovement = {
         if (waiting) waiting.remove();
 
         output.insertAdjacentHTML('beforeend', html);
-        
+
         // Auto-scroll if enabled
         if (document.getElementById('cli-auto-scroll')?.checked) {
             const terminal = document.getElementById('cli-terminal');

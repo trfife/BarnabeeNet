@@ -237,6 +237,66 @@ DIAGNOSIS_SYSTEM_PROMPT = """You are diagnosing an issue in the BarnabeeNet smar
 
 YOUR TASK: Analyze the issue and propose a plan. Do NOT make any code changes yet.
 
+═══════════════════════════════════════════════════════════════════════════════
+BARNABEENET ARCHITECTURE REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+KEY FILE LOCATIONS:
+───────────────────────────────────────────────────────────────────────────────
+Agent Prompts (System Prompts for LLM):
+  • src/barnabeenet/prompts/meta_agent.txt - Intent classification
+  • src/barnabeenet/prompts/action_agent.txt - Device control parsing
+  • src/barnabeenet/prompts/interaction_agent.txt - Conversation/chat
+  • src/barnabeenet/prompts/memory_agent.txt - Memory operations
+  • src/barnabeenet/prompts/instant_agent.txt - Quick responses
+
+Agent Code (Python Implementation):
+  • src/barnabeenet/agents/orchestrator.py - Main coordinator, initializes all agents
+  • src/barnabeenet/agents/meta.py - Meta agent (classification/routing)
+  • src/barnabeenet/agents/action.py - Action agent (device control)
+  • src/barnabeenet/agents/interaction.py - Interaction agent (conversation)
+  • src/barnabeenet/agents/memory.py - Memory agent
+  • src/barnabeenet/agents/instant.py - Instant agent
+  • src/barnabeenet/agents/base.py - Base agent class
+
+Configuration Files:
+  • config/llm.yaml - LLM model configurations per agent
+  • config/routing.yaml - Routing rules and patterns
+  • src/barnabeenet/config.py - Settings loading
+
+Architecture Documentation:
+  • docs/BarnabeeNet_Technical_Architecture.md - Full system architecture
+  • docs/BarnabeeNet_MetaAgent_Specification.md - Meta agent details
+  • docs/BarnabeeNet_Prompt_Engineering.md - Prompt system docs
+
+SYSTEM FLOW:
+───────────────────────────────────────────────────────────────────────────────
+1. User input → Meta Agent (classifies intent)
+2. Meta Agent → Routes to appropriate agent:
+   - INSTANT → InstantAgent (pattern-matched, no LLM)
+   - ACTION → ActionAgent (device control, uses action_agent.txt prompt)
+   - CONVERSATION/QUERY → InteractionAgent (uses interaction_agent.txt prompt)
+   - MEMORY → MemoryAgent (uses memory_agent.txt prompt)
+3. Agent processes using its prompt from prompts/ directory
+4. Response generated and returned
+
+HOW AGENTS ARE INITIALIZED:
+───────────────────────────────────────────────────────────────────────────────
+• Orchestrator (agents/orchestrator.py) initializes all agents in init()
+• Agents receive LLM client from OpenRouterClient
+• Agent prompts are loaded from prompts/*.txt files
+• Config loaded from config/*.yaml files
+
+COMMON FIX PATTERNS:
+───────────────────────────────────────────────────────────────────────────────
+• Fixing agent behavior → Modify prompts/{agent}_agent.txt
+• Fixing routing/classification → Modify agents/meta.py or config/routing.yaml
+• Fixing agent logic → Modify agents/{agent}.py
+• Fixing initialization → Modify agents/orchestrator.py
+• Fixing model config → Modify config/llm.yaml
+
+═══════════════════════════════════════════════════════════════════════════════
+
 DEBUGGING RESOURCES - Use these to understand issues:
 1. Conversation traces: ./scripts/debug-logs.sh traces 10
 2. Specific trace: ./scripts/debug-logs.sh trace <trace_id>
@@ -250,6 +310,9 @@ DEBUGGING RESOURCES - Use these to understand issues:
 
 WORKFLOW:
 1. Read relevant code files to understand the issue
+   - Start with the agent prompt file if behavior-related
+   - Check agent code if logic-related
+   - Review orchestrator if initialization-related
 2. Analyze the problem and identify root cause
 3. Output a <PLAN> block with your proposed fix
 
@@ -259,7 +322,7 @@ FORMAT YOUR PLAN EXACTLY LIKE THIS:
 ISSUE: [Brief description of what you found]
 ROOT_CAUSE: [Why this is happening]
 PROPOSED_FIX: [What you plan to change]
-FILES_AFFECTED: [List of files you'll modify]
+FILES_AFFECTED: [List of files you'll modify - use full paths like src/barnabeenet/prompts/meta_agent.txt]
 RISKS: [Potential conflicts, breaking changes, or concerns]
 TESTS: [What tests you'll add or run]
 </PLAN>
@@ -268,7 +331,8 @@ IMPORTANT:
 - DO NOT modify any files in this phase
 - DO NOT run any tests yet
 - ONLY read files and analyze the issue
-- End your response after outputting the <PLAN> block"""
+- End your response after outputting the <PLAN> block
+- When diagnosing, check BOTH the prompt file AND the agent code file"""
 
 
 # System prompt for Phase 2: Implementation (after plan approval)
@@ -280,6 +344,51 @@ SAFETY RULES (MUST FOLLOW):
 - Do NOT modify authentication, permissions, or security code
 - Do NOT change privacy zone configurations
 
+═══════════════════════════════════════════════════════════════════════════════
+BARNABEENET ARCHITECTURE REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+KEY FILE LOCATIONS:
+───────────────────────────────────────────────────────────────────────────────
+Agent Prompts (System Prompts for LLM):
+  • src/barnabeenet/prompts/meta_agent.txt - Intent classification
+  • src/barnabeenet/prompts/action_agent.txt - Device control parsing
+  • src/barnabeenet/prompts/interaction_agent.txt - Conversation/chat
+  • src/barnabeenet/prompts/memory_agent.txt - Memory operations
+  • src/barnabeenet/prompts/instant_agent.txt - Quick responses
+
+Agent Code (Python Implementation):
+  • src/barnabeenet/agents/orchestrator.py - Main coordinator, initializes all agents
+  • src/barnabeenet/agents/meta.py - Meta agent (classification/routing)
+  • src/barnabeenet/agents/action.py - Action agent (device control)
+  • src/barnabeenet/agents/interaction.py - Interaction agent (conversation)
+  • src/barnabeenet/agents/memory.py - Memory agent
+  • src/barnabeenet/agents/instant.py - Instant agent
+  • src/barnabeenet/agents/base.py - Base agent class
+
+Configuration Files:
+  • config/llm.yaml - LLM model configurations per agent
+  • config/routing.yaml - Routing rules and patterns
+  • src/barnabeenet/config.py - Settings loading
+
+COMMON FIX PATTERNS:
+───────────────────────────────────────────────────────────────────────────────
+• Fixing agent behavior → Modify prompts/{agent}_agent.txt
+• Fixing routing/classification → Modify agents/meta.py or config/routing.yaml
+• Fixing agent logic → Modify agents/{agent}.py
+• Fixing initialization → Modify agents/orchestrator.py
+• Fixing model config → Modify config/llm.yaml
+
+TESTING AFTER CHANGES:
+───────────────────────────────────────────────────────────────────────────────
+• Run: pytest (runs all tests)
+• Run: pytest tests/test_{agent}.py (test specific agent)
+• Check logs: ./scripts/debug-logs.sh errors
+• Verify agent initialization: Check orchestrator.py init() method
+• For prompt changes: Restart service to reload prompts
+
+═══════════════════════════════════════════════════════════════════════════════
+
 YOUR APPROVED PLAN:
 {approved_plan}
 
@@ -287,11 +396,16 @@ YOUR APPROVED PLAN:
 
 WORKFLOW:
 1. Make the minimal targeted changes described in the plan
+   - If modifying prompts: Edit the .txt file in prompts/ directory
+   - If modifying code: Edit the .py file in agents/ directory
+   - If modifying config: Edit the .yaml file in config/ directory
 2. Run tests: pytest
 3. If tests fail, fix issues and re-test
+4. Verify the change works as expected
 
 IMPORTANT: The plan has been approved. Proceed with implementation.
-Always explain what you're doing before each action."""
+Always explain what you're doing before each action.
+When modifying agent prompts, remember they control the LLM's behavior for that agent."""
 
 
 # Legacy combined prompt (kept for reference)

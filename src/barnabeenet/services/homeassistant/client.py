@@ -863,6 +863,91 @@ class HomeAssistantClient:
                 message=f"Connection error: {e}",
             )
 
+    async def get_person_entity_details(self, person_entity_id: str) -> dict[str, Any] | None:
+        """Get detailed information about a person entity including linked devices and entities.
+        
+        Args:
+            person_entity_id: The person entity ID (e.g., "person.thom")
+            
+        Returns:
+            Dict with person details including:
+            - state: Current state (home, not_home, zone name)
+            - attributes: All person entity attributes
+            - device_trackers: List of device tracker entities
+            - linked_devices: List of devices linked to this person
+            - linked_entities: List of entities from linked devices (notifications, alarms, etc.)
+            - location: Location info (latitude, longitude, zone)
+            - address: Home address if available from zone
+        """
+        if not self._client:
+            return None
+            
+        try:
+            # Get person entity state
+            state = await self.get_state(person_entity_id)
+            if not state:
+                return None
+                
+            attrs = state.attributes or {}
+            result = {
+                "state": state.state,
+                "attributes": attrs,
+                "device_trackers": attrs.get("device_trackers", []),
+                "linked_devices": [],
+                "linked_entities": [],
+                "location": {
+                    "latitude": attrs.get("latitude"),
+                    "longitude": attrs.get("longitude"),
+                    "gps_accuracy": attrs.get("gps_accuracy"),
+                    "source": attrs.get("source"),
+                },
+                "address": None,
+            }
+            
+            # Get device trackers and find their devices
+            device_trackers = attrs.get("device_trackers", [])
+            for tracker_id in device_trackers:
+                tracker_entity = self._entity_registry.get(tracker_id)
+                if tracker_entity and tracker_entity.device_id:
+                    # Find device
+                    device = self._devices.get(tracker_entity.device_id)
+                    if device and device.id not in result["linked_devices"]:
+                        result["linked_devices"].append(device.id)
+                        
+                        # Get all entities for this device
+                        device_entities = [
+                            e for e in self._entity_registry.get_all()
+                            if e.device_id == device.id
+                        ]
+                        for entity in device_entities:
+                            entity_info = {
+                                "entity_id": entity.entity_id,
+                                "domain": entity.domain,
+                                "friendly_name": entity.friendly_name,
+                                "state": entity.state.state if entity.state else None,
+                            }
+                            if entity_info not in result["linked_entities"]:
+                                result["linked_entities"].append(entity_info)
+            
+            # Always try to get home address from zone (regardless of person's current location)
+            # This allows answering "where is [person]" even when they're away
+            home_zone = await self.get_state("zone.home")
+            if home_zone and home_zone.attributes:
+                result["address"] = {
+                    "latitude": home_zone.attributes.get("latitude"),
+                    "longitude": home_zone.attributes.get("longitude"),
+                    "radius": home_zone.attributes.get("radius"),
+                    "name": home_zone.attributes.get("friendly_name") or "Home",
+                }
+                # Try to get formatted address if available in zone attributes
+                if "address" in home_zone.attributes:
+                    result["address"]["formatted"] = home_zone.attributes.get("address")
+            
+            return result
+        except Exception as e:
+            logger.warning(f"Failed to get person entity details for {person_entity_id}: {e}")
+            return None
+
     async def get_entities(self, domain: str | None = None) -> list[Entity]:
         """Get entities, optionally filtered by domain.
 

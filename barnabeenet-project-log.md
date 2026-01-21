@@ -1,7 +1,7 @@
 # BarnabeeNet Project Log
 
-**Started:** January 16, 2026  
-**Goal:** Build a privacy-first, multi-agent AI smart home assistant  
+**Started:** January 16, 2026
+**Goal:** Build a privacy-first, multi-agent AI smart home assistant
 
 > **Status:** For current “what’s working” and next steps, see **CONTEXT.md**. This log records phases, decisions, and history.
 
@@ -220,8 +220,8 @@
 
 ## Phase 7: Pipeline Management Dashboard (planned after HA connection work)
 
-**Status:** 📋 Planned  
-**Spec:** [docs/BarnabeeNet_Pipeline_Management_Dashboard.md](docs/BarnabeeNet_Pipeline_Management_Dashboard.md)  
+**Status:** 📋 Planned
+**Spec:** [docs/BarnabeeNet_Pipeline_Management_Dashboard.md](docs/BarnabeeNet_Pipeline_Management_Dashboard.md)
 **Starts:** After Home Assistant connection work in progress is complete.
 
 **Goal:** Make every pipeline decision visible, traceable, and editable without code deploys. Decision Registry + Logic Registry, full trace timeline in the dashboard, AI-assisted correction (“Mark as Wrong” → analyze → suggest → test on history → apply), hot-reload for patterns/routing/overrides.

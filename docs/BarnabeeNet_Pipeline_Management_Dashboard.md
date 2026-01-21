@@ -1,10 +1,10 @@
 # BarnabeeNet Pipeline Management Dashboard
 
-**Document Version:** 1.0  
-**Date:** January 19, 2026  
-**Author:** Thom Fife  
-**Status:** 📋 Implementation Specification  
-**Purpose:** Complete specification for the Intent Pipeline Management Dashboard with AI-assisted correction  
+**Document Version:** 1.0
+**Date:** January 19, 2026
+**Author:** Thom Fife
+**Status:** 📋 Implementation Specification
+**Purpose:** Complete specification for the Intent Pipeline Management Dashboard with AI-assisted correction
 
 **Project plan:** This work is **Phase 7** in `barnabeenet-project-log.md`, to start **after** Home Assistant connection work is complete. See CONTEXT.md Next Steps.
 
@@ -206,7 +206,7 @@ class DecisionInput:
     """Inputs to a decision point."""
     primary: Any  # The main input (e.g., text for pattern match)
     context: dict[str, Any] = field(default_factory=dict)  # Additional context
-    
+
 
 @dataclass
 class DecisionLogic:
@@ -216,7 +216,7 @@ class DecisionLogic:
     logic_content: str | dict | None  # The actual logic (pattern, prompt, etc.)
     logic_version: str | None = None  # Version hash for tracking changes
     is_editable: bool = True  # Can this logic be edited via UI?
-    
+
 
 @dataclass
 class DecisionResult:
@@ -226,39 +226,39 @@ class DecisionResult:
     confidence: float = 1.0
     alternatives: list[dict[str, Any]] = field(default_factory=list)  # Other options considered
     explanation: str | None = None  # Human-readable explanation
-    
+
 
 @dataclass
 class DecisionRecord:
     """Complete record of a decision for logging and analysis."""
-    
+
     # Identification
     decision_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     trace_id: str | None = None
     parent_decision_id: str | None = None
-    
+
     # Classification
     decision_type: DecisionType = DecisionType.PATTERN_MATCH
     decision_name: str = ""  # e.g., "meta.check_action_patterns"
     component: str = ""  # e.g., "meta_agent", "action_agent"
-    
+
     # Timing
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = None
     duration_ms: float | None = None
-    
+
     # The decision details
     inputs: DecisionInput | None = None
     logic: DecisionLogic | None = None
     result: DecisionResult | None = None
-    
+
     # For nested decisions
     child_decisions: list[str] = field(default_factory=list)
-    
+
     # Error tracking
     error: str | None = None
     error_type: str | None = None
-    
+
     def complete(self, result: DecisionResult) -> None:
         """Mark decision as complete with result."""
         self.completed_at = datetime.now(UTC)
@@ -271,10 +271,10 @@ class DecisionRecord:
 class DecisionRegistry:
     """
     Central registry for all decision points in BarnabeeNet.
-    
+
     Usage:
         registry = DecisionRegistry()
-        
+
         async with registry.decision(
             name="meta.check_action_patterns",
             decision_type=DecisionType.PATTERN_MATCH,
@@ -286,10 +286,10 @@ class DecisionRegistry:
                 logic_source="config/patterns.yaml#action",
                 logic_content=pattern_list,
             )
-            
+
             # Do the actual work
             match = check_patterns(user_input, patterns)
-            
+
             decision.set_result(
                 outcome=DecisionOutcome.MATCH if match else DecisionOutcome.NO_MATCH,
                 value=match,
@@ -297,22 +297,22 @@ class DecisionRegistry:
                 alternatives=other_near_matches,
             )
     """
-    
+
     def __init__(self):
         self._decisions: dict[str, DecisionRecord] = {}
         self._trace_decisions: dict[str, list[str]] = {}  # trace_id -> decision_ids
         self._decision_stack: list[str] = []  # For nested decisions
         self._logger: DecisionLogger | None = None
         self._logic_registry: LogicRegistry | None = None
-        
+
     def set_logger(self, logger: DecisionLogger) -> None:
         """Set the logger for persisting decisions."""
         self._logger = logger
-        
+
     def set_logic_registry(self, registry: LogicRegistry) -> None:
         """Set the logic registry for retrieving editable logic."""
         self._logic_registry = registry
-    
+
     def decision(
         self,
         name: str,
@@ -328,34 +328,34 @@ class DecisionRegistry:
             trace_id=trace_id,
             component=component,
         )
-    
+
     async def record_decision(self, record: DecisionRecord) -> None:
         """Record a completed decision."""
         self._decisions[record.decision_id] = record
-        
+
         if record.trace_id:
             if record.trace_id not in self._trace_decisions:
                 self._trace_decisions[record.trace_id] = []
             self._trace_decisions[record.trace_id].append(record.decision_id)
-        
+
         # Persist to storage
         if self._logger:
             await self._logger.log_decision(record)
-    
+
     async def get_trace_decisions(self, trace_id: str) -> list[DecisionRecord]:
         """Get all decisions for a trace."""
         if self._logger:
             return await self._logger.get_trace_decisions(trace_id)
-        
+
         decision_ids = self._trace_decisions.get(trace_id, [])
         return [self._decisions[did] for did in decision_ids if did in self._decisions]
-    
+
     async def get_logic_for_decision(self, decision_name: str) -> dict[str, Any] | None:
         """Get the editable logic configuration for a decision type."""
         if self._logic_registry:
             return await self._logic_registry.get_logic(decision_name)
         return None
-    
+
     async def update_logic(
         self,
         decision_name: str,
@@ -376,7 +376,7 @@ class DecisionRegistry:
 
 class DecisionContext:
     """Context manager for recording a decision."""
-    
+
     def __init__(
         self,
         registry: DecisionRegistry,
@@ -397,7 +397,7 @@ class DecisionContext:
         self._logic_type: str | None = None
         self._logic_source: str | None = None
         self._logic_content: Any = None
-        
+
     async def __aenter__(self) -> DecisionContext:
         """Enter decision context."""
         # Set parent if there's a current decision on the stack
@@ -409,14 +409,14 @@ class DecisionContext:
                 self._registry._decisions[parent_id].child_decisions.append(
                     self._record.decision_id
                 )
-        
+
         self._registry._decision_stack.append(self._record.decision_id)
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Exit decision context and record the decision."""
         self._registry._decision_stack.pop()
-        
+
         if exc_type:
             self._record.error = str(exc_val)
             self._record.error_type = exc_type.__name__
@@ -426,13 +426,13 @@ class DecisionContext:
                     value=None,
                     explanation=str(exc_val),
                 )
-        
+
         # Build the inputs
         self._record.inputs = DecisionInput(
             primary=self._inputs.get("primary"),
             context=self._context,
         )
-        
+
         # Build the logic record
         if self._logic_source:
             self._record.logic = DecisionLogic(
@@ -440,20 +440,20 @@ class DecisionContext:
                 logic_source=self._logic_source,
                 logic_content=self._logic_content,
             )
-        
+
         self._record.complete(self._record.result or DecisionResult(
             outcome=DecisionOutcome.SKIPPED,
             value=None,
         ))
-        
+
         await self._registry.record_decision(self._record)
-    
+
     def set_inputs(self, primary: Any = None, **context) -> None:
         """Set the inputs to this decision."""
         if primary is not None:
             self._inputs["primary"] = primary
         self._context.update(context)
-    
+
     def set_logic(
         self,
         logic_type: str,
@@ -464,7 +464,7 @@ class DecisionContext:
         self._logic_type = logic_type
         self._logic_source = logic_source
         self._logic_content = logic_content
-    
+
     def set_result(
         self,
         outcome: DecisionOutcome,
@@ -481,7 +481,7 @@ class DecisionContext:
             alternatives=alternatives or [],
             explanation=explanation,
         )
-    
+
     @property
     def decision_id(self) -> str:
         """Get the decision ID."""
@@ -518,24 +518,24 @@ logger = structlog.get_logger()
 @dataclass
 class LogicDefinition:
     """Definition of a piece of editable logic."""
-    
+
     logic_id: str  # e.g., "patterns.action.switch_control"
     logic_type: str  # "pattern", "prompt", "threshold", "routing", "override"
-    
+
     # Where this logic is stored
     storage_type: str  # "yaml", "jinja2", "json", "python"
     storage_path: str  # File path or Redis key
     storage_key: str | None = None  # Key within the file (for YAML/JSON)
-    
+
     # The actual content
     content: Any = None
     content_hash: str | None = None  # For version tracking
-    
+
     # Metadata
     description: str = ""
     editable: bool = True
     requires_restart: bool = False  # Does changing this require restart?
-    
+
     # History
     last_modified: datetime | None = None
     modified_by: str | None = None
@@ -545,22 +545,22 @@ class LogicDefinition:
 @dataclass
 class LogicChange:
     """Record of a change to logic."""
-    
+
     change_id: str
     logic_id: str
     timestamp: datetime
     user: str
     reason: str
-    
+
     before_content: Any
     before_hash: str
     after_content: Any
     after_hash: str
-    
+
     # Validation
     tested_against_traces: list[str] = field(default_factory=list)
     test_results: dict[str, bool] = field(default_factory=dict)
-    
+
     # Status
     status: str = "pending"  # "pending", "applied", "reverted"
     applied_at: datetime | None = None
@@ -571,7 +571,7 @@ class LogicChange:
 class LogicRegistry:
     """
     Registry for all editable logic in BarnabeeNet.
-    
+
     This is the source of truth for:
     - Pattern definitions
     - Prompt templates
@@ -580,7 +580,7 @@ class LogicRegistry:
     - Model selection rules
     - Threshold values
     """
-    
+
     def __init__(
         self,
         config_dir: Path,
@@ -590,16 +590,16 @@ class LogicRegistry:
         self.config_dir = config_dir
         self.prompts_dir = prompts_dir
         self.redis = redis_client
-        
+
         self._logic_cache: dict[str, LogicDefinition] = {}
         self._change_history: list[LogicChange] = []
-        
+
         # Jinja2 environment for prompt templates
         self._jinja_env = Environment(
             loader=FileSystemLoader(str(prompts_dir)),
             autoescape=False,
         )
-    
+
     async def initialize(self) -> None:
         """Load all logic definitions on startup."""
         await self._load_patterns()
@@ -607,19 +607,19 @@ class LogicRegistry:
         await self._load_overrides()
         await self._load_model_config()
         await self._load_prompt_registry()
-        
+
         logger.info(
             "Logic registry initialized",
             total_definitions=len(self._logic_cache),
         )
-    
+
     async def _load_patterns(self) -> None:
         """Load pattern definitions from config."""
         patterns_file = self.config_dir / "patterns.yaml"
         if patterns_file.exists():
             with open(patterns_file) as f:
                 patterns_config = yaml.safe_load(f)
-            
+
             for group_name, patterns in patterns_config.get("pattern_groups", {}).items():
                 for i, pattern_def in enumerate(patterns):
                     logic_id = f"patterns.{group_name}.{pattern_def.get('name', i)}"
@@ -635,14 +635,14 @@ class LogicRegistry:
                         editable=True,
                         requires_restart=False,
                     )
-    
+
     async def _load_routing_rules(self) -> None:
         """Load routing rules from config."""
         routing_file = self.config_dir / "routing.yaml"
         if routing_file.exists():
             with open(routing_file) as f:
                 routing_config = yaml.safe_load(f)
-            
+
             for rule_name, rule_def in routing_config.get("rules", {}).items():
                 logic_id = f"routing.{rule_name}"
                 self._logic_cache[logic_id] = LogicDefinition(
@@ -657,14 +657,14 @@ class LogicRegistry:
                     editable=True,
                     requires_restart=False,
                 )
-    
+
     async def _load_overrides(self) -> None:
         """Load override rules from config."""
         overrides_file = self.config_dir / "overrides.yaml"
         if overrides_file.exists():
             with open(overrides_file) as f:
                 overrides_config = yaml.safe_load(f)
-            
+
             for override_name, override_def in overrides_config.get("overrides", {}).items():
                 logic_id = f"overrides.{override_name}"
                 self._logic_cache[logic_id] = LogicDefinition(
@@ -679,14 +679,14 @@ class LogicRegistry:
                     editable=True,
                     requires_restart=False,
                 )
-    
+
     async def _load_model_config(self) -> None:
         """Load model selection configuration."""
         models_file = self.config_dir / "models.yaml"
         if models_file.exists():
             with open(models_file) as f:
                 models_config = yaml.safe_load(f)
-            
+
             for agent_name, model_def in models_config.get("agents", {}).items():
                 logic_id = f"models.{agent_name}"
                 self._logic_cache[logic_id] = LogicDefinition(
@@ -701,16 +701,16 @@ class LogicRegistry:
                     editable=True,
                     requires_restart=False,
                 )
-    
+
     async def _load_prompt_registry(self) -> None:
         """Register all prompt templates."""
         for prompt_file in self.prompts_dir.rglob("*.j2"):
             rel_path = prompt_file.relative_to(self.prompts_dir)
             logic_id = f"prompts.{str(rel_path).replace('/', '.').replace('.j2', '')}"
-            
+
             with open(prompt_file) as f:
                 content = f.read()
-            
+
             self._logic_cache[logic_id] = LogicDefinition(
                 logic_id=logic_id,
                 logic_type="prompt",
@@ -722,7 +722,7 @@ class LogicRegistry:
                 editable=True,
                 requires_restart=False,
             )
-    
+
     def _hash_content(self, content: Any) -> str:
         """Generate hash of content for version tracking."""
         if isinstance(content, str):
@@ -730,11 +730,11 @@ class LogicRegistry:
         else:
             content_str = json.dumps(content, sort_keys=True, default=str)
         return hashlib.sha256(content_str.encode()).hexdigest()[:16]
-    
+
     async def get_logic(self, logic_id: str) -> LogicDefinition | None:
         """Get a logic definition by ID."""
         return self._logic_cache.get(logic_id)
-    
+
     async def get_all_logic(self, logic_type: str | None = None) -> list[LogicDefinition]:
         """Get all logic definitions, optionally filtered by type."""
         if logic_type:
@@ -743,7 +743,7 @@ class LogicRegistry:
                 if logic.logic_type == logic_type
             ]
         return list(self._logic_cache.values())
-    
+
     async def update_logic(
         self,
         logic_id: str,
@@ -755,10 +755,10 @@ class LogicRegistry:
         logic = self._logic_cache.get(logic_id)
         if not logic:
             raise ValueError(f"Logic not found: {logic_id}")
-        
+
         if not logic.editable:
             raise ValueError(f"Logic is not editable: {logic_id}")
-        
+
         # Create change record
         change = LogicChange(
             change_id=str(uuid.uuid4()),
@@ -771,34 +771,34 @@ class LogicRegistry:
             after_content=new_content,
             after_hash=self._hash_content(new_content),
         )
-        
+
         # Update the logic
         logic.content = new_content
         logic.content_hash = change.after_hash
         logic.last_modified = change.timestamp
         logic.modified_by = user
         logic.modification_reason = reason
-        
+
         # Persist to storage
         await self._persist_logic(logic)
-        
+
         # Record the change
         self._change_history.append(change)
         change.status = "applied"
         change.applied_at = datetime.now(UTC)
-        
+
         # Trigger hot-reload if needed
         await self._trigger_reload(logic)
-        
+
         logger.info(
             "Logic updated",
             logic_id=logic_id,
             change_id=change.change_id,
             user=user,
         )
-        
+
         return change
-    
+
     async def _persist_logic(self, logic: LogicDefinition) -> None:
         """Persist logic changes to storage."""
         if logic.storage_type == "yaml":
@@ -807,14 +807,14 @@ class LogicRegistry:
             await self._persist_jinja_logic(logic)
         elif logic.storage_type == "json":
             await self._persist_json_logic(logic)
-    
+
     async def _persist_yaml_logic(self, logic: LogicDefinition) -> None:
         """Persist changes to a YAML file."""
         file_path = Path(logic.storage_path)
-        
+
         with open(file_path) as f:
             full_config = yaml.safe_load(f)
-        
+
         # Navigate to the key and update
         keys = logic.storage_key.split(".")
         target = full_config
@@ -825,22 +825,22 @@ class LogicRegistry:
                 target = target[name][int(idx)]
             else:
                 target = target[key]
-        
+
         final_key = keys[-1]
         if "[" in final_key:
             name, idx = final_key.rstrip("]").split("[")
             target[name][int(idx)] = logic.content
         else:
             target[final_key] = logic.content
-        
+
         with open(file_path, "w") as f:
             yaml.dump(full_config, f, default_flow_style=False)
-    
+
     async def _persist_jinja_logic(self, logic: LogicDefinition) -> None:
         """Persist changes to a Jinja2 template file."""
         with open(logic.storage_path, "w") as f:
             f.write(logic.content)
-    
+
     async def _trigger_reload(self, logic: LogicDefinition) -> None:
         """Trigger hot-reload for the changed logic."""
         # Publish reload event to Redis for all workers to pick up
@@ -853,7 +853,7 @@ class LogicRegistry:
                     "hash": logic.content_hash,
                 }),
             )
-    
+
     async def revert_change(
         self,
         change_id: str,
@@ -867,7 +867,7 @@ class LogicRegistry:
         )
         if not change:
             raise ValueError(f"Change not found: {change_id}")
-        
+
         # Apply the revert
         await self.update_logic(
             logic_id=change.logic_id,
@@ -875,11 +875,11 @@ class LogicRegistry:
             reason=f"Revert: {reason}",
             user=user,
         )
-        
+
         change.status = "reverted"
         change.reverted_at = datetime.now(UTC)
         change.revert_reason = reason
-        
+
         return change
 ```
 
@@ -915,73 +915,73 @@ class TraceStatus(Enum):
 class RequestTrace:
     """
     Complete trace of a request through the BarnabeeNet pipeline.
-    
+
     This is the top-level container that holds all decisions made
     during processing of a single user request.
     """
-    
+
     # Identification
     trace_id: str
     conversation_id: str | None = None
-    
+
     # Input
     input_type: str = "voice"  # "voice", "text", "gesture"
     input_raw: bytes | None = None  # Raw audio if applicable
     input_text: str = ""
     input_timestamp: datetime | None = None
-    
+
     # Speaker & Context
     speaker_id: str | None = None
     speaker_name: str | None = None
     speaker_confidence: float = 0.0
     room: str | None = None
     device_id: str | None = None
-    
+
     # Processing Summary
     status: TraceStatus = TraceStatus.IN_PROGRESS
     started_at: datetime | None = None
     completed_at: datetime | None = None
     total_duration_ms: float | None = None
-    
+
     # Classification Results (from Meta Agent)
     intent: str | None = None
     intent_confidence: float = 0.0
     sub_category: str | None = None
     emotional_tone: str | None = None
     urgency_level: str | None = None
-    
+
     # Routing
     routed_to_agent: str | None = None
     routing_reason: str | None = None
-    
+
     # Agent Processing
     agent_used: str | None = None
     agent_response: str | None = None
     agent_latency_ms: float | None = None
-    
+
     # Actions Taken
     ha_actions: list[dict[str, Any]] = field(default_factory=list)
-    
+
     # Output
     response_text: str = ""
     response_audio_url: str | None = None
     tts_voice: str | None = None
     tts_duration_ms: float | None = None
-    
+
     # Costs
     total_llm_calls: int = 0
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     total_cost_usd: float = 0.0
-    
+
     # Decision Trail (ordered list of decision IDs)
     decision_ids: list[str] = field(default_factory=list)
-    
+
     # Error Information
     error: str | None = None
     error_type: str | None = None
     error_decision_id: str | None = None  # Which decision failed
-    
+
     # User Feedback
     user_rating: int | None = None  # 1-5 stars
     user_feedback: str | None = None
@@ -992,20 +992,20 @@ class RequestTrace:
 @dataclass
 class TraceListItem:
     """Summary view of a trace for list display."""
-    
+
     trace_id: str
     timestamp: datetime
     input_preview: str  # First 100 chars
     response_preview: str  # First 100 chars
-    
+
     intent: str | None
     agent_used: str | None
     status: TraceStatus
-    
+
     total_duration_ms: float | None
     decision_count: int
     llm_call_count: int
-    
+
     marked_as_wrong: bool
     has_correction: bool
 
@@ -1014,41 +1014,41 @@ class TraceListItem:
 class DecisionTreeNode:
     """
     Node in the decision tree for visualization.
-    
+
     Represents a single decision with its children.
     """
-    
+
     decision_id: str
     decision_name: str
     decision_type: str
     component: str
-    
+
     # Timing
     started_at: datetime
     duration_ms: float
-    
+
     # Summary
     outcome: str
     outcome_value: str | None  # Simplified string representation
     confidence: float
-    
+
     # For display
     icon: str  # Emoji for UI
     color: str  # Color code for UI
-    
+
     # Expandable details
     inputs_summary: str
     logic_summary: str
     result_summary: str
-    
+
     # Full details (for expansion)
     inputs_full: dict[str, Any]
     logic_full: dict[str, Any]
     result_full: dict[str, Any]
-    
+
     # Children
     children: list[DecisionTreeNode] = field(default_factory=list)
-    
+
     # Editability
     is_logic_editable: bool = False
     logic_id: str | None = None  # Reference to LogicRegistry
@@ -1080,7 +1080,7 @@ logger = structlog.get_logger()
 class DecisionLogger:
     """
     Logs decisions and traces to Redis for dashboard consumption.
-    
+
     Storage structure:
     - barnabeenet:traces:{trace_id} -> RequestTrace (hash)
     - barnabeenet:traces:list -> Sorted set of trace_ids by timestamp
@@ -1088,7 +1088,7 @@ class DecisionLogger:
     - barnabeenet:trace_decisions:{trace_id} -> List of decision_ids
     - barnabeenet:wrong_traces -> Set of trace_ids marked as wrong
     """
-    
+
     def __init__(
         self,
         redis_client: redis.Redis,
@@ -1096,32 +1096,32 @@ class DecisionLogger:
     ):
         self.redis = redis_client
         self.retention_days = retention_days
-        
+
     # =========================================================================
     # TRACE OPERATIONS
     # =========================================================================
-    
+
     async def create_trace(self, trace: RequestTrace) -> None:
         """Create a new trace record."""
         key = f"barnabeenet:traces:{trace.trace_id}"
-        
+
         # Serialize trace to hash
         trace_data = self._serialize_trace(trace)
         await self.redis.hset(key, mapping=trace_data)
-        
+
         # Add to sorted set for listing
         timestamp = trace.started_at.timestamp() if trace.started_at else datetime.now().timestamp()
         await self.redis.zadd("barnabeenet:traces:list", {trace.trace_id: timestamp})
-        
+
         # Set expiration
         await self.redis.expire(key, timedelta(days=self.retention_days))
-    
+
     async def update_trace(self, trace: RequestTrace) -> None:
         """Update an existing trace record."""
         key = f"barnabeenet:traces:{trace.trace_id}"
         trace_data = self._serialize_trace(trace)
         await self.redis.hset(key, mapping=trace_data)
-    
+
     async def get_trace(self, trace_id: str) -> RequestTrace | None:
         """Get a trace by ID."""
         key = f"barnabeenet:traces:{trace_id}"
@@ -1129,7 +1129,7 @@ class DecisionLogger:
         if not data:
             return None
         return self._deserialize_trace(data)
-    
+
     async def get_recent_traces(
         self,
         limit: int = 50,
@@ -1158,17 +1158,17 @@ class DecisionLogger:
                 start=offset,
                 end=offset + limit * 2 - 1,
             )
-        
+
         # Fetch and filter traces
         results = []
         for trace_id in trace_ids:
             if len(results) >= limit:
                 break
-                
+
             trace = await self.get_trace(trace_id)
             if not trace:
                 continue
-            
+
             # Apply filters
             if status and trace.status.value != status:
                 continue
@@ -1180,7 +1180,7 @@ class DecisionLogger:
                 continue
             if marked_wrong is not None and trace.marked_as_wrong != marked_wrong:
                 continue
-            
+
             # Convert to list item
             results.append(TraceListItem(
                 trace_id=trace.trace_id,
@@ -1196,37 +1196,37 @@ class DecisionLogger:
                 marked_as_wrong=trace.marked_as_wrong,
                 has_correction=trace.correction_id is not None,
             ))
-        
+
         return results
-    
+
     # =========================================================================
     # DECISION OPERATIONS
     # =========================================================================
-    
+
     async def log_decision(self, decision: DecisionRecord) -> None:
         """Log a decision record."""
         key = f"barnabeenet:decisions:{decision.decision_id}"
-        
+
         # Serialize decision
         decision_data = self._serialize_decision(decision)
         await self.redis.hset(key, mapping=decision_data)
-        
+
         # Link to trace
         if decision.trace_id:
             await self.redis.rpush(
                 f"barnabeenet:trace_decisions:{decision.trace_id}",
                 decision.decision_id,
             )
-            
+
             # Update trace's decision list
             trace = await self.get_trace(decision.trace_id)
             if trace:
                 trace.decision_ids.append(decision.decision_id)
                 await self.update_trace(trace)
-        
+
         # Set expiration
         await self.redis.expire(key, timedelta(days=self.retention_days))
-    
+
     async def get_decision(self, decision_id: str) -> DecisionRecord | None:
         """Get a decision by ID."""
         key = f"barnabeenet:decisions:{decision_id}"
@@ -1234,7 +1234,7 @@ class DecisionLogger:
         if not data:
             return None
         return self._deserialize_decision(data)
-    
+
     async def get_trace_decisions(self, trace_id: str) -> list[DecisionRecord]:
         """Get all decisions for a trace in order."""
         decision_ids = await self.redis.lrange(
@@ -1242,19 +1242,19 @@ class DecisionLogger:
             0,
             -1,
         )
-        
+
         decisions = []
         for decision_id in decision_ids:
             decision = await self.get_decision(decision_id)
             if decision:
                 decisions.append(decision)
-        
+
         return decisions
-    
+
     # =========================================================================
     # SERIALIZATION
     # =========================================================================
-    
+
     def _serialize_trace(self, trace: RequestTrace) -> dict[str, str]:
         """Serialize trace to Redis hash format."""
         return {
@@ -1282,12 +1282,12 @@ class DecisionLogger:
             "correction_id": trace.correction_id or "",
             "error": trace.error or "",
         }
-    
+
     def _deserialize_trace(self, data: dict[bytes, bytes]) -> RequestTrace:
         """Deserialize trace from Redis hash format."""
         # Convert bytes to strings
         data = {k.decode(): v.decode() for k, v in data.items()}
-        
+
         return RequestTrace(
             trace_id=data["trace_id"],
             conversation_id=data.get("conversation_id") or None,
@@ -1313,7 +1313,7 @@ class DecisionLogger:
             correction_id=data.get("correction_id") or None,
             error=data.get("error") or None,
         )
-    
+
     def _serialize_decision(self, decision: DecisionRecord) -> dict[str, str]:
         """Serialize decision to Redis hash format."""
         return {
@@ -1333,7 +1333,7 @@ class DecisionLogger:
             "error": decision.error or "",
             "error_type": decision.error_type or "",
         }
-    
+
     def _serialize_inputs(self, inputs: Any) -> dict:
         """Serialize decision inputs."""
         if not inputs:
@@ -1342,7 +1342,7 @@ class DecisionLogger:
             "primary": str(inputs.primary) if inputs.primary else None,
             "context": inputs.context,
         }
-    
+
     def _serialize_logic(self, logic: Any) -> dict:
         """Serialize decision logic."""
         if not logic:
@@ -1353,7 +1353,7 @@ class DecisionLogger:
             "logic_content": logic.logic_content if isinstance(logic.logic_content, (str, dict, list)) else str(logic.logic_content),
             "is_editable": logic.is_editable,
         }
-    
+
     def _serialize_result(self, result: Any) -> dict:
         """Serialize decision result."""
         if not result:
@@ -1365,20 +1365,20 @@ class DecisionLogger:
             "alternatives": result.alternatives,
             "explanation": result.explanation,
         }
-    
+
     def _deserialize_decision(self, data: dict[bytes, bytes]) -> DecisionRecord:
         """Deserialize decision from Redis hash format."""
         # Convert bytes to strings
         data = {k.decode(): v.decode() for k, v in data.items()}
-        
+
         from barnabeenet.core.decision_registry import (
             DecisionType, DecisionOutcome, DecisionInput, DecisionLogic, DecisionResult
         )
-        
+
         inputs_data = json.loads(data.get("inputs", "{}"))
         logic_data = json.loads(data.get("logic", "{}"))
         result_data = json.loads(data.get("result", "{}"))
-        
+
         return DecisionRecord(
             decision_id=data["decision_id"],
             trace_id=data.get("trace_id") or None,
@@ -1670,7 +1670,7 @@ const DecisionNode: React.FC<DecisionNodeProps> = ({
         <span className="decision-icon">{icons[decision.decision_type]}</span>
         <span className="decision-name">{decision.decision_name}</span>
         <span className={`decision-outcome ${outcomeColors[decision.result?.outcome]}`}>
-          {decision.result?.outcome === "match" ? "✅" : 
+          {decision.result?.outcome === "match" ? "✅" :
            decision.result?.outcome === "error" ? "❌" : "○"}
         </span>
         <span className="decision-duration">{decision.duration_ms?.toFixed(1)}ms</span>
@@ -1690,7 +1690,7 @@ const DecisionNode: React.FC<DecisionNodeProps> = ({
             <h4>
               Logic
               {decision.logic?.is_editable && (
-                <button 
+                <button
                   className="edit-btn"
                   onClick={() => onEditLogic(decision.logic.logic_source)}
                 >
@@ -1774,15 +1774,15 @@ const PatternList: React.FC<PatternListProps> = ({
   return (
     <div className="pattern-list">
       {patterns.map((pattern, index) => (
-        <div 
+        <div
           key={index}
           className={`pattern-item ${
-            pattern.matched ? "matched" : 
+            pattern.matched ? "matched" :
             index > matchedIndex ? "not-checked" : "not-matched"
           }`}
         >
           <span className="pattern-status">
-            {pattern.matched ? "✅" : 
+            {pattern.matched ? "✅" :
              index > matchedIndex ? "⏭️" : "❌"}
           </span>
           <code className="pattern-regex">{pattern.pattern}</code>
@@ -1791,7 +1791,7 @@ const PatternList: React.FC<PatternListProps> = ({
               Groups: {JSON.stringify(pattern.match_groups)}
             </span>
           )}
-          <button 
+          <button
             className="edit-pattern-btn"
             onClick={() => onEditPattern(`patterns.${pattern.group}.${index}`)}
           >
@@ -1871,28 +1871,28 @@ logger = structlog.get_logger()
 @dataclass
 class CorrectionSuggestion:
     """A suggested fix for an issue."""
-    
+
     suggestion_id: str
     suggestion_type: str  # "pattern_add", "pattern_modify", "prompt_edit", etc.
     priority: int  # 1 = highest priority suggestion
-    
+
     title: str
     description: str
     impact_level: str  # "low", "medium", "high"
-    
+
     # What to change
     target_logic_id: str
     current_value: Any
     proposed_value: Any
-    
+
     # Diff view
     diff_before: str
     diff_after: str
-    
+
     # Testing
     test_inputs: list[str] = field(default_factory=list)
     expected_results: list[str] = field(default_factory=list)
-    
+
     # Confidence
     ai_confidence: float = 0.0
     ai_reasoning: str = ""
@@ -1901,32 +1901,32 @@ class CorrectionSuggestion:
 @dataclass
 class CorrectionAnalysis:
     """Complete analysis of why a request failed and how to fix it."""
-    
+
     analysis_id: str
     trace_id: str
     timestamp: datetime
-    
+
     # User input
     expected_result: str
     issue_type: str
-    
+
     # AI diagnosis
     root_cause: str
     root_cause_decision_id: str  # Which decision caused the issue
     root_cause_logic_id: str  # Which logic was at fault
-    
+
     # Similar historical issues
     similar_traces: list[str] = field(default_factory=list)
     similar_corrections: list[str] = field(default_factory=list)
-    
+
     # Suggestions (ordered by priority)
     suggestions: list[CorrectionSuggestion] = field(default_factory=list)
-    
+
     # Selected fix
     selected_suggestion_id: str | None = None
     applied_at: datetime | None = None
     applied_by: str | None = None
-    
+
     # Verification
     verification_status: str = "pending"  # "pending", "verified", "failed", "reverted"
     verification_trace_ids: list[str] = field(default_factory=list)
@@ -1935,7 +1935,7 @@ class CorrectionAnalysis:
 class AICorrectionAssistant:
     """
     AI-powered assistant for diagnosing and fixing pipeline issues.
-    
+
     Key capabilities:
     1. Analyze a trace to identify the root cause of an issue
     2. Search for similar historical issues
@@ -1943,7 +1943,7 @@ class AICorrectionAssistant:
     4. Test proposed fixes against historical data
     5. Apply fixes with hot-reload
     """
-    
+
     ANALYSIS_PROMPT = """You are an expert at debugging BarnabeeNet's pipeline.
 
 ## Your Task
@@ -1951,7 +1951,7 @@ Analyze this request trace and determine why it produced the wrong result.
 
 ## Request Information
 - Input: "{input_text}"
-- Expected result: "{expected_result}"  
+- Expected result: "{expected_result}"
 - Actual result: "{actual_result}"
 - Issue type reported by user: "{issue_type}"
 
@@ -2005,7 +2005,7 @@ Respond with JSON:
         self.llm = llm_client
         self.logic_registry = logic_registry
         self.decision_logger = decision_logger
-    
+
     async def analyze_trace(
         self,
         trace_id: str,
@@ -2013,24 +2013,24 @@ Respond with JSON:
         issue_type: str,
     ) -> CorrectionAnalysis:
         """Analyze a trace and generate fix suggestions."""
-        
+
         # 1. Get the full trace
         trace = await self.decision_logger.get_trace(trace_id)
         if not trace:
             raise ValueError(f"Trace not found: {trace_id}")
-        
+
         # 2. Get all decisions for the trace
         decisions = await self.decision_logger.get_trace_decisions(trace_id)
-        
+
         # 3. Get the logic configurations that were used
         logic_configs = await self._get_logic_configs_for_decisions(decisions)
-        
+
         # 4. Find similar historical issues
         similar = await self._find_similar_issues(trace.input_text, issue_type)
-        
+
         # 5. Build the decision trail for the prompt
         decision_trail = self._format_decision_trail(decisions)
-        
+
         # 6. Call AI for analysis
         prompt = self.ANALYSIS_PROMPT.format(
             input_text=trace.input_text,
@@ -2041,24 +2041,24 @@ Respond with JSON:
             logic_configs=json.dumps(logic_configs, indent=2),
             similar_issues=self._format_similar_issues(similar),
         )
-        
+
         response = await self.llm.complete(
             model="anthropic/claude-3-5-sonnet-20241022",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             max_tokens=2000,
         )
-        
+
         # 7. Parse AI response
         analysis_data = json.loads(response.content)
-        
+
         # 8. Build suggestions with full diff information
         suggestions = []
         for i, sugg_data in enumerate(analysis_data.get("suggestions", [])):
             # Get current logic value
             logic = await self.logic_registry.get_logic(sugg_data["target_logic_id"])
             current_value = logic.content if logic else None
-            
+
             suggestions.append(CorrectionSuggestion(
                 suggestion_id=f"sugg_{trace_id}_{i}",
                 suggestion_type=sugg_data["suggestion_type"],
@@ -2075,7 +2075,7 @@ Respond with JSON:
                 ai_confidence=sugg_data.get("confidence", 0.7),
                 ai_reasoning=sugg_data.get("reasoning", ""),
             ))
-        
+
         return CorrectionAnalysis(
             analysis_id=f"analysis_{trace_id}_{datetime.now().timestamp()}",
             trace_id=trace_id,
@@ -2088,14 +2088,14 @@ Respond with JSON:
             similar_traces=[s["trace_id"] for s in similar],
             suggestions=suggestions,
         )
-    
+
     async def test_suggestion(
         self,
         suggestion: CorrectionSuggestion,
         historical_trace_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Test a suggestion against historical data without applying it."""
-        
+
         results = {
             "suggestion_id": suggestion.suggestion_id,
             "test_results": [],
@@ -2103,11 +2103,11 @@ Respond with JSON:
             "regression_count": 0,
             "improvement_count": 0,
         }
-        
+
         # Get traces to test against
         if historical_trace_ids:
             traces = [
-                await self.decision_logger.get_trace(tid) 
+                await self.decision_logger.get_trace(tid)
                 for tid in historical_trace_ids
             ]
         else:
@@ -2116,19 +2116,19 @@ Respond with JSON:
                 suggestion.target_logic_id,
                 limit=20,
             )
-        
+
         # Simulate the change for each trace
         for trace in traces:
             if not trace:
                 continue
-            
+
             # Run the pipeline with the proposed change
             simulated_result = await self._simulate_with_change(
                 trace=trace,
                 logic_id=suggestion.target_logic_id,
                 new_value=suggestion.proposed_value,
             )
-            
+
             # Compare to actual result
             test_result = {
                 "trace_id": trace.trace_id,
@@ -2137,7 +2137,7 @@ Respond with JSON:
                 "simulated_result": simulated_result,
                 "was_wrong": trace.marked_as_wrong,
             }
-            
+
             if trace.marked_as_wrong:
                 # This was a known issue - did we fix it?
                 if simulated_result != trace.response_text:
@@ -2152,11 +2152,11 @@ Respond with JSON:
                     results["regression_count"] += 1
                 else:
                     test_result["status"] = "unchanged"
-            
+
             results["test_results"].append(test_result)
-        
+
         return results
-    
+
     async def apply_suggestion(
         self,
         analysis_id: str,
@@ -2164,17 +2164,17 @@ Respond with JSON:
         user: str,
     ) -> CorrectionAnalysis:
         """Apply a suggested fix."""
-        
+
         # Get the analysis and suggestion
         analysis = await self._get_analysis(analysis_id)
         suggestion = next(
             (s for s in analysis.suggestions if s.suggestion_id == suggestion_id),
             None,
         )
-        
+
         if not suggestion:
             raise ValueError(f"Suggestion not found: {suggestion_id}")
-        
+
         # Apply the change via LogicRegistry
         await self.logic_registry.update_logic(
             logic_id=suggestion.target_logic_id,
@@ -2182,19 +2182,19 @@ Respond with JSON:
             reason=f"AI correction: {suggestion.title}",
             user=user,
         )
-        
+
         # Update analysis
         analysis.selected_suggestion_id = suggestion_id
         analysis.applied_at = datetime.now()
         analysis.applied_by = user
-        
+
         # Mark the original trace
         trace = await self.decision_logger.get_trace(analysis.trace_id)
         trace.correction_id = analysis.analysis_id
         await self.decision_logger.update_trace(trace)
-        
+
         return analysis
-    
+
     async def _get_logic_configs_for_decisions(
         self,
         decisions: list[DecisionRecord],
@@ -2213,7 +2213,7 @@ Respond with JSON:
                             "editable": logic.editable,
                         }
         return configs
-    
+
     def _format_decision_trail(self, decisions: list[DecisionRecord]) -> str:
         """Format decisions for the analysis prompt."""
         lines = []
@@ -2229,7 +2229,7 @@ Decision {i+1}: {d.decision_name}
   Confidence: {d.result.confidence if d.result else 0}
 """)
         return "\n".join(lines)
-    
+
     async def _find_similar_issues(
         self,
         input_text: str,
@@ -2239,23 +2239,23 @@ Decision {i+1}: {d.decision_name}
         # This would use embedding similarity search
         # For now, return empty
         return []
-    
+
     def _format_similar_issues(self, similar: list[dict]) -> str:
         """Format similar issues for the prompt."""
         if not similar:
             return "No similar historical issues found."
-        
+
         lines = []
         for s in similar[:5]:
             lines.append(f"- Input: '{s['input']}' → Fixed by: {s['fix_type']}")
         return "\n".join(lines)
-    
+
     def _format_for_diff(self, value: Any) -> str:
         """Format a value for diff display."""
         if isinstance(value, str):
             return value
         return json.dumps(value, indent=2)
-    
+
     async def _simulate_with_change(
         self,
         trace: RequestTrace,
@@ -2369,7 +2369,7 @@ pattern_groups:
         pattern: ".*(fire|smoke|burning|flames).*"
         sub_category: fire
         description: "Detect fire-related emergencies"
-        
+
       - name: help_request
         pattern: ".*(help|emergency|911|ambulance).*"
         sub_category: emergency
@@ -2383,7 +2383,7 @@ pattern_groups:
         pattern: "^(what('s| is) the )?(current )?time(\\?)?$"
         sub_category: time
         response_template: "It's {current_time}"
-        
+
       - name: date_query
         pattern: "^(what('s| is) )?(today'?s? )?date(\\?)?$"
         sub_category: date
@@ -2402,12 +2402,12 @@ pattern_groups:
           - tunr -> turn
           - swtich -> switch
           - of -> off
-          
+
       - name: set_value
         pattern: "^(set|change) .* to .*$"
         sub_category: set
         description: "Set device values"
-        
+
       - name: dim_lights
         pattern: "^(dim|brighten) .*$"
         sub_category: light
@@ -2428,17 +2428,17 @@ rules:
     intent: instant
     target_agent: instant
     description: "Simple queries go to instant agent"
-    
+
   action_to_action:
     intent: action
     target_agent: action
     description: "Device control goes to action agent"
-    
+
   query_to_interaction:
     intent: query
     target_agent: interaction
     description: "Complex queries go to interaction agent"
-    
+
   emergency_to_action:
     intent: emergency
     target_agent: action
@@ -2455,7 +2455,7 @@ overrides:
     name: "Kids Bedtime Mode"
     description: "Restrict kids' access during bedtime"
     enabled: true
-    
+
     conditions:
       - type: time_range
         start: "20:00"
@@ -2464,23 +2464,23 @@ overrides:
         values: [penelope, xander, zachary, viola]
       - type: room_in
         values: [bedroom.penelope, bedroom.xander, bedroom.zachary, bedroom.viola]
-    
+
     actions:
       - type: block_intent
         intents: [action]
         domains: [media_player, light]  # Only block entertainment
         response: "It's bedtime! Ask mom or dad if you need something."
-        
+
   quiet_hours:
     name: "Quiet Hours"
     description: "Reduce volume and limit proactive notifications at night"
     enabled: true
-    
+
     conditions:
       - type: time_range
         start: "22:00"
         end: "07:00"
-    
+
     actions:
       - type: modify_tts
         volume: 0.3
@@ -2499,13 +2499,13 @@ aliases:
       - living room lamp
       - the lamp
     priority: high
-    
+
   light.office_light:
     aliases:
       - office light
       - desk light
     room_context: office
-    
+
   media_player.living_room_tv:
     aliases:
       - tv
@@ -2542,7 +2542,7 @@ logger = structlog.get_logger()
 
 class HotReloadManager:
     """Manages hot-reload of configuration across all workers."""
-    
+
     def __init__(
         self,
         redis_client: redis.Redis,
@@ -2552,17 +2552,17 @@ class HotReloadManager:
         self.config_dir = config_dir
         self._reload_handlers: dict[str, Callable] = {}
         self._subscriber_task: asyncio.Task | None = None
-    
+
     async def start(self) -> None:
         """Start listening for reload events."""
         self._subscriber_task = asyncio.create_task(self._subscribe_loop())
         logger.info("Hot-reload manager started")
-    
+
     async def stop(self) -> None:
         """Stop the reload listener."""
         if self._subscriber_task:
             self._subscriber_task.cancel()
-    
+
     def register_handler(
         self,
         config_type: str,
@@ -2570,7 +2570,7 @@ class HotReloadManager:
     ) -> None:
         """Register a handler for a config type reload."""
         self._reload_handlers[config_type] = handler
-    
+
     async def trigger_reload(
         self,
         config_type: str,
@@ -2586,40 +2586,40 @@ class HotReloadManager:
                 "timestamp": datetime.now().isoformat(),
             }),
         )
-        
+
         logger.info(
             "Reload triggered",
             config_type=config_type,
             config_id=config_id,
         )
-    
+
     async def _subscribe_loop(self) -> None:
         """Subscribe to reload events."""
         pubsub = self.redis.pubsub()
         await pubsub.subscribe("barnabeenet:config_reload")
-        
+
         async for message in pubsub.listen():
             if message["type"] == "message":
                 data = json.loads(message["data"])
                 await self._handle_reload(data)
-    
+
     async def _handle_reload(self, data: dict) -> None:
         """Handle a reload event."""
         config_type = data["config_type"]
         config_id = data["config_id"]
-        
+
         handler = self._reload_handlers.get(config_type)
         if handler:
             # Reload from disk
             new_value = await self._load_config(config_type, config_id)
             handler(config_id, new_value)
-            
+
             logger.info(
                 "Config reloaded",
                 config_type=config_type,
                 config_id=config_id,
             )
-    
+
     async def _load_config(
         self,
         config_type: str,
@@ -2633,15 +2633,15 @@ class HotReloadManager:
             "models": "models.yaml",
             "entity_aliases": "entity_aliases.yaml",
         }
-        
+
         file_name = config_files.get(config_type)
         if not file_name:
             return None
-        
+
         file_path = self.config_dir / file_name
         with open(file_path) as f:
             config = yaml.safe_load(f)
-        
+
         # Navigate to the specific config_id
         parts = config_id.split(".")
         value = config
@@ -2652,7 +2652,7 @@ class HotReloadManager:
                 value = value[int(part)]
             else:
                 return None
-        
+
         return value
 ```
 
@@ -2744,7 +2744,7 @@ class PatternDefinition:
     response_template: str | None = None
     typo_tolerance: dict[str, str] = field(default_factory=dict)
     enabled: bool = True
-    
+
     # Stats (populated at runtime)
     match_count_24h: int = 0
     false_positive_count_24h: int = 0
@@ -2779,7 +2779,7 @@ class OverrideRule:
     enabled: bool
     conditions: list[dict[str, Any]]
     actions: list[dict[str, Any]]
-    
+
     # Stats
     trigger_count_24h: int = 0
     last_triggered: datetime | None = None
@@ -2817,11 +2817,11 @@ class LLMCallRecord:
     provider: str
     temperature: float
     max_tokens: int
-    
+
     system_prompt: str
     user_message: str
     response: str
-    
+
     input_tokens: int
     output_tokens: int
     cost_usd: float
@@ -2835,13 +2835,13 @@ class HAActionRecord:
     service: str
     entity_id: str
     service_data: dict[str, Any]
-    
+
     result: str  # "success", "error", "timeout"
     error_message: str | None = None
-    
+
     state_before: dict[str, Any] | None = None
     state_after: dict[str, Any] | None = None
-    
+
     latency_ms: float = 0
 
 
@@ -2878,26 +2878,26 @@ class DecisionRecord:
     decision_id: str
     trace_id: str | None
     parent_decision_id: str | None
-    
+
     decision_type: DecisionType
     decision_name: str
     component: str
-    
+
     started_at: datetime
     completed_at: datetime | None
     duration_ms: float | None
-    
+
     inputs: DecisionInput | None
     logic: DecisionLogic | None
     result: DecisionResult | None
-    
+
     # Type-specific details
     pattern_checks: list[PatternCheckRecord] | None = None
     llm_call: LLMCallRecord | None = None
     ha_action: HAActionRecord | None = None
-    
+
     child_decisions: list[str] = field(default_factory=list)
-    
+
     error: str | None = None
     error_type: str | None = None
 
@@ -2907,46 +2907,46 @@ class RequestTrace:
     """Complete trace of a request."""
     trace_id: str
     conversation_id: str | None
-    
+
     # Input
     input_type: str
     input_text: str
     input_timestamp: datetime
-    
+
     # Speaker & Context
     speaker_id: str | None
     speaker_name: str | None
     room: str | None
-    
+
     # Processing
     status: TraceStatus
     started_at: datetime
     completed_at: datetime | None
     total_duration_ms: float | None
-    
+
     # Classification
     intent: str | None
     intent_confidence: float
     sub_category: str | None
-    
+
     # Routing
     routed_to_agent: str | None
     agent_used: str | None
-    
+
     # Output
     response_text: str
-    
+
     # Costs
     total_llm_calls: int
     total_cost_usd: float
-    
+
     # Decisions
     decision_ids: list[str]
-    
+
     # Feedback
     marked_as_wrong: bool = False
     correction_id: str | None = None
-    
+
     # Error
     error: str | None = None
 
@@ -2961,21 +2961,21 @@ class CorrectionSuggestion:
     suggestion_id: str
     suggestion_type: str
     priority: int
-    
+
     title: str
     description: str
     impact_level: str
-    
+
     target_logic_id: str
     current_value: Any
     proposed_value: Any
-    
+
     diff_before: str
     diff_after: str
-    
+
     test_inputs: list[str]
     expected_results: list[str]
-    
+
     ai_confidence: float
     ai_reasoning: str
 
@@ -2997,22 +2997,22 @@ class CorrectionAnalysis:
     analysis_id: str
     trace_id: str
     timestamp: datetime
-    
+
     expected_result: str
     issue_type: IssueType
-    
+
     root_cause: str
     root_cause_decision_id: str
     root_cause_logic_id: str
-    
+
     similar_traces: list[str]
     suggestions: list[CorrectionSuggestion]
-    
+
     status: CorrectionStatus
     selected_suggestion_id: str | None
     applied_at: datetime | None
     applied_by: str | None
-    
+
     test_results: list[CorrectionTestResult] | None = None
     verification_trace_ids: list[str] = field(default_factory=list)
 ```
@@ -3423,7 +3423,7 @@ barnabeenet:stats:overrides:{name}:triggers      # Counter
 
 class MetaAgent(Agent):
     """Meta Agent with full decision logging."""
-    
+
     def __init__(
         self,
         decision_registry: DecisionRegistry,
@@ -3433,7 +3433,7 @@ class MetaAgent(Agent):
         self.decisions = decision_registry
         self.logic = logic_registry
         # ...
-    
+
     async def classify(
         self,
         text: str,
@@ -3441,7 +3441,7 @@ class MetaAgent(Agent):
         context: dict | None = None,
     ) -> ClassificationResult:
         """Classify with full decision logging."""
-        
+
         # 1. Check emergency patterns
         async with self.decisions.decision(
             name="meta.check_emergency_patterns",
@@ -3451,18 +3451,18 @@ class MetaAgent(Agent):
         ) as decision:
             # Get patterns from logic registry
             patterns = await self.logic.get_logic("patterns.emergency")
-            
+
             decision.set_inputs(primary=text)
             decision.set_logic(
                 logic_type="pattern",
                 logic_source="patterns.emergency",
                 logic_content=[p["pattern"] for p in patterns.content["patterns"]],
             )
-            
+
             # Check each pattern
             pattern_checks = []
             match_result = None
-            
+
             for i, pattern_def in enumerate(patterns.content["patterns"]):
                 check = PatternCheckRecord(
                     pattern_name=pattern_def["name"],
@@ -3471,7 +3471,7 @@ class MetaAgent(Agent):
                     check_order=i,
                     matched=False,
                 )
-                
+
                 match = re.match(pattern_def["pattern"], text, re.IGNORECASE)
                 if match:
                     check.matched = True
@@ -3479,12 +3479,12 @@ class MetaAgent(Agent):
                     match_result = pattern_def
                     pattern_checks.append(check)
                     break  # Stop on first match
-                
+
                 pattern_checks.append(check)
-            
+
             # Record all pattern checks for visibility
             decision._record.pattern_checks = pattern_checks
-            
+
             if match_result:
                 decision.set_result(
                     outcome=DecisionOutcome.MATCH,
@@ -3508,13 +3508,13 @@ class MetaAgent(Agent):
                     value=None,
                     explanation="No emergency patterns matched",
                 )
-        
+
         # 2. Check instant patterns (similar pattern)
         # ...
-        
+
         # 3. Check action patterns (similar pattern)
         # ...
-        
+
         # 4. Fall back to LLM classification
         async with self.decisions.decision(
             name="meta.llm_classify",
@@ -3523,20 +3523,20 @@ class MetaAgent(Agent):
             component="meta_agent",
         ) as decision:
             prompt_template = await self.logic.get_logic("prompts.meta.classify")
-            
+
             decision.set_inputs(primary=text, speaker=context.get("speaker"))
             decision.set_logic(
                 logic_type="prompt",
                 logic_source="prompts.meta.classify",
                 logic_content=prompt_template.content[:500] + "...",  # Truncate for storage
             )
-            
+
             # Render prompt
             rendered_prompt = self.jinja.render(
                 prompt_template.content,
                 ctx={"text": text, **context},
             )
-            
+
             # Call LLM
             start = time.perf_counter()
             response = await self.llm.complete(
@@ -3545,7 +3545,7 @@ class MetaAgent(Agent):
                 temperature=0.3,
             )
             latency = (time.perf_counter() - start) * 1000
-            
+
             # Record LLM call details
             decision._record.llm_call = LLMCallRecord(
                 model=self.config.classification_model,
@@ -3560,17 +3560,17 @@ class MetaAgent(Agent):
                 cost_usd=response.cost,
                 latency_ms=latency,
             )
-            
+
             # Parse response
             result = json.loads(response.content)
-            
+
             decision.set_result(
                 outcome=DecisionOutcome.SELECTED,
                 value=result,
                 confidence=result.get("confidence", 0.7),
                 explanation=f"LLM classified as: {result['classification']}",
             )
-            
+
             return ClassificationResult(
                 intent=IntentCategory(result["classification"]),
                 confidence=result.get("confidence", 0.7),
@@ -3596,7 +3596,7 @@ export const PipelineManager: React.FC = () => {
   const [traceDetail, setTraceDetail] = useState<TraceDetailResponse | null>(null);
   const [showCorrection, setShowCorrection] = useState(false);
   const [editingLogic, setEditingLogic] = useState<string | null>(null);
-  
+
   // Filters
   const [filters, setFilters] = useState({
     status: null,

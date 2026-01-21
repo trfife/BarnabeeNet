@@ -434,6 +434,7 @@ class ProfileContextResponse(BaseModel):
     # Real-time data from Home Assistant
     location: PersonLocation | None = None  # Current location from HA person entity
     ha_person_entity: str | None = None  # The HA entity ID for reference
+    person_entity_details: dict[str, Any] | None = None  # Person entity details including linked devices/entities
 
 
 # =============================================================================

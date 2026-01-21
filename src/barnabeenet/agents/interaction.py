@@ -284,12 +284,25 @@ class InteractionAgent(Agent):
         parts.append("\n## Current Situation")
 
         # Current date and time (actual values for accurate responses)
+        # Use EST/EDT based on current timezone
         now = datetime.now()
         current_time = now.strftime("%I:%M %p").lstrip("0")
         current_date = now.strftime("%A, %B %d, %Y")
-        timezone = "Central Time (Chicago)"  # TODO: Make configurable
+        
+        # Determine timezone - default to EST/EDT
+        import time
+        tz_name = time.tzname[0] if time.daylight == 0 else time.tzname[1]
+        if "EST" in tz_name or "EDT" in tz_name or "Eastern" in tz_name:
+            timezone = "Eastern Time (EST/EDT)"
+        elif "CST" in tz_name or "CDT" in tz_name or "Central" in tz_name:
+            timezone = "Central Time (CST/CDT)"
+        else:
+            # Default to EST if unknown
+            timezone = "Eastern Time (EST/EDT)"
+        
         parts.append(f"- Current time: {current_time} {timezone}")
         parts.append(f"- Current date: {current_date}")
+        parts.append(f"- IMPORTANT: When calculating times in other timezones, use {timezone} as the base timezone, NOT Chicago or Central Time")
 
         # Time-of-day context for tone
         time_phrase = TIME_GREETINGS.get(conv_ctx.time_of_day, "today")
@@ -299,6 +312,9 @@ class InteractionAgent(Agent):
         if conv_ctx.speaker:
             speaker_name = self._format_speaker_name(conv_ctx.speaker)
             parts.append(f"- Speaking with: {speaker_name}")
+        else:
+            # Unknown speaker - don't call them "guest", just note timezone
+            parts.append("- Speaker: Unknown (defaulting to Eastern Time for time calculations)")
 
         # Room context
         if conv_ctx.room:
@@ -377,6 +393,12 @@ class InteractionAgent(Agent):
                 # Zone name like "Work", "School", etc.
                 parts.append(f"- Current location: {loc_state}")
 
+            # Add GPS coordinates if available
+            lat = location.get("latitude")
+            lon = location.get("longitude")
+            if lat and lon:
+                parts.append(f"- GPS coordinates: {lat:.4f}, {lon:.4f}")
+
             # Add time since location change
             last_changed = location.get("last_changed")
             if last_changed:
@@ -397,10 +419,71 @@ class InteractionAgent(Agent):
                 except (ValueError, TypeError):
                     pass
 
+        # Add person entity device information
+        ha_person_entity = profile.get("ha_person_entity")
+        person_details = profile.get("person_entity_details")
+        if person_details:
+            parts.append("\n### Person Entity Devices & Entities")
+            
+            # Linked devices
+            linked_devices = person_details.get("linked_devices", [])
+            if linked_devices:
+                parts.append(f"- Linked devices: {len(linked_devices)} device(s)")
+            
+            # Linked entities (notifications, alarms, location, etc.)
+            linked_entities = person_details.get("linked_entities", [])
+            if linked_entities:
+                # Group by domain
+                by_domain: dict[str, list[str]] = {}
+                for entity in linked_entities:
+                    domain = entity.get("domain", "unknown")
+                    friendly_name = entity.get("friendly_name", entity.get("entity_id", "unknown"))
+                    if domain not in by_domain:
+                        by_domain[domain] = []
+                    by_domain[domain].append(friendly_name)
+                
+                for domain, names in by_domain.items():
+                    parts.append(f"- {domain.title()} entities: {', '.join(names[:5])}")
+                    if len(names) > 5:
+                        parts.append(f"  (and {len(names) - 5} more)")
+            
+            # Home address if available
+            address = person_details.get("address")
+            if address and address.get("latitude"):
+                if address.get("formatted"):
+                    parts.append(f"- Home address: {address['formatted']}")
+                else:
+                    parts.append(f"- Home address coordinates: {address['latitude']:.4f}, {address['longitude']:.4f}")
+        
+        # Add explicit instructions for location questions
+        if location or person_details:
+            parts.append("\n### IMPORTANT: Location Information")
+            parts.append("When asked about the speaker's location or address:")
+            if location:
+                if location.get("is_home"):
+                    parts.append("- If they are home, you can say they are at home")
+                    if address:
+                        parts.append("- You have access to their home address coordinates")
+                else:
+                    zone = location.get("zone") or location.get("state")
+                    if zone:
+                        parts.append(f"- They are currently at: {zone}")
+                if location.get("latitude") and location.get("longitude"):
+                    parts.append(f"- Current GPS coordinates: {location['latitude']:.4f}, {location['longitude']:.4f}")
+            if person_details and person_details.get("address"):
+                addr = person_details["address"]
+                if addr.get("formatted"):
+                    parts.append(f"- Home address: {addr['formatted']}")
+                else:
+                    parts.append(f"- Home address GPS: {addr.get('latitude'):.4f}, {addr.get('longitude'):.4f}")
+            parts.append("- Use this information to answer location questions accurately")
+            parts.append("- If asked 'where am I' or 'what is my exact location', provide the specific location information above")
+
         # Add context type indicator
         context_type = profile.get("context_type", "public_only")
         if context_type == "guest":
-            parts.append("- Guest user (limited profile information)")
+            # Don't explicitly call them "guest" - just note limited info
+            parts.append("- Limited profile information available")
             return "\n".join(parts)
 
         # Add public profile info

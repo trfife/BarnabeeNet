@@ -1,6 +1,6 @@
 # BarnabeeNet Quick Reference
 
-**Last Updated:** January 2026  
+**Last Updated:** January 2026
 **Status:** 📚 Reference
 
 > **Live status:** See **CONTEXT.md** for “what’s working” and next steps.
