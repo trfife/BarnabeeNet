@@ -278,19 +278,12 @@ class InteractionAgent(Agent):
 
     def _build_system_prompt(self, conv_ctx: ConversationContext, user_ctx: dict[str, Any]) -> str:
         """Build the system prompt with context."""
-        parts = [BARNABEE_PERSONA]
-
-        # Add current context
-        parts.append("\n## Current Situation")
-
-        # Current date and time (actual values for accurate responses)
-        # Use EST/EDT based on current timezone
+        # Determine timezone FIRST - default to EST/EDT
+        import time
         now = datetime.now()
         current_time = now.strftime("%I:%M %p").lstrip("0")
         current_date = now.strftime("%A, %B %d, %Y")
-
-        # Determine timezone - default to EST/EDT
-        import time
+        
         tz_name = time.tzname[0] if time.daylight == 0 else time.tzname[1]
         if "EST" in tz_name or "EDT" in tz_name or "Eastern" in tz_name:
             timezone = "Eastern Time (EST/EDT)"
@@ -300,25 +293,35 @@ class InteractionAgent(Agent):
             # Default to EST if unknown
             timezone = "Eastern Time (EST/EDT)"
 
+        # Put CRITICAL timezone instruction FIRST, before persona
+        parts = [
+            "## ⚠️⚠️⚠️ CRITICAL TIMEZONE INSTRUCTION - READ FIRST ⚠️⚠️⚠️",
+            f"YOUR CURRENT TIMEZONE: {timezone}",
+            f"YOUR CURRENT TIME: {current_time} {timezone}",
+            "",
+            "ABSOLUTE RULES - FOLLOW THESE EXACTLY:",
+            f"1. YOU ARE IN {timezone}. THIS IS YOUR ONLY REFERENCE POINT.",
+            "2. NEVER mention 'Central Time', 'Chicago', 'CST', or 'CDT' in ANY response.",
+            "3. NEVER say phrases like '1 hour behind Central Time' or 'compared to Central Time'.",
+            "4. When calculating times in other timezones:",
+            f"   - ALWAYS start from {timezone}",
+            f"   - Calculate FROM {timezone}",
+            f"   - Example: Current time is {current_time} {timezone}",
+            "     * Utah = Mountain Time = 2 hours BEHIND Eastern Time",
+            f"     * So Utah time = 2 hours earlier than {current_time}",
+            "5. If you think about Central Time, STOP. Recalculate from Eastern Time only.",
+            "",
+            "---",
+            "",
+        ]
+        
+        # Now add persona
+        parts.append(BARNABEE_PERSONA)
+
+        # Add current context
+        parts.append("\n## Current Situation")
         parts.append(f"- Current time: {current_time} {timezone}")
         parts.append(f"- Current date: {current_date}")
-        parts.append(f"\n## ⚠️ CRITICAL TIMEZONE INSTRUCTION - READ CAREFULLY ⚠️")
-        parts.append(f"YOUR CURRENT TIMEZONE IS: {timezone}")
-        parts.append(f"YOUR CURRENT TIME IS: {current_time} {timezone}")
-        parts.append(f"")
-        parts.append(f"ABSOLUTE RULES FOR TIMEZONE CALCULATIONS:")
-        parts.append(f"1. YOU ARE IN {timezone} - THIS IS YOUR ONLY REFERENCE POINT")
-        parts.append(f"2. NEVER mention 'Central Time', 'Chicago', 'CST', or 'CDT' in any response")
-        parts.append(f"3. NEVER say '1 hour behind Central Time' or similar phrases")
-        parts.append(f"4. When asked about times in other timezones:")
-        parts.append(f"   - ALWAYS start from {timezone} (your current timezone)")
-        parts.append(f"   - Calculate the difference FROM {timezone}")
-        parts.append(f"   - Example: 'What time is it in Utah?'")
-        parts.append(f"     * Current time: {current_time} {timezone}")
-        parts.append(f"     * Utah is in Mountain Time Zone")
-        parts.append(f"     * Mountain Time is 2 hours BEHIND {timezone}")
-        parts.append(f"     * Answer: 'It's [calculated time] Mountain Time' (2 hours earlier than {current_time})")
-        parts.append(f"5. If you catch yourself about to mention Central Time or Chicago, STOP and recalculate from {timezone}")
 
         # Time-of-day context for tone
         time_phrase = TIME_GREETINGS.get(conv_ctx.time_of_day, "today")
