@@ -201,8 +201,14 @@ class HomeAssistantClient:
             self._connected = True
             logger.info("Connected to Home Assistant at %s", self._url)
 
-            # Load all registries (entities, devices, areas, automations, integrations)
-            await self.refresh_all()
+            # Don't auto-load all entities - use just-in-time loading via HAContextService
+            # Only load lightweight metadata (devices, areas) which change infrequently
+            # Entity states are loaded just-in-time when agents need them
+            try:
+                await self.refresh_devices()  # Lightweight, changes infrequently
+                await self.refresh_areas()  # Lightweight, changes infrequently
+            except Exception as e:
+                logger.debug("Could not refresh devices/areas on connect: %s", e)
 
             # Start event subscription for real-time updates
             await self.subscribe_to_events()
@@ -964,6 +970,9 @@ class HomeAssistantClient:
     def resolve_entity(self, name: str, domain: str | None = None) -> Entity | None:
         """Resolve a friendly name to an entity.
 
+        Uses just-in-time loading: EntityRegistry is populated with metadata (no states)
+        by HAContextService. State is loaded just-in-time when entity is accessed.
+
         Args:
             name: Friendly name or entity_id to resolve
             domain: Optional domain hint to narrow search
@@ -971,7 +980,45 @@ class HomeAssistantClient:
         Returns:
             Matching Entity or None.
         """
-        return self._entity_registry.find_by_name(name, domain)
+        # EntityRegistry is populated by HAContextService with metadata (no states)
+        # This allows fast resolution without loading all states upfront
+        entity = self._entity_registry.find_by_name(name, domain)
+        
+        # If entity found but state is placeholder, load state just-in-time
+        if entity and entity.state.state == "unknown":
+            # State will be loaded when needed via async method
+            # For now, return entity with placeholder state
+            pass
+        
+        return entity
+    
+    async def load_entity_state(self, entity_id: str) -> EntityState | None:
+        """Load entity state just-in-time.
+        
+        Args:
+            entity_id: Entity ID to load state for
+            
+        Returns:
+            EntityState or None if not found
+        """
+        if not self._client:
+            return None
+        
+        try:
+            response = await self._client.get(f"/api/states/{entity_id}")
+            if response.status_code == 200:
+                state_data = response.json()
+                from barnabeenet.services.homeassistant.entities import EntityState
+                return EntityState(
+                    state=state_data.get("state", "unknown"),
+                    attributes=state_data.get("attributes", {}),
+                    last_changed=state_data.get("last_changed"),
+                    last_updated=state_data.get("last_updated"),
+                )
+        except Exception as e:
+            logger.debug("Failed to load state for %s: %s", entity_id, e)
+        
+        return None
 
     def _parse_entity(self, state_data: dict[str, Any]) -> Entity:
         """Parse entity data from HA state response."""

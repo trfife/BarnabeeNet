@@ -467,25 +467,33 @@ class MetaAgent(Agent):
             "processing_time_ms": result.total_processing_time_ms,
         }
 
-    async def classify(self, text: str, context: dict | None = None) -> ClassificationResult:
+    async def classify(
+        self, text: str, context: dict | None = None, ha_context: dict | None = None
+    ) -> ClassificationResult:
         """Full classification with context evaluation.
 
         Execution order:
         1. Context & Mood Evaluation (runs FIRST to inform other steps)
-        2. Intent Classification & Routing
+        2. Intent Classification & Routing (uses HA context for better device detection)
         3. Memory Query Generation (for non-instant intents)
+
+        Args:
+            text: User input text
+            context: Request context (speaker, room, etc.)
+            ha_context: Home Assistant context (entity names, domains, areas) - lightweight
         """
         start_time = time.perf_counter()
         text = text.strip()
         context = context or {}
+        ha_context = ha_context or {}
 
         # Step 1: Context & Mood Evaluation
         context_eval = None
         if self._config.context_evaluation_enabled:
             context_eval = self._evaluate_context_and_mood(text, context)
 
-        # Step 2: Intent Classification
-        intent_result = await self._classify_intent(text, context, context_eval)
+        # Step 2: Intent Classification (with HA context for better device detection)
+        intent_result = await self._classify_intent(text, context, context_eval, ha_context)
 
         # Step 3: Memory Query Generation (for non-instant intents)
         memory_queries = None
@@ -603,23 +611,29 @@ class MetaAgent(Agent):
         text: str,
         context: dict,
         context_eval: ContextEvaluation | None = None,
+        ha_context: dict | None = None,
     ) -> ClassificationResult:
-        """Classify intent using tiered approach: pattern → heuristic → LLM."""
+        """Classify intent using tiered approach: pattern → heuristic → LLM.
+        
+        Uses HA context (entity names, domains) to improve device detection.
+        """
+        ha_context = ha_context or {}
+        
         # Phase 1: Pattern matching (fast path)
         result = self._pattern_match(text)
         if result.confidence >= self._config.pattern_match_confidence_threshold:
             logger.debug("Pattern match: %s (conf=%.2f)", result.intent.value, result.confidence)
             return result
 
-        # Phase 2: Heuristic classification
-        result = self._heuristic_classify(text, context, context_eval)
+        # Phase 2: Heuristic classification (with HA context for device detection)
+        result = self._heuristic_classify(text, context, context_eval, ha_context)
         if result.confidence >= self._config.heuristic_confidence_threshold:
             logger.debug("Heuristic match: %s (conf=%.2f)", result.intent.value, result.confidence)
             return result
 
-        # Phase 3: LLM fallback (if available)
+        # Phase 3: LLM fallback (if available) - includes HA context
         if self._llm_client:
-            result = await self._llm_classify(text, context)
+            result = await self._llm_classify(text, context, ha_context)
             result.classification_method = "llm"
             logger.debug(
                 "LLM classification: %s (conf=%.2f)", result.intent.value, result.confidence
@@ -705,9 +719,11 @@ class MetaAgent(Agent):
         text: str,
         context: dict,
         context_eval: ContextEvaluation | None = None,
+        ha_context: dict | None = None,
     ) -> ClassificationResult:
-        """Heuristic-based classification with context awareness."""
+        """Heuristic-based classification with context awareness and HA entity detection."""
         text_lower = text.lower()
+        ha_context = ha_context or {}
 
         # Check for conversation continuation
         if context.get("history") and len(context["history"]) > 0:
@@ -726,6 +742,38 @@ class MetaAgent(Agent):
                 matched_pattern="heuristic:urgency → context evaluated as EMERGENCY",
                 classification_method="heuristic",
             )
+
+        # Check if text mentions HA entities (device detection)
+        entity_names = ha_context.get("entity_names", [])
+        if entity_names:
+            # Check if any entity name is mentioned in the text
+            mentioned_entities = [
+                name for name in entity_names if name.lower() in text_lower
+            ]
+            if mentioned_entities:
+                # If entity mentioned + command verb = ACTION
+                command_verbs = {
+                    "turn", "set", "change", "make", "adjust", "open", "close",
+                    "start", "stop", "play", "pause", "lock", "unlock", "activate",
+                }
+                words = text_lower.split()
+                has_command = any(word in command_verbs for word in words[:3])
+                
+                if has_command:
+                    return ClassificationResult(
+                        intent=IntentCategory.ACTION,
+                        confidence=0.85,  # Higher confidence with entity match
+                        matched_pattern=f"heuristic:entity_command → mentions '{mentioned_entities[0]}' + command verb",
+                        classification_method="heuristic",
+                    )
+                else:
+                    # Entity mentioned but no command = QUERY (asking about device)
+                    return ClassificationResult(
+                        intent=IntentCategory.QUERY,
+                        confidence=0.80,
+                        matched_pattern=f"heuristic:entity_query → mentions '{mentioned_entities[0]}' (asking about device)",
+                        classification_method="heuristic",
+                    )
 
         # Question markers
         question_starters = (
@@ -783,7 +831,9 @@ class MetaAgent(Agent):
             classification_method="heuristic",
         )
 
-    async def _llm_classify(self, text: str, context: dict) -> ClassificationResult:
+    async def _llm_classify(
+        self, text: str, context: dict, ha_context: dict | None = None
+    ) -> ClassificationResult:
         """Use LLM for classification when pattern/heuristic fails."""
         if not self._llm_client:
             return ClassificationResult(

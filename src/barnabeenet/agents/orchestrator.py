@@ -410,8 +410,23 @@ class AgentOrchestrator:
         return self._build_response(ctx)
 
     async def _classify(self, ctx: RequestContext) -> None:
-        """Stage 1: Classify intent with MetaAgent."""
+        """Stage 1: Classify intent with MetaAgent (with HA context for better device detection)."""
         start = time.perf_counter()
+
+        # Get lightweight HA context (entity names/domains only, no states)
+        ha_context_dict = {}
+        try:
+            from barnabeenet.services.homeassistant.context import get_ha_context_service
+
+            context_service = await get_ha_context_service()
+            ha_context = await context_service.get_context_for_meta_agent()
+            ha_context_dict = {
+                "entity_names": ha_context.entity_names,
+                "entity_domains": ha_context.entity_domains,
+                "area_names": ha_context.area_names,
+            }
+        except Exception as e:
+            logger.debug("Could not get HA context for classification: %s", e)
 
         # Call classify() directly to get ClassificationResult object
         ctx.classification = await self._meta_agent.classify(
@@ -421,6 +436,7 @@ class AgentOrchestrator:
                 "room": ctx.room,
                 "conversation_id": ctx.conversation_id,
             },
+            ha_context=ha_context_dict,
         )
 
         latency_ms = (time.perf_counter() - start) * 1000
@@ -725,6 +741,33 @@ class AgentOrchestrator:
             agent_name = "instant"
 
         elif intent == IntentCategory.ACTION:
+            # Get HA context just-in-time for Action Agent (entity states for device control)
+            try:
+                from barnabeenet.services.homeassistant.context import get_ha_context_service
+
+                context_service = await get_ha_context_service(self._ha_client)
+                # Extract potential entity names from text for targeted loading
+                # For now, pass None to load states when needed during resolution
+                ha_action_context = await context_service.get_context_for_action_agent(None)
+                agent_context["ha_context"] = {
+                    "entity_names": ha_action_context.entity_names,
+                    "entity_domains": ha_action_context.entity_domains,
+                    "area_names": ha_action_context.area_names,
+                    "entity_states": ha_action_context.entity_states,  # Loaded just-in-time
+                    "entity_details": {
+                        eid: {
+                            "entity_id": meta.entity_id,
+                            "domain": meta.domain,
+                            "friendly_name": meta.friendly_name,
+                            "area_id": meta.area_id,
+                        }
+                        for eid, meta in ha_action_context.entity_details.items()
+                    },
+                }
+            except Exception as e:
+                logger.debug("Could not get HA context for Action Agent: %s", e)
+                agent_context["ha_context"] = {}
+
             # Check for compound commands (e.g., "turn on X and turn off Y")
             from barnabeenet.agents.parsing.compound_parser import CompoundCommandParser
 
@@ -915,6 +958,33 @@ class AgentOrchestrator:
 
         else:
             # CONVERSATION, QUERY, UNKNOWN → Interaction Agent
+            # Get HA context just-in-time for Interaction Agent (only if query mentions entities)
+            try:
+                from barnabeenet.services.homeassistant.context import get_ha_context_service
+
+                context_service = await get_ha_context_service(self._ha_client)
+                ha_interaction_context = await context_service.get_context_for_interaction_agent(
+                    ctx.text
+                )
+                agent_context["ha_context"] = {
+                    "entity_names": ha_interaction_context.entity_names,
+                    "entity_domains": ha_interaction_context.entity_domains,
+                    "area_names": ha_interaction_context.area_names,
+                    "entity_states": ha_interaction_context.entity_states,  # Only mentioned entities
+                    "entity_details": {
+                        eid: {
+                            "entity_id": meta.entity_id,
+                            "domain": meta.domain,
+                            "friendly_name": meta.friendly_name,
+                            "area_id": meta.area_id,
+                        }
+                        for eid, meta in ha_interaction_context.entity_details.items()
+                    },
+                }
+            except Exception as e:
+                logger.debug("Could not get HA context for Interaction Agent: %s", e)
+                agent_context["ha_context"] = {}
+
             ctx.agent_response = await self._interaction_agent.handle_input(ctx.text, agent_context)
             agent_name = "interaction"
 

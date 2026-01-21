@@ -8,6 +8,12 @@ Provides:
 """
 
 from barnabeenet.services.homeassistant.client import HomeAssistantClient
+from barnabeenet.services.homeassistant.context import (
+    HAContext,
+    HAContextService,
+    EntityMetadata,
+    get_ha_context_service,
+)
 from barnabeenet.services.homeassistant.entities import (
     Entity,
     EntityRegistry,
@@ -29,10 +35,14 @@ __all__ = [
     "AutomationState",
     "Device",
     "Entity",
+    "EntityMetadata",
     "EntityRegistry",
     "EntityState",
+    "HAContext",
+    "HAContextService",
     "HADataSnapshot",
     "HomeAssistantClient",
     "Integration",
     "LogEntry",
+    "get_ha_context_service",
 ]
