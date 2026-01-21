@@ -49,6 +49,9 @@ secrets.decrypted.yaml
 .DS_Store
 Thumbs.db
 
+# Pytest testmon
+.testmondata
+
 # Logs
 logs/
 *.log

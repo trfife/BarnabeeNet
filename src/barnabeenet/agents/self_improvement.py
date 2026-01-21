@@ -287,7 +287,7 @@ YOUR APPROVED PLAN:
 
 WORKFLOW:
 1. Make the minimal targeted changes described in the plan
-2. Run tests: pytest tests/ -v
+2. Run tests: pytest
 3. If tests fail, fix issues and re-test
 
 IMPORTANT: The plan has been approved. Proceed with implementation.
@@ -330,7 +330,7 @@ WORKFLOW (MUST FOLLOW THIS ORDER):
    Then STOP and wait for user approval before proceeding.
 
 3. Implement - Only after approval, make minimal targeted changes
-4. Test - Add or update tests, run: pytest tests/ -v
+4. Test - Add or update tests, run: pytest
 5. Verify - If tests fail, fix issues and re-test
 
 IMPORTANT: Always output the <PLAN> block and wait for user input before making

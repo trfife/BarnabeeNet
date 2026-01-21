@@ -3,6 +3,17 @@
 
 set -e  # Exit on first error
 
+# Parse arguments
+FULL_TEST=0
+for arg in "$@"; do
+    case $arg in
+        --full)
+            FULL_TEST=1
+            shift
+            ;;
+    esac
+done
+
 echo "🔍 BarnabeeNet Validation Suite"
 echo "================================"
 
@@ -79,11 +90,22 @@ fi
 
 # 5. Tests
 echo -e "\n${YELLOW}[5/6] Running tests...${NC}"
-if pytest tests/ -x --tb=short -q 2>/dev/null; then
-    echo -e "${GREEN}✓ All tests passed${NC}"
+if [ $FULL_TEST -eq 1 ]; then
+    echo "Running FULL test suite (bypassing testmon)..."
+    if pytest --no-testmon -x --tb=short 2>/dev/null; then
+        echo -e "${GREEN}✓ All tests passed${NC}"
+    else
+        echo -e "${RED}❌ Tests failed${NC}"
+        FAILED=1
+    fi
 else
-    echo -e "${RED}❌ Tests failed${NC}"
-    FAILED=1
+    echo "Running affected tests only (testmon)..."
+    if pytest -x --tb=short 2>/dev/null; then
+        echo -e "${GREEN}✓ All tests passed${NC}"
+    else
+        echo -e "${RED}❌ Tests failed${NC}"
+        FAILED=1
+    fi
 fi
 
 # 6. Check CONTEXT.md is updated
