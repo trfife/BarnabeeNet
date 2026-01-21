@@ -1890,534 +1890,87 @@ function initProviderConfig() {
 
 
 // =============================================================================
-// Model Selection Configuration
+// Model Selection Configuration (Simplified - one model per agent)
 // =============================================================================
 
-let availableModels = [];
-let activitiesData = [];
-let showFreeOnly = false;
-
-async function loadModels() {
-    try {
-        const response = await fetch(`${API_BASE}/api/v1/config/models?provider=all`);
-        const data = await response.json();
-        availableModels = data.models || [];
-
-        const countDisplay = document.getElementById('models-count-display');
-        if (countDisplay) {
-            const workingText = data.working_count > 0 ? `, ${data.working_count} verified` : '';
-            const providersText = data.providers_included?.length > 1
-                ? ` from ${data.providers_included.length} providers`
-                : '';
-            countDisplay.textContent = `${data.total_count} models (${data.free_count} free${workingText})${providersText}`;
-        }
-
-        return availableModels;
-    } catch (e) {
-        console.error('Failed to load models:', e);
-        return [];
-    }
-}
-
-async function loadActivities() {
-    try {
-        const response = await fetch(`${API_BASE}/api/v1/config/activities`);
-        const data = await response.json();
-        activitiesData = data.activities || [];
-        renderActivities(data.groups || {});
-    } catch (e) {
-        console.error('Failed to load activities:', e);
-        document.getElementById('activities-list').innerHTML = `
-            <div class="error-message">Failed to load activities: ${e.message}</div>
-        `;
-    }
-}
-
-function renderActivities(groups) {
-    const container = document.getElementById('activities-list');
+async function loadAgentModels() {
+    const container = document.getElementById('agent-models-list');
     if (!container) return;
 
-    const agentIcons = {
-        'meta': '🎯',
-        'action': '🏠',
-        'interaction': '💬',
-        'memory': '🧠',
-        'instant': '⚡'
-    };
-
-    const agentDescriptions = {
-        'meta': 'Intent Classification (runs on every request)',
-        'action': 'Device Control & Home Automation',
-        'interaction': 'Conversations & Personality',
-        'memory': 'Memory Generation & Retrieval',
-        'instant': 'Quick Responses (time, date, etc.)'
-    };
-
-    let html = '';
-
-    for (const [agent, activityNames] of Object.entries(groups)) {
-        const activities = activityNames
-            .map(name => activitiesData.find(a => a.activity === name))
-            .filter(Boolean);
-
-        if (activities.length === 0) continue;
-
-        html += `
-            <div class="activity-group" data-agent="${agent}">
-                <div class="activity-group-header" onclick="toggleActivityGroup('${agent}')">
-                    <span class="activity-group-icon">${agentIcons[agent] || '🤖'}</span>
-                    <h4>${agent.charAt(0).toUpperCase() + agent.slice(1)}Agent</h4>
-                    <span class="activity-group-desc">${agentDescriptions[agent] || ''}</span>
-                    <span class="activity-group-toggle">▼</span>
-                </div>
-                <div class="activity-group-items">
-                    ${activities.map(activity => renderActivityItem(activity)).join('')}
-                </div>
-            </div>
-        `;
-    }
-
-    container.innerHTML = html || '<p class="no-models-message">No activities configured</p>';
-
-    // Initialize all model dropdowns
-    initModelDropdowns();
-}
-
-function renderActivityItem(activity) {
-    return `
-        <div class="activity-item" data-activity="${activity.activity}">
-            <div class="activity-info">
-                <span class="activity-name">${activity.activity}</span>
-                <span class="activity-desc">${activity.description}</span>
-            </div>
-            <div class="activity-model-select">
-                <div class="model-search-container">
-                    <input type="text"
-                           class="model-search-input"
-                           data-activity="${activity.activity}"
-                           value="${activity.model}"
-                           placeholder="Search models..."
-                           autocomplete="off">
-                    <span class="model-price-badge" data-activity="${activity.activity}">
-                        ${getModelPriceBadge(activity.model)}
-                    </span>
-                    <div class="model-dropdown" data-activity="${activity.activity}"></div>
-                </div>
-            </div>
-            <span class="activity-priority ${activity.priority}">${activity.priority}</span>
-        </div>
-    `;
-}
-
-function getModelPriceBadge(modelId) {
-    const model = availableModels.find(m => m.id === modelId);
-    if (!model) return '';
-    if (model.is_free) return '<span class="free">FREE</span>';
-    const totalPrice = model.pricing_prompt + model.pricing_completion;
-    return `$${totalPrice.toFixed(2)}/M`;
-}
-
-function initModelDropdowns() {
-    document.querySelectorAll('.model-search-input').forEach(input => {
-        const activityName = input.dataset.activity;
-        const dropdown = document.querySelector(`.model-dropdown[data-activity="${activityName}"]`);
-
-        // Focus - show dropdown
-        input.addEventListener('focus', () => {
-            renderModelDropdown(dropdown, input.value, activityName);
-            dropdown.classList.add('visible');
-        });
-
-        // Blur - hide dropdown (with delay for click)
-        input.addEventListener('blur', () => {
-            setTimeout(() => dropdown.classList.remove('visible'), 200);
-        });
-
-        // Input - filter models
-        input.addEventListener('input', () => {
-            renderModelDropdown(dropdown, input.value, activityName);
-        });
-
-        // Keyboard navigation
-        input.addEventListener('keydown', (e) => {
-            handleDropdownKeyboard(e, dropdown, input, activityName);
-        });
-    });
-}
-
-function renderModelDropdown(dropdown, searchTerm, activityName) {
-    let filteredModels = availableModels;
-
-    // Filter out failed models (they shouldn't appear in the list)
-    filteredModels = filteredModels.filter(m => m.health_status !== 'failed');
-
-    // Filter by search term
-    if (searchTerm) {
-        const term = searchTerm.toLowerCase();
-        filteredModels = filteredModels.filter(m =>
-            m.id.toLowerCase().includes(term) ||
-            m.name.toLowerCase().includes(term) ||
-            (m.provider_display || '').toLowerCase().includes(term)
-        );
-    }
-
-    // Filter by free if checkbox is checked
-    if (showFreeOnly) {
-        filteredModels = filteredModels.filter(m => m.is_free);
-    }
-
-    // Limit to 50 results
-    filteredModels = filteredModels.slice(0, 50);
-
-    if (filteredModels.length === 0) {
-        dropdown.innerHTML = '<div class="model-option">No models found</div>';
-        return;
-    }
-
-    dropdown.innerHTML = filteredModels.map((model, index) => {
-        const healthClass = model.health_status === 'working' ? 'health-working' :
-            model.health_status === 'failed' ? 'health-failed' : '';
-        const healthIcon = model.health_status === 'working' ? '✓' :
-            model.health_status === 'failed' ? '✗' : '';
-        const providerBadge = model.provider_display || model.provider || 'Unknown';
-
-        return `
-            <div class="model-option ${index === 0 ? 'highlighted' : ''} ${healthClass}"
-                 data-model-id="${model.id}"
-                 data-activity="${activityName}"
-                 onclick="selectModel('${model.id}', '${activityName}')">
-                <div class="model-option-header">
-                    <span class="model-option-name">${model.name}</span>
-                    <span class="model-provider-badge">${providerBadge}</span>
-                </div>
-                <div class="model-option-details">
-                    <span class="model-option-price ${model.is_free ? 'free' : ''}">
-                        ${model.is_free ? 'FREE' : `$${(model.pricing_prompt + model.pricing_completion).toFixed(2)}/M`}
-                    </span>
-                    <span class="model-option-context">${(model.context_length / 1000).toFixed(0)}K ctx</span>
-                    ${healthIcon ? `<span class="model-health-icon ${healthClass}">${healthIcon}</span>` : ''}
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function handleDropdownKeyboard(e, dropdown, input, activityName) {
-    const options = dropdown.querySelectorAll('.model-option[data-model-id]');
-    const highlighted = dropdown.querySelector('.model-option.highlighted');
-    let currentIndex = Array.from(options).indexOf(highlighted);
-
-    switch (e.key) {
-        case 'ArrowDown':
-            e.preventDefault();
-            if (currentIndex < options.length - 1) {
-                options[currentIndex]?.classList.remove('highlighted');
-                options[currentIndex + 1]?.classList.add('highlighted');
-                options[currentIndex + 1]?.scrollIntoView({ block: 'nearest' });
-            }
-            break;
-        case 'ArrowUp':
-            e.preventDefault();
-            if (currentIndex > 0) {
-                options[currentIndex]?.classList.remove('highlighted');
-                options[currentIndex - 1]?.classList.add('highlighted');
-                options[currentIndex - 1]?.scrollIntoView({ block: 'nearest' });
-            }
-            break;
-        case 'Enter':
-            e.preventDefault();
-            if (highlighted) {
-                const modelId = highlighted.dataset.modelId;
-                selectModel(modelId, activityName);
-            }
-            break;
-        case 'Escape':
-            dropdown.classList.remove('visible');
-            input.blur();
-            break;
-    }
-}
-
-async function selectModel(modelId, activityName) {
-    // Update UI immediately
-    const input = document.querySelector(`.model-search-input[data-activity="${activityName}"]`);
-    const priceBadge = document.querySelector(`.model-price-badge[data-activity="${activityName}"]`);
-
-    if (input) input.value = modelId;
-    if (priceBadge) priceBadge.innerHTML = getModelPriceBadge(modelId);
-
-    // Close dropdown
-    const dropdown = document.querySelector(`.model-dropdown[data-activity="${activityName}"]`);
-    if (dropdown) dropdown.classList.remove('visible');
-
-    // Save to backend
     try {
-        const response = await fetch(`${API_BASE}/api/v1/config/activities/${activityName}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: modelId })
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to save');
-        }
-
-        console.log(`Updated ${activityName} to use ${modelId}`);
-    } catch (e) {
-        console.error('Failed to update activity:', e);
-        alert(`Failed to save model selection: ${e.message}`);
-    }
-}
-
-function toggleActivityGroup(agent) {
-    const group = document.querySelector(`.activity-group[data-agent="${agent}"]`);
-    if (group) {
-        group.classList.toggle('collapsed');
-    }
-}
-
-// =============================================================================
-// Mode Toggle (Testing vs Production)
-// =============================================================================
-
-let currentMode = 'testing';
-
-async function loadCurrentMode() {
-    try {
-        const response = await fetch(`${API_BASE}/api/v1/config/mode`);
-        const data = await response.json();
-        currentMode = data.mode || 'testing';
-        updateModeUI();
-    } catch (e) {
-        console.error('Failed to load mode:', e);
-    }
-}
-
-function updateModeUI() {
-    // Update buttons
-    document.querySelectorAll('.mode-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.mode === currentMode);
-    });
-
-    // Update status display
-    const modeDisplay = document.getElementById('current-mode-display');
-    if (modeDisplay) {
-        modeDisplay.textContent = currentMode === 'testing' ? 'Testing' : 'Production';
-        modeDisplay.classList.toggle('production', currentMode === 'production');
-    }
-}
-
-async function switchMode(mode) {
-    if (mode === currentMode) return;
-
-    const container = document.querySelector('.activities-list');
-    if (container) {
-        container.classList.add('mode-switching');
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/api/v1/config/mode`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode })
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to switch mode');
-        }
-
-        const data = await response.json();
-        currentMode = data.mode;
-        updateModeUI();
-
-        // Reload activities to show new models
-        await loadActivities();
-
-        console.log(`Switched to ${mode} mode, updated ${data.updated_count} activities`);
-    } catch (e) {
-        console.error('Failed to switch mode:', e);
-        alert(`Failed to switch mode: ${e.message}`);
-    } finally {
-        if (container) {
-            container.classList.remove('mode-switching');
-        }
-    }
-}
-
-function initModeToggle() {
-    document.getElementById('mode-testing')?.addEventListener('click', () => switchMode('testing'));
-    document.getElementById('mode-production')?.addEventListener('click', () => switchMode('production'));
-}
-
-// =============================================================================
-// Model Health Check
-// =============================================================================
-
-let modelHealthCache = {};
-
-async function checkModelHealth() {
-    const btn = document.getElementById('check-model-health');
-    const statusDiv = document.getElementById('model-health-status');
-    const contentDiv = document.getElementById('health-content');
-
-    btn.disabled = true;
-    btn.textContent = '🩺 Checking...';
-    statusDiv.style.display = 'block';
-    contentDiv.innerHTML = '<div class="health-checking">Checking free models health...</div>';
-
-    try {
-        const response = await fetch(`${API_BASE}/api/v1/config/models/health-check-free`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({})
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
+        const response = await fetch(`${API_BASE}/api/v1/config/agents/models`);
         const data = await response.json();
 
-        // Update cache
-        data.results.forEach(r => {
-            modelHealthCache[r.model_id] = r;
-        });
+        const agentIcons = {
+            'meta': '🎯',
+            'action': '🏠',
+            'interaction': '💬',
+            'memory': '🧠',
+            'instant': '⚡'
+        };
 
-        // Render results
-        let html = `
-            <div class="health-summary">
-                <span class="health-working">✅ ${data.working} working</span>
-                <span class="health-failed">❌ ${data.failed} failed</span>
-                of ${data.checked} checked
-            </div>
-            <div class="health-results">
-        `;
+        const agentNames = {
+            'meta': 'MetaAgent',
+            'action': 'ActionAgent',
+            'interaction': 'InteractionAgent',
+            'memory': 'MemoryAgent',
+            'instant': 'InstantAgent'
+        };
 
-        data.results.forEach(r => {
-            const icon = r.working ? '✅' : '❌';
-            const latency = r.latency_ms ? `${r.latency_ms.toFixed(0)}ms` : '';
-            const error = r.error ? `<span class="health-error">${r.error}</span>` : '';
+        let html = '<div class="agent-models-grid">';
+        for (const [agent, config] of Object.entries(data.agents)) {
             html += `
-                <div class="health-result ${r.working ? 'working' : 'failed'}">
-                    ${icon} ${r.model_id.split('/').pop()}
-                    ${latency ? `<span class="health-latency">${latency}</span>` : ''}
-                    ${error}
+                <div class="agent-model-card">
+                    <div class="agent-model-header">
+                        <span class="agent-icon">${agentIcons[agent] || '🤖'}</span>
+                        <div>
+                            <h4>${agentNames[agent] || agent}</h4>
+                            <p class="agent-desc">${config.description || ''}</p>
+                        </div>
+                    </div>
+                    <div class="agent-model-info">
+                        <div class="model-field">
+                            <label>Model:</label>
+                            <code>${config.model}</code>
+                        </div>
+                        <div class="model-field">
+                            <label>Temperature:</label>
+                            <span>${config.temperature}</span>
+                        </div>
+                        <div class="model-field">
+                            <label>Max Tokens:</label>
+                            <span>${config.max_tokens}</span>
+                        </div>
+                    </div>
+                    <div class="agent-model-source">
+                        <small>Source: ${data.source}</small>
+                    </div>
                 </div>
             `;
-        });
-
+        }
         html += '</div>';
-        contentDiv.innerHTML = html;
-
-        // Refresh activities to update model status badges
-        await loadActivities();
-
+        container.innerHTML = html;
     } catch (e) {
-        contentDiv.innerHTML = `<div class="health-error">Health check failed: ${e.message}</div>`;
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '🩺 Health Check';
+        console.error('Failed to load agent models:', e);
+        container.innerHTML = `<div class="error-message">Failed to load agent models: ${e.message}</div>`;
     }
 }
-
-// =============================================================================
-// AI-Powered Auto-Selection
-// =============================================================================
-
-async function autoSelectModels() {
-    const btn = document.getElementById('auto-select-models');
-
-    if (!confirm('Use AI to automatically select the best model for each activity?\n\nThis will analyze each activity\'s requirements and pick optimal models from available free models.')) {
-        return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = '🤖 Selecting...';
-
-    const container = document.querySelector('.activities-list');
-    if (container) {
-        container.classList.add('mode-switching');
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/api/v1/config/activities/auto-select/apply`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                free_only: true,
-                prefer_speed: false,
-                prefer_quality: false
-            })
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const data = await response.json();
-
-        if (data.success) {
-            // Show success notification
-            const count = Object.keys(data.recommendations).length;
-            alert(`✅ Auto-selection complete!\n\n${count} activities updated with optimal models.`);
-
-            // Reload activities to show new models
-            await loadActivities();
-        } else {
-            throw new Error(data.error || 'Auto-selection failed');
-        }
-
-    } catch (e) {
-        alert(`❌ Auto-selection failed: ${e.message}`);
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '🤖 Auto-Select';
-        if (container) {
-            container.classList.remove('mode-switching');
-        }
-    }
-}
-
 
 function initModelSelection() {
-    // Initialize mode toggle
-    initModeToggle();
-
-    // Free models filter
-    document.getElementById('show-free-only')?.addEventListener('change', (e) => {
-        showFreeOnly = e.target.checked;
-        // Re-render all open dropdowns
-        document.querySelectorAll('.model-dropdown.visible').forEach(dropdown => {
-            const activityName = dropdown.dataset.activity;
-            const input = document.querySelector(`.model-search-input[data-activity="${activityName}"]`);
-            if (input) {
-                renderModelDropdown(dropdown, input.value, activityName);
-            }
-        });
-    });
-
-    // Refresh models button
-    document.getElementById('refresh-models')?.addEventListener('click', async () => {
-        await fetch(`${API_BASE}/api/v1/config/models/refresh`, { method: 'POST' });
-        await loadModels();
-        // Reload activities to refresh price badges
-        await loadActivities();
-    });
-
-    // Health Check button
-    document.getElementById('check-model-health')?.addEventListener('click', checkModelHealth);
-    document.getElementById('close-health-status')?.addEventListener('click', () => {
-        document.getElementById('model-health-status').style.display = 'none';
-    });
-
-    // Auto-Select button
-    document.getElementById('auto-select-models')?.addEventListener('click', autoSelectModels);
-
-    // Load when models config section is shown
+    // Load agent models when models config section is shown
     document.querySelectorAll('.config-nav li').forEach(item => {
         item.addEventListener('click', () => {
             if (item.dataset.config === 'models') {
-                loadCurrentMode();
-                loadModels().then(() => loadActivities());
+                loadAgentModels();
             }
         });
     });
+    
+    // Load on initial page load if models section is active
+    const modelsNav = document.querySelector('.config-nav li[data-config="models"]');
+    if (modelsNav && modelsNav.classList.contains('active')) {
+        loadAgentModels();
+    }
 }
 
 
@@ -2426,6 +1979,11 @@ document.addEventListener('DOMContentLoaded', () => {
     initProviderConfig();
     initModelSelection();
     initHomeAssistant();
+    
+    // Load agent models if on config page
+    if (document.getElementById('agent-models-list')) {
+        loadAgentModels();
+    }
 });
 
 // =============================================================================
@@ -4301,309 +3859,6 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
-// =============================================================================
-// PROMPTS PAGE - Agent System Prompts Management
-// =============================================================================
-
-const AGENT_INFO = {
-    meta_agent: { displayName: 'MetaAgent', description: 'Intent classification and routing', icon: '🎯' },
-    instant_agent: { displayName: 'InstantAgent', description: 'Zero-latency pattern responses (no LLM)', icon: '⚡' },
-    action_agent: { displayName: 'ActionAgent', description: 'Device control and action parsing', icon: '🎮' },
-    interaction_agent: { displayName: 'InteractionAgent', description: 'Complex conversations with Barnabee persona', icon: '💬' },
-    memory_agent: { displayName: 'MemoryAgent', description: 'Memory storage and retrieval', icon: '🧠' }
-};
-
-let promptsLoaded = false;
-let currentPrompt = null;
-let originalPromptContent = '';
-
-async function initPromptsPage() {
-    if (promptsLoaded) return;
-    promptsLoaded = true;
-
-    await loadPrompts();
-    setupPromptEventListeners();
-}
-
-async function loadPrompts() {
-    const grid = document.getElementById('prompts-grid');
-
-    try {
-        const response = await fetch('/api/v1/prompts/');
-        if (!response.ok) throw new Error('Failed to load prompts');
-
-        const prompts = await response.json();
-
-        grid.innerHTML = prompts.map(prompt => {
-            const info = AGENT_INFO[prompt.agent_name] || {
-                displayName: prompt.agent_name,
-                description: 'Agent prompt',
-                icon: '🤖'
-            };
-
-            return `
-                <div class="prompt-card" data-agent="${prompt.agent_name}">
-                    <div class="prompt-card-header">
-                        <span class="prompt-card-icon">${info.icon}</span>
-                        <div class="prompt-card-title">
-                            <h3>${info.displayName}</h3>
-                            <small>${info.description}</small>
-                        </div>
-                    </div>
-                    <div class="prompt-card-preview">${escapeHtml(prompt.preview)}</div>
-                    <div class="prompt-card-footer">
-                        <span class="prompt-card-version">v${prompt.version}</span>
-                        <span class="prompt-card-modified">${prompt.last_modified ? formatRelativeTime(prompt.last_modified) : 'Never modified'}</span>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        // Add click handlers
-        grid.querySelectorAll('.prompt-card').forEach(card => {
-            card.addEventListener('click', () => openPromptEditor(card.dataset.agent));
-        });
-
-    } catch (error) {
-        console.error('Failed to load prompts:', error);
-        grid.innerHTML = '<div class="loading-indicator">❌ Failed to load prompts</div>';
-    }
-}
-
-async function openPromptEditor(agentName) {
-    const modal = document.getElementById('prompt-modal');
-    const editor = document.getElementById('prompt-editor');
-
-    try {
-        const response = await fetch(`/api/v1/prompts/${agentName}`);
-        if (!response.ok) throw new Error('Failed to load prompt');
-
-        currentPrompt = await response.json();
-        originalPromptContent = currentPrompt.content;
-
-        const info = AGENT_INFO[agentName] || { displayName: agentName, description: '', icon: '🤖' };
-
-        // Update modal header
-        document.getElementById('prompt-agent-icon').textContent = info.icon;
-        document.getElementById('prompt-agent-name').textContent = info.displayName;
-        document.getElementById('prompt-agent-description').textContent = info.description;
-
-        // Update editor
-        editor.value = currentPrompt.content;
-        document.getElementById('prompt-version').textContent = currentPrompt.version;
-        updateCharCount();
-
-        modal.style.display = 'flex';
-    } catch (error) {
-        console.error('Failed to open prompt editor:', error);
-        alert('Failed to load prompt: ' + error.message);
-    }
-}
-
-function updateCharCount() {
-    const editor = document.getElementById('prompt-editor');
-    const count = editor.value.length;
-    document.getElementById('prompt-char-count').textContent = count.toLocaleString();
-}
-
-async function savePrompt() {
-    if (!currentPrompt) return;
-
-    const editor = document.getElementById('prompt-editor');
-    const content = editor.value;
-
-    if (content.length < 10) {
-        alert('Prompt must be at least 10 characters');
-        return;
-    }
-
-    try {
-        const response = await fetch(`/api/v1/prompts/${currentPrompt.agent_name}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content })
-        });
-
-        if (!response.ok) throw new Error('Failed to save prompt');
-
-        const result = await response.json();
-
-        // Update version display
-        document.getElementById('prompt-version').textContent = result.version;
-        originalPromptContent = content;
-
-        // Show success
-        const saveBtn = document.getElementById('prompt-save-btn');
-        const originalText = saveBtn.textContent;
-        saveBtn.textContent = '✅ Saved!';
-        saveBtn.disabled = true;
-        setTimeout(() => {
-            saveBtn.textContent = originalText;
-            saveBtn.disabled = false;
-        }, 2000);
-
-        // Refresh cards
-        await loadPrompts();
-
-    } catch (error) {
-        console.error('Failed to save prompt:', error);
-        alert('Failed to save prompt: ' + error.message);
-    }
-}
-
-function resetPrompt() {
-    if (!currentPrompt) return;
-
-    if (confirm('Reset to original content? This will discard unsaved changes.')) {
-        document.getElementById('prompt-editor').value = originalPromptContent;
-        updateCharCount();
-    }
-}
-
-async function showPromptHistory() {
-    if (!currentPrompt) return;
-
-    const historyModal = document.getElementById('prompt-history-modal');
-    const historyList = document.getElementById('prompt-history-list');
-
-    try {
-        const response = await fetch(`/api/v1/prompts/${currentPrompt.agent_name}/history`);
-        if (!response.ok) throw new Error('Failed to load history');
-
-        const history = await response.json();
-
-        if (history.length === 0) {
-            historyList.innerHTML = '<p class="text-muted">No history available. Prompts are saved with version history when edited.</p>';
-        } else {
-            historyList.innerHTML = history.map(item => `
-                <div class="history-item" data-version="${item.version}">
-                    <div class="history-item-header">
-                        <span class="history-item-version">Version ${item.version}</span>
-                        <span class="history-item-date">${formatRelativeTime(item.updated_at)}</span>
-                    </div>
-                    <div class="history-item-preview">${escapeHtml(item.content.slice(0, 200))}${item.content.length > 200 ? '...' : ''}</div>
-                    <div class="history-item-actions">
-                        <button class="btn btn-small btn-secondary restore-version-btn">↩️ Restore</button>
-                    </div>
-                </div>
-            `).join('');
-
-            // Add restore handlers
-            historyList.querySelectorAll('.restore-version-btn').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const item = e.target.closest('.history-item');
-                    const version = parseInt(item.dataset.version);
-
-                    if (confirm(`Restore version ${version}? Current content will be saved as a new version.`)) {
-                        await restorePromptVersion(version);
-                    }
-                });
-            });
-        }
-
-        historyModal.style.display = 'flex';
-
-    } catch (error) {
-        console.error('Failed to load history:', error);
-        alert('Failed to load history: ' + error.message);
-    }
-}
-
-async function restorePromptVersion(version) {
-    if (!currentPrompt) return;
-
-    try {
-        const response = await fetch(`/api/v1/prompts/${currentPrompt.agent_name}/restore/${version}`, {
-            method: 'POST'
-        });
-
-        if (!response.ok) throw new Error('Failed to restore version');
-
-        // Reload the prompt
-        await openPromptEditor(currentPrompt.agent_name);
-
-        // Close history modal
-        document.getElementById('prompt-history-modal').style.display = 'none';
-
-        // Refresh cards
-        await loadPrompts();
-
-        alert(`Restored version ${version}`);
-
-    } catch (error) {
-        console.error('Failed to restore version:', error);
-        alert('Failed to restore version: ' + error.message);
-    }
-}
-
-function formatRelativeTime(dateStr) {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-}
-
-function setupPromptEventListeners() {
-    // Close buttons
-    document.getElementById('close-prompt-modal')?.addEventListener('click', () => {
-        document.getElementById('prompt-modal').style.display = 'none';
-        currentPrompt = null;
-    });
-
-    document.getElementById('close-history-modal')?.addEventListener('click', () => {
-        document.getElementById('prompt-history-modal').style.display = 'none';
-    });
-
-    // Editor actions
-    document.getElementById('prompt-save-btn')?.addEventListener('click', savePrompt);
-    document.getElementById('prompt-reset-btn')?.addEventListener('click', resetPrompt);
-    document.getElementById('prompt-history-btn')?.addEventListener('click', showPromptHistory);
-
-    // Character count
-    document.getElementById('prompt-editor')?.addEventListener('input', updateCharCount);
-
-    // Close modals on backdrop click
-    document.getElementById('prompt-modal')?.addEventListener('click', (e) => {
-        if (e.target.id === 'prompt-modal') {
-            document.getElementById('prompt-modal').style.display = 'none';
-            currentPrompt = null;
-        }
-    });
-
-    document.getElementById('prompt-history-modal')?.addEventListener('click', (e) => {
-        if (e.target.id === 'prompt-history-modal') {
-            document.getElementById('prompt-history-modal').style.display = 'none';
-        }
-    });
-
-    // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            if (document.getElementById('prompt-history-modal').style.display !== 'none') {
-                document.getElementById('prompt-history-modal').style.display = 'none';
-            } else if (document.getElementById('prompt-modal').style.display !== 'none') {
-                document.getElementById('prompt-modal').style.display = 'none';
-                currentPrompt = null;
-            }
-        }
-
-        // Ctrl/Cmd + S to save
-        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-            if (document.getElementById('prompt-modal').style.display !== 'none' && currentPrompt) {
-                e.preventDefault();
-                savePrompt();
-            }
-        }
-    });
-}
 
 // Initialize logs page when navigating to it
 document.addEventListener('DOMContentLoaded', () => {
@@ -4614,12 +3869,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Initialize on first visit
                 if (!sttChart) {
                     initLogsPage();
-                }
-            }
-            if (link.dataset.page === 'prompts') {
-                // Initialize prompts page on first visit
-                if (!promptsLoaded) {
-                    initPromptsPage();
                 }
             }
             if (link.dataset.page === 'chat') {

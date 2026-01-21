@@ -36,7 +36,6 @@
             <a href="#" class="nav-link" data-page="logic">Logic</a>
             <a href="#" class="nav-link" data-page="self-improve">Self-Improve</a>
             <a href="#" class="nav-link" data-page="logs">Logs</a>
-            <a href="#" class="nav-link" data-page="prompts">Prompts</a>
             <a href="#" class="nav-link" data-page="family">Family</a>
             <a href="#" class="nav-link" data-page="entities">Entities</a>
             <a href="#" class="nav-link" data-page="config">Configuration</a>
@@ -604,68 +603,6 @@
             </div>
         </div>
 
-        <!-- System Prompts Page -->
-        <div id="page-prompts" class="page">
-            <div class="page-header">
-                <h1>🤖 Agent System Prompts</h1>
-                <p>View and edit the prompts that define each agent's behavior</p>
-            </div>
-
-            <!-- Agent Cards Grid -->
-            <div class="prompts-grid" id="prompts-grid">
-                <div class="loading-indicator">Loading prompts...</div>
-            </div>
-
-            <!-- Prompt Editor Modal -->
-            <div id="prompt-modal" class="modal" style="display: none;">
-                <div class="modal-content modal-large">
-                    <div class="modal-header">
-                        <div class="modal-title">
-                            <span id="prompt-agent-icon">🎯</span>
-                            <div>
-                                <h3 id="prompt-agent-name">Agent Prompt</h3>
-                                <span class="text-muted" id="prompt-agent-description">Description</span>
-                            </div>
-                        </div>
-                        <div class="modal-actions">
-                            <button class="btn btn-small btn-secondary" id="prompt-history-btn">📜 History</button>
-                            <button class="btn btn-small" id="close-prompt-modal">✕</button>
-                        </div>
-                    </div>
-                    <div class="modal-body">
-                        <div class="prompt-editor-container">
-                            <div class="editor-toolbar">
-                                <span class="editor-info">
-                                    <span id="prompt-char-count">0</span> characters
-                                    | Version <span id="prompt-version">1</span>
-                                </span>
-                                <div class="editor-actions">
-                                    <button class="btn btn-small btn-secondary" id="prompt-reset-btn">↩️ Reset</button>
-                                    <button class="btn btn-small btn-primary" id="prompt-save-btn">💾 Save</button>
-                                </div>
-                            </div>
-                            <textarea id="prompt-editor" class="prompt-editor"
-                                placeholder="Enter prompt content..."></textarea>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Prompt History Modal -->
-            <div id="prompt-history-modal" class="modal" style="display: none;">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>📜 Prompt History</h3>
-                        <button class="btn btn-small" id="close-history-modal">✕</button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="history-list" id="prompt-history-list">
-                            <p class="text-muted">No history available</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- Family Page -->
         <div id="page-family" class="page">
@@ -1428,11 +1365,7 @@
                     <ul class="config-nav">
                         <li class="active" data-config="providers">🤖 LLM Providers</li>
                         <li data-config="models">🧠 Model Selection</li>
-                        <li data-config="general">🔧 General Settings</li>
-                        <li data-config="voice">🎤 Voice Settings</li>
                         <li data-config="homeassistant">🏠 Home Assistant</li>
-                        <li data-config="memory">💾 Memory</li>
-                        <li data-config="advanced">⚡ Advanced</li>
                     </ul>
                 </div>
                 <div class="config-content">
@@ -1502,88 +1435,15 @@
                         </div>
                     </div>
 
-                    <div id="config-general" class="config-section">
-                        <h3>General Settings</h3>
-                        <div class="form-group">
-                            <label>Assistant Name</label>
-                            <input type="text" class="form-control" value="Barnabee">
-                        </div>
-                        <div class="form-group">
-                            <label>Wake Word</label>
-                            <input type="text" class="form-control" value="Hey Barnabee">
-                        </div>
-                        <div class="form-group">
-                            <label>Environment</label>
-                            <select class="form-control">
-                                <option value="development">Development</option>
-                                <option value="production">Production</option>
-                            </select>
-                        </div>
-                        <button class="btn btn-primary">💾 Save Settings</button>
-                    </div>
 
                     <!-- Model Selection Section -->
                     <div id="config-models" class="config-section">
                         <h3>🧠 Model Selection</h3>
-                        <p class="section-desc">Configure which models are used for each activity. Use free models
-                            during testing to save costs.</p>
+                        <p class="section-desc">Each agent uses one model configured in <code>config/llm.yaml</code>. Edit the config file to change models.</p>
 
-                        <!-- Mode Toggle -->
-                        <div class="mode-toggle-container">
-                            <div class="mode-toggle">
-                                <button class="mode-btn active" data-mode="testing" id="mode-testing">
-                                    🧪 Testing Mode
-                                    <span class="mode-desc">Free models</span>
-                                </button>
-                                <button class="mode-btn" data-mode="production" id="mode-production">
-                                    🚀 Production Mode
-                                    <span class="mode-desc">Best quality</span>
-                                </button>
-                            </div>
-                            <div class="mode-status" id="mode-status">
-                                <span class="mode-label">Current:</span>
-                                <span class="mode-value" id="current-mode-display">Testing</span>
-                            </div>
+                        <div class="agent-models-list" id="agent-models-list">
+                            <div class="loading-spinner">Loading agent models...</div>
                         </div>
-
-                        <div class="models-toolbar">
-                            <div class="models-filter">
-                                <label>
-                                    <input type="checkbox" id="show-free-only"> Show free models only
-                                </label>
-                                <span class="models-count" id="models-count-display">Loading models...</span>
-                            </div>
-                            <div class="models-actions">
-                                <button class="btn btn-small btn-auto" id="auto-select-models"
-                                    title="Use AI to select optimal models for each activity">
-                                    🤖 Auto-Select
-                                </button>
-                                <button class="btn btn-small" id="check-model-health"
-                                    title="Test which models are currently working">
-                                    🩺 Health Check
-                                </button>
-                                <button class="btn btn-small" id="refresh-models">🔄 Refresh</button>
-                            </div>
-                        </div>
-
-                        <!-- Model Health Status (hidden by default) -->
-                        <div class="model-health-status" id="model-health-status" style="display: none;">
-                            <div class="health-header">
-                                <span>Model Health Status</span>
-                                <button class="btn-close" id="close-health-status">&times;</button>
-                            </div>
-                            <div class="health-content" id="health-content">
-                                Checking models...
-                            </div>
-                        </div>
-
-                        <div class="activities-list" id="activities-list">
-                            <div class="loading-spinner">Loading activities...</div>
-                        </div>
-                    </div>
-                    <div id="config-voice" class="config-section">
-                        <h3>Voice Settings</h3>
-                        <p class="text-muted">Configure TTS and STT preferences</p>
                     </div>
                     <div id="config-homeassistant" class="config-section">
                         <h3>🏠 Home Assistant</h3>
@@ -1630,14 +1490,6 @@
                             <li>Click <strong>Test Connection</strong> to verify</li>
                             <li>Click <strong>Save</strong> to store the configuration</li>
                         </ol>
-                    </div>
-                    <div id="config-memory" class="config-section">
-                        <h3>Memory Settings</h3>
-                        <p class="text-muted">Configure memory storage and retrieval</p>
-                    </div>
-                    <div id="config-advanced" class="config-section">
-                        <h3>Advanced Settings</h3>
-                        <p class="text-muted">Advanced configuration options</p>
                     </div>
                 </div>
             </div>

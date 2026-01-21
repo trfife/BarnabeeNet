@@ -34,6 +34,74 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/config", tags=["configuration"])
 
+
+@router.get("/agents/models")
+async def get_agent_models() -> dict[str, Any]:
+    """Get the model configuration for each agent from config/llm.yaml."""
+    import yaml
+    from pathlib import Path
+    from barnabeenet.config import get_settings
+
+    # Try to read from config/llm.yaml
+    config_path = Path("config/llm.yaml")
+    if config_path.exists():
+        try:
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f)
+                agents = config.get("agents", {})
+                return {
+                    "agents": {
+                        agent: {
+                            "model": cfg.get("model", ""),
+                            "temperature": cfg.get("temperature", 0.7),
+                            "max_tokens": cfg.get("max_tokens", 1000),
+                            "description": cfg.get("description", ""),
+                        }
+                        for agent, cfg in agents.items()
+                    },
+                    "source": "config/llm.yaml",
+                }
+        except Exception as e:
+            logger.warning(f"Failed to read config/llm.yaml: {e}")
+
+    # Fall back to settings
+    settings = get_settings()
+    return {
+        "agents": {
+            "meta": {
+                "model": settings.llm.meta_model,
+                "temperature": settings.llm.meta_temperature,
+                "max_tokens": settings.llm.meta_max_tokens,
+                "description": "Fast routing decisions for every request",
+            },
+            "instant": {
+                "model": settings.llm.instant_model,
+                "temperature": settings.llm.instant_temperature,
+                "max_tokens": settings.llm.instant_max_tokens,
+                "description": "Fast responses for simple queries",
+            },
+            "action": {
+                "model": settings.llm.action_model,
+                "temperature": settings.llm.action_temperature,
+                "max_tokens": settings.llm.action_max_tokens,
+                "description": "Device control and home automation",
+            },
+            "interaction": {
+                "model": settings.llm.interaction_model,
+                "temperature": settings.llm.interaction_temperature,
+                "max_tokens": settings.llm.interaction_max_tokens,
+                "description": "Complex conversations, advice, personality",
+            },
+            "memory": {
+                "model": settings.llm.memory_model,
+                "temperature": settings.llm.memory_temperature,
+                "max_tokens": settings.llm.memory_max_tokens,
+                "description": "Memory generation and summarization",
+            },
+        },
+        "source": "settings",
+    }
+
 # Redis key for provider configs (non-secret data)
 PROVIDER_CONFIGS_KEY = "barnabeenet:provider_configs"
 
