@@ -438,7 +438,7 @@ class SelfImprovementAgent:
         detail: str | None = None,
         **data: Any,
     ) -> None:
-        """Log a self-improvement activity to the dashboard."""
+        """Log a self-improvement activity to the dashboard with clickability."""
         try:
             from barnabeenet.services.activity_log import ActivityLevel, ActivityType
 
@@ -459,6 +459,9 @@ class SelfImprovementAgent:
             activity_enum = type_map.get(activity_type, ActivityType.SELF_IMPROVE_START)
             level = ActivityLevel.ERROR if "fail" in activity_type else ActivityLevel.INFO
 
+            # Determine if this needs attention
+            needs_attention = activity_type in ("plan_proposed", "awaiting_approval")
+
             activity_logger = self._get_activity_logger()
             await activity_logger.log_quick(
                 type=activity_enum,
@@ -469,6 +472,11 @@ class SelfImprovementAgent:
                 trace_id=session.session_id,
                 session_id=session.session_id,
                 status=session.status.value,
+                # Dashboard clickability metadata
+                request_preview=session.request[:80] if session.request else None,
+                can_click=True,
+                click_target=f"/self-improve?session={session.session_id}",
+                needs_attention=needs_attention,
                 **data,
             )
         except Exception as e:
@@ -528,6 +536,62 @@ class SelfImprovementAgent:
         except Exception as e:
             logger.warning("Failed to send notification", error=str(e))
             return False
+
+    async def _notify_phase_change(
+        self,
+        session: ImprovementSession,
+        phase: str,
+        requires_attention: bool = False,
+    ) -> None:
+        """Send notification for phase changes.
+
+        Args:
+            session: The improvement session
+            phase: Current phase name
+            requires_attention: If True, notification is marked high priority
+        """
+        phase_messages = {
+            "started": ("🚀 Self-Improvement Started", f"Working on: {session.request[:60]}..."),
+            "diagnosing": ("🔍 Diagnosing Issue", "Analyzing logs and code..."),
+            "plan_proposed": (
+                "📋 Plan Ready for Review",
+                f"Review required: {session.request[:40]}...",
+            ),
+            "plan_auto_approved": (
+                "✅ Plan Auto-Approved",
+                f"Safety score passed - implementing: {session.request[:40]}...",
+            ),
+            "implementing": ("⚙️ Implementing Changes", "Claude is writing code..."),
+            "testing": ("🧪 Running Tests", "Verifying changes..."),
+            "awaiting_commit": (
+                "✅ Ready to Commit",
+                f"Review {len(session.files_modified)} changed files",
+            ),
+            "committed": (
+                "🎉 Changes Committed",
+                f"Successfully improved: {session.request[:40]}...",
+            ),
+            "failed": ("❌ Improvement Failed", session.error or "Unknown error"),
+            "stopped": ("⏹ Session Stopped", "User stopped the session"),
+        }
+
+        if phase not in phase_messages:
+            return
+
+        title, message = phase_messages[phase]
+
+        # Add action URL for phases requiring attention
+        data: dict[str, Any] = {}
+        if requires_attention:
+            title = f"⚠️ {title}"
+            data["clickAction"] = (
+                f"http://192.168.86.51:8000/?page=self-improve&session={session.session_id}"
+            )
+            data["priority"] = "high"
+            data["ttl"] = 0  # Deliver immediately
+            data["tag"] = f"si-{session.session_id}"  # Replace previous notifications
+
+        await self._send_notification(title, message, data if data else None)
 
     def _calculate_safety_score(self, plan: dict[str, Any]) -> SafetyScore:
         """Calculate a safety score for a proposed plan.
@@ -886,9 +950,11 @@ class SelfImprovementAgent:
     async def improve(
         self,
         request: str,
-        model: str = "sonnet",  # or "opus" for complex tasks
+        model: str = "opusplan",  # opusplan=Opus for planning/Sonnet for impl, opus, sonnet
         auto_approve: bool = False,
         max_turns: int = 50,
+        source: str | None = None,  # "chat", "mark_as_wrong", "direct"
+        trace_id: str | None = None,  # Link to original trace if from mark_as_wrong
     ) -> AsyncIterator[dict[str, Any]]:
         """Execute an improvement request.
 
@@ -960,13 +1026,20 @@ class SelfImprovementAgent:
             if not claude_path:
                 raise RuntimeError("Claude Code CLI not found")
 
+            # Handle opusplan mode: use opus for diagnosis, sonnet for implementation
+            diagnosis_model = model
+            implementation_model = model
+            if model == "opusplan":
+                diagnosis_model = "opus"
+                implementation_model = "sonnet"
+
             # Build Claude Code command
             # Using --print mode for non-interactive output with JSON streaming
             claude_cmd = [
                 claude_path,
                 "--print",
                 "--model",
-                model,
+                diagnosis_model,
                 "--output-format",
                 "stream-json",
                 "--verbose",  # Required for stream-json output format
@@ -1042,13 +1115,9 @@ class SelfImprovementAgent:
                                     safety_score=safety_score.to_dict(),
                                 )
 
-                                # Send notification about plan
-                                await self._send_notification(
-                                    "🤖 BarnabeeNet Plan Ready",
-                                    f"Self-improvement plan ready for: {request[:80]}...\n"
-                                    f"Safety: {safety_score.score:.0%} "
-                                    f"({'✅ Auto-approve eligible' if safety_score.can_auto_approve else '⚠️ Manual review needed'})",
-                                    data={"session_id": session_id},
+                                # Send notification about plan (requires attention)
+                                await self._notify_phase_change(
+                                    session, "plan_proposed", requires_attention=True
                                 )
 
                                 await self._emit_progress(
@@ -1125,10 +1194,7 @@ class SelfImprovementAgent:
                     )
 
                     # Notify about auto-approval
-                    await self._send_notification(
-                        "✅ Plan Auto-Approved",
-                        f"Safety score {session.safety_score.score:.0%} - implementing: {request[:60]}...",
-                    )
+                    await self._notify_phase_change(session, "plan_auto_approved")
 
                     # Skip waiting, go straight to implementation
                     approval_message = "AUTO_APPROVED based on high safety score."
@@ -1216,12 +1282,12 @@ class SelfImprovementAgent:
                     user_guidance=user_guidance,
                 )
 
-                # Build implementation command
+                # Build implementation command (uses implementation_model for opusplan mode)
                 impl_cmd = [
                     claude_path,
                     "--print",
                     "--model",
-                    model,
+                    implementation_model,
                     "--output-format",
                     "stream-json",
                     "--verbose",
@@ -1335,17 +1401,8 @@ class SelfImprovementAgent:
                     files_modified=session.files_modified,
                 )
 
-                # Send notification that changes are ready to commit
-                await self._send_notification(
-                    "📝 BarnabeeNet Changes Ready",
-                    f"Ready to commit: {files_summary}\n"
-                    f"Request: {request[:60]}...\n"
-                    "Approve or reject in dashboard.",
-                    data={
-                        "session_id": session_id,
-                        "action": "commit_ready",
-                    },
-                )
+                # Send notification that changes are ready to commit (requires attention)
+                await self._notify_phase_change(session, "awaiting_commit", requires_attention=True)
 
                 await self._emit_progress(
                     session,
@@ -1484,16 +1541,7 @@ class SelfImprovementAgent:
             )
 
             # Send notification about successful commit
-            await self._send_notification(
-                "🚀 BarnabeeNet Code Updated",
-                f"Successfully committed: {session.request[:60]}...\n"
-                f"Commit: {session.commit_hash[:8]}\n"
-                f"Files: {files_summary}",
-                data={
-                    "session_id": session_id,
-                    "commit_hash": session.commit_hash,
-                },
-            )
+            await self._notify_phase_change(session, "committed")
 
             await self._emit_progress(
                 session,
@@ -1518,6 +1566,9 @@ class SelfImprovementAgent:
                 f"❌ Commit failed: {str(e)[:50]}...",
                 detail=str(e),
             )
+
+            # Notify about failure
+            await self._notify_phase_change(session, "failed")
 
             raise
 

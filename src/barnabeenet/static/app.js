@@ -180,6 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSystemStatus();
     loadStats();
     loadTraces();
+    loadActiveSISessions();
 
     // Connect WebSocket
     connectWebSocket();
@@ -188,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(loadSystemStatus, 30000);
     setInterval(loadStats, 60000);
     setInterval(loadTraces, 10000);
+    setInterval(loadActiveSISessions, 10000);
 });
 
 // =============================================================================
@@ -1080,6 +1082,79 @@ async function loadTraces() {
     } catch (e) {
         console.error('Failed to load traces:', e);
     }
+}
+
+// Load and display active self-improvement sessions on dashboard
+async function loadActiveSISessions() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/self-improve/sessions`);
+        if (!response.ok) return;
+
+        const sessions = await response.json();
+        const container = document.getElementById('active-si-sessions');
+        if (!container) return;
+
+        // Filter to recent/active sessions (last 24 hours or not completed)
+        const recentSessions = sessions
+            .filter(s => !['completed', 'failed', 'rejected', 'stopped'].includes(s.status) ||
+                        (new Date() - new Date(s.started_at)) < 24 * 60 * 60 * 1000)
+            .slice(0, 5);
+
+        if (recentSessions.length === 0) {
+            container.innerHTML = '<p class="text-muted">No recent sessions</p>';
+            return;
+        }
+
+        container.innerHTML = recentSessions.map(session => {
+            const needsAttention = session.status === 'awaiting_plan_approval' || session.status === 'awaiting_approval';
+            const relativeTime = formatRelativeTime(session.started_at);
+            const statusIcon = {
+                'pending': '⏳',
+                'diagnosing': '🔍',
+                'awaiting_plan_approval': '📋',
+                'implementing': '⚙️',
+                'testing': '🧪',
+                'awaiting_approval': '📝',
+                'committing': '💾',
+                'completed': '✅',
+                'failed': '❌',
+                'rejected': '🚫',
+                'stopped': '⏹️'
+            }[session.status] || '❓';
+
+            return `
+                <div class="si-session-card ${session.status}" onclick="navigateToSelfImprove('${session.session_id}')">
+                    <div class="si-session-status">${statusIcon} ${session.status.replace(/_/g, ' ')}</div>
+                    <div class="si-session-request">${escapeHtml((session.request || '').substring(0, 60))}${session.request?.length > 60 ? '...' : ''}</div>
+                    <div class="si-session-time">${relativeTime}</div>
+                    ${needsAttention ? '<div class="si-needs-attention">⚠️ Needs your attention</div>' : ''}
+                </div>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Failed to load SI sessions:', error);
+    }
+}
+
+// Navigate to self-improve page and select a session
+function navigateToSelfImprove(sessionId) {
+    showPage('self-improve');
+    if (sessionId && typeof SelfImprovement !== 'undefined') {
+        SelfImprovement.activeSessionId = sessionId;
+        SelfImprovement.loadActiveSession();
+    }
+}
+
+// Helper for relative time display
+function formatRelativeTime(dateStr) {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = (now - date) / 1000;
+
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
 }
 
 function renderTraces(traces) {
@@ -4628,6 +4703,67 @@ function initChatPage() {
     // Initialize STT settings
     initSTTSettings();
 
+    // Fix This button - launch self-improvement from chat
+    const fixThisBtn = document.getElementById('chat-self-improve-btn');
+    if (fixThisBtn) {
+        fixThisBtn.addEventListener('click', async () => {
+            // Get the last exchange from chat
+            const lastUserMsg = [...chatMessages].reverse().find(m => m.role === 'user');
+            const lastAssistantMsg = [...chatMessages].reverse().find(m => m.role === 'assistant');
+
+            if (!lastUserMsg && !lastAssistantMsg) {
+                showToast('No conversation to fix', 'warning');
+                return;
+            }
+
+            // Build improvement request from chat context
+            const request = `Fix incorrect chat response:
+
+**User said:** ${lastUserMsg?.content || 'N/A'}
+
+**Barnabee responded:** ${lastAssistantMsg?.content || 'N/A'}
+
+Please investigate why this response was incorrect and propose a fix. Consider:
+- Was the intent understood correctly?
+- Was the correct action taken?
+- Was the response appropriate?`;
+
+            // Navigate to self-improvement page
+            showPage('self-improve');
+
+            // Wait for page to load
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // Submit the improvement request
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/self-improve/improve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        request: request,
+                        model: 'opusplan',
+                        auto_approve: false,
+                        source: 'chat_fix_button'
+                    }),
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const result = await response.json();
+                showToast('Self-improvement session started', 'success');
+
+                if (result.session_id && SelfImprovement) {
+                    SelfImprovement.activeSessionId = result.session_id;
+                    SelfImprovement.startStreaming(result.session_id);
+                    await SelfImprovement.loadActiveSession();
+                }
+            } catch (error) {
+                console.error('Failed to start self-improvement:', error);
+                showToast('Failed to start self-improvement: ' + error.message, 'error');
+            }
+        });
+    }
+
     console.log('Chat page initialized with voice support');
 }
 
@@ -7683,6 +7819,10 @@ window.analyzeCorrection = async function () {
 
         const analysis = await response.json();
 
+        // Store for use by fixWithSelfImprove
+        window.currentCorrectionAnalysis = analysis;
+        window.currentCorrectionExpected = expectedResult;
+
         // Show analysis results
         step1.style.display = 'none';
         step2.style.display = 'block';
@@ -7773,9 +7913,75 @@ function renderCorrectionAnalysis(analysis) {
             <button class="btn btn-warning" onclick="window.markAsWrongOnly('${analysis.trace_id}')">
                 Mark as Wrong (No Fix)
             </button>
+            <button class="btn btn-primary" onclick="window.fixWithSelfImprove('${analysis.trace_id}')">
+                🔧 Fix with Self-Improve
+            </button>
         </div>
     `;
 }
+
+// Fix with Self-Improve - launch self-improvement agent with correction context
+window.fixWithSelfImprove = async function(traceId) {
+    // Get the current correction analysis data
+    const analysis = window.currentCorrectionAnalysis;
+    if (!analysis) {
+        showToast('No analysis data available', 'error');
+        return;
+    }
+
+    // Build the improvement request from the correction context
+    const request = `Fix incorrect response behavior:
+
+**Trace ID:** ${traceId}
+**Root Cause:** ${analysis.root_cause || 'Unknown'}
+${analysis.root_cause_logic_id ? `**Problem Area:** ${analysis.root_cause_logic_id}` : ''}
+
+**User's Expected Behavior:**
+${window.currentCorrectionExpected || 'Not specified'}
+
+**Suggested Fixes from Analysis:**
+${analysis.suggestions?.map((s, i) => `${i + 1}. ${s.description}`).join('\n') || 'None'}
+
+Please investigate this issue and propose a fix that ensures the system responds correctly in similar situations.`;
+
+    // Close the correction modal
+    window.closeCorrectionModal();
+
+    // Navigate to self-improvement page
+    showPage('self-improve');
+
+    // Wait for page to load
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Submit the improvement request
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/self-improve/improve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                request: request,
+                model: 'opusplan',
+                auto_approve: false,
+                source: 'correction_modal',
+                trace_id: traceId
+            }),
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const result = await response.json();
+        showToast('Self-improvement session started', 'success');
+
+        if (result.session_id && SelfImprovement) {
+            SelfImprovement.activeSessionId = result.session_id;
+            SelfImprovement.startStreaming(result.session_id);
+            await SelfImprovement.loadActiveSession();
+        }
+    } catch (error) {
+        console.error('Failed to start self-improvement:', error);
+        showToast('Failed to start self-improvement: ' + error.message, 'error');
+    }
+};
 
 // Go back to step 1
 window.backToCorrectionStep1 = function () {
@@ -8256,6 +8462,7 @@ const SelfImprovement = {
     eventSource: null,
     pollInterval: null,
     pollingSessionId: null,
+    cliOutput: [],  // Store CLI output for copy function
 
     async init() {
         console.log('Initializing Self-Improvement page...');
@@ -8364,6 +8571,12 @@ const SelfImprovement = {
         // Hide empty state
         document.getElementById('si-empty-state')?.classList.add('hidden');
 
+        // Update timeline
+        this.updateTimeline(session.status);
+
+        // Handle action required banner
+        this.handleStatusChange(session.status, session);
+
         // Update status bar
         const statusText = document.getElementById('si-status-text');
         const requestText = document.getElementById('si-request-text');
@@ -8390,11 +8603,11 @@ const SelfImprovement = {
         const isActive = !['completed', 'failed', 'rejected', 'stopped'].includes(session.status);
         stopBtn?.classList.toggle('hidden', !isActive);
 
-        // Plan section
+        // Plan section with safety score
         const planSection = document.getElementById('si-plan-section');
         if (session.status === 'awaiting_plan_approval' && session.proposed_plan) {
             planSection?.classList.remove('hidden');
-            this.renderPlan(session.proposed_plan);
+            this.renderPlan(session.proposed_plan, session.safety_score);
         } else {
             planSection?.classList.add('hidden');
         }
@@ -8413,8 +8626,8 @@ const SelfImprovement = {
                 this.renderCliOutput(session);
             } else {
                 // Only show "waiting" if the CLI output is completely empty
-                if (!cliOutput.querySelector('.cli-thinking-line, .cli-op, .cli-status-line, .cli-message')) {
-                    cliOutput.innerHTML = '<div class="cli-waiting">Waiting for Claude to start...</div>';
+                if (!cliOutput.textContent || cliOutput.textContent.includes('Waiting')) {
+                    cliOutput.innerHTML = '<span class="cli-waiting">Waiting for Claude to start...</span>';
                 }
             }
         } else if (session.current_thinking || session.messages?.length > 0 || session.operations?.length > 0) {
@@ -8443,15 +8656,121 @@ const SelfImprovement = {
         }
     },
 
-    renderPlan(plan) {
+    // Timeline management
+    updateTimeline(status) {
+        const statusToStep = {
+            'pending': 'started',
+            'diagnosing': 'diagnosing',
+            'awaiting_plan_approval': 'plan_approval',
+            'implementing': 'implementing',
+            'testing': 'testing',
+            'awaiting_approval': 'commit_approval',
+            'committing': 'commit_approval',
+            'completed': 'completed',
+            'failed': 'completed',
+            'rejected': 'plan_approval',
+            'stopped': null
+        };
+
+        const stepOrder = ['started', 'diagnosing', 'plan_approval', 'implementing', 'testing', 'commit_approval', 'completed'];
+        const currentStep = statusToStep[status];
+        const currentIndex = stepOrder.indexOf(currentStep);
+
+        // Update each step
+        document.querySelectorAll('.timeline-step').forEach(el => {
+            const step = el.dataset.step;
+            const stepIndex = stepOrder.indexOf(step);
+
+            el.classList.remove('completed', 'active', 'needs-attention', 'failed');
+
+            if (status === 'failed') {
+                if (stepIndex < currentIndex) el.classList.add('completed');
+                else if (stepIndex === currentIndex) el.classList.add('failed');
+            } else if (stepIndex < currentIndex) {
+                el.classList.add('completed');
+            } else if (stepIndex === currentIndex) {
+                el.classList.add('active');
+                if (status === 'awaiting_plan_approval' || status === 'awaiting_approval') {
+                    el.classList.add('needs-attention');
+                }
+            }
+        });
+
+        // Update connectors
+        document.querySelectorAll('.timeline-connector').forEach((el, idx) => {
+            el.classList.toggle('completed', idx < currentIndex);
+        });
+    },
+
+    // Action Required Banner
+    showActionRequired(type, session) {
+        const banner = document.getElementById('si-action-required');
+        const title = document.getElementById('action-required-title');
+        const desc = document.getElementById('action-required-description');
+        const buttons = document.getElementById('action-required-buttons');
+
+        banner?.classList.remove('hidden');
+
+        switch(type) {
+            case 'plan_approval':
+                title.textContent = '📋 Plan Review Required';
+                desc.textContent = 'Claude has proposed a plan. Review and approve or reject.';
+                buttons.innerHTML = `
+                    <button class="btn btn-success btn-sm" onclick="SelfImprovement.approvePlan()">✓ Approve Plan</button>
+                    <button class="btn btn-danger btn-sm" onclick="SelfImprovement.rejectPlan()">✗ Reject</button>
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('si-plan-section').scrollIntoView({behavior:'smooth'})">View Plan ↓</button>
+                `;
+                break;
+
+            case 'commit_approval':
+                title.textContent = '✅ Ready to Commit';
+                desc.textContent = `Changes ready: ${session?.files_modified?.length || 0} files modified`;
+                buttons.innerHTML = `
+                    <button class="btn btn-success btn-sm" onclick="SelfImprovement.approveSession()">✓ Commit Changes</button>
+                    <button class="btn btn-danger btn-sm" onclick="SelfImprovement.rejectSession()">✗ Reject</button>
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('si-commit-section').scrollIntoView({behavior:'smooth'})">View Diff ↓</button>
+                `;
+                break;
+
+            default:
+                banner?.classList.add('hidden');
+        }
+    },
+
+    hideActionRequired() {
+        document.getElementById('si-action-required')?.classList.add('hidden');
+    },
+
+    handleStatusChange(status, session) {
+        this.updateTimeline(status);
+
+        if (status === 'awaiting_plan_approval') {
+            this.showActionRequired('plan_approval', session);
+        } else if (status === 'awaiting_approval') {
+            this.showActionRequired('commit_approval', session);
+        } else {
+            this.hideActionRequired();
+        }
+    },
+
+    renderPlan(plan, safetyScore) {
         const content = document.getElementById('si-plan-content');
         if (!content) return;
+
+        // Update safety score badge
+        const safetyEl = document.getElementById('si-safety-score');
+        if (safetyEl && safetyScore) {
+            const scoreClass = safetyScore.score >= 0.8 ? 'safe' : safetyScore.score >= 0.6 ? 'caution' : 'risky';
+            safetyEl.className = `si-safety-score ${scoreClass}`;
+            safetyEl.textContent = `Safety: ${Math.round(safetyScore.score * 100)}%`;
+            safetyEl.title = safetyScore.reasons?.join(', ') || '';
+        }
 
         content.innerHTML = `
             <div class="plan-field"><label>Issue:</label><div>${this.escapeHtml(plan.issue || 'N/A')}</div></div>
             <div class="plan-field"><label>Root Cause:</label><div>${this.escapeHtml(plan.root_cause || 'N/A')}</div></div>
             <div class="plan-field"><label>Proposed Fix:</label><div>${this.escapeHtml(plan.proposed_fix || 'N/A')}</div></div>
-            <div class="plan-field"><label>Files:</label><div>${this.escapeHtml(plan.files_affected || 'N/A')}</div></div>
+            <div class="plan-field"><label>Files:</label><div>${this.escapeHtml(Array.isArray(plan.files_affected) ? plan.files_affected.join(', ') : (plan.files_affected || 'N/A'))}</div></div>
             <div class="plan-field risks"><label>Risks:</label><div>${this.escapeHtml(plan.risks || 'None')}</div></div>
             <div class="plan-field"><label>Tests:</label><div>${this.escapeHtml(plan.tests || 'N/A')}</div></div>
         `;
@@ -8466,28 +8785,42 @@ const SelfImprovement = {
         // Add messages (Claude's explanations)
         if (session.messages?.length > 0) {
             for (const msg of session.messages) {
-                html += `<div class="cli-message">${this.escapeHtml(msg.content || '')}</div>\n`;
+                html += `<span class="cli-line stdout">${this.escapeHtml(msg.content || '')}</span>\n`;
             }
         }
 
         // Add operations (tool uses)
         if (session.operations?.length > 0) {
             for (const op of session.operations) {
-                html += `<div class="cli-op">
-                    <span class="cli-op-type">[${op.operation_type}]</span>
-                    ${op.command ? `<span class="cli-op-cmd">${this.escapeHtml(op.command)}</span>` : ''}
-                    ${op.file_path ? `<span class="cli-op-file">${this.escapeHtml(op.file_path)}</span>` : ''}
-                </div>\n`;
+                html += `<span class="cli-line json-event">[${op.operation_type}] ${op.command ? this.escapeHtml(op.command) : ''} ${op.file_path ? this.escapeHtml(op.file_path) : ''}</span>\n`;
             }
         }
 
         // Add current thinking
         if (session.current_thinking) {
-            html += `<pre class="cli-thinking">${this.escapeHtml(session.current_thinking)}</pre>`;
+            html += `<span class="cli-thinking">${this.escapeHtml(session.current_thinking)}</span>`;
         }
 
-        output.innerHTML = html || '<div class="cli-empty">No output yet</div>';
-        output.scrollTop = output.scrollHeight;
+        output.innerHTML = html || '<span class="cli-empty">No output yet</span>';
+        
+        // Auto-scroll if enabled
+        if (document.getElementById('cli-auto-scroll')?.checked) {
+            const terminal = document.getElementById('cli-terminal');
+            if (terminal) terminal.scrollTop = terminal.scrollHeight;
+        }
+    },
+
+    // CLI output helpers
+    clearCLI() {
+        const output = document.getElementById('si-cli-output');
+        if (output) output.innerHTML = '';
+        this.cliOutput = [];
+    },
+
+    copyCLI() {
+        const text = this.cliOutput.map(d => d.line || d).join('\n');
+        navigator.clipboard.writeText(text || document.getElementById('si-cli-output')?.textContent || '');
+        showToast({ title: 'Copied', message: 'CLI output copied to clipboard', type: 'success' });
     },
 
     startStreaming(sessionId) {

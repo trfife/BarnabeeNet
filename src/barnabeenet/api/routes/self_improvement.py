@@ -33,9 +33,11 @@ class ImprovementRequest(BaseModel):
     """Request to improve the codebase."""
 
     request: str = Field(..., description="Natural language description of what to improve")
-    model: str = Field("sonnet", description="Model to use: 'sonnet' or 'opus'")
+    model: str = Field("opusplan", description="Model: 'opusplan' (auto), 'sonnet', or 'opus'")
     auto_approve: bool = Field(False, description="Auto-commit without approval (dangerous!)")
     max_turns: int = Field(50, description="Maximum Claude Code turns")
+    source: str | None = Field(None, description="Source: 'chat', 'mark_as_wrong', 'direct'")
+    trace_id: str | None = Field(None, description="Original trace ID if from mark_as_wrong")
 
 
 class SessionResponse(BaseModel):
@@ -114,6 +116,8 @@ async def start_improvement(req: ImprovementRequest) -> dict[str, Any]:
             model=req.model,
             auto_approve=req.auto_approve,
             max_turns=req.max_turns,
+            source=req.source,
+            trace_id=req.trace_id,
         ):
             pass  # Events are broadcast via Redis
 
@@ -155,6 +159,8 @@ async def start_improvement_stream(req: ImprovementRequest) -> StreamingResponse
             model=req.model,
             auto_approve=req.auto_approve,
             max_turns=req.max_turns,
+            source=req.source,
+            trace_id=req.trace_id,
         ):
             yield f"data: {json.dumps(event)}\n\n"
 
@@ -345,6 +351,63 @@ async def stream_session(session_id: str) -> StreamingResponse:
             "X-Accel-Buffering": "no",  # Disable nginx buffering
         },
     )
+
+
+@router.get("/sessions/{session_id}/cli-output")
+async def get_cli_output(session_id: str) -> dict[str, Any]:
+    """Get the full CLI output for a session.
+
+    Returns all messages, operations, and thinking from Claude Code.
+    Useful for displaying full terminal history.
+    """
+    agent = await get_self_improvement_agent()
+    session = agent.get_session(session_id)
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session_dict = session.to_dict()
+
+    # Build CLI output array
+    cli_output = []
+
+    # Add messages
+    for msg in session_dict.get("messages", []):
+        cli_output.append(
+            {
+                "type": "message",
+                "content": msg.get("content", ""),
+                "role": msg.get("role", "assistant"),
+            }
+        )
+
+    # Add operations
+    for op in session_dict.get("operations", []):
+        cli_output.append(
+            {
+                "type": "operation",
+                "operation_type": op.get("operation_type"),
+                "command": op.get("command"),
+                "file_path": op.get("file_path"),
+                "result": op.get("result"),
+            }
+        )
+
+    # Add current thinking if present
+    if session_dict.get("current_thinking"):
+        cli_output.append(
+            {
+                "type": "thinking",
+                "content": session_dict["current_thinking"],
+            }
+        )
+
+    return {
+        "session_id": session_id,
+        "status": session_dict.get("status"),
+        "cli_output": cli_output,
+        "total_items": len(cli_output),
+    }
 
 
 @router.get("/cost-report", response_model=CostReport)

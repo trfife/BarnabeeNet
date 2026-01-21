@@ -191,6 +191,17 @@
                 </div>
             </div>
 
+            <!-- Active Self-Improvement Sessions -->
+            <div class="card" id="active-si-sessions-card">
+                <div class="card-header">
+                    <h3>🔧 Self-Improvement Sessions</h3>
+                    <button class="btn btn-primary btn-small" onclick="showPage('self-improve')">View All</button>
+                </div>
+                <div class="card-body" id="active-si-sessions">
+                    <p class="text-muted">No active sessions</p>
+                </div>
+            </div>
+
             <!-- Trace Detail Modal -->
             <div id="trace-modal" class="modal" style="display: none;">
                 <div class="modal-content">
@@ -276,6 +287,13 @@
                             autocomplete="off">
                         <button id="chat-send-btn" class="chat-send-btn" title="Send message">
                             <span class="send-icon">➤</span>
+                        </button>
+                    </div>
+                    <!-- Quick action buttons below chat -->
+                    <div class="chat-quick-actions">
+                        <button class="btn btn-secondary btn-sm" id="chat-self-improve-btn"
+                                title="Send to Self-Improvement Agent">
+                            🔧 Fix This
                         </button>
                     </div>
                     <div class="chat-voice-indicator" id="chat-voice-indicator">
@@ -1230,9 +1248,59 @@
 
         <!-- Self-Improve Page -->
         <div id="page-self-improve" class="page">
+            <!-- Action Required Banner (sticky at top) -->
+            <div id="si-action-required" class="si-action-required hidden">
+                <div class="action-banner">
+                    <span class="action-icon">⚠️</span>
+                    <span class="action-title" id="action-required-title">Action Required</span>
+                    <span class="action-description" id="action-required-description"></span>
+                    <div class="action-buttons" id="action-required-buttons"></div>
+                </div>
+            </div>
+
+            <!-- Progress Timeline -->
+            <div class="si-timeline-container" id="si-timeline-container">
+                <div class="si-timeline" id="si-timeline">
+                    <div class="timeline-step" data-step="started">
+                        <div class="step-dot"></div>
+                        <div class="step-label">Started</div>
+                    </div>
+                    <div class="timeline-connector"></div>
+                    <div class="timeline-step" data-step="diagnosing">
+                        <div class="step-dot"></div>
+                        <div class="step-label">Diagnosing</div>
+                    </div>
+                    <div class="timeline-connector"></div>
+                    <div class="timeline-step" data-step="plan_approval">
+                        <div class="step-dot"></div>
+                        <div class="step-label">Plan Review</div>
+                    </div>
+                    <div class="timeline-connector"></div>
+                    <div class="timeline-step" data-step="implementing">
+                        <div class="step-dot"></div>
+                        <div class="step-label">Implementing</div>
+                    </div>
+                    <div class="timeline-connector"></div>
+                    <div class="timeline-step" data-step="testing">
+                        <div class="step-dot"></div>
+                        <div class="step-label">Testing</div>
+                    </div>
+                    <div class="timeline-connector"></div>
+                    <div class="timeline-step" data-step="commit_approval">
+                        <div class="step-dot"></div>
+                        <div class="step-label">Commit</div>
+                    </div>
+                    <div class="timeline-connector"></div>
+                    <div class="timeline-step" data-step="completed">
+                        <div class="step-dot"></div>
+                        <div class="step-label">Done</div>
+                    </div>
+                </div>
+            </div>
+
             <div class="page-header">
                 <h1>🔧 Self-Improvement Agent</h1>
-                <p>Opus 4.5-powered autonomous code improvements with human oversight</p>
+                <p>Claude Code-powered autonomous code improvements with human oversight</p>
             </div>
 
             <div class="self-improvement-panel">
@@ -1259,6 +1327,7 @@
                     <div id="si-plan-section" class="si-section hidden">
                         <div class="si-section-header">
                             <h4>📋 Proposed Plan</h4>
+                            <div id="si-safety-score" class="si-safety-score"></div>
                         </div>
                         <div id="si-plan-content" class="si-plan-content"></div>
                         <div class="si-plan-actions">
@@ -1271,13 +1340,27 @@
                         </div>
                     </div>
 
-                    <!-- CLI Output Section -->
-                    <div id="si-cli-section" class="si-section hidden">
+                    <!-- CLI Output Section (Full Terminal View) -->
+                    <div id="si-cli-section" class="si-section si-cli-full hidden">
                         <div class="si-section-header">
-                            <h4>💻 Claude CLI Output</h4>
-                            <span id="si-cli-status" class="si-cli-status"></span>
+                            <h4>💻 Claude Code CLI Output</h4>
+                            <div class="cli-controls">
+                                <label class="toggle-label">
+                                    <input type="checkbox" id="cli-auto-scroll" checked>
+                                    Auto-scroll
+                                </label>
+                                <label class="toggle-label">
+                                    <input type="checkbox" id="cli-show-stderr" checked>
+                                    Show stderr
+                                </label>
+                                <button class="btn btn-sm" onclick="SelfImprovement.clearCLI()">Clear</button>
+                                <button class="btn btn-sm" onclick="SelfImprovement.copyCLI()">Copy</button>
+                                <span id="si-cli-status" class="si-cli-status"></span>
+                            </div>
                         </div>
-                        <div id="si-cli-output" class="si-cli-output"></div>
+                        <div class="cli-terminal" id="cli-terminal">
+                            <pre id="si-cli-output"></pre>
+                        </div>
                     </div>
 
                     <!-- Commit Section -->
@@ -1307,12 +1390,16 @@
                             rows="6"></textarea>
                         <div class="model-select">
                             <label>
-                                <input type="radio" name="si-model" value="sonnet" checked>
-                                Sonnet 4 (faster, $3/$15 per 1M tokens)
+                                <input type="radio" name="si-model" value="opusplan" checked>
+                                🔄 Auto (opusplan) - Opus for planning, Sonnet for implementation
                             </label>
                             <label>
                                 <input type="radio" name="si-model" value="opus">
-                                Opus 4 (more capable, $15/$75 per 1M tokens)
+                                🧠 Opus 4.5 - Best reasoning (slower, uses more quota)
+                            </label>
+                            <label>
+                                <input type="radio" name="si-model" value="sonnet">
+                                ⚡ Sonnet 4.5 - Fast and capable
                             </label>
                         </div>
                         <div class="modal-actions">
