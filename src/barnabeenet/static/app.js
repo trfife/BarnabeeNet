@@ -8392,19 +8392,28 @@ const SelfImprovement = {
             planSection?.classList.add('hidden');
         }
 
-        // CLI output section - always show if we have content
+        // CLI output section - always show for active sessions
         const cliSection = document.getElementById('si-cli-section');
         const cliOutput = document.getElementById('si-cli-output');
         const cliStatus = document.getElementById('si-cli-status');
         
-        if (session.current_thinking || session.messages?.length > 0 || session.operations?.length > 0) {
+        if (isActive) {
             cliSection?.classList.remove('hidden');
-            cliStatus.textContent = isActive ? '(live)' : '';
+            cliStatus.textContent = '(live)';
+            
+            // Only render full output if there's existing content (not when streaming is active)
+            if (session.current_thinking || session.messages?.length > 0 || session.operations?.length > 0) {
+                this.renderCliOutput(session);
+            } else {
+                // Only show "waiting" if the CLI output is completely empty
+                if (!cliOutput.querySelector('.cli-thinking-line, .cli-op, .cli-status-line, .cli-message')) {
+                    cliOutput.innerHTML = '<div class="cli-waiting">Waiting for Claude to start...</div>';
+                }
+            }
+        } else if (session.current_thinking || session.messages?.length > 0 || session.operations?.length > 0) {
+            cliSection?.classList.remove('hidden');
+            cliStatus.textContent = '';
             this.renderCliOutput(session);
-        } else if (isActive) {
-            cliSection?.classList.remove('hidden');
-            cliStatus.textContent = '(waiting...)';
-            cliOutput.innerHTML = '<div class="cli-waiting">Waiting for Claude to start...</div>';
         } else {
             cliSection?.classList.add('hidden');
         }
@@ -8479,7 +8488,20 @@ const SelfImprovement = {
             this.eventSource.close();
         }
 
-        this.eventSource = new EventSource(`${API_BASE}/api/v1/self-improve/sessions/${sessionId}/stream`);
+        // Clear any existing poll interval
+        if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+        }
+
+        const streamUrl = `${API_BASE}/api/v1/self-improve/sessions/${sessionId}/stream`;
+        console.log('Starting SSE stream:', streamUrl);
+
+        this.eventSource = new EventSource(streamUrl);
+
+        this.eventSource.onopen = () => {
+            console.log('SSE connection opened');
+        };
 
         this.eventSource.onmessage = (event) => {
             try {
@@ -8490,17 +8512,40 @@ const SelfImprovement = {
             }
         };
 
-        this.eventSource.onerror = () => {
-            // SSE will auto-reconnect
+        this.eventSource.onerror = (e) => {
+            console.error('SSE error, falling back to polling:', e);
+            this.eventSource.close();
+            this.eventSource = null;
+            // Fall back to polling
+            this.startPolling(sessionId);
         };
     },
 
-    handleStreamEvent(event) {
-        console.log('Stream event:', event.event_type);
+    startPolling(sessionId) {
+        console.log('Starting polling fallback for session:', sessionId);
+        
+        // Poll every 2 seconds
+        this.pollInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/self-improve/sessions/${sessionId}`);
+                if (response.ok) {
+                    const session = await response.json();
+                    this.renderSession(session);
+                    
+                    // Stop polling if session is complete
+                    if (['completed', 'failed', 'rejected', 'stopped'].includes(session.status)) {
+                        clearInterval(this.pollInterval);
+                        this.pollInterval = null;
+                    }
+                }
+            } catch (e) {
+                console.error('Poll failed:', e);
+            }
+        }, 2000);
+    },
 
-        if (event.session) {
-            this.renderSession(event.session);
-        }
+    handleStreamEvent(event) {
+        console.log('Stream event:', event.event_type, event);
 
         switch (event.event_type) {
             case 'init':
@@ -8510,6 +8555,13 @@ const SelfImprovement = {
                 break;
             case 'thinking':
                 this.appendCliOutput(`<div class="cli-thinking-line">${this.escapeHtml(event.text)}</div>`);
+                break;
+            case 'diagnosing':
+                // Status update during diagnosis
+                this.appendCliOutput(`<div class="cli-status-line">📋 ${this.escapeHtml(event.message || 'Diagnosing...')}</div>`);
+                break;
+            case 'started':
+                this.appendCliOutput(`<div class="cli-status-line">🚀 Started on branch: ${this.escapeHtml(event.branch || '')}</div>`);
                 break;
             case 'tool_use':
                 this.appendCliOutput(`<div class="cli-op"><span class="cli-op-type">[${event.tool}]</span> ${this.escapeHtml(event.input_preview || '')}</div>`);

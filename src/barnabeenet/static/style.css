@@ -9610,6 +9610,11 @@ textarea:focus-visible {
     color: var(--text-secondary);
 }
 
+.cli-status-line {
+    color: var(--accent-secondary);
+    padding: 0.25rem 0;
+}
+
 /* Commit Section */
 .si-changes-summary {
     margin-bottom: 1rem;
