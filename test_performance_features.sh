@@ -51,9 +51,9 @@ echo "   First request latency: ${LATENCY1}ms"
 if echo "$RESP1" | grep -q "response"; then
     RESPONSE1=$(echo "$RESP1" | grep -o '"response":"[^"]*' | cut -d'"' -f4)
     echo "   Response: ${RESPONSE1:0:60}..."
-    
+
     sleep 0.5
-    
+
     echo "   Making identical request (should hit cache)..."
     START2=$(date +%s%N)
     RESP2=$(curl -s -X POST "${API_BASE}/chat" \
@@ -62,7 +62,7 @@ if echo "$RESP1" | grep -q "response"; then
     END2=$(date +%s%N)
     LATENCY2=$(( (END2 - START2) / 1000000 ))
     echo "   Second request latency: ${LATENCY2}ms"
-    
+
     if [ $LATENCY2 -lt $((LATENCY1 / 2)) ]; then
         echo "   ✅ Cache working! (${LATENCY2}ms vs ${LATENCY1}ms)"
         test_result 0
@@ -82,7 +82,7 @@ for TEXT in "What time is it?" "What's the date?" "Hello"; do
     RESP=$(curl -s -X POST "${API_BASE}/chat" \
         -H "Content-Type: application/json" \
         -d "{\"text\": \"${TEXT}\", \"speaker\": \"thom\"}")
-    
+
     if echo "$RESP" | grep -q "response"; then
         AGENT=$(echo "$RESP" | grep -o '"agent":"[^"]*' | cut -d'"' -f4)
         RESPONSE=$(echo "$RESP" | grep -o '"response":"[^"]*' | cut -d'"' -f4)
@@ -124,13 +124,13 @@ if echo "$RESP1" | grep -q "response"; then
     RESPONSE1=$(echo "$RESP1" | grep -o '"response":"[^"]*' | cut -d'"' -f4)
     echo "   Q1: Tell me a fun fact about space"
     echo "   A1: ${RESPONSE1:0:80}..."
-    
+
     sleep 0.5
-    
+
     RESP2=$(curl -s -X POST "${API_BASE}/chat" \
         -H "Content-Type: application/json" \
         -d "{\"text\": \"Tell me more about that\", \"speaker\": \"thom\", \"room\": \"office\", \"conversation_id\": \"${CONV_ID}\"}")
-    
+
     if echo "$RESP2" | grep -q "response"; then
         RESPONSE2=$(echo "$RESP2" | grep -o '"response":"[^"]*' | cut -d'"' -f4)
         echo "   Q2: Tell me more about that"
@@ -155,12 +155,12 @@ for i in {1..12}; do
     RESP=$(curl -s -X POST "${API_BASE}/chat" \
         -H "Content-Type: application/json" \
         -d "{\"text\": \"${TEXT}\", \"speaker\": \"thom\", \"room\": \"office\", \"conversation_id\": \"${CONV_ID}\"}")
-    
+
     if echo "$RESP" | grep -q "response"; then
         if [ -z "$CONV_ID" ]; then
             CONV_ID=$(echo "$RESP" | grep -o '"conversation_id":"[^"]*' | cut -d'"' -f4)
         fi
-        
+
         if [ $i -le 3 ] || [ $i -ge 10 ]; then
             RESPONSE=$(echo "$RESP" | grep -o '"response":"[^"]*' | cut -d'"' -f4)
             echo "   Turn ${i}: ${RESPONSE:0:50}..."
@@ -170,7 +170,7 @@ for i in {1..12}; do
         test_result 1
         break
     fi
-    
+
     sleep 0.3
 done
 echo "   ✅ Long conversation completed"
@@ -186,17 +186,17 @@ RESP1=$(curl -s -X POST "${API_BASE}/chat" \
 if echo "$RESP1" | grep -q "response"; then
     CONV_ID1=$(echo "$RESP1" | grep -o '"conversation_id":"[^"]*' | cut -d'"' -f4)
     echo "   Created conversation: ${CONV_ID1}"
-    
+
     sleep 2
-    
+
     RESP2=$(curl -s -X POST "${API_BASE}/chat" \
         -H "Content-Type: application/json" \
         -d '{"text": "Remember what we were talking about earlier?", "speaker": "thom", "room": "office"}')
-    
+
     if echo "$RESP2" | grep -q "response"; then
         RESPONSE2=$(echo "$RESP2" | grep -o '"response":"[^"]*' | cut -d'"' -f4)
         echo "   Recall response: ${RESPONSE2:0:100}..."
-        
+
         if echo "$RESPONSE2" | grep -qi "thermostat\|found"; then
             echo "   ✅ Conversation recall working"
             test_result 0
@@ -223,17 +223,17 @@ RESP1=$(curl -s -X POST "${API_BASE}/chat" \
 if echo "$RESP1" | grep -q "response"; then
     RESPONSE1=$(echo "$RESP1" | grep -o '"response":"[^"]*' | cut -d'"' -f4)
     echo "   Stored: ${RESPONSE1:0:80}..."
-    
+
     sleep 1
-    
+
     RESP2=$(curl -s -X POST "${API_BASE}/chat" \
         -H "Content-Type: application/json" \
         -d '{"text": "What temperature do I prefer?", "speaker": "thom", "room": "office"}')
-    
+
     if echo "$RESP2" | grep -q "response"; then
         RESPONSE2=$(echo "$RESP2" | grep -o '"response":"[^"]*' | cut -d'"' -f4)
         echo "   Retrieved: ${RESPONSE2:0:100}..."
-        
+
         if echo "$RESPONSE2" | grep -qi "68\|temperature"; then
             echo "   ✅ Memory storage and retrieval working"
             test_result 0
@@ -257,7 +257,7 @@ for TEXT in "Turn on the lights" "What'\''s the weather?" "What time is it?"; do
     RESP=$(curl -s -X POST "${API_BASE}/chat" \
         -H "Content-Type: application/json" \
         -d "{\"text\": \"${TEXT}\", \"speaker\": \"thom\"}")
-    
+
     if echo "$RESP" | grep -q "response"; then
         INTENT=$(echo "$RESP" | grep -o '"intent":"[^"]*' | cut -d'"' -f4)
         AGENT=$(echo "$RESP" | grep -o '"agent":"[^"]*' | cut -d'"' -f4)

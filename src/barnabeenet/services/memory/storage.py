@@ -8,6 +8,7 @@ Provides:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -42,6 +43,8 @@ class MemoryStorageConfig:
     memory_prefix: str = "barnabeenet:memory:"
     memory_index_name: str = "barnabeenet:memory:idx"
     embedding_prefix: str = "barnabeenet:embedding:"
+    embedding_cache_prefix: str = "barnabeenet:embedding_cache:"
+    embedding_cache_ttl: int = 86400 * 7  # 7 days
 
     # Retrieval settings
     max_retrieval_results: int = 10
@@ -135,6 +138,7 @@ class MemoryStorage:
         self._memory_fallback: dict[str, StoredMemory] = {}
         self._embedding_fallback: dict[str, NDArray[np.float32]] = {}
         self._working_memory_fallback: dict[str, dict[str, Any]] = {}
+        self._embedding_cache_fallback: dict[str, NDArray[np.float32]] = {}
 
         self._initialized = False
         self._use_redis = False
@@ -318,7 +322,12 @@ class MemoryStorage:
             logger.debug(f"Stored memory (embedding generating in background): {memory.id} ({memory_type})")
         else:
             # Generate embedding synchronously (for backward compatibility)
-            embedding = await self._embedding_service.embed(content)
+            # Check cache first
+            embedding = await self._get_cached_embedding(content)
+            if embedding is None:
+                embedding = await self._embedding_service.embed(content)
+                # Cache it
+                await self._cache_embedding(content, embedding)
             memory.embedding = embedding
 
             # Store with embedding
@@ -331,11 +340,48 @@ class MemoryStorage:
 
         return memory
 
+    def _get_text_hash(self, text: str) -> str:
+        """Get SHA256 hash of normalized text for caching."""
+        # Normalize text (lowercase, strip whitespace)
+        normalized = text.lower().strip()
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    async def _get_cached_embedding(self, text: str) -> NDArray[np.float32] | None:
+        """Get cached embedding for text if available."""
+        text_hash = self._get_text_hash(text)
+        cache_key = f"{self.config.embedding_cache_prefix}{text_hash}"
+
+        if self._use_redis and self._redis:
+            emb_bytes = await self._redis.get(cache_key)
+            if emb_bytes:
+                return np.frombuffer(emb_bytes, dtype=np.float32)
+        else:
+            return self._embedding_cache_fallback.get(text_hash)
+
+        return None
+
+    async def _cache_embedding(self, text: str, embedding: NDArray[np.float32]) -> None:
+        """Cache embedding for text."""
+        text_hash = self._get_text_hash(text)
+        cache_key = f"{self.config.embedding_cache_prefix}{text_hash}"
+
+        if self._use_redis and self._redis:
+            await self._redis.setex(
+                cache_key, self.config.embedding_cache_ttl, embedding.tobytes()
+            )
+        else:
+            self._embedding_cache_fallback[text_hash] = embedding
+
     async def _generate_and_store_embedding(self, memory_id: str, content: str) -> None:
         """Generate embedding in background and update memory record."""
         try:
-            # Generate embedding
-            embedding = await self._embedding_service.embed(content)
+            # Check cache first
+            embedding = await self._get_cached_embedding(content)
+            if embedding is None:
+                # Generate embedding
+                embedding = await self._embedding_service.embed(content)
+                # Cache it
+                await self._cache_embedding(content, embedding)
 
             # Update memory with embedding
             memory = await self.get_memory(memory_id)
@@ -503,8 +549,12 @@ class MemoryStorage:
         max_results = max_results or self.config.max_retrieval_results
         min_score = min_score or self.config.min_similarity_score
 
-        # Generate query embedding
-        query_embedding = await self._embedding_service.embed(query)
+        # Generate query embedding (check cache first)
+        query_embedding = await self._get_cached_embedding(query)
+        if query_embedding is None:
+            query_embedding = await self._embedding_service.embed(query)
+            # Cache it
+            await self._cache_embedding(query, query_embedding)
 
         if self._use_redis and self._redis:
             return await self._search_memories_redis(

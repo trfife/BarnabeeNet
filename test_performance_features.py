@@ -52,18 +52,18 @@ async def test_llm_caching():
         )
         latency1 = (time.time() - start1) * 1000
         print(f"   First request latency: {latency1:.0f}ms")
-        
+
         if resp1.status_code != 200:
             print(f"   ❌ First request failed: {resp1.status_code}")
             return False
-        
+
         data1 = resp1.json()
         response1 = data1.get("response", "")
         print(f"   Response: {response1[:100]}...")
-        
+
         # Wait a moment
         await asyncio.sleep(0.5)
-        
+
         # Second identical request (should hit cache)
         print("   Making identical request (should hit cache)...")
         start2 = time.time()
@@ -77,14 +77,14 @@ async def test_llm_caching():
         )
         latency2 = (time.time() - start2) * 1000
         print(f"   Second request latency: {latency2:.0f}ms")
-        
+
         if resp2.status_code != 200:
             print(f"   ❌ Second request failed: {resp2.status_code}")
             return False
-        
+
         data2 = resp2.json()
         response2 = data2.get("response", "")
-        
+
         # Check if cached (should be faster and same response)
         if latency2 < latency1 * 0.5:  # Cache should be at least 2x faster
             print(f"   ✅ Cache working! ({latency2:.0f}ms vs {latency1:.0f}ms)")
@@ -105,7 +105,7 @@ async def test_instant_agent():
             "What's the date?",
             "Hello",
         ]
-        
+
         for text in test_cases:
             start = time.time()
             resp = await client.post(
@@ -116,7 +116,7 @@ async def test_instant_agent():
                 },
             )
             latency = (time.time() - start) * 1000
-            
+
             if resp.status_code == 200:
                 data = resp.json()
                 agent = data.get("agent", "unknown")
@@ -125,7 +125,7 @@ async def test_instant_agent():
             else:
                 print(f"   ❌ Failed: {resp.status_code}")
                 return False
-        
+
         print("   ✅ Instant Agent working")
         return True
 
@@ -143,7 +143,7 @@ async def test_action_agent():
                 "room": "living_room",
             },
         )
-        
+
         if resp.status_code == 200:
             data = resp.json()
             agent = data.get("agent", "unknown")
@@ -163,7 +163,7 @@ async def test_interaction_agent():
     async with httpx.AsyncClient(timeout=30.0) as client:
         # Start a conversation
         conversation_id = None
-        
+
         # First message
         resp1 = await client.post(
             f"{API_BASE}/chat",
@@ -173,17 +173,17 @@ async def test_interaction_agent():
                 "room": "office",
             },
         )
-        
+
         if resp1.status_code != 200:
             print(f"   ❌ First message failed: {resp1.status_code}")
             return False
-        
+
         data1 = resp1.json()
         conversation_id = data1.get("conversation_id")
         response1 = data1.get("response", "")
         print(f"   Q1: Tell me a fun fact about space")
         print(f"   A1: {response1[:100]}...")
-        
+
         # Follow-up message (should use context)
         await asyncio.sleep(0.5)
         resp2 = await client.post(
@@ -195,7 +195,7 @@ async def test_interaction_agent():
                 "conversation_id": conversation_id,
             },
         )
-        
+
         if resp2.status_code == 200:
             data2 = resp2.json()
             response2 = data2.get("response", "")
@@ -213,7 +213,7 @@ async def test_context_window_management():
     print("\n[6] Testing Context Window Management...")
     async with httpx.AsyncClient(timeout=60.0) as client:
         conversation_id = None
-        
+
         # Create a long conversation (10+ turns to trigger summarization)
         print("   Creating long conversation (10+ turns)...")
         for i in range(12):
@@ -227,20 +227,20 @@ async def test_context_window_management():
                     "conversation_id": conversation_id,
                 },
             )
-            
+
             if resp.status_code != 200:
                 print(f"   ❌ Turn {i+1} failed: {resp.status_code}")
                 return False
-            
+
             data = resp.json()
             if not conversation_id:
                 conversation_id = data.get("conversation_id")
-            
+
             if i < 3 or i >= 9:  # Show first few and last few
                 print(f"   Turn {i+1}: {data.get('response', '')[:60]}...")
-            
+
             await asyncio.sleep(0.3)  # Small delay between requests
-        
+
         print("   ✅ Long conversation completed (should have triggered summarization)")
         return True
 
@@ -259,18 +259,18 @@ async def test_conversation_recall():
                 "room": "office",
             },
         )
-        
+
         if resp1.status_code != 200:
             print(f"   ❌ Failed to create conversation: {resp1.status_code}")
             return False
-        
+
         data1 = resp1.json()
         conv_id1 = data1.get("conversation_id")
         print(f"   Created conversation: {conv_id1}")
-        
+
         # Wait a moment for summary to be stored
         await asyncio.sleep(2)
-        
+
         # Try to recall it
         print("   Attempting to recall conversation...")
         resp2 = await client.post(
@@ -281,12 +281,12 @@ async def test_conversation_recall():
                 "room": "office",
             },
         )
-        
+
         if resp2.status_code == 200:
             data2 = resp2.json()
             response2 = data2.get("response", "")
             print(f"   Recall response: {response2[:150]}...")
-            
+
             # Check if it found the conversation
             if "thermostat" in response2.lower() or "found" in response2.lower():
                 print("   ✅ Conversation recall working")
@@ -294,7 +294,7 @@ async def test_conversation_recall():
             else:
                 print("   ⚠️  Recall may not have found conversation (response doesn't mention it)")
                 return True  # Still pass, might need more time for summary
-        
+
         else:
             print(f"   ❌ Recall request failed: {resp2.status_code}")
             return False
@@ -314,16 +314,16 @@ async def test_memory_operations():
                 "room": "office",
             },
         )
-        
+
         if resp1.status_code != 200:
             print(f"   ❌ Failed to store memory: {resp1.status_code}")
             return False
-        
+
         print(f"   Response: {resp1.json().get('response', '')[:100]}...")
-        
+
         # Wait for memory to be stored
         await asyncio.sleep(1)
-        
+
         # Try to retrieve it
         print("   Retrieving memory...")
         resp2 = await client.post(
@@ -334,19 +334,19 @@ async def test_memory_operations():
                 "room": "office",
             },
         )
-        
+
         if resp2.status_code == 200:
             data2 = resp2.json()
             response2 = data2.get("response", "")
             print(f"   Response: {response2[:150]}...")
-            
+
             if "68" in response2 or "temperature" in response2.lower():
                 print("   ✅ Memory storage and retrieval working")
                 return True
             else:
                 print("   ⚠️  Memory may not have been retrieved")
                 return True  # Still pass, might need more time
-        
+
         else:
             print(f"   ❌ Memory retrieval failed: {resp2.status_code}")
             return False
@@ -361,7 +361,7 @@ async def test_meta_agent():
             ("What's the weather?", "interaction"),
             ("What time is it?", "instant"),
         ]
-        
+
         for text, expected_intent in test_cases:
             resp = await client.post(
                 f"{API_BASE}/chat",
@@ -370,7 +370,7 @@ async def test_meta_agent():
                     "speaker": "thom",
                 },
             )
-            
+
             if resp.status_code == 200:
                 data = resp.json()
                 intent = data.get("intent", "unknown")
@@ -379,7 +379,7 @@ async def test_meta_agent():
             else:
                 print(f"   ❌ Failed: {resp.status_code}")
                 return False
-        
+
         print("   ✅ Meta Agent routing working")
         return True
 
@@ -393,7 +393,7 @@ async def test_dashboard_endpoints():
             "/api/v1/dashboard/activity",
             "/api/v1/health",
         ]
-        
+
         for endpoint in endpoints:
             resp = await client.get(f"{BASE_URL}{endpoint}")
             if resp.status_code == 200:
@@ -401,7 +401,7 @@ async def test_dashboard_endpoints():
             else:
                 print(f"   ❌ {endpoint}: {resp.status_code}")
                 return False
-        
+
         return True
 
 
@@ -433,7 +433,7 @@ async def main():
     print("=" * 60)
     print(f"Testing server: {BASE_URL}")
     print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
+
     tests = [
         ("Health Check", test_health),
         ("LLM Caching", test_llm_caching),
@@ -447,10 +447,10 @@ async def main():
         ("Dashboard Endpoints", test_dashboard_endpoints),
         ("Cache Statistics", test_llm_cache_stats),
     ]
-    
+
     results = []
     start_time = time.time()
-    
+
     for name, test_func in tests:
         try:
             result = await test_func()
@@ -460,24 +460,24 @@ async def main():
             import traceback
             traceback.print_exc()
             results.append((name, False))
-    
+
     total_time = time.time() - start_time
-    
+
     # Summary
     print("\n" + "=" * 60)
     print("TEST SUMMARY")
     print("=" * 60)
     passed = sum(1 for _, result in results if result)
     total = len(results)
-    
+
     for name, result in results:
         status = "✅ PASS" if result else "❌ FAIL"
         print(f"  {status}: {name}")
-    
+
     print(f"\nResults: {passed}/{total} tests passed")
     print(f"Total time: {total_time:.1f}s")
     print("=" * 60)
-    
+
     return passed == total
 
 

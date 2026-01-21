@@ -163,7 +163,10 @@ class OpenRouterClient:
         self._cache = get_llm_cache()
 
     async def init(self) -> None:
-        """Initialize the HTTP client."""
+        """Initialize the HTTP client with connection pooling."""
+        # Reuse client with connection pooling for better performance
+        # Limits: max 100 connections, keep-alive for 30 seconds
+        limits = httpx.Limits(max_keepalive_connections=20, max_connections=100, keepalive_expiry=30.0)
         self._client = httpx.AsyncClient(
             base_url=self.BASE_URL,
             headers={
@@ -173,8 +176,9 @@ class OpenRouterClient:
                 "Content-Type": "application/json",
             },
             timeout=60.0,
+            limits=limits,
         )
-        logger.info("OpenRouter client initialized")
+        logger.info("OpenRouter client initialized with connection pooling")
 
     async def shutdown(self) -> None:
         """Close the HTTP client."""
