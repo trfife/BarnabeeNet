@@ -70,7 +70,7 @@ class VoicePipelineService:
 
         async def identify_speaker_voice() -> tuple[str, float]:
             """Identify speaker from audio (placeholder for future ECAPA-TDNN).
-            
+
             Currently returns contextual speaker from request.
             Future: Will use ECAPA-TDNN model to identify speaker from voice.
             """
@@ -84,12 +84,12 @@ class VoicePipelineService:
         stt_start = time.perf_counter()
         stt_task = asyncio.create_task(transcribe_audio())
         speaker_task = asyncio.create_task(identify_speaker_voice())
-        
+
         input_text, engine_used = await stt_task
         identified_speaker, speaker_confidence = await speaker_task
-        
+
         stt_latency_ms = (time.perf_counter() - stt_start) * 1000
-        
+
         # Use identified speaker if available, otherwise fall back to request.speaker
         final_speaker = identified_speaker if identified_speaker != "unknown" else request.speaker
 
