@@ -164,6 +164,23 @@ async def start_improvement_stream(req: ImprovementRequest, request: Request) ->
     """
     agent = await get_self_improvement_agent()
 
+    # Get model from Redis if not provided or if "auto" is requested
+    model = req.model
+    if model == "auto" or not model:
+        redis = request.app.state.redis
+        stored_model = await redis.get("barnabeenet:agents:self_improvement:model")
+        if stored_model:
+            model = stored_model.decode() if isinstance(stored_model, bytes) else stored_model
+            # Map "auto" to "opusplan"
+            if model == "auto":
+                model = "opusplan"
+            elif model == "opus":
+                model = "opus"
+            elif model == "sonnet":
+                model = "sonnet"
+        else:
+            model = "opusplan"  # Default
+
     if not agent.is_available():
         raise HTTPException(
             status_code=503,
