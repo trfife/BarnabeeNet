@@ -477,8 +477,8 @@ class HomeAssistantClient:
 
         try:
             # Add timeout to prevent hanging - 10 seconds should be enough for most commands
-            import asyncio
-            async with asyncio.timeout(10):
+            # Use wait_for for Python 3.10+ compatibility
+            async def _ws_connect_and_command():
                 async with websockets.connect(ws_url) as ws:
                     # Step 1: Wait for auth_required
                     msg = json.loads(await ws.recv())
@@ -510,6 +510,9 @@ class HomeAssistantClient:
                     else:
                         logger.error("WebSocket command failed: %s", msg)
                         return None
+            
+            # Execute with timeout
+            return await asyncio.wait_for(_ws_connect_and_command(), timeout=10.0)
 
         except asyncio.TimeoutError:
             logger.warning("WebSocket command %s timed out after 10 seconds", command_type)
