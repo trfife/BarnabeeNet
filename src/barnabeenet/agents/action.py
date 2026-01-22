@@ -1016,16 +1016,16 @@ If you cannot parse the request, respond with:
                     domain = action_spec.domain.value
                     candidates: list[tuple[float, Any]] = []
 
-                    # Search specified domain
-                    entity = orchestrator._ha_client.resolve_entity(entity_name, domain)
+                    # Search specified domain - use async version to ensure metadata is fresh
+                    entity = await orchestrator._ha_client.resolve_entity_async(entity_name, domain)
                     if entity:
                         score = entity.match_score(entity_name)
                         candidates.append((score, entity))
 
-                    # Search alternative domains
+                    # Search alternative domains - use async version
                     alternative_domains = orchestrator._get_alternative_domains(domain, entity_name)
                     for alt_domain in alternative_domains:
-                        alt_entity = orchestrator._ha_client.resolve_entity(entity_name, alt_domain)
+                        alt_entity = await orchestrator._ha_client.resolve_entity_async(entity_name, alt_domain)
                         if alt_entity:
                             score = alt_entity.match_score(entity_name)
                             candidates.append((score, alt_entity))
@@ -1040,8 +1040,8 @@ If you cannot parse the request, respond with:
                             service = orchestrator._adapt_service_to_domain(service, actual_domain)
                         logger.info("Resolved '%s' to entity_id: %s for delayed action", entity_name, resolved_entity_id)
                     else:
-                        # Try without domain restriction
-                        entity = orchestrator._ha_client.resolve_entity(entity_name, None)
+                        # Try without domain restriction - use async version
+                        entity = await orchestrator._ha_client.resolve_entity_async(entity_name, None)
                         if entity:
                             resolved_entity_id = entity.entity_id
                             logger.info("Resolved '%s' to entity_id: %s (no domain restriction) for delayed action", entity_name, resolved_entity_id)
@@ -1065,16 +1065,16 @@ If you cannot parse the request, respond with:
                     domain = action_spec.domain.value
                     candidates: list[tuple[float, Any]] = []
 
-                    # Search specified domain
-                    entity = orchestrator._ha_client.resolve_entity(entity_name, domain)
+                    # Search specified domain - use async version to ensure metadata is fresh
+                    entity = await orchestrator._ha_client.resolve_entity_async(entity_name, domain)
                     if entity:
                         score = entity.match_score(entity_name)
                         candidates.append((score, entity))
 
-                    # Search alternative domains
+                    # Search alternative domains - use async version
                     alternative_domains = orchestrator._get_alternative_domains(domain, entity_name)
                     for alt_domain in alternative_domains:
-                        alt_entity = orchestrator._ha_client.resolve_entity(entity_name, alt_domain)
+                        alt_entity = await orchestrator._ha_client.resolve_entity_async(entity_name, alt_domain)
                         if alt_entity:
                             score = alt_entity.match_score(entity_name)
                             candidates.append((score, alt_entity))
@@ -1093,8 +1093,8 @@ If you cannot parse the request, respond with:
 
                         logger.info("Resolved '%s' to entity_id: %s (domain: %s -> %s) for timer action", entity_name, resolved_entity_id, domain, actual_domain)
                     else:
-                        # Try without domain restriction
-                        entity = orchestrator._ha_client.resolve_entity(entity_name, None)
+                        # Try without domain restriction - use async version
+                        entity = await orchestrator._ha_client.resolve_entity_async(entity_name, None)
                         if entity:
                             resolved_entity_id = entity.entity_id
                             service = action_spec.service or f"{domain}.turn_off"
