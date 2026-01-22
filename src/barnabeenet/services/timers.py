@@ -774,16 +774,31 @@ class TimerManager:
                     try:
                         await asyncio.sleep(0.5)  # Brief delay for state to update
                         state_after = await self._ha.get_state(entity_id)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Could not get state after action: %s", e)
 
+                # Log execution with state verification
+                state_before_str = state_before.state if state_before else "unknown"
+                state_after_str = state_after.state if state_after else "unknown"
+                
+                # Check if state actually changed
+                state_changed = state_before and state_after and state_before.state != state_after.state
+                change_indicator = "✓ CHANGED" if state_changed else ("⚠️ NO CHANGE" if state_before_str != "unknown" else "? UNKNOWN")
+                
                 logger.info(
-                    "Executed timer on_complete: %s for %s (state: %s -> %s)",
+                    "Executed timer on_complete: %s for %s %s (state: %s -> %s)",
                     service,
                     entity_id,
-                    state_before.state if state_before else "unknown",
-                    state_after.state if state_after else "unknown",
+                    change_indicator,
+                    state_before_str,
+                    state_after_str,
                 )
+                
+                # Also log affected states from service call result if available
+                if hasattr(result, 'response_data') and result.response_data:
+                    affected = result.response_data.get('affected_states', [])
+                    if affected:
+                        logger.info("Service call affected %d entities", len(affected))
             else:
                 logger.error(
                     "Failed to execute timer on_complete: %s for %s - %s",
