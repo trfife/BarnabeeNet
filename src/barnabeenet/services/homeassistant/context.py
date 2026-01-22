@@ -205,7 +205,9 @@ class HAContextService:
                 return entity_count
 
             except Exception as e:
-                logger.error("Failed to refresh HA metadata: %s", e)
+                logger.error("Failed to refresh HA metadata: %s", e, exc_info=True)
+                import traceback
+                logger.error("Traceback: %s", traceback.format_exc())
                 return 0
 
     async def get_context_for_meta_agent(self) -> HAContext:
