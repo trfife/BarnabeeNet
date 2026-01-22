@@ -167,6 +167,13 @@ class Entity:
             elif matching_words > 0:
                 return 0.3 + (matching_words / len(query_words)) * 0.2
 
+        # Also check if query matches entity_id part as a phrase (e.g., "office switch" matches "office_switch")
+        # This handles cases where user says "office switch" but entity is "light.office_switch"
+        query_phrase = query_lower.replace(" ", "_")
+        if query_phrase in entity_name_part or entity_name_part in query_phrase:
+            # Good match if query phrase appears in entity_id
+            return 0.65
+
         return 0.0
 
 

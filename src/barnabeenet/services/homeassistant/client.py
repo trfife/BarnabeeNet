@@ -162,11 +162,11 @@ class HomeAssistantClient:
         self, limit: int = 10, since: datetime | None = None
     ) -> list[StateChangeEvent]:
         """Get recent state change events with optional time filter.
-        
+
         Args:
             limit: Maximum number of events to return
             since: Only return events after this timestamp (None = all)
-            
+
         Returns:
             List of StateChangeEvent objects (newest first)
         """

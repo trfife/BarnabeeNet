@@ -1626,7 +1626,7 @@ class AgentOrchestrator:
                     # (within last 5 seconds to catch immediate changes)
                     from datetime import timedelta
                     cutoff_time = ctx.started_at - timedelta(seconds=5)
-                    
+
                     recent_changes = []
                     for change in self._ha_client.get_recent_state_changes(limit=20, since=cutoff_time):
                         # Filter to relevant domains and entities that users care about
@@ -1637,7 +1637,7 @@ class AgentOrchestrator:
                             entity = self._ha_client._entity_registry.get(change.entity_id)
                             if entity:
                                 friendly_name = entity.friendly_name
-                            
+
                             recent_changes.append({
                                 "entity_id": change.entity_id,
                                 "friendly_name": friendly_name,
@@ -1646,7 +1646,7 @@ class AgentOrchestrator:
                                 "new_state": change.new_state,
                                 "timestamp": change.timestamp.isoformat(),
                             })
-                    
+
                     if recent_changes:
                         ha_state_changes = recent_changes
                         logger.debug("Including %d HA state changes in response", len(recent_changes))
