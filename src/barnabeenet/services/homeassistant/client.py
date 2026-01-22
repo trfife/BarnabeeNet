@@ -1076,21 +1076,28 @@ class HomeAssistantClient:
 
             context_service = await get_ha_context_service(self)
             entities_before = len(context_service._entity_metadata)
-            registry_size = len(self._entity_registry.all())
+            registry_size = len(list(self._entity_registry.all()))
 
             # Force refresh to get latest entities from HA
-            await context_service.refresh_metadata(force=True)
+            entities_loaded = await context_service.refresh_metadata(force=True)
             entities_after = len(context_service._entity_metadata)
+            registry_size_after = len(list(self._entity_registry.all()))
 
             logger.info(
-                "Refreshed entity metadata for resolution: %d -> %d entities (registry had %d, searching for '%s')",
+                "Refreshed entity metadata for resolution: %d -> %d entities loaded, registry: %d -> %d (searching for '%s')",
                 entities_before,
                 entities_after,
                 registry_size,
+                registry_size_after,
                 name
             )
+            
+            # Log a sample of entity IDs to verify they're loading
+            if entities_after > 0:
+                sample_entities = list(context_service._entity_metadata.keys())[:5]
+                logger.debug("Sample entities after refresh: %s", sample_entities)
         except Exception as e:
-            logger.warning("Could not refresh metadata for entity resolution: %s", e)
+            logger.warning("Could not refresh metadata for entity resolution: %s", e, exc_info=True)
 
         # Try again after refresh
         entity = self._entity_registry.find_by_name(name, domain)
