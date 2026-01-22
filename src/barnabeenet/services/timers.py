@@ -753,6 +753,14 @@ class TimerManager:
             entity_id = timer.on_complete.get("entity_id")
             service_data = timer.on_complete.get("data", {})
 
+            # Get state before action (for verification)
+            state_before = None
+            if entity_id:
+                try:
+                    state_before = await self._ha.get_state(entity_id)
+                except Exception:
+                    pass
+
             result = await self._ha.call_service(
                 service,
                 entity_id=entity_id,
@@ -760,15 +768,27 @@ class TimerManager:
             )
 
             if result.success:
+                # Get state after action (for verification)
+                state_after = None
+                if entity_id:
+                    try:
+                        await asyncio.sleep(0.5)  # Brief delay for state to update
+                        state_after = await self._ha.get_state(entity_id)
+                    except Exception:
+                        pass
+
                 logger.info(
-                    "Executed timer on_complete: %s for %s",
+                    "Executed timer on_complete: %s for %s (state: %s -> %s)",
                     service,
                     entity_id,
+                    state_before.state if state_before else "unknown",
+                    state_after.state if state_after else "unknown",
                 )
             else:
                 logger.error(
-                    "Failed to execute timer on_complete: %s - %s",
+                    "Failed to execute timer on_complete: %s for %s - %s",
                     service,
+                    entity_id,
                     result.message,
                 )
 
