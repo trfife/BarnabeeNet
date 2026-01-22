@@ -758,8 +758,12 @@ class TimerManager:
             if entity_id:
                 try:
                     state_before = await self._ha.get_state(entity_id)
-                except Exception:
-                    pass
+                    if state_before:
+                        logger.debug("State before action: %s = %s", entity_id, state_before.state)
+                    else:
+                        logger.debug("Could not get state before action for %s", entity_id)
+                except Exception as e:
+                    logger.debug("Error getting state before action for %s: %s", entity_id, e)
 
             result = await self._ha.call_service(
                 service,
@@ -780,11 +784,11 @@ class TimerManager:
                 # Log execution with state verification
                 state_before_str = state_before.state if state_before else "unknown"
                 state_after_str = state_after.state if state_after else "unknown"
-                
+
                 # Check if state actually changed
                 state_changed = state_before and state_after and state_before.state != state_after.state
                 change_indicator = "✓ CHANGED" if state_changed else ("⚠️ NO CHANGE" if state_before_str != "unknown" else "? UNKNOWN")
-                
+
                 logger.info(
                     "Executed timer on_complete: %s for %s %s (state: %s -> %s)",
                     service,
@@ -793,7 +797,7 @@ class TimerManager:
                     state_before_str,
                     state_after_str,
                 )
-                
+
                 # Also log affected states from service call result if available
                 if hasattr(result, 'response_data') and result.response_data:
                     affected = result.response_data.get('affected_states', [])
