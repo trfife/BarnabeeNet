@@ -158,6 +158,23 @@ class HomeAssistantClient:
         """Get recent state change events (newest first)."""
         return list(self._state_changes)
 
+    def get_recent_state_changes(
+        self, limit: int = 10, since: datetime | None = None
+    ) -> list[StateChangeEvent]:
+        """Get recent state change events with optional time filter.
+        
+        Args:
+            limit: Maximum number of events to return
+            since: Only return events after this timestamp (None = all)
+            
+        Returns:
+            List of StateChangeEvent objects (newest first)
+        """
+        changes = list(self._state_changes)
+        if since:
+            changes = [c for c in changes if c.timestamp >= since]
+        return changes[:limit]
+
     @property
     def is_subscribed(self) -> bool:
         """Check if subscribed to state change events."""

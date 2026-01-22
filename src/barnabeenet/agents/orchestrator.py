@@ -1575,6 +1575,7 @@ class AgentOrchestrator:
         service_calls = None
         resolved_targets = None
         action_agent_mode = None
+        ha_state_changes = None
         if ctx.agent_response and ctx.agent_response.get("_agent_name") == "action":
             action_data = ctx.agent_response.get("action")
             execution_result = ctx.agent_response.get("_execution_result", {})
@@ -1617,6 +1618,41 @@ class AgentOrchestrator:
                         }
                     ]
 
+            # Get recent HA state changes that occurred after action execution
+            # These show what actually changed in Home Assistant (visible in HA activity)
+            if self._ha_client and execution_result.get("executed"):
+                try:
+                    # Get state changes that happened after the action started
+                    # (within last 5 seconds to catch immediate changes)
+                    from datetime import timedelta
+                    cutoff_time = ctx.started_at - timedelta(seconds=5)
+                    
+                    recent_changes = []
+                    for change in self._ha_client.get_recent_state_changes(limit=20, since=cutoff_time):
+                        # Filter to relevant domains and entities that users care about
+                        domain = change.entity_id.split(".")[0] if "." in change.entity_id else "unknown"
+                        if domain in ("light", "switch", "fan", "cover", "climate", "lock", "media_player", "vacuum"):
+                            # Get friendly name from entity registry if available
+                            friendly_name = change.entity_id
+                            entity = self._ha_client._entity_registry.get(change.entity_id)
+                            if entity:
+                                friendly_name = entity.friendly_name
+                            
+                            recent_changes.append({
+                                "entity_id": change.entity_id,
+                                "friendly_name": friendly_name,
+                                "domain": domain,
+                                "old_state": change.old_state,
+                                "new_state": change.new_state,
+                                "timestamp": change.timestamp.isoformat(),
+                            })
+                    
+                    if recent_changes:
+                        ha_state_changes = recent_changes
+                        logger.debug("Including %d HA state changes in response", len(recent_changes))
+                except Exception as e:
+                    logger.debug("Could not get HA state changes for response: %s", e)
+
         return {
             "response": ctx.response_text,
             "request_id": ctx.request_id,
@@ -1646,6 +1682,7 @@ class AgentOrchestrator:
             "resolved_targets": resolved_targets,
             "service_calls": service_calls,
             "action_agent_mode": action_agent_mode,
+            "ha_state_changes": ha_state_changes,  # State changes visible in HA activity
         }
 
     # Convenience methods for direct agent access
