@@ -482,16 +482,20 @@ class TimerManager:
         """Discover timer.barnabee_* entities in HA."""
         self._pool.available.clear()
 
-        # Look for timer entities matching our pattern
+        # Query HA directly for timer entities (don't rely on cached entities)
+        # Try to get state for each timer entity - if it exists, add it to the pool
         for i in range(1, self._config.pool_size + 1):
             entity_id = f"{self._config.prefix}{i}"
-            # Check if entity exists in HA
-            entity = self._ha.entities.get(entity_id)
-            if entity:
-                self._pool.available.append(entity_id)
-                logger.debug("Found timer entity: %s", entity_id)
-            else:
-                logger.debug("Timer entity not found: %s", entity_id)
+            try:
+                # Try to get the state of this entity - if it exists, we can use it
+                state = await self._ha.get_state(entity_id)
+                if state:
+                    self._pool.available.append(entity_id)
+                    logger.debug("Found timer entity: %s", entity_id)
+                else:
+                    logger.debug("Timer entity not found: %s", entity_id)
+            except Exception as e:
+                logger.debug("Error checking timer entity %s: %s", entity_id, e)
 
         if not self._pool.available:
             logger.warning(
