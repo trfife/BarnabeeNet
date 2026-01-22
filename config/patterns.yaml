@@ -297,6 +297,128 @@ action:
       - "start party mode"
       - "stop vacation mode"
 
+  # Timer commands
+  timer_create:
+    pattern: "^(set|start) (a )?timer .*$"
+    sub_category: "timer"
+    confidence: 0.95
+    enabled: true
+    description: "Create a timer"
+    examples:
+      - "set a timer for 5 minutes"
+      - "start a timer for 10 minutes"
+      - "set a lasagna timer for 20 minutes"
+
+  timer_labeled:
+    pattern: "^(set|start) (a )?(\\w+) timer .*$"
+    sub_category: "timer"
+    confidence: 0.95
+    enabled: true
+    description: "Create a labeled timer"
+    examples:
+      - "set a pizza timer for 15 minutes"
+      - "start a lasagna timer for 30 minutes"
+
+  timer_duration_format:
+    pattern: "^(\\d+\\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))\\s+timer$"
+    sub_category: "timer"
+    confidence: 0.95
+    enabled: true
+    description: "Duration format timer"
+    examples:
+      - "5 minute timer"
+      - "30 second timer"
+
+  timer_device_duration:
+    pattern: "^(turn|switch) (on|off) .+ (for|in) .+$"
+    sub_category: "timer"
+    confidence: 0.95
+    enabled: true
+    description: "Turn device on/off for duration"
+    examples:
+      - "turn on the office fan for 10 minutes"
+      - "turn on the office light for 5 minutes"
+
+  timer_delayed_action:
+    pattern: "^in\\s+(\\d+\\s*(?:seconds?|secs?|minutes?|mins?))\\s+turn\\s+(?:off|on)\\s+.*$"
+    sub_category: "timer"
+    confidence: 0.95
+    enabled: true
+    description: "Delayed action (in X seconds turn on/off)"
+    examples:
+      - "in 60 seconds turn off the office light"
+      - "in 30 seconds turn on the office fan"
+
+  timer_wait_action:
+    pattern: "^wait\\s+(\\d+\\s*(?:seconds?|secs?|minutes?|mins?))\\s+turn\\s+(?:off|on)\\s+.*$"
+    sub_category: "timer"
+    confidence: 0.95
+    enabled: true
+    description: "Wait then action"
+    examples:
+      - "wait 3 minutes turn on the office fan"
+      - "wait 1 minute turn off the office light"
+
+  timer_query:
+    pattern: "^how\\s+long\\s+(?:on|for|left\\s+on)\\s+.*$"
+    sub_category: "timer"
+    confidence: 0.95
+    enabled: true
+    description: "Query timer status"
+    examples:
+      - "how long on lasagna"
+      - "how long left on pizza"
+
+  timer_query_time_left:
+    pattern: "^how\\s+much\\s+time\\s+left\\s+(?:on|for)\\s+.*$"
+    sub_category: "timer"
+    confidence: 0.95
+    enabled: true
+    description: "Query time left on timer"
+    examples:
+      - "how much time left on lasagna"
+      - "how much time left on pizza"
+
+  timer_query_alt:
+    pattern: "^time\\s+left\\s+(?:on|for)\\s+.*$"
+    sub_category: "timer"
+    confidence: 0.95
+    enabled: true
+    description: "Time left query"
+    examples:
+      - "time left on lasagna"
+      - "time left for pizza"
+
+  timer_control_pause:
+    pattern: "^pause\\s+(?:the\\s+)?.*(?:\s+timer)?$"
+    sub_category: "timer"
+    confidence: 0.95
+    enabled: true
+    description: "Pause a timer"
+    examples:
+      - "pause the lasagna timer"
+      - "pause lasagna"
+
+  timer_control_resume:
+    pattern: "^resume\\s+(?:the\\s+)?.*(?:\s+timer)?$"
+    sub_category: "timer"
+    confidence: 0.95
+    enabled: true
+    description: "Resume a timer"
+    examples:
+      - "resume the lasagna timer"
+      - "resume lasagna"
+
+  timer_control_cancel:
+    pattern: "^(cancel|stop)\\s+(?:the\\s+)?.*(?:\s+timer)?$"
+    sub_category: "timer"
+    confidence: 0.95
+    enabled: true
+    description: "Cancel/stop a timer"
+    examples:
+      - "cancel the lasagna timer"
+      - "stop lasagna"
+
 # =============================================================================
 # QUERY PATTERNS - Information requests
 # =============================================================================

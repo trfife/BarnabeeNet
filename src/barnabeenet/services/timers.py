@@ -61,12 +61,12 @@ class ActiveTimer:
             # Timer is paused - return remaining time when paused
             paused_remaining = self.ends_at - self.paused_at
             return paused_remaining if paused_remaining > timedelta(0) else timedelta(0)
-        
+
         now = datetime.now()
         if now >= self.ends_at:
             return timedelta(0)
         return self.ends_at - now
-    
+
     @property
     def is_paused(self) -> bool:
         """Check if timer is currently paused."""
