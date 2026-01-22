@@ -1110,8 +1110,11 @@ class HomeAssistantClient:
         """
         # CRITICAL: Ensure entities are loaded before attempting resolution
         # This prevents the "empty registry" issue from recurring
-        await self.ensure_entities_loaded()
-
+        # Only check if registry is empty (don't refresh if it has entities to avoid loops)
+        entity_count = len(list(self._entity_registry.all()))
+        if entity_count == 0:
+            await self.ensure_entities_loaded()
+        
         # First try with existing registry
         entity = self._entity_registry.find_by_name(name, domain)
         if entity:
