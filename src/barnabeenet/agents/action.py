@@ -1007,31 +1007,82 @@ If you cannot parse the request, respond with:
             # Parse the action text to get service call
             action_spec = await self.parse_action(timer_result.action_text, context)
             if action_spec.action_type != ActionType.UNKNOWN:
+                # Resolve entity using orchestrator's logic
+                resolved_entity_id = action_spec.entity_id
+                orchestrator = get_orchestrator()
+                if orchestrator and action_spec.entity_name:
+                    from barnabeenet.api.routes.homeassistant import get_ha_client
+                    ha_client = await get_ha_client()
+                    if ha_client:
+                        entity = ha_client.resolve_entity(action_spec.entity_name, action_spec.domain.value)
+                        if entity:
+                            resolved_entity_id = entity.entity_id
+                            logger.info("Resolved '%s' to entity_id: %s for delayed action", action_spec.entity_name, resolved_entity_id)
+                
                 on_complete = {
                     "service": action_spec.service or f"{action_spec.domain.value}.turn_on",
-                    "entity_id": action_spec.entity_id,
+                    "entity_id": resolved_entity_id,
                     "data": action_spec.service_data,
                 }
 
         # For device duration, create turn_off action
         elif timer_result.timer_type == TimerType.DEVICE_DURATION and timer_result.target_device:
-            # Parse device name to get entity
-            action_spec = await self.parse_action(f"turn off {timer_result.target_device}", context)
-            if action_spec.action_type != ActionType.UNKNOWN:
-                on_complete = {
-                    "service": action_spec.service or f"{action_spec.domain.value}.turn_off",
-                    "entity_id": action_spec.entity_id,
-                    "data": action_spec.service_data,
-                }
-                # Also turn on the device now
-                turn_on_spec = await self.parse_action(f"turn on {timer_result.target_device}", context)
-                if turn_on_spec.action_type != ActionType.UNKNOWN:
-                    orchestrator = get_orchestrator()
-                    if orchestrator and hasattr(orchestrator, "_execute_ha_action"):
-                        # Create a minimal context for execution
-                        class MinimalContext:
-                            trace_id = None
-                        await orchestrator._execute_ha_action(self._action_to_dict(turn_on_spec), MinimalContext())
+            # Parse device name to get entity - use orchestrator's entity resolution
+            orchestrator = get_orchestrator()
+            if orchestrator:
+                # Use orchestrator's entity resolution to get the real entity_id
+                action_spec = await self.parse_action(f"turn off {timer_result.target_device}", context)
+                if action_spec.action_type != ActionType.UNKNOWN and action_spec.entity_name:
+                    # Resolve entity using orchestrator's logic
+                    from barnabeenet.services.homeassistant.client import HomeAssistantClient
+                    from barnabeenet.api.routes.homeassistant import get_ha_client
+                    
+                    ha_client = await get_ha_client()
+                    if ha_client:
+                        entity = ha_client.resolve_entity(action_spec.entity_name, action_spec.domain.value)
+                        if entity:
+                            # Use the actual resolved entity_id
+                            resolved_entity_id = entity.entity_id
+                            logger.info("Resolved '%s' to entity_id: %s for timer action", action_spec.entity_name, resolved_entity_id)
+                        else:
+                            # Fallback to placeholder if resolution fails
+                            resolved_entity_id = action_spec.entity_id
+                            logger.warning("Could not resolve entity '%s', using placeholder: %s", action_spec.entity_name, resolved_entity_id)
+                    else:
+                        resolved_entity_id = action_spec.entity_id
+                else:
+                    resolved_entity_id = None
+                
+                if resolved_entity_id:
+                    on_complete = {
+                        "service": action_spec.service or f"{action_spec.domain.value}.turn_off",
+                        "entity_id": resolved_entity_id,
+                        "data": action_spec.service_data,
+                    }
+                    # Also turn on the device now using orchestrator
+                    turn_on_spec = await self.parse_action(f"turn on {timer_result.target_device}", context)
+                    if turn_on_spec.action_type != ActionType.UNKNOWN:
+                        # Resolve entity for turn_on as well
+                        if ha_client and turn_on_spec.entity_name:
+                            turn_on_entity = ha_client.resolve_entity(turn_on_spec.entity_name, turn_on_spec.domain.value)
+                            if turn_on_entity:
+                                turn_on_spec.entity_id = turn_on_entity.entity_id
+                                logger.info("Resolved '%s' to entity_id: %s for turn_on", turn_on_spec.entity_name, turn_on_entity.entity_id)
+                        
+                        if orchestrator and hasattr(orchestrator, "_execute_ha_action"):
+                            # Create a minimal context for execution
+                            class MinimalContext:
+                                trace_id = None
+                            await orchestrator._execute_ha_action(self._action_to_dict(turn_on_spec), MinimalContext())
+            else:
+                # Fallback to original logic if orchestrator not available
+                action_spec = await self.parse_action(f"turn off {timer_result.target_device}", context)
+                if action_spec.action_type != ActionType.UNKNOWN:
+                    on_complete = {
+                        "service": action_spec.service or f"{action_spec.domain.value}.turn_off",
+                        "entity_id": action_spec.entity_id,
+                        "data": action_spec.service_data,
+                    }
 
         # Create the timer
         timer = await timer_manager.create_timer(
