@@ -339,6 +339,38 @@ async def get_ha_client() -> HomeAssistantClient | None:
     if _ha_client is not None and _ha_client.connected:
         return _ha_client
 
+    # Try to populate cache from Redis if it's empty
+    if not _ha_config_cache.get("token"):
+        try:
+            import json
+            import os
+            import redis.asyncio as redis
+
+            from barnabeenet.services.secrets import get_secrets_service
+
+            # Get Redis connection
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+            redis_client = redis.from_url(redis_url, decode_responses=True)
+
+            # Try to get config from Redis
+            config_json = await redis_client.get(HA_CONFIG_KEY)
+            if config_json:
+                config = json.loads(config_json)
+                # Decrypt token if we have secrets service
+                secrets_service = await get_secrets_service(redis_client)
+                if secrets_service and "token_encrypted" in config:
+                    try:
+                        config["token"] = await secrets_service.get_secret("ha_token")
+                    except Exception as e:
+                        logger.debug("Could not decrypt HA token from Redis: %s", e)
+                        config["token"] = ""
+                _ha_config_cache.update(config)
+                logger.debug("Populated HA config cache from Redis")
+
+            await redis_client.aclose()
+        except Exception as e:
+            logger.debug("Could not load HA config from Redis: %s", e)
+
     settings = get_settings()
 
     # URL resolution: cache > settings (if not default) > hardcoded fallback

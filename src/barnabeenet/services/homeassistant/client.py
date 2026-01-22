@@ -194,7 +194,7 @@ class HomeAssistantClient:
                 cached_token = _ha_config_cache.get("token")
                 settings_token = settings.homeassistant.token
                 new_token = cached_token or settings_token
-                
+
                 if new_token and new_token != self._token:
                     logger.info("Token changed, recreating HTTP client")
                     await self._client.aclose()
@@ -292,14 +292,14 @@ class HomeAssistantClient:
             from barnabeenet.config import get_settings
 
             settings = get_settings()
-            
+
             # Check if there's a newer token in cache or settings
             cached_token = _ha_config_cache.get("token")
             settings_token = settings.homeassistant.token
-            
+
             # Use cached token if available, otherwise settings token
             new_token = cached_token or settings_token
-            
+
             # If we have a new token and it's different, update it
             if new_token and new_token != self._token:
                 logger.info("Updating HA token from config cache")
