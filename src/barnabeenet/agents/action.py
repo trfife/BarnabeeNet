@@ -1007,20 +1007,47 @@ If you cannot parse the request, respond with:
             # Parse the action text to get service call
             action_spec = await self.parse_action(timer_result.action_text, context)
             if action_spec.action_type != ActionType.UNKNOWN:
-                # Resolve entity using orchestrator's logic
+                # Resolve entity using orchestrator's sophisticated resolution
                 resolved_entity_id = action_spec.entity_id
+                service = action_spec.service or f"{action_spec.domain.value}.turn_on"
                 orchestrator = get_orchestrator()
-                if orchestrator and action_spec.entity_name:
-                    from barnabeenet.api.routes.homeassistant import get_ha_client
-                    ha_client = await get_ha_client()
-                    if ha_client:
-                        entity = ha_client.resolve_entity(action_spec.entity_name, action_spec.domain.value)
+                if orchestrator and orchestrator._ha_client and action_spec.entity_name:
+                    entity_name = action_spec.entity_name
+                    domain = action_spec.domain.value
+                    candidates: list[tuple[float, Any]] = []
+                    
+                    # Search specified domain
+                    entity = orchestrator._ha_client.resolve_entity(entity_name, domain)
+                    if entity:
+                        score = entity.match_score(entity_name)
+                        candidates.append((score, entity))
+                    
+                    # Search alternative domains
+                    alternative_domains = orchestrator._get_alternative_domains(domain, entity_name)
+                    for alt_domain in alternative_domains:
+                        alt_entity = orchestrator._ha_client.resolve_entity(entity_name, alt_domain)
+                        if alt_entity:
+                            score = alt_entity.match_score(entity_name)
+                            candidates.append((score, alt_entity))
+                    
+                    # Pick best match
+                    if candidates:
+                        candidates.sort(key=lambda x: x[0], reverse=True)
+                        entity = candidates[0][1]
+                        resolved_entity_id = entity.entity_id
+                        actual_domain = entity.entity_id.split(".")[0] if "." in entity.entity_id else domain
+                        if actual_domain != domain:
+                            service = orchestrator._adapt_service_to_domain(service, actual_domain)
+                        logger.info("Resolved '%s' to entity_id: %s for delayed action", entity_name, resolved_entity_id)
+                    else:
+                        # Try without domain restriction
+                        entity = orchestrator._ha_client.resolve_entity(entity_name, None)
                         if entity:
                             resolved_entity_id = entity.entity_id
-                            logger.info("Resolved '%s' to entity_id: %s for delayed action", action_spec.entity_name, resolved_entity_id)
-                
+                            logger.info("Resolved '%s' to entity_id: %s (no domain restriction) for delayed action", entity_name, resolved_entity_id)
+
                 on_complete = {
-                    "service": action_spec.service or f"{action_spec.domain.value}.turn_on",
+                    "service": service,
                     "entity_id": resolved_entity_id,
                     "data": action_spec.service_data,
                 }
@@ -1029,51 +1056,68 @@ If you cannot parse the request, respond with:
         elif timer_result.timer_type == TimerType.DEVICE_DURATION and timer_result.target_device:
             # Parse device name to get entity - use orchestrator's entity resolution
             orchestrator = get_orchestrator()
-            if orchestrator:
-                # Use orchestrator's entity resolution to get the real entity_id
+            if orchestrator and orchestrator._ha_client:
+                # Use orchestrator's sophisticated entity resolution (searches alternative domains, picks best match)
                 action_spec = await self.parse_action(f"turn off {timer_result.target_device}", context)
                 if action_spec.action_type != ActionType.UNKNOWN and action_spec.entity_name:
-                    # Resolve entity using orchestrator's logic
-                    from barnabeenet.services.homeassistant.client import HomeAssistantClient
-                    from barnabeenet.api.routes.homeassistant import get_ha_client
+                    # Use orchestrator's resolution logic (same as _execute_single_action)
+                    entity_name = action_spec.entity_name
+                    domain = action_spec.domain.value
+                    candidates: list[tuple[float, Any]] = []
                     
-                    ha_client = await get_ha_client()
-                    if ha_client:
-                        entity = ha_client.resolve_entity(action_spec.entity_name, action_spec.domain.value)
-                        if entity:
-                            # Use the actual resolved entity_id
-                            resolved_entity_id = entity.entity_id
-                            logger.info("Resolved '%s' to entity_id: %s for timer action", action_spec.entity_name, resolved_entity_id)
-                        else:
-                            # Fallback to placeholder if resolution fails
-                            resolved_entity_id = action_spec.entity_id
-                            logger.warning("Could not resolve entity '%s', using placeholder: %s", action_spec.entity_name, resolved_entity_id)
-                    else:
-                        resolved_entity_id = action_spec.entity_id
-                else:
-                    resolved_entity_id = None
-                
-                if resolved_entity_id:
-                    on_complete = {
-                        "service": action_spec.service or f"{action_spec.domain.value}.turn_off",
-                        "entity_id": resolved_entity_id,
-                        "data": action_spec.service_data,
-                    }
-                    # Also turn on the device now using orchestrator
-                    turn_on_spec = await self.parse_action(f"turn on {timer_result.target_device}", context)
-                    if turn_on_spec.action_type != ActionType.UNKNOWN:
-                        # Resolve entity for turn_on as well
-                        if ha_client and turn_on_spec.entity_name:
-                            turn_on_entity = ha_client.resolve_entity(turn_on_spec.entity_name, turn_on_spec.domain.value)
-                            if turn_on_entity:
-                                turn_on_spec.entity_id = turn_on_entity.entity_id
-                                logger.info("Resolved '%s' to entity_id: %s for turn_on", turn_on_spec.entity_name, turn_on_entity.entity_id)
+                    # Search specified domain
+                    entity = orchestrator._ha_client.resolve_entity(entity_name, domain)
+                    if entity:
+                        score = entity.match_score(entity_name)
+                        candidates.append((score, entity))
+                    
+                    # Search alternative domains
+                    alternative_domains = orchestrator._get_alternative_domains(domain, entity_name)
+                    for alt_domain in alternative_domains:
+                        alt_entity = orchestrator._ha_client.resolve_entity(entity_name, alt_domain)
+                        if alt_entity:
+                            score = alt_entity.match_score(entity_name)
+                            candidates.append((score, alt_entity))
+                    
+                    # Pick best match
+                    if candidates:
+                        candidates.sort(key=lambda x: x[0], reverse=True)
+                        entity = candidates[0][1]
+                        resolved_entity_id = entity.entity_id
+                        actual_domain = entity.entity_id.split(".")[0] if "." in entity.entity_id else domain
                         
-                        if orchestrator and hasattr(orchestrator, "_execute_ha_action"):
-                            # Create a minimal context for execution
-                            class MinimalContext:
-                                trace_id = None
-                            await orchestrator._execute_ha_action(self._action_to_dict(turn_on_spec), MinimalContext())
+                        # Adapt service to match actual domain
+                        service = action_spec.service or f"{domain}.turn_off"
+                        if actual_domain != domain:
+                            service = orchestrator._adapt_service_to_domain(service, actual_domain)
+                        
+                        logger.info("Resolved '%s' to entity_id: %s (domain: %s -> %s) for timer action", entity_name, resolved_entity_id, domain, actual_domain)
+                    else:
+                        # Try without domain restriction
+                        entity = orchestrator._ha_client.resolve_entity(entity_name, None)
+                        if entity:
+                            resolved_entity_id = entity.entity_id
+                            service = action_spec.service or f"{domain}.turn_off"
+                            logger.info("Resolved '%s' to entity_id: %s (no domain restriction) for timer action", entity_name, resolved_entity_id)
+                        else:
+                            resolved_entity_id = action_spec.entity_id
+                            service = action_spec.service or f"{domain}.turn_off"
+                            logger.warning("Could not resolve entity '%s', using placeholder: %s", entity_name, resolved_entity_id)
+                    
+                    if resolved_entity_id:
+                        on_complete = {
+                            "service": service,
+                            "entity_id": resolved_entity_id,
+                            "data": action_spec.service_data,
+                        }
+                        # Also turn on the device now using orchestrator
+                        turn_on_spec = await self.parse_action(f"turn on {timer_result.target_device}", context)
+                        if turn_on_spec.action_type != ActionType.UNKNOWN:
+                            if orchestrator and hasattr(orchestrator, "_execute_ha_action"):
+                                # Create a minimal context for execution
+                                class MinimalContext:
+                                    trace_id = None
+                                await orchestrator._execute_ha_action(self._action_to_dict(turn_on_spec), MinimalContext())
             else:
                 # Fallback to original logic if orchestrator not available
                 action_spec = await self.parse_action(f"turn off {timer_result.target_device}", context)
