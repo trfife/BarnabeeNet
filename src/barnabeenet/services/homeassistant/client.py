@@ -127,23 +127,43 @@ class HomeAssistantClient:
     def entities(self) -> EntityRegistry:
         """Get the entity registry."""
         return self._entity_registry
-    
+
     async def ensure_entities_loaded(self) -> None:
         """Ensure entities are loaded in the registry.
-        
+
         If the registry is empty, refresh entities from Home Assistant.
         This is a safety check to ensure entities are available.
+        
+        This method is idempotent and safe to call multiple times.
         """
-        if len(list(self._entity_registry.all())) == 0:
-            logger.info("Entity registry is empty, refreshing entities")
-            await self.refresh_entities()
+        entity_count = len(list(self._entity_registry.all()))
+        if entity_count == 0:
+            logger.warning("Entity registry is empty, refreshing entities from Home Assistant")
+            
+            # Try refresh_entities first (REST API - gets states)
+            entities_loaded = await self.refresh_entities()
+            if entities_loaded == 0:
+                logger.warning("refresh_entities() returned 0 entities, trying metadata refresh")
+            
             # Also ensure metadata is refreshed (populates registry from WebSocket)
+            # This is important because metadata has friendly names and area info
             from barnabeenet.services.homeassistant.context import get_ha_context_service
             try:
                 context_service = await get_ha_context_service(self)
-                await context_service.refresh_metadata(force=True)
+                metadata_count = await context_service.refresh_metadata(force=True)
+                if metadata_count == 0:
+                    logger.error("refresh_metadata() returned 0 entities - WebSocket may be failing")
+                else:
+                    logger.info("Metadata refresh loaded %d entities", metadata_count)
             except Exception as e:
-                logger.warning("Could not refresh metadata: %s", e)
+                logger.error("Could not refresh metadata: %s", e, exc_info=True)
+            
+            # Verify we have entities now
+            final_count = len(list(self._entity_registry.all()))
+            if final_count == 0:
+                logger.error("CRITICAL: Entity registry still empty after refresh attempts")
+            else:
+                logger.info("Entity registry populated: %d entities", final_count)
 
     @property
     def devices(self) -> dict[str, Device]:
@@ -250,24 +270,33 @@ class HomeAssistantClient:
             verify=self._verify_ssl,
         )
 
-        # Verify connection
-        if await self.ping():
-            self._connected = True
-            logger.info("Connected to Home Assistant at %s", self._url)
+            # Verify connection
+            if await self.ping():
+                self._connected = True
+                logger.info("Connected to Home Assistant at %s", self._url)
 
-            # Don't auto-load all entities - use just-in-time loading via HAContextService
-            # Only load lightweight metadata (devices, areas) which change infrequently
-            # Entity states are loaded just-in-time when agents need them
-            try:
-                await self.refresh_devices()  # Lightweight, changes infrequently
-                await self.refresh_areas()  # Lightweight, changes infrequently
-            except Exception as e:
-                logger.debug("Could not refresh devices/areas on connect: %s", e)
+                # Don't auto-load all entities - use just-in-time loading via HAContextService
+                # Only load lightweight metadata (devices, areas) which change infrequently
+                # Entity states are loaded just-in-time when agents need them
+                try:
+                    await self.refresh_devices()  # Lightweight, changes infrequently
+                    await self.refresh_areas()  # Lightweight, changes infrequently
+                except Exception as e:
+                    logger.debug("Could not refresh devices/areas on connect: %s", e)
 
-            # Start event subscription for real-time updates
-            await self.subscribe_to_events()
-        else:
-            logger.warning("Failed to connect to Home Assistant at %s", self._url)
+                # Ensure entity registry is populated on connection
+                # This prevents the "empty registry" issue from occurring
+                # We do this on connect to ensure entities are available immediately
+                try:
+                    await self.ensure_entities_loaded()
+                except Exception as e:
+                    logger.warning("Could not ensure entities loaded on connect: %s", e)
+                    # Don't fail connection if entity loading fails - it will retry on demand
+
+                # Start event subscription for real-time updates
+                await self.subscribe_to_events()
+            else:
+                logger.warning("Failed to connect to Home Assistant at %s", self._url)
 
     async def close(self) -> None:
         """Close the HTTP client and event subscription."""
@@ -1079,6 +1108,10 @@ class HomeAssistantClient:
         Returns:
             Matching Entity or None.
         """
+        # CRITICAL: Ensure entities are loaded before attempting resolution
+        # This prevents the "empty registry" issue from recurring
+        await self.ensure_entities_loaded()
+        
         # First try with existing registry
         entity = self._entity_registry.find_by_name(name, domain)
         if entity:
