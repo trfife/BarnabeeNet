@@ -1050,53 +1050,35 @@ class HomeAssistantClient:
         if entity:
             return entity
 
-        # If not found and registry is empty or very small, refresh metadata
+        # If not found, refresh metadata to ensure we have the latest entity list
+        # This addresses the performance optimization issue where entity registry
+        # might be empty or stale, preventing proper entity resolution
         registry_size = len(self._entity_registry.all())
-        if registry_size < 10:
+        should_refresh = registry_size < 10  # Very small registry likely means not loaded
+        
+        if should_refresh:
             try:
                 from barnabeenet.services.homeassistant.context import get_ha_context_service
 
                 context_service = await get_ha_context_service(self)
+                entities_before = len(context_service._entity_metadata)
                 await context_service.refresh_metadata(force=True)
-                logger.debug("Refreshed entity metadata for resolution: %d entities", len(context_service._entity_metadata))
+                entities_after = len(context_service._entity_metadata)
+                logger.info(
+                    "Refreshed entity metadata for resolution: %d -> %d entities (registry had %d)",
+                    entities_before,
+                    entities_after,
+                    registry_size
+                )
             except Exception as e:
-                logger.debug("Could not refresh metadata for entity resolution: %s", e)
+                logger.warning("Could not refresh metadata for entity resolution: %s", e)
 
         # Try again after refresh
-        entity = self._entity_registry.find_by_name(name, domain)
-        return entity
-
-    async def resolve_entity_async(self, name: str, domain: str | None = None) -> Entity | None:
-        """Resolve a friendly name to an entity (async version with metadata refresh).
-
-        Ensures entity metadata is refreshed before attempting resolution.
-        This is important for timer actions and other background operations.
-
-        Args:
-            name: Friendly name or entity_id to resolve
-            domain: Optional domain hint to narrow search
-
-        Returns:
-            Matching Entity or None.
-        """
-        # First try with existing registry
         entity = self._entity_registry.find_by_name(name, domain)
         if entity:
-            return entity
-
-        # If not found and registry is empty or stale, refresh metadata
-        if not self._entity_registry.all() or len(self._entity_registry.all()) < 10:
-            try:
-                from barnabeenet.services.homeassistant.context import get_ha_context_service
-
-                context_service = await get_ha_context_service(self)
-                await context_service.refresh_metadata(force=True)
-                logger.debug("Refreshed entity metadata for resolution: %d entities", len(context_service._entity_metadata))
-            except Exception as e:
-                logger.debug("Could not refresh metadata for entity resolution: %s", e)
-
-        # Try again after refresh
-        entity = self._entity_registry.find_by_name(name, domain)
+            logger.debug("Resolved '%s' to %s after metadata refresh", name, entity.entity_id)
+        else:
+            logger.debug("Could not resolve '%s' (domain: %s) even after metadata refresh", name, domain)
         return entity
 
     async def load_entity_state(self, entity_id: str) -> EntityState | None:
