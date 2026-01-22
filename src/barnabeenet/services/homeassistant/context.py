@@ -183,13 +183,26 @@ class HAContextService:
                 self._area_names = list(area_map.values())
 
                 self._last_refresh = datetime.now()
+                entity_count = len(self._entity_metadata)
+                area_count = len(self._area_names)
                 logger.info(
                     "Refreshed HA metadata: %d entities, %d areas",
-                    len(self._entity_metadata),
-                    len(self._area_names),
+                    entity_count,
+                    area_count,
                 )
+                
+                # Log sample of entity IDs to verify they're loading (especially for debugging)
+                if entity_count > 0:
+                    sample_ids = list(self._entity_metadata.keys())[:10]
+                    logger.debug("Sample entity IDs after refresh: %s", sample_ids)
+                    # Check if office entities are in the list
+                    office_entities = [eid for eid in sample_ids if 'office' in eid.lower()]
+                    if office_entities:
+                        logger.info("Found office entities in sample: %s", office_entities)
+                else:
+                    logger.warning("Entity refresh returned 0 entities - WebSocket command may have failed")
 
-                return len(self._entity_metadata)
+                return entity_count
 
             except Exception as e:
                 logger.error("Failed to refresh HA metadata: %s", e)
