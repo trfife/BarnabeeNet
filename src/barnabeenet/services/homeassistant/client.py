@@ -127,6 +127,23 @@ class HomeAssistantClient:
     def entities(self) -> EntityRegistry:
         """Get the entity registry."""
         return self._entity_registry
+    
+    async def ensure_entities_loaded(self) -> None:
+        """Ensure entities are loaded in the registry.
+        
+        If the registry is empty, refresh entities from Home Assistant.
+        This is a safety check to ensure entities are available.
+        """
+        if len(list(self._entity_registry.all())) == 0:
+            logger.info("Entity registry is empty, refreshing entities")
+            await self.refresh_entities()
+            # Also ensure metadata is refreshed (populates registry from WebSocket)
+            from barnabeenet.services.homeassistant.context import get_ha_context_service
+            try:
+                context_service = await get_ha_context_service(self)
+                await context_service.refresh_metadata(force=True)
+            except Exception as e:
+                logger.warning("Could not refresh metadata: %s", e)
 
     @property
     def devices(self) -> dict[str, Device]:

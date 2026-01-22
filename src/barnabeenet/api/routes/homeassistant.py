@@ -549,6 +549,9 @@ async def get_entities(
     if not client or not client.connected:
         return EntitiesResponse(entities=[], total=0, domains=[])
 
+    # Ensure entities are loaded - refresh if registry is empty
+    await client.ensure_entities_loaded()
+
     # Get all entities
     all_entities = list(client.entities.all())
 
