@@ -848,44 +848,45 @@ class AgentOrchestrator:
                     action_spec = ctx.agent_response["action"]
                     ctx.actions_taken.append(action_spec)
 
+                    # Execute the action via Home Assistant
+                    execution_result = await self._execute_ha_action(action_spec, ctx)
+
+                    # Store execution result for trace details
+                    ctx.agent_response["_execution_result"] = execution_result
+
+                    # Update response based on execution result
+                    if not execution_result.get("executed"):
+                        # Action not executed - tell user why
+                        error_msg = execution_result.get("message", "unknown error")
+                        ctx.agent_response["response"] = (
+                            f"I understood you want to {action_spec.get('service', 'do something')}, "
+                            f"but I couldn't do it: {error_msg}. "
+                            "Check Home Assistant connection in Configuration."
+                        )
+                    elif not execution_result.get("success"):
+                        # Action failed to execute
+                        ctx.agent_response["response"] = execution_result.get(
+                            "error", "Sorry, I couldn't complete that action."
+                        )
+                    # Add execution info to action
+                    action_spec["executed"] = execution_result.get("executed", False)
+                    action_spec["execution_message"] = execution_result.get("message", "")
+
+                    # Log HA action
+                    if self._pipeline_logger:
+                        await self._pipeline_logger.log_signal(
+                            trace_id=ctx.trace_id,
+                            signal_type=SignalType.HA_SERVICE_CALL
+                            if execution_result.get("executed")
+                            else SignalType.HA_ACTION,
+                            summary=f"Action: {action_spec.get('service', 'unknown')} - {'Executed' if execution_result.get('success') else 'Not executed'}",
+                            success=execution_result.get("success", False),
+                            extra_data={
+                                **action_spec,
+                                "execution_result": execution_result,
+                            },
+                        )
                 # Timer commands and other non-action responses don't need HA execution
-                # Timer commands and other non-action responses don't need HA execution
-
-                # Store execution result for trace details
-                ctx.agent_response["_execution_result"] = execution_result
-
-                # Update response based on execution result
-                if not execution_result.get("executed"):
-                    # Action not executed - tell user why
-                    error_msg = execution_result.get("message", "unknown error")
-                    ctx.agent_response["response"] = (
-                        f"I understood you want to {action_spec.get('service', 'do something')}, "
-                        f"but I couldn't do it: {error_msg}. "
-                        "Check Home Assistant connection in Configuration."
-                    )
-                elif not execution_result.get("success"):
-                    # Action failed to execute
-                    ctx.agent_response["response"] = execution_result.get(
-                        "error", "Sorry, I couldn't complete that action."
-                    )
-                # Add execution info to action
-                action_spec["executed"] = execution_result.get("executed", False)
-                action_spec["execution_message"] = execution_result.get("message", "")
-
-                # Log HA action
-                if self._pipeline_logger:
-                    await self._pipeline_logger.log_signal(
-                        trace_id=ctx.trace_id,
-                        signal_type=SignalType.HA_SERVICE_CALL
-                        if execution_result.get("executed")
-                        else SignalType.HA_ACTION,
-                        summary=f"Action: {action_spec.get('service', 'unknown')} - {'Executed' if execution_result.get('success') else 'Not executed'}",
-                        success=execution_result.get("success", False),
-                        extra_data={
-                            **action_spec,
-                            "execution_result": execution_result,
-                        },
-                    )
 
         elif intent == IntentCategory.MEMORY:
             # Direct memory operation - determine operation from sub_category
