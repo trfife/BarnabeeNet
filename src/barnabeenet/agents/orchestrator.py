@@ -347,18 +347,22 @@ class AgentOrchestrator:
             error_str = None
             if error_info:
                 # Format error string with all relevant details
-                error_parts = []
-                if error_info.get("agent"):
-                    error_parts.append(f"Agent: {error_info['agent']}")
-                if error_info.get("model"):
-                    error_parts.append(f"Model: {error_info['model']}")
-                if error_info.get("type"):
-                    error_parts.append(f"Error: {error_info['type']}")
-                if error_info.get("status_code"):
-                    error_parts.append(f"Status: {error_info['status_code']}")
-                if error_info.get("message"):
-                    error_parts.append(f"Details: {error_info['message'][:200]}")
-                error_str = " | ".join(error_parts)
+                if isinstance(error_info, dict):
+                    error_parts = []
+                    if error_info.get("agent"):
+                        error_parts.append(f"Agent: {error_info['agent']}")
+                    if error_info.get("model"):
+                        error_parts.append(f"Model: {error_info['model']}")
+                    if error_info.get("type"):
+                        error_parts.append(f"Error: {error_info['type']}")
+                    if error_info.get("status_code"):
+                        error_parts.append(f"Status: {error_info['status_code']}")
+                    if error_info.get("message"):
+                        error_parts.append(f"Details: {error_info['message'][:200]}")
+                    error_str = " | ".join(error_parts)
+                else:
+                    # error_info is a string
+                    error_str = str(error_info)
 
             await self._pipeline_logger.complete_trace(
                 trace_id=ctx.trace_id,
