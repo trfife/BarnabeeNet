@@ -183,6 +183,26 @@ class HomeAssistantClient:
 
     async def connect(self) -> None:
         """Initialize the HTTP client and verify connection."""
+        # If client exists but token changed, recreate it
+        if self._client is not None:
+            # Check if token needs updating
+            try:
+                from barnabeenet.api.routes.homeassistant import _ha_config_cache
+                from barnabeenet.config import get_settings
+
+                settings = get_settings()
+                cached_token = _ha_config_cache.get("token")
+                settings_token = settings.homeassistant.token
+                new_token = cached_token or settings_token
+                
+                if new_token and new_token != self._token:
+                    logger.info("Token changed, recreating HTTP client")
+                    await self._client.aclose()
+                    self._client = None
+                    self._token = new_token
+            except Exception:
+                pass  # Continue with existing client if we can't check
+
         if self._client is not None:
             return
 
@@ -265,6 +285,29 @@ class HomeAssistantClient:
             self._connected = False
             logger.warning("Home Assistant connection stale, attempting reconnect...")
 
+        # Try to refresh token from config before reconnecting
+        # This handles the case where the token was updated in Redis but the client wasn't recreated
+        try:
+            from barnabeenet.api.routes.homeassistant import _ha_config_cache
+            from barnabeenet.config import get_settings
+
+            settings = get_settings()
+            
+            # Check if there's a newer token in cache or settings
+            cached_token = _ha_config_cache.get("token")
+            settings_token = settings.homeassistant.token
+            
+            # Use cached token if available, otherwise settings token
+            new_token = cached_token or settings_token
+            
+            # If we have a new token and it's different, update it
+            if new_token and new_token != self._token:
+                logger.info("Updating HA token from config cache")
+                self._token = new_token
+        except Exception as e:
+            logger.debug("Could not refresh token from config: %s", e)
+            # Continue with existing token
+
         # Try to reconnect
         try:
             # Close existing client if any
@@ -272,7 +315,7 @@ class HomeAssistantClient:
                 await self._client.aclose()
                 self._client = None
 
-            # Reinitialize
+            # Reinitialize with potentially updated token
             await self.connect()
             return self._connected
         except Exception as e:
