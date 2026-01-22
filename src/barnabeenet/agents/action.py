@@ -24,6 +24,15 @@ from typing import Any
 
 from barnabeenet.agents.base import Agent
 from barnabeenet.services.llm.openrouter import OpenRouterClient
+from barnabeenet.services.timers import (
+    TimerManager,
+    TimerOperation,
+    TimerType,
+    format_duration,
+    get_timer_manager,
+    parse_duration,
+    parse_timer_command,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -251,6 +260,11 @@ class ActionAgent(Agent):
         start_time = time.perf_counter()
         context = context or {}
         text = text.strip()
+
+        # Check if this is a timer command
+        timer_result = parse_timer_command(text)
+        if timer_result.is_timer_command:
+            return await self._handle_timer_command(text, timer_result, context)
 
         # Parse the action
         action_spec = await self.parse_action(text, context)
@@ -768,6 +782,307 @@ If you cannot parse the request, respond with:
         except Exception as e:
             logger.warning("LLM action parsing failed: %s", e)
             return None
+
+    async def _handle_timer_command(
+        self,
+        text: str,
+        timer_result: Any,
+        context: dict,
+    ) -> dict[str, Any]:
+        """Handle timer-related commands.
+
+        Args:
+            text: Original command text
+            timer_result: Parsed timer command result
+            context: Request context
+
+        Returns:
+            Response dict with timer info
+        """
+        timer_manager = await get_timer_manager()
+        if not timer_manager:
+            return {
+                "response": "Timer functionality is not available. Home Assistant connection required.",
+                "agent": self.name,
+                "success": False,
+            }
+
+        speaker = context.get("speaker")
+        room = context.get("room")
+
+        # Handle timer operations
+        if timer_result.operation == TimerOperation.QUERY:
+            # Query timer status
+            if not timer_result.label:
+                return {
+                    "response": "Which timer would you like to check?",
+                    "agent": self.name,
+                    "success": False,
+                }
+
+            timer_info = timer_manager.query_timer(timer_result.label)
+            if not timer_info:
+                return {
+                    "response": f"I don't have an active timer for '{timer_result.label}'.",
+                    "agent": self.name,
+                    "success": False,
+                }
+
+            remaining = timer_info["remaining"]
+            is_paused = timer_info.get("is_paused", False)
+            status = "paused" if is_paused else "running"
+            response = f"Your {timer_result.label} timer has {remaining} left ({status})."
+            return {
+                "response": response,
+                "agent": self.name,
+                "timer_info": timer_info,
+                "success": True,
+            }
+
+        elif timer_result.operation == TimerOperation.PAUSE:
+            # Pause timer
+            if not timer_result.label:
+                return {
+                    "response": "Which timer would you like to pause?",
+                    "agent": self.name,
+                    "success": False,
+                }
+
+            timer = timer_manager.get_timer_by_label(timer_result.label)
+            if not timer:
+                return {
+                    "response": f"I don't have an active timer for '{timer_result.label}'.",
+                    "agent": self.name,
+                    "success": False,
+                }
+
+            if await timer_manager.pause_timer(timer.id):
+                return {
+                    "response": f"Paused the {timer_result.label} timer.",
+                    "agent": self.name,
+                    "timer_info": timer.to_dict(),
+                    "success": True,
+                }
+            return {
+                "response": f"Could not pause the {timer_result.label} timer.",
+                "agent": self.name,
+                "success": False,
+            }
+
+        elif timer_result.operation == TimerOperation.RESUME:
+            # Resume timer
+            if not timer_result.label:
+                return {
+                    "response": "Which timer would you like to resume?",
+                    "agent": self.name,
+                    "success": False,
+                }
+
+            timer = timer_manager.get_timer_by_label(timer_result.label)
+            if not timer:
+                return {
+                    "response": f"I don't have an active timer for '{timer_result.label}'.",
+                    "agent": self.name,
+                    "success": False,
+                }
+
+            if await timer_manager.resume_timer(timer.id):
+                return {
+                    "response": f"Resumed the {timer_result.label} timer.",
+                    "agent": self.name,
+                    "timer_info": timer.to_dict(),
+                    "success": True,
+                }
+            return {
+                "response": f"Could not resume the {timer_result.label} timer.",
+                "agent": self.name,
+                "success": False,
+            }
+
+        elif timer_result.operation == TimerOperation.CANCEL:
+            # Cancel timer
+            if not timer_result.label:
+                return {
+                    "response": "Which timer would you like to cancel?",
+                    "agent": self.name,
+                    "success": False,
+                }
+
+            if await timer_manager.cancel_timer_by_label(timer_result.label):
+                return {
+                    "response": f"Cancelled the {timer_result.label} timer.",
+                    "agent": self.name,
+                    "success": True,
+                }
+            return {
+                "response": f"I don't have an active timer for '{timer_result.label}'.",
+                "agent": self.name,
+                "success": False,
+            }
+
+        elif timer_result.operation == TimerOperation.CREATE or timer_result.timer_type:
+            # Create a new timer
+            return await self._create_timer(timer_result, text, speaker, room, context)
+
+        return {
+            "response": "I'm not sure what you'd like me to do with the timer.",
+            "agent": self.name,
+            "success": False,
+        }
+
+    async def _create_timer(
+        self,
+        timer_result: Any,
+        text: str,
+        speaker: str | None,
+        room: str | None,
+        context: dict,
+    ) -> dict[str, Any]:
+        """Create a new timer with optional actions.
+
+        Args:
+            timer_result: Parsed timer command
+            text: Original command text
+            speaker: Who created it
+            room: Where it was created
+            context: Request context
+
+        Returns:
+            Response dict
+        """
+        from barnabeenet.agents.orchestrator import get_orchestrator
+
+        timer_manager = await get_timer_manager()
+        if not timer_manager:
+            return {
+                "response": "Timer functionality is not available.",
+                "agent": self.name,
+                "success": False,
+            }
+
+        if not timer_result.duration:
+            return {
+                "response": "I couldn't understand the timer duration. Try something like 'set a timer for 5 minutes'.",
+                "agent": self.name,
+                "success": False,
+            }
+
+        # Parse chained actions from text (e.g., "wait 3 minutes turn on fan and then in 30 seconds turn it off")
+        chained_actions = await self._parse_chained_actions(text, timer_result, context)
+
+        # For delayed actions, parse the action
+        on_complete = None
+        if timer_result.timer_type == TimerType.DELAYED_ACTION and timer_result.action_text:
+            # Parse the action text to get service call
+            action_spec = await self.parse_action(timer_result.action_text, context)
+            if action_spec.action_type != ActionType.UNKNOWN:
+                on_complete = {
+                    "service": action_spec.service or f"{action_spec.domain.value}.turn_on",
+                    "entity_id": action_spec.entity_id,
+                    "data": action_spec.service_data,
+                }
+
+        # For device duration, create turn_off action
+        elif timer_result.timer_type == TimerType.DEVICE_DURATION and timer_result.target_device:
+            # Parse device name to get entity
+            action_spec = await self.parse_action(f"turn off {timer_result.target_device}", context)
+            if action_spec.action_type != ActionType.UNKNOWN:
+                on_complete = {
+                    "service": action_spec.service or f"{action_spec.domain.value}.turn_off",
+                    "entity_id": action_spec.entity_id,
+                    "data": action_spec.service_data,
+                }
+                # Also turn on the device now
+                turn_on_spec = await self.parse_action(f"turn on {timer_result.target_device}", context)
+                if turn_on_spec.action_type != ActionType.UNKNOWN:
+                    orchestrator = get_orchestrator()
+                    if orchestrator and hasattr(orchestrator, "_execute_ha_action"):
+                        # Create a minimal context for execution
+                        class MinimalContext:
+                            trace_id = None
+                        await orchestrator._execute_ha_action(self._action_to_dict(turn_on_spec), MinimalContext())
+
+        # Create the timer
+        timer = await timer_manager.create_timer(
+            timer_type=timer_result.timer_type or TimerType.ALARM,
+            duration=timer_result.duration,
+            label=timer_result.label or "timer",
+            speaker=speaker,
+            room=room,
+            on_complete=on_complete,
+        )
+
+        if not timer:
+            return {
+                "response": "I couldn't create the timer. No timer entities available.",
+                "agent": self.name,
+                "success": False,
+            }
+
+        # Add chained actions if any
+        for chained in chained_actions:
+            await timer_manager.add_chained_action(
+                timer.id,
+                chained["delay"],
+                chained["action"],
+            )
+
+        response = f"Set a {timer_result.label or ''} timer for {format_duration(timer_result.duration)}."
+        if timer_result.timer_type == TimerType.DEVICE_DURATION:
+            response += f" I'll turn off {timer_result.target_device} when it's done."
+
+        return {
+            "response": response,
+            "agent": self.name,
+            "timer_info": timer.to_dict(),
+            "success": True,
+        }
+
+    async def _parse_chained_actions(
+        self,
+        text: str,
+        timer_result: Any,
+        context: dict,
+    ) -> list[dict[str, Any]]:
+        """Parse chained actions from text (e.g., "wait 3 minutes turn on fan and then in 30 seconds turn it off").
+
+        Args:
+            text: Original command text
+            timer_result: Parsed timer result
+            context: Request context
+
+        Returns:
+            List of chained actions with delays
+        """
+        chained_actions = []
+
+        # Pattern: "wait X turn on Y and then in Z turn off Y"
+        # Look for "and then in X" patterns
+        import re
+
+        # Pattern: "and then in X seconds/minutes, action"
+        chain_pattern = r"and\s+then\s+in\s+(\d+\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?))[,\s]+(.+)"
+        matches = re.finditer(chain_pattern, text, re.IGNORECASE)
+
+        for match in matches:
+            delay_str = match.group(1)
+            action_text = match.group(2).strip()
+
+            delay = parse_duration(delay_str)
+            if delay and action_text:
+                # Parse the action using Action Agent
+                action_spec = await self.parse_action(action_text, context)
+                if action_spec.action_type != ActionType.UNKNOWN:
+                    chained_actions.append({
+                        "delay": delay,
+                        "action": {
+                            "service": action_spec.service or f"{action_spec.domain.value}.turn_on",
+                            "entity_id": action_spec.entity_id,
+                            "data": action_spec.service_data,
+                        },
+                    })
+
+        return chained_actions
 
     def _action_to_dict(self, action: ActionSpec) -> dict[str, Any]:
         """Convert ActionSpec to dictionary for response."""

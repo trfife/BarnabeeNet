@@ -1,7 +1,7 @@
 # Intent Classification Issues - Needs to be Fixed
 
-**Date:** January 21, 2026  
-**Test Results:** 36/49 passed (73%)  
+**Date:** January 21, 2026
+**Test Results:** 36/49 passed (73%)
 **Issues Found:** 13
 
 ---
@@ -19,10 +19,12 @@ The Meta Agent intent classification needs pattern improvements to correctly rou
 These should be classified as `instant` but are being misclassified:
 
 #### Time Queries
+
 - ❌ **"Tell me the time"** → `conversation` (should be `instant`)
 - ❌ **"What time?"** → `query` (should be `instant`)
 
 #### Date Queries
+
 - ❌ **"What date is it?"** → `query` (should be `instant`)
 - ❌ **"Tell me the date"** → `conversation` (should be `instant`)
 - ❌ **"Current date"** → `conversation` (should be `instant`)
@@ -30,6 +32,7 @@ These should be classified as `instant` but are being misclassified:
 **Root Cause:** Patterns likely match "What time is it?" and "What's the date?" but miss variations like "Tell me the time/date" and "What time?".
 
 **Fix Needed:** Add patterns to `src/barnabeenet/agents/meta.py`:
+
 - Pattern: `tell me the time|tell me the date`
 - Pattern: `what time\?|what date\?` (short form)
 - Pattern: `current time|current date`
@@ -46,11 +49,13 @@ These should be classified as `memory` but are being classified as `query`:
 - ❌ **"Remember: I don't like loud music"** → `conversation` (should be `memory`)
 
 **Root Cause:** Memory retrieval patterns likely match "What did I tell you about X?" but miss:
+
 - Generic preference queries ("What do I like?")
 - Self-referential queries ("What's my preference?")
 - Colon-separated remember statements ("Remember: ...")
 
 **Fix Needed:** Add patterns to `src/barnabeenet/agents/meta.py`:
+
 - Pattern: `what do I (like|prefer|want|need)`
 - Pattern: `what's my (preference|preference|favorite)`
 - Pattern: `remember:\s+` (colon-separated remember statements)
@@ -69,6 +74,7 @@ These are routing correctly to `interaction` agent, but intent classification co
 **Note:** These are lower priority since they all route to the `interaction` agent correctly. The intent classification difference (`query` vs `conversation`) doesn't affect functionality, but consistency would be better.
 
 **Optional Fix:** If we want consistent classification:
+
 - Questions starting with "What's" or "What is" could be classified as `query` consistently
 - "Explain X" could be classified as `query` instead of `conversation`
 
@@ -77,13 +83,16 @@ These are routing correctly to `interaction` agent, but intent classification co
 ## Priority
 
 ### High Priority (Must Fix)
+
 1. **Instant Agent patterns** - Users expect time/date queries to work consistently
 2. **Memory retrieval patterns** - Generic preference queries should retrieve memories
 
 ### Medium Priority (Should Fix)
+
 3. **Memory store pattern** - Colon-separated "Remember:" statements
 
 ### Low Priority (Nice to Have)
+
 4. **Intent classification consistency** - Doesn't affect functionality, but improves consistency
 
 ---
@@ -103,6 +112,7 @@ These are routing correctly to `interaction` agent, but intent classification co
 ## Test Cases to Add
 
 After fixes, these should pass:
+
 - "Tell me the time" → `instant`
 - "What time?" → `instant`
 - "What date is it?" → `instant`

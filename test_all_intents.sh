@@ -15,14 +15,14 @@ test_request() {
     local speaker="${2:-thom}"
     local room="${3:-office}"
     local conv_id="${4:-}"
-    
+
     local json_payload
     if [ -n "$conv_id" ]; then
         json_payload="{\"text\": \"$text\", \"speaker\": \"$speaker\", \"room\": \"$room\", \"conversation_id\": \"$conv_id\"}"
     else
         json_payload="{\"text\": \"$text\", \"speaker\": \"$speaker\", \"room\": \"$room\"}"
     fi
-    
+
     curl -s -X POST "${API_BASE}/chat" \
         -H "Content-Type: application/json" \
         -d "$json_payload"
@@ -35,24 +35,24 @@ check_result() {
     local response="$4"
     local expected_intent="${5:-}"
     local expected_agent="${6:-}"
-    
+
     TOTAL=$((TOTAL + 1))
-    
+
     # Extract fields from JSON response
     local intent=$(echo "$response" | grep -o '"intent":"[^"]*' | cut -d'"' -f4)
     local agent=$(echo "$response" | grep -o '"agent":"[^"]*' | cut -d'"' -f4)
     local response_text=$(echo "$response" | grep -o '"response":"[^"]*' | cut -d'"' -f4)
     local error=$(echo "$response" | grep -o '"error":"[^"]*' | cut -d'"' -f4)
-    
+
     local passed=true
     local issues_str=""
-    
+
     # Check for errors
     if [ -n "$error" ]; then
         passed=false
         issues_str="Error: $error"
     fi
-    
+
     # Check intent
     if [ -n "$expected_intent" ] && [ "$intent" != "$expected_intent" ]; then
         passed=false
@@ -61,7 +61,7 @@ check_result() {
         fi
         issues_str="${issues_str}Intent mismatch: expected '$expected_intent', got '$intent'"
     fi
-    
+
     # Check agent
     if [ -n "$expected_agent" ] && [ "$agent" != "$expected_agent" ]; then
         passed=false
@@ -70,7 +70,7 @@ check_result() {
         fi
         issues_str="${issues_str}Agent mismatch: expected '$expected_agent', got '$agent'"
     fi
-    
+
     # Check response
     if [ -z "$response_text" ] || [ ${#response_text} -lt 5 ]; then
         passed=false
@@ -79,7 +79,7 @@ check_result() {
         fi
         issues_str="${issues_str}Empty or too short response"
     fi
-    
+
     if [ "$passed" = true ]; then
         PASSED=$((PASSED + 1))
         echo "  ✅ $test_name: $intent → $agent"
@@ -275,7 +275,7 @@ if [ ${#ISSUES[@]} -gt 0 ]; then
     echo "ISSUES FOUND - NEEDS TO BE FIXED"
     echo "======================================================================"
     echo ""
-    
+
     i=1
     for issue in "${ISSUES[@]}"; do
         IFS='|' read -r category test_name input_text intent agent issues_str <<< "$issue"
@@ -286,7 +286,7 @@ if [ ${#ISSUES[@]} -gt 0 ]; then
         echo ""
         i=$((i + 1))
     done
-    
+
     # Save to file
     {
         echo "["
@@ -309,7 +309,7 @@ if [ ${#ISSUES[@]} -gt 0 ]; then
         echo ""
         echo "]"
     } > intent_test_issues.json
-    
+
     echo "✓ Issues saved to intent_test_issues.json"
 else
     echo "✅ No issues found! All tests passed."

@@ -49,14 +49,28 @@ class ActiveTimer:
     room: str | None = None  # Where it was created
     # For device_duration and delayed_action
     on_complete: dict[str, Any] | None = None  # Service call to execute
+    # For chained actions
+    chained_actions: list[dict[str, Any]] = field(default_factory=list)  # List of {delay, action}
+    paused_at: datetime | None = None  # When timer was paused
+    paused_duration: timedelta = timedelta(0)  # Total paused time
 
     @property
     def remaining(self) -> timedelta:
         """Get remaining time on the timer."""
+        if self.paused_at:
+            # Timer is paused - return remaining time when paused
+            paused_remaining = self.ends_at - self.paused_at
+            return paused_remaining if paused_remaining > timedelta(0) else timedelta(0)
+        
         now = datetime.now()
         if now >= self.ends_at:
             return timedelta(0)
         return self.ends_at - now
+    
+    @property
+    def is_paused(self) -> bool:
+        """Check if timer is currently paused."""
+        return self.paused_at is not None
 
     @property
     def is_expired(self) -> bool:
@@ -249,7 +263,49 @@ DELAYED_ACTION_PATTERNS = [
     r"wait\s+(.+?)\s+(?:and|then)\s+(.+)",
     # "turn off the fan in 3 minutes"
     r"(.+?)\s+in\s+(\d+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))$",
+    # "in 60 seconds turn off the office light"
+    r"in\s+(\d+\s*(?:seconds?|secs?|minutes?|mins?))\s+turn\s+(?:off|on)\s+(?:the\s+)?(.+)",
 ]
+
+# Timer query patterns
+TIMER_QUERY_PATTERNS = [
+    # "how long on lasagna"
+    r"how\s+long\s+(?:on|for|left\s+on)\s+(.+)",
+    # "how much time left on pizza"
+    r"how\s+much\s+time\s+left\s+(?:on|for)\s+(.+)",
+    # "time left on lasagna"
+    r"time\s+left\s+(?:on|for)\s+(.+)",
+    # "how long is the lasagna timer"
+    r"how\s+long\s+is\s+(?:the\s+)?(.+?)\s+timer",
+    # "what's left on lasagna"
+    r"what'?s?\s+left\s+(?:on|for)\s+(.+)",
+]
+
+# Timer control patterns
+TIMER_CONTROL_PATTERNS = [
+    # "pause the lasagna timer"
+    r"pause\s+(?:the\s+)?(.+?)(?:\s+timer)?$",
+    # "resume the lasagna timer"
+    r"resume\s+(?:the\s+)?(.+?)(?:\s+timer)?$",
+    # "stop the lasagna timer"
+    r"stop\s+(?:the\s+)?(.+?)(?:\s+timer)?$",
+    # "cancel the lasagna timer"
+    r"cancel\s+(?:the\s+)?(.+?)(?:\s+timer)?$",
+    # "start the lasagna timer"
+    r"start\s+(?:the\s+)?(.+?)(?:\s+timer)?$",
+]
+
+
+class TimerOperation(str, Enum):
+    """Timer operations."""
+
+    CREATE = "create"
+    QUERY = "query"
+    PAUSE = "pause"
+    RESUME = "resume"
+    CANCEL = "cancel"
+    START = "start"
+    STOP = "stop"
 
 
 @dataclass
@@ -263,6 +319,7 @@ class TimerParseResult:
     action_text: str | None = None
     target_device: str | None = None
     is_timer_command: bool = False
+    operation: TimerOperation | None = None  # query, pause, resume, cancel, etc.
 
 
 def parse_timer_command(text: str) -> TimerParseResult:
@@ -277,7 +334,37 @@ def parse_timer_command(text: str) -> TimerParseResult:
     text = text.strip()
     result = TimerParseResult()
 
-    # Check alarm patterns first
+    # Check timer query patterns first
+    for pattern in TIMER_QUERY_PATTERNS:
+        match = re.match(pattern, text, re.IGNORECASE)
+        if match:
+            result.is_timer_command = True
+            result.operation = TimerOperation.QUERY
+            result.label = match.group(1).strip()
+            return result
+
+    # Check timer control patterns
+    for pattern in TIMER_CONTROL_PATTERNS:
+        match = re.match(pattern, text, re.IGNORECASE)
+        if match:
+            result.is_timer_command = True
+            label = match.group(1).strip()
+            result.label = label
+
+            # Determine operation from pattern
+            text_lower = text.lower()
+            if "pause" in text_lower:
+                result.operation = TimerOperation.PAUSE
+            elif "resume" in text_lower:
+                result.operation = TimerOperation.RESUME
+            elif "cancel" in text_lower or "stop" in text_lower:
+                result.operation = TimerOperation.CANCEL
+            elif "start" in text_lower:
+                result.operation = TimerOperation.START
+
+            return result
+
+    # Check alarm patterns
     for pattern in ALARM_PATTERNS:
         match = re.match(pattern, text, re.IGNORECASE)
         if match:
@@ -329,8 +416,9 @@ def parse_timer_command(text: str) -> TimerParseResult:
 
             if len(groups) == 2:
                 # Order depends on pattern
-                if "in " in text.lower()[:10] or "after " in text.lower()[:10]:
-                    # "in 3 minutes, turn off the fan"
+                text_lower = text.lower()
+                if "in " in text_lower[:10] or "after " in text_lower[:10] or "wait " in text_lower[:10]:
+                    # "in 3 minutes, turn off the fan" or "in 60 seconds turn off the office light"
                     result.duration = parse_duration(groups[0])
                     result.action_text = groups[1].strip()
                 else:
@@ -544,8 +632,58 @@ class TimerManager:
             if timer.on_complete:
                 await self._execute_on_complete(timer)
 
+        # Handle chained actions
+        if timer.chained_actions:
+            await self._execute_chained_actions(timer)
+
         # Clean up
         await self._remove_timer(timer.id)
+
+    async def _execute_chained_actions(self, timer: ActiveTimer) -> None:
+        """Execute chained actions sequentially with delays.
+
+        Args:
+            timer: Timer with chained actions
+        """
+        for i, chained in enumerate(timer.chained_actions):
+            delay = chained["delay"]
+            action = chained["action"]
+
+            # Wait for the delay
+            if delay.total_seconds() > 0:
+                await asyncio.sleep(delay.total_seconds())
+
+            # Execute the action
+            try:
+                service = action.get("service", "")
+                entity_id = action.get("entity_id")
+                service_data = action.get("data", {})
+
+                result = await self._ha.call_service(
+                    service,
+                    entity_id=entity_id,
+                    **service_data,
+                )
+
+                if result.success:
+                    logger.info(
+                        "Executed chained action %d/%d for timer '%s': %s for %s",
+                        i + 1,
+                        len(timer.chained_actions),
+                        timer.label,
+                        service,
+                        entity_id,
+                    )
+                else:
+                    logger.error(
+                        "Failed to execute chained action %d/%d: %s - %s",
+                        i + 1,
+                        len(timer.chained_actions),
+                        service,
+                        result.message,
+                    )
+            except Exception as e:
+                logger.error("Error executing chained action %d/%d: %s", i + 1, len(timer.chained_actions), e)
 
     async def _announce_timer_finished(self, timer: ActiveTimer) -> None:
         """Announce that a timer finished via message bus/TTS.
@@ -612,6 +750,71 @@ class TimerManager:
         timer = self._active_timers.pop(timer_id, None)
         if timer:
             self._pool.release(timer.ha_timer_entity)
+
+    async def pause_timer(self, timer_id: str) -> bool:
+        """Pause an active timer.
+
+        Args:
+            timer_id: ID of the timer to pause
+
+        Returns:
+            True if paused, False if not found
+        """
+        timer = self._active_timers.get(timer_id)
+        if not timer:
+            return False
+
+        if timer.is_paused:
+            logger.debug("Timer '%s' is already paused", timer.label)
+            return True
+
+        try:
+            await self._ha.call_service(
+                "timer.pause",
+                entity_id=timer.ha_timer_entity,
+            )
+            timer.paused_at = datetime.now()
+            logger.info("Paused timer '%s'", timer.label)
+            return True
+        except Exception as e:
+            logger.error("Error pausing HA timer: %s", e)
+            return False
+
+    async def resume_timer(self, timer_id: str) -> bool:
+        """Resume a paused timer.
+
+        Args:
+            timer_id: ID of the timer to resume
+
+        Returns:
+            True if resumed, False if not found
+        """
+        timer = self._active_timers.get(timer_id)
+        if not timer:
+            return False
+
+        if not timer.is_paused:
+            logger.debug("Timer '%s' is not paused", timer.label)
+            return True
+
+        try:
+            # Calculate how long it was paused
+            if timer.paused_at:
+                pause_duration = datetime.now() - timer.paused_at
+                timer.paused_duration += pause_duration
+                # Adjust ends_at to account for pause time
+                timer.ends_at += pause_duration
+                timer.paused_at = None
+
+            await self._ha.call_service(
+                "timer.start",
+                entity_id=timer.ha_timer_entity,
+            )
+            logger.info("Resumed timer '%s'", timer.label)
+            return True
+        except Exception as e:
+            logger.error("Error resuming HA timer: %s", e)
+            return False
 
     async def cancel_timer(self, timer_id: str) -> bool:
         """Cancel an active timer.
@@ -714,6 +917,58 @@ class TimerManager:
             return timer.remaining
         return None
 
+    def query_timer(self, label: str) -> dict[str, Any] | None:
+        """Query timer status by label (e.g., "how long on lasagna").
+
+        Args:
+            label: Timer label to query
+
+        Returns:
+            Dict with timer info, or None if not found
+        """
+        timer = self.get_timer_by_label(label)
+        if not timer:
+            return None
+
+        return {
+            "id": timer.id,
+            "label": timer.label,
+            "remaining": format_duration(timer.remaining),
+            "remaining_seconds": int(timer.remaining.total_seconds()),
+            "duration": format_duration(timer.duration),
+            "started_at": timer.started_at.isoformat(),
+            "ends_at": timer.ends_at.isoformat(),
+            "is_paused": timer.is_paused,
+            "timer_type": timer.timer_type.value,
+        }
+
+    async def add_chained_action(
+        self,
+        timer_id: str,
+        delay: timedelta,
+        action: dict[str, Any],
+    ) -> bool:
+        """Add a chained action to a timer (e.g., "wait 3 minutes turn on fan, then in 30 seconds turn it off").
+
+        Args:
+            timer_id: Timer ID
+            delay: Delay after timer finishes (or after previous chained action)
+            action: Service call dict (service, entity_id, data)
+
+        Returns:
+            True if added, False if timer not found
+        """
+        timer = self._active_timers.get(timer_id)
+        if not timer:
+            return False
+
+        timer.chained_actions.append({
+            "delay": delay,
+            "action": action,
+        })
+        logger.info("Added chained action to timer '%s': %s after %s", timer.label, action, format_duration(delay))
+        return True
+
 
 # =============================================================================
 # Singleton Pattern
@@ -762,6 +1017,7 @@ def reset_timer_manager() -> None:
 
 __all__ = [
     "TimerType",
+    "TimerOperation",
     "ActiveTimer",
     "TimerPoolConfig",
     "TimerManager",
