@@ -190,7 +190,7 @@ class HAContextService:
                     entity_count,
                     area_count,
                 )
-                
+
                 # Log sample of entity IDs to verify they're loading (especially for debugging)
                 if entity_count > 0:
                     sample_ids = list(self._entity_metadata.keys())[:10]

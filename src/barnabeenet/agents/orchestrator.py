@@ -1376,8 +1376,8 @@ class AgentOrchestrator:
             # Collect all candidate matches across relevant domains
             candidates: list[tuple[float, Any]] = []
 
-            # Search specified domain
-            entity = self._ha_client.resolve_entity(entity_name, domain)
+            # Search specified domain - use async version to ensure metadata is fresh
+            entity = await self._ha_client.resolve_entity_async(entity_name, domain)
             if entity:
                 score = entity.match_score(entity_name)
                 candidates.append((score, entity))
@@ -1388,10 +1388,10 @@ class AgentOrchestrator:
                     score,
                 )
 
-            # Also search alternative domains (lights often controlled by switches)
+            # Also search alternative domains (lights often controlled by switches) - use async version
             alternative_domains = self._get_alternative_domains(domain, entity_name)
             for alt_domain in alternative_domains:
-                alt_entity = self._ha_client.resolve_entity(entity_name, alt_domain)
+                alt_entity = await self._ha_client.resolve_entity_async(entity_name, alt_domain)
                 if alt_entity:
                     score = alt_entity.match_score(entity_name)
                     candidates.append((score, alt_entity))
@@ -1418,8 +1418,8 @@ class AgentOrchestrator:
                         best_score,
                     )
             else:
-                # Try without domain restriction as last resort
-                entity = self._ha_client.resolve_entity(entity_name, None)
+                # Try without domain restriction as last resort - use async version
+                entity = await self._ha_client.resolve_entity_async(entity_name, None)
                 if entity:
                     logger.info(
                         "Found entity with no domain restriction: %s",
