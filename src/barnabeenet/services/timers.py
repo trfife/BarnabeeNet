@@ -802,7 +802,9 @@ class TimerManager:
                 if hasattr(result, 'response_data') and result.response_data:
                     affected = result.response_data.get('affected_states', [])
                     if affected:
-                        logger.info("Service call affected %d entities", len(affected))
+                        logger.info("Service call affected %d entities: %s", len(affected), [e.get('entity_id', 'unknown') for e in affected[:3]])
+                    else:
+                        logger.warning("Service call returned 0 affected entities - entity may not exist: %s", entity_id)
             else:
                 logger.error(
                     "Failed to execute timer on_complete: %s for %s - %s",

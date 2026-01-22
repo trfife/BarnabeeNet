@@ -1015,13 +1015,13 @@ If you cannot parse the request, respond with:
                     entity_name = action_spec.entity_name
                     domain = action_spec.domain.value
                     candidates: list[tuple[float, Any]] = []
-                    
+
                     # Search specified domain
                     entity = orchestrator._ha_client.resolve_entity(entity_name, domain)
                     if entity:
                         score = entity.match_score(entity_name)
                         candidates.append((score, entity))
-                    
+
                     # Search alternative domains
                     alternative_domains = orchestrator._get_alternative_domains(domain, entity_name)
                     for alt_domain in alternative_domains:
@@ -1029,7 +1029,7 @@ If you cannot parse the request, respond with:
                         if alt_entity:
                             score = alt_entity.match_score(entity_name)
                             candidates.append((score, alt_entity))
-                    
+
                     # Pick best match
                     if candidates:
                         candidates.sort(key=lambda x: x[0], reverse=True)
@@ -1064,13 +1064,13 @@ If you cannot parse the request, respond with:
                     entity_name = action_spec.entity_name
                     domain = action_spec.domain.value
                     candidates: list[tuple[float, Any]] = []
-                    
+
                     # Search specified domain
                     entity = orchestrator._ha_client.resolve_entity(entity_name, domain)
                     if entity:
                         score = entity.match_score(entity_name)
                         candidates.append((score, entity))
-                    
+
                     # Search alternative domains
                     alternative_domains = orchestrator._get_alternative_domains(domain, entity_name)
                     for alt_domain in alternative_domains:
@@ -1078,19 +1078,19 @@ If you cannot parse the request, respond with:
                         if alt_entity:
                             score = alt_entity.match_score(entity_name)
                             candidates.append((score, alt_entity))
-                    
+
                     # Pick best match
                     if candidates:
                         candidates.sort(key=lambda x: x[0], reverse=True)
                         entity = candidates[0][1]
                         resolved_entity_id = entity.entity_id
                         actual_domain = entity.entity_id.split(".")[0] if "." in entity.entity_id else domain
-                        
+
                         # Adapt service to match actual domain
                         service = action_spec.service or f"{domain}.turn_off"
                         if actual_domain != domain:
                             service = orchestrator._adapt_service_to_domain(service, actual_domain)
-                        
+
                         logger.info("Resolved '%s' to entity_id: %s (domain: %s -> %s) for timer action", entity_name, resolved_entity_id, domain, actual_domain)
                     else:
                         # Try without domain restriction
@@ -1103,7 +1103,7 @@ If you cannot parse the request, respond with:
                             resolved_entity_id = action_spec.entity_id
                             service = action_spec.service or f"{domain}.turn_off"
                             logger.warning("Could not resolve entity '%s', using placeholder: %s", entity_name, resolved_entity_id)
-                    
+
                     if resolved_entity_id:
                         on_complete = {
                             "service": service,
