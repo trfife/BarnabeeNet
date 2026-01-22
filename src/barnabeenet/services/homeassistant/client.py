@@ -476,40 +476,50 @@ class HomeAssistantClient:
         ws_url = f"{ws_url}/api/websocket"
 
         try:
-            async with websockets.connect(ws_url) as ws:
-                # Step 1: Wait for auth_required
-                msg = json.loads(await ws.recv())
-                if msg.get("type") != "auth_required":
-                    logger.error("Unexpected WebSocket message: %s", msg)
-                    return None
+            # Add timeout to prevent hanging - 10 seconds should be enough for most commands
+            import asyncio
+            async with asyncio.timeout(10):
+                async with websockets.connect(ws_url) as ws:
+                    # Step 1: Wait for auth_required
+                    msg = json.loads(await ws.recv())
+                    if msg.get("type") != "auth_required":
+                        logger.error("Unexpected WebSocket message: %s", msg)
+                        return None
 
-                # Step 2: Send auth
-                await ws.send(json.dumps({"type": "auth", "access_token": self._token}))
+                    # Step 2: Send auth
+                    await ws.send(json.dumps({"type": "auth", "access_token": self._token}))
 
-                # Step 3: Wait for auth response
-                msg = json.loads(await ws.recv())
-                if msg.get("type") == "auth_invalid":
-                    logger.error("WebSocket auth failed: %s", msg.get("message"))
-                    return None
-                if msg.get("type") != "auth_ok":
-                    logger.error("Unexpected auth response: %s", msg)
-                    return None
+                    # Step 3: Wait for auth response
+                    msg = json.loads(await ws.recv())
+                    if msg.get("type") == "auth_invalid":
+                        logger.error("WebSocket auth failed: %s", msg.get("message"))
+                        return None
+                    if msg.get("type") != "auth_ok":
+                        logger.error("Unexpected auth response: %s", msg)
+                        return None
 
-                logger.debug("WebSocket authenticated successfully")
+                    logger.debug("WebSocket authenticated successfully")
 
-                # Step 4: Send command
-                await ws.send(json.dumps({"id": 1, "type": command_type}))
+                    # Step 4: Send command
+                    await ws.send(json.dumps({"id": 1, "type": command_type}))
 
-                # Step 5: Wait for result
-                msg = json.loads(await ws.recv())
-                if msg.get("type") == "result" and msg.get("success"):
-                    return msg.get("result", [])
-                else:
-                    logger.error("WebSocket command failed: %s", msg)
-                    return None
+                    # Step 5: Wait for result
+                    msg = json.loads(await ws.recv())
+                    if msg.get("type") == "result" and msg.get("success"):
+                        return msg.get("result", [])
+                    else:
+                        logger.error("WebSocket command failed: %s", msg)
+                        return None
 
+        except asyncio.TimeoutError:
+            logger.warning("WebSocket command %s timed out after 10 seconds", command_type)
+            return None
         except WebSocketException as e:
             logger.warning("WebSocket error for %s: %s", command_type, e)
+            # If it's a "message too big" error, that's expected for large entity registries
+            # The REST API fallback should handle this
+            if "message too big" in str(e).lower() or "1009" in str(e):
+                logger.info("WebSocket message too large for %s - will use REST API fallback", command_type)
             return None
         except Exception as e:
             logger.warning("WebSocket connection failed for %s: %s", command_type, e)
@@ -1114,7 +1124,7 @@ class HomeAssistantClient:
         entity_count = len(list(self._entity_registry.all()))
         if entity_count == 0:
             await self.ensure_entities_loaded()
-        
+
         # First try with existing registry
         entity = self._entity_registry.find_by_name(name, domain)
         if entity:

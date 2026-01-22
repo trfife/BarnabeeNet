@@ -122,10 +122,18 @@ class HAContextService:
                     await ha_client.connect()
 
                 # Get entity registry via WebSocket (lightweight, no states)
+                # Note: For very large registries (>1000 entities), WebSocket may fail with "message too big"
+                # In that case, we'll use refresh_entities() which uses REST API
                 entity_registry_data = await ha_client._ws_command("config/entity_registry/list")
                 if not entity_registry_data:
-                    logger.warning("No entity registry data from HA")
-                    return 0
+                    logger.warning("No entity registry data from HA WebSocket - entity registry may be too large")
+                    # Don't return 0 - the registry might already be populated from refresh_entities()
+                    # Just log and continue - entities should already be in the registry from REST API
+                    if len(self._entity_metadata) == 0:
+                        logger.warning("Entity metadata is empty and WebSocket failed - may need REST API fallback")
+                        return 0
+                    # If we have existing metadata, keep it
+                    return len(self._entity_metadata)
 
                 # Get area registry
                 area_registry_data = await ha_client._ws_command("config/area_registry/list")
