@@ -482,6 +482,11 @@ class TimerManager:
         """Discover timer.barnabee_* entities in HA."""
         self._pool.available.clear()
 
+        # Ensure HA is connected
+        if not await self._ha.ensure_connected():
+            logger.warning("Home Assistant not connected, cannot discover timer entities")
+            return
+
         # Query HA directly for timer entities (don't rely on cached entities)
         # Try to get state for each timer entity - if it exists, add it to the pool
         for i in range(1, self._config.pool_size + 1):
@@ -491,7 +496,7 @@ class TimerManager:
                 state = await self._ha.get_state(entity_id)
                 if state:
                     self._pool.available.append(entity_id)
-                    logger.debug("Found timer entity: %s", entity_id)
+                    logger.info("Found timer entity: %s", entity_id)
                 else:
                     logger.debug("Timer entity not found: %s", entity_id)
             except Exception as e:
@@ -503,6 +508,8 @@ class TimerManager:
                 "Create timer helpers in Home Assistant named timer.barnabee_1 through timer.barnabee_10.",
                 self._config.prefix,
             )
+        else:
+            logger.info("Discovered %d timer entities: %s", len(self._pool.available), self._pool.available)
 
     async def create_timer(
         self,
