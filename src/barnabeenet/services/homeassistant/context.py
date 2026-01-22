@@ -124,11 +124,40 @@ class HAContextService:
                 # Get entity registry via WebSocket (lightweight, no states)
                 # Note: For very large registries (>1000 entities), WebSocket may fail with "message too big"
                 # In that case, we'll use refresh_entities() which uses REST API
+                # If the registry already has entities from REST API, we can use those instead
+                registry_already_has_entities = len(list(ha_client._entity_registry.all())) > 0
+                
                 entity_registry_data = await ha_client._ws_command("config/entity_registry/list")
                 if not entity_registry_data:
                     logger.warning("No entity registry data from HA WebSocket - entity registry may be too large")
-                    # Don't return 0 - the registry might already be populated from refresh_entities()
-                    # Just log and continue - entities should already be in the registry from REST API
+                    # If registry already has entities from REST API, populate metadata from those
+                    if registry_already_has_entities:
+                        logger.info("Using existing entity registry from REST API (WebSocket failed)")
+                        # Populate metadata from existing registry
+                        self._entity_metadata.clear()
+                        for entity in ha_client._entity_registry.all():
+                            self._entity_metadata[entity.entity_id] = EntityMetadata(
+                                entity_id=entity.entity_id,
+                                domain=entity.domain,
+                                friendly_name=entity.friendly_name,
+                                area_id=entity.area_id,
+                                device_id=entity.device_id,
+                                aliases=[],
+                            )
+                        logger.info("Populated %d entities from existing registry", len(self._entity_metadata))
+                        # Still try to get areas
+                        area_registry_data = await ha_client._ws_command("config/area_registry/list")
+                        if area_registry_data:
+                            area_map: dict[str, str] = {}
+                            for area in area_registry_data:
+                                area_id = area.get("area_id")
+                                name = area.get("name")
+                                if area_id and name:
+                                    area_map[area_id] = name
+                            self._area_names = list(area_map.values())
+                        self._last_refresh = datetime.now()
+                        return len(self._entity_metadata)
+                    # No existing entities and WebSocket failed
                     if len(self._entity_metadata) == 0:
                         logger.warning("Entity metadata is empty and WebSocket failed - may need REST API fallback")
                         return 0
