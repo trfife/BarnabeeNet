@@ -281,9 +281,9 @@ TIMER_QUERY_PATTERNS = [
     r"what'?s?\s+left\s+(?:on|for)\s+(.+)",
 ]
 
-# Timer control patterns
+# Timer control patterns (MUST be more specific than media patterns)
 TIMER_CONTROL_PATTERNS = [
-    # "pause the lasagna timer"
+    # "pause the lasagna timer" - more specific to avoid matching media pause
     r"pause\s+(?:the\s+)?(.+?)(?:\s+timer)?$",
     # "resume the lasagna timer"
     r"resume\s+(?:the\s+)?(.+?)(?:\s+timer)?$",
@@ -343,7 +343,8 @@ def parse_timer_command(text: str) -> TimerParseResult:
             result.label = match.group(1).strip()
             return result
 
-    # Check timer control patterns
+    # Check timer control patterns (check BEFORE alarm patterns to catch pause/resume/cancel)
+    # These must be checked before other patterns that might match (like media pause)
     for pattern in TIMER_CONTROL_PATTERNS:
         match = re.match(pattern, text, re.IGNORECASE)
         if match:
@@ -357,7 +358,8 @@ def parse_timer_command(text: str) -> TimerParseResult:
                 result.operation = TimerOperation.PAUSE
             elif "resume" in text_lower:
                 result.operation = TimerOperation.RESUME
-            elif "cancel" in text_lower or "stop" in text_lower:
+            elif "cancel" in text_lower or ("stop" in text_lower and "timer" in text_lower):
+                # Only match "stop" if "timer" is in the text to avoid media stop
                 result.operation = TimerOperation.CANCEL
             elif "start" in text_lower:
                 result.operation = TimerOperation.START

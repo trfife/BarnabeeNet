@@ -812,7 +812,16 @@ If you cannot parse the request, respond with:
         Returns:
             Response dict with timer info
         """
-        timer_manager = await get_timer_manager()
+        try:
+            timer_manager = await get_timer_manager()
+        except Exception as e:
+            logger.error("Error getting timer manager: %s", e, exc_info=True)
+            return {
+                "response": f"Timer functionality error: {str(e)}",
+                "agent": self.name,
+                "success": False,
+            }
+        
         if not timer_manager:
             return {
                 "response": "Timer functionality is not available. Home Assistant connection required.",
@@ -965,7 +974,16 @@ If you cannot parse the request, respond with:
         """
         from barnabeenet.agents.orchestrator import get_orchestrator
 
-        timer_manager = await get_timer_manager()
+        try:
+            timer_manager = await get_timer_manager()
+        except Exception as e:
+            logger.error("Error getting timer manager in _create_timer: %s", e, exc_info=True)
+            return {
+                "response": f"Timer functionality error: {str(e)}",
+                "agent": self.name,
+                "success": False,
+            }
+        
         if not timer_manager:
             return {
                 "response": "Timer functionality is not available.",

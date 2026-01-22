@@ -35,7 +35,7 @@ call_api() {
     local text="$1"
     local speaker="${2:-thom}"
     local room="${3:-office}"
-    
+
     curl -s -X POST "${API_BASE}/api/v1/chat" \
         -H "Content-Type: application/json" \
         -d "{\"text\": \"$text\", \"speaker\": \"$speaker\", \"room\": \"$room\"}"
@@ -47,48 +47,48 @@ test_timer() {
     local command="$2"
     local expected_intent="${3:-action}"
     local expected_agent="${4:-action}"
-    
+
     TOTAL=$((TOTAL + 1))
-    
+
     echo "Test $TOTAL: $test_name"
     echo "Command: $command"
-    
+
     response=$(call_api "$command")
-    
+
     # Extract fields from JSON response
     intent=$(echo "$response" | grep -o '"intent":"[^"]*' | cut -d'"' -f4)
     agent=$(echo "$response" | grep -o '"agent":"[^"]*' | cut -d'"' -f4)
     response_text=$(echo "$response" | grep -o '"response":"[^"]*' | cut -d'"' -f4)
     error=$(echo "$response" | grep -o '"error":"[^"]*' | cut -d'"' -f4)
     timer_info=$(echo "$response" | grep -o '"timer_info":{[^}]*}' | head -1)
-    
+
     local passed=true
     local issues=""
-    
+
     # Check for errors
     if [ -n "$error" ]; then
         passed=false
         issues="Error: $error"
     fi
-    
+
     # Check intent
     if [ -n "$expected_intent" ] && [ "$intent" != "$expected_intent" ]; then
         passed=false
         issues="${issues}Intent mismatch: expected '$expected_intent', got '$intent'. "
     fi
-    
+
     # Check agent
     if [ -n "$expected_agent" ] && [ "$agent" != "$expected_agent" ]; then
         passed=false
         issues="${issues}Agent mismatch: expected '$expected_agent', got '$agent'. "
     fi
-    
+
     # Check response
     if [ -z "$response_text" ] || [ ${#response_text} -lt 5 ]; then
         passed=false
         issues="${issues}Empty or too short response. "
     fi
-    
+
     if [ "$passed" = true ]; then
         PASSED=$((PASSED + 1))
         echo "✓ PASSED"
@@ -102,7 +102,7 @@ test_timer() {
         echo "Response: $response_text"
         echo "Full response: $response"
     fi
-    
+
     echo ""
     sleep 1  # Small delay between tests
 }
