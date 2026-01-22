@@ -348,9 +348,11 @@ async def get_ha_client() -> HomeAssistantClient | None:
 
             from barnabeenet.services.secrets import get_secrets_service
 
-            # Get Redis connection
+            # Get Redis connection with timeout to prevent hanging
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-            redis_client = redis.from_url(redis_url, decode_responses=True)
+            redis_client = redis.from_url(
+                redis_url, decode_responses=True, socket_timeout=5.0, socket_connect_timeout=5.0
+            )
 
             # Try to get config from Redis
             config_json = await redis_client.get(HA_CONFIG_KEY)

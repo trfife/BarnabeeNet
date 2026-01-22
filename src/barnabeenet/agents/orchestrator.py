@@ -200,9 +200,11 @@ class AgentOrchestrator:
 
             from barnabeenet.services.secrets import get_secrets_service
 
-            # Get Redis connection
+            # Get Redis connection with timeout to prevent hanging
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-            redis_client = redis.from_url(redis_url, decode_responses=True)
+            redis_client = redis.from_url(
+                redis_url, decode_responses=True, socket_timeout=5.0, socket_connect_timeout=5.0
+            )
 
             # Use the singleton secrets service
             secrets_service = await get_secrets_service(redis_client)
@@ -553,9 +555,11 @@ class AgentOrchestrator:
 
             from barnabeenet.services.profiles import PrivacyZone, get_profile_service
 
-            # Get Redis client for profile storage
+            # Get Redis client for profile storage with timeout to prevent hanging
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-            redis_client = aioredis.from_url(redis_url, decode_responses=True)
+            redis_client = aioredis.from_url(
+                redis_url, decode_responses=True, socket_timeout=5.0, socket_connect_timeout=5.0
+            )
 
             # Pass both Redis and HA client
             profile_service = await get_profile_service(
@@ -610,9 +614,11 @@ class AgentOrchestrator:
 
             from barnabeenet.services.profiles import PrivacyZone, get_profile_service
 
-            # Get Redis client for profile storage
+            # Get Redis client for profile storage with timeout to prevent hanging
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-            redis_client = aioredis.from_url(redis_url, decode_responses=True)
+            redis_client = aioredis.from_url(
+                redis_url, decode_responses=True, socket_timeout=5.0, socket_connect_timeout=5.0
+            )
 
             # Get HA client for location lookups (may not be available)
             ha_client = self._ha_client

@@ -31,10 +31,15 @@ BarnabeeNet is a privacy-first, multi-agent AI smart home assistant built with F
 ## Development Rules
 
 1. **Always run tests:** `pytest` (uses testmon for fast incremental runs)
-2. **Deploy to VM:** Use `./scripts/deploy-vm.sh` or `ssh thom@192.168.86.51 'cd ~/barnabeenet && git pull && bash scripts/restart.sh'`
-3. **WSL Usage:** Only for GPU workers, NOT main API
-4. **Edit prompts:** Direct file edit in `prompts/*.txt`, no UI
-5. **Change models:** Edit `config/llm.yaml`, restart service
+2. **IMPORTANT - Commit and Deploy:** After making code changes, ALWAYS:
+   - Commit changes: `git add -A && git commit -m "description"`
+   - Push to origin: `git push`
+   - Deploy to VM: `ssh thom@192.168.86.51 'cd ~/barnabeenet && git pull && bash scripts/restart.sh'`
+   - Changes are NOT live until deployed to the VM at 192.168.86.51
+3. **Deploy to VM:** Use `./scripts/deploy-vm.sh` or the SSH command above
+4. **WSL Usage:** Only for GPU workers, NOT main API
+5. **Edit prompts:** Direct file edit in `prompts/*.txt`, no UI
+6. **Change models:** Edit `config/llm.yaml`, restart service
 
 ## Code Style
 - Python 3.12+ with strict typing

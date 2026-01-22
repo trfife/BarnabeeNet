@@ -103,7 +103,14 @@ class HAContextService:
         Returns:
             Number of entities loaded
         """
-        async with self._refresh_lock:
+        # Use timeout to prevent deadlock if background task holds the lock
+        try:
+            await asyncio.wait_for(self._refresh_lock.acquire(), timeout=5.0)
+        except asyncio.TimeoutError:
+            logger.warning("Timeout acquiring refresh lock - another refresh may be in progress")
+            return len(self._entity_metadata)
+
+        try:
             # Check if refresh is needed
             if (
                 not force
@@ -246,6 +253,8 @@ class HAContextService:
                 import traceback
                 logger.error("Traceback: %s", traceback.format_exc())
                 return 0
+        finally:
+            self._refresh_lock.release()
 
     async def get_context_for_meta_agent(self) -> HAContext:
         """Get lightweight context for Meta Agent (intent classification).
