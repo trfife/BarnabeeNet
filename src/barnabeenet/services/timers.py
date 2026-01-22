@@ -538,11 +538,17 @@ class TimerManager:
         if not self._pool.available:
             logger.info("No timer entities in pool, attempting rediscovery...")
             await self._discover_timer_entities()
+            logger.info("After rediscovery: %d entities available", len(self._pool.available))
 
         # Allocate a timer entity
         entity_id = self._pool.allocate()
         if not entity_id:
-            logger.warning("No timer entities available in pool")
+            logger.warning(
+                "No timer entities available in pool (available: %d, in_use: %d, active_timers: %d)",
+                len(self._pool.available),
+                len(self._pool.in_use),
+                len(self._active_timers),
+            )
             return None
 
         # Create timer record
@@ -585,11 +591,20 @@ class TimerManager:
         self._pool.in_use[timer_id] = entity_id
 
         logger.info(
-            "Created %s timer '%s' for %s (entity: %s)",
+            "Created %s timer '%s' for %s (entity: %s, timer_id: %s, started_at: %s, ends_at: %s)",
             timer_type.value,
             timer.label,
             format_duration(duration),
             entity_id,
+            timer_id,
+            timer.started_at.isoformat(),
+            timer.ends_at.isoformat(),
+        )
+        logger.info(
+            "Active timers count: %d, Pool available: %d, Pool in_use: %d",
+            len(self._active_timers),
+            len(self._pool.available),
+            len(self._pool.in_use),
         )
 
         return timer
