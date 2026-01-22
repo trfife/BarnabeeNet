@@ -179,6 +179,18 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
 ]
 
 ACTION_PATTERNS: list[tuple[str, str]] = [
+    # Timer patterns FIRST (before other patterns that might conflict)
+    (r"^(set|start) (a )?timer .*$", "timer"),
+    (r"^(set|start) (a )?(\w+) timer .*$", "timer"),
+    (r"^(\d+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))\s+timer$", "timer"),
+    (r"^(turn|switch) (on|off) .+ (for|in) .+$", "timer"),  # "turn on light for 5 minutes"
+    (r"^in\s+(\d+\s*(?:seconds?|secs?|minutes?|mins?))\s+turn\s+(?:off|on)\s+.*$", "timer"),  # "in 60 seconds turn off light"
+    (r"^wait\s+(\d+\s*(?:seconds?|secs?|minutes?|mins?))\s+turn\s+(?:off|on)\s+.*$", "timer"),  # "wait 3 minutes turn on fan"
+    (r"^how\s+long\s+(?:on|for|left\s+on)\s+.*$", "timer"),  # "how long on lasagna"
+    (r"^how\s+much\s+time\s+left\s+(?:on|for)\s+.*$", "timer"),  # "how much time left on pizza"
+    (r"^time\s+left\s+(?:on|for)\s+.*$", "timer"),  # "time left on lasagna"
+    (r"^(pause|resume|cancel|stop|start)\s+(?:the\s+)?.*(?:\s+timer)?$", "timer"),  # "pause the lasagna timer" - MUST come before media patterns
+    # Device control patterns
     (r"^(turn|trun|tunr|switch|swtich|swich) (on|off|of) .*$", "switch"),  # Common typos
     (r"^(on|off) .*(light|lamp|switch|fan).*$", "switch"),  # "off the light"
     (
@@ -190,7 +202,7 @@ ACTION_PATTERNS: list[tuple[str, str]] = [
     (r"^(lock|unlock) .*$", "lock"),
     (r"^(open|close|stop) .*(blind|shade|curtain|cover|garage|window).*$", "cover"),  # Stop covers
     (r"^(open|close) .*$", "cover"),
-    (r"^(play|pause|stop|skip) .*$", "media"),
+    (r"^(play|pause|stop|skip) .*$", "media"),  # Media control (pause/resume here won't match timer patterns above)
     (r"^activate .*$", "scene"),
     (r"^(start|stop) .* mode$", "mode"),
 ]

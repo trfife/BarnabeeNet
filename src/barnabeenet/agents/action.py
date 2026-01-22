@@ -317,6 +317,19 @@ class ActionAgent(Agent):
         context = context or {}
         text_lower = text.lower().strip()
 
+        # Check for timer commands FIRST (before other action parsing)
+        timer_result = parse_timer_command(text)
+        if timer_result.is_timer_command:
+            # Return a special action spec that indicates this is a timer command
+            # The handle_input method will process it
+            return ActionSpec(
+                action_type=ActionType.UNKNOWN,  # Will be handled by _handle_timer_command
+                domain=DeviceDomain.UNKNOWN,
+                entity_name="",
+                confidence=1.0,
+                spoken_response="",  # Will be set by timer handler
+            )
+
         # Try rule-based parsing first (fast path)
         action_spec = self._rule_based_parse(text_lower, context)
         if action_spec and action_spec.action_type != ActionType.UNKNOWN:
