@@ -533,6 +533,11 @@ class TimerManager:
         Returns:
             ActiveTimer if created, None if no entities available
         """
+        # If no entities available, try to rediscover (HA might have connected)
+        if not self._pool.available:
+            logger.info("No timer entities in pool, attempting rediscovery...")
+            await self._discover_timer_entities()
+
         # Allocate a timer entity
         entity_id = self._pool.allocate()
         if not entity_id:
