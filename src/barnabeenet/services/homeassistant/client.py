@@ -1053,25 +1053,27 @@ class HomeAssistantClient:
         # If not found, refresh metadata to ensure we have the latest entity list
         # This addresses the performance optimization issue where entity registry
         # might be empty or stale, preventing proper entity resolution
-        registry_size = len(self._entity_registry.all())
-        should_refresh = registry_size < 10  # Very small registry likely means not loaded
-        
-        if should_refresh:
-            try:
-                from barnabeenet.services.homeassistant.context import get_ha_context_service
+        # Always refresh if entity not found - the registry might be stale even if it has entities
+        try:
+            from barnabeenet.services.homeassistant.context import get_ha_context_service
 
-                context_service = await get_ha_context_service(self)
-                entities_before = len(context_service._entity_metadata)
-                await context_service.refresh_metadata(force=True)
-                entities_after = len(context_service._entity_metadata)
-                logger.info(
-                    "Refreshed entity metadata for resolution: %d -> %d entities (registry had %d)",
-                    entities_before,
-                    entities_after,
-                    registry_size
-                )
-            except Exception as e:
-                logger.warning("Could not refresh metadata for entity resolution: %s", e)
+            context_service = await get_ha_context_service(self)
+            entities_before = len(context_service._entity_metadata)
+            registry_size = len(self._entity_registry.all())
+            
+            # Force refresh to get latest entities from HA
+            await context_service.refresh_metadata(force=True)
+            entities_after = len(context_service._entity_metadata)
+            
+            logger.info(
+                "Refreshed entity metadata for resolution: %d -> %d entities (registry had %d, searching for '%s')",
+                entities_before,
+                entities_after,
+                registry_size,
+                name
+            )
+        except Exception as e:
+            logger.warning("Could not refresh metadata for entity resolution: %s", e)
 
         # Try again after refresh
         entity = self._entity_registry.find_by_name(name, domain)
