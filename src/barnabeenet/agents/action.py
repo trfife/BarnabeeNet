@@ -821,7 +821,7 @@ If you cannot parse the request, respond with:
                 "agent": self.name,
                 "success": False,
             }
-        
+
         if not timer_manager:
             return {
                 "response": "Timer functionality is not available. Home Assistant connection required.",
@@ -983,7 +983,7 @@ If you cannot parse the request, respond with:
                 "agent": self.name,
                 "success": False,
             }
-        
+
         if not timer_manager:
             return {
                 "response": "Timer functionality is not available.",
