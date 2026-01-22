@@ -1060,11 +1060,11 @@ class HomeAssistantClient:
             context_service = await get_ha_context_service(self)
             entities_before = len(context_service._entity_metadata)
             registry_size = len(self._entity_registry.all())
-            
+
             # Force refresh to get latest entities from HA
             await context_service.refresh_metadata(force=True)
             entities_after = len(context_service._entity_metadata)
-            
+
             logger.info(
                 "Refreshed entity metadata for resolution: %d -> %d entities (registry had %d, searching for '%s')",
                 entities_before,
