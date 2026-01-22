@@ -1091,7 +1091,7 @@ class HomeAssistantClient:
                 registry_size_after,
                 name
             )
-            
+
             # Log a sample of entity IDs to verify they're loading
             if entities_after > 0:
                 sample_entities = list(context_service._entity_metadata.keys())[:5]
