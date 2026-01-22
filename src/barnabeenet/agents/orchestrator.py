@@ -843,13 +843,13 @@ class AgentOrchestrator:
                 # Single command - original flow
                 ctx.agent_response = await self._action_agent.handle_input(ctx.text, agent_context)
                 agent_name = "action"
-                # Track device actions
+                # Track device actions (only if action field exists - timer commands don't have this)
                 if ctx.agent_response.get("action"):
                     action_spec = ctx.agent_response["action"]
                     ctx.actions_taken.append(action_spec)
 
-                # Execute the action via Home Assistant
-                execution_result = await self._execute_ha_action(action_spec, ctx)
+                # Timer commands and other non-action responses don't need HA execution
+                # Timer commands and other non-action responses don't need HA execution
 
                 # Store execution result for trace details
                 ctx.agent_response["_execution_result"] = execution_result
