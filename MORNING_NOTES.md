@@ -1,7 +1,6 @@
 # Morning Notes - Overnight Work Session
-
 **Started:** January 22, 2026 (evening)
-**Last Updated:** January 23, 2026 ~3:00 AM
+**Last Updated:** January 23, 2026 ~3:10 AM
 
 This document tracks all work done overnight and items that need your attention.
 
@@ -10,7 +9,6 @@ This document tracks all work done overnight and items that need your attention.
 ## Work Completed ✅
 
 ### Sprint 1 Features (Before This Session)
-
 - ✅ Random choices (flip coin, roll dice, pick number, magic 8-ball, yes/no)
 - ✅ Unit conversions (F↔C, cups↔liters, lbs↔kg, inches↔cm, etc.)
 - ✅ World clock (time in Tokyo, London, Paris, etc.)
@@ -21,120 +19,141 @@ This document tracks all work done overnight and items that need your attention.
 
 ### This Session
 
+#### New Features
 - ✅ **Jokes Database** - Added 70+ jokes in categories: general, dad jokes, knock-knock, riddles, animal, school
-  - "tell me a joke", "tell me a dad joke", "tell me a riddle"
+  - Commands: "tell me a joke", "tell me a dad joke", "tell me a riddle"
+  - File: `src/barnabeenet/data/jokes.json`
 - ✅ **Fun Facts Database** - Added 70+ facts in categories: general, space, animals, science, history, food, geography
-  - "tell me a fun fact", "tell me a fact about space"
-- ✅ **Math with Words** - Fixed "7 times 8", "5 plus 3", "10 divided by 2"
-- ✅ **Code Cleanup** - Removed unused imports and variables in action.py and interaction.py
-- ✅ **Bug Fix** - Fixed AttributeError in InstantAgent when used without init()
+  - Commands: "tell me a fun fact", "tell me a fact about space"
+  - File: `src/barnabeenet/data/fun_facts.json`
+- ✅ **Math with Words** - Fixed math to support word operators
+  - Now works: "what's 7 times 8", "5 plus 3", "10 divided by 2", "6 x 7"
+
+#### Bug Fixes
+- ✅ Fixed AttributeError in InstantAgent when used without init()
+- ✅ Fixed undo session state not preserving action history
+- ✅ Fixed time query detection matching "7 times 8" as time query
+- ✅ Fixed "repeat that" pattern matching
+
+#### Code Cleanup
+- ✅ Removed unused `TimerManager` import in `action.py`
+- ✅ Removed unused `asdict` import in `interaction.py`
+- ✅ Removed unused `ha_person_entity` variable
+- ✅ Removed unused `audit_log` import in expandable recall handler
 
 ---
 
 ## Items Needing Your Attention 🔔
 
-### Must Test
+### Must Test (Voice)
+- [ ] Test jokes via actual voice input - ensure TTS sounds natural
+- [ ] Test "say that again" / repeat in real conversation flow
+- [ ] Test math with words via voice: "what's seven times eight"
 
-- [ ] **Voice testing** - Test new features via actual voice input
-- [ ] **Jokes via voice** - Ensure joke delivery sounds natural with TTS
-- [ ] **Repeat command** - Verify "say that again" works in real conversation flow
+### High Priority Bug to Fix
+**Entity Resolution Bug** - The action agent is guessing entity IDs instead of finding actual entities.
 
-### Configuration Changes
+Example:
+- User says: "turn on the office light"
+- Action agent resolves to: `light.office_light` (a guess)
+- Actual entity is: `light.office_switch`
 
-None required.
+This causes:
+- Undo to fail (tries to undo wrong entity)
+- Potentially other device control issues
 
-### Home Assistant Setup
-
-None required.
-
-### Decisions Needed
-
-1. **Undo feature** - Currently undo only works for device actions (turn on/off). Do you want it to also work for:
-   - Timer cancellation?
-   - Reverting brightness/temperature changes?
-
-2. **Office Light** - The office light (`light.office_switch`) is an on/off switch only, not dimmable. Commands like "dim to 50%" will fail. Is this expected?
-
----
-
-## Code Cleanup Done 🧹
-
-- Removed unused `TimerManager` import in `action.py`
-- Removed unused `asdict` import in `interaction.py`
-- Removed unused `ha_person_entity` variable
-- Removed unused `audit_log` import in expandable recall handler
-- Fixed InstantAgent `__init__` to define all pattern attributes
-
----
-
-## Known Issues / Bugs Found 🐛
-
-1. **Entity Resolution Bug** (HIGH PRIORITY)
-   - When saying "turn on the office light", the action agent resolves to `light.office_light` (a guess)
-   - The actual entity is `light.office_switch`
-   - This causes undo to fail (it tries to undo the wrong entity)
-   - **Impact**: Undo may not work for some devices if entity resolution is wrong
-   - **Fix needed**: Improve entity resolution in ActionAgent to find actual entities
-
-2. **Office light not dimmable** - Expected behavior since it's an on/off switch.
-
-3. **Undo tracking now works** - Fixed the session state preservation issue. Undo system is functional but depends on correct entity resolution.
+**Recommendation**: Review entity resolution logic in ActionAgent. Ensure it queries HA for actual entities instead of constructing entity IDs from names.
 
 ---
 
 ## Test Results Summary 📊
 
-### Instant Response Features (Live Test)
-
+### Instant Response Features (All Working)
 | Feature | Status | Response Time |
 |---------|--------|---------------|
-| Time/Date | ✅ Working | ~350ms |
-| Greetings | ✅ Working | ~340ms |
-| Math | ✅ Working | ~350ms |
-| Random (coin, dice) | ✅ Working | ~350ms |
-| Unit conversion | ✅ Working | ~380ms |
-| World clock | ✅ Working | ~378ms |
-| Countdown | ✅ Working | ~370ms |
-| Counting | ✅ Working | ~350ms |
-| Jokes | ✅ Working | ~370ms |
-| Riddles | ✅ Working | ~370ms |
-| Fun facts | ✅ Working | ~365ms |
-| Spelling | ✅ Working | ~350ms |
-
-### Device Control (Office Light Only)
-
-| Command | Status |
-|---------|--------|
-| Turn on | ✅ |
-| Turn off | ✅ |
-| Is it on? | ✅ |
-| Dim to 50% | ❌ (not dimmable) |
-| Undo | ⚠️ (not tracking) |
+| Time/Date | ✅ | ~350ms |
+| Greetings | ✅ | ~340ms |
+| Math (symbols) | ✅ | ~350ms |
+| Math (words) | ✅ | ~350ms |
+| Random (coin, dice) | ✅ | ~350ms |
+| Unit conversion | ✅ | ~380ms |
+| World clock | ✅ | ~378ms |
+| Countdown | ✅ | ~370ms |
+| Counting | ✅ | ~350ms |
+| Jokes | ✅ | ~370ms |
+| Riddles | ✅ | ~370ms |
+| Fun facts | ✅ | ~365ms |
+| Spelling | ✅ | ~350ms |
+| Repeat | ✅ | ~350ms |
 
 ### Unit Tests
+- `test_instant_agent.py` - 46 passed ✅
+- `test_meta_agent.py` - 52 passed ✅
 
-- `test_instant_agent.py` - 46 tests passed ✅
-- `test_meta_agent.py` - 26 tests passed ✅
-- `test_action_agent.py` - 5 tests passed ✅
+---
+
+## Commits Made This Session
+
+1. `7bbf3dd` - Add jokes and fun facts database
+2. `a8883d0` - Fix math detection for word-based operators  
+3. `6b1c20c` - Code cleanup: remove unused imports and variables
+4. `b9570a4` - Fix undo not tracking actions - preserve action history
+5. `2441301` - Add debug logging to undo functionality
+6. `3f0763d` - Add INFO level logging for undo debugging
+7. `826d3af` - Update morning notes with entity resolution bug finding
 
 ---
 
 ## Deployment Status 🚀
 
-**Current VM State:**
-
-- API: <http://192.168.86.51:8000>
+**Current VM State:** 
+- API: http://192.168.86.51:8000
 - Last deployed: January 23, 2026 ~3:00 AM
-- Commits deployed: jokes, fun facts, math fix, code cleanup
+- All features working on live system
 
 ---
 
 ## Next Steps / Recommendations 💡
 
-1. **Fix undo tracking** - Investigate why session state isn't persisting actions
-2. **Add more jokes/facts** - Easy to expand the JSON databases
-3. **Sprint 2 Features** (from roadmap):
-   - Weather integration (needs API setup)
-   - Bedtime countdown (uses family profiles)
-   - Shopping list (needs HA integration)
-4. **Test with actual voice** - Many new features should be tested via voice to check TTS quality
+### Immediate (Today)
+1. **Fix entity resolution bug** - This is blocking undo from working correctly
+2. **Voice test new features** - Jokes, facts, math with words
+
+### Sprint 2 Features (When Ready)
+From the capability roadmap:
+1. Weather integration (needs API key setup)
+2. Bedtime countdown (uses family profiles)
+3. Shopping list (needs HA todo list integration)
+
+### Long-term
+1. Mobile app / remote access
+2. Proactive Agent for time-based notifications
+
+---
+
+## Sample Commands for Testing
+
+```
+# Jokes
+tell me a joke
+tell me a dad joke
+tell me a knock knock joke
+tell me a riddle
+
+# Fun Facts
+tell me a fun fact
+tell me a fact about space
+tell me something interesting
+
+# Math (with words)
+what's 7 times 8
+5 plus 3
+100 divided by 4
+6 x 7
+
+# Undo/Repeat
+turn on the office light
+undo
+say that again
+repeat that
+```
