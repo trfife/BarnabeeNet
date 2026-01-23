@@ -202,17 +202,6 @@
                 </div>
             </div>
 
-            <!-- Active Self-Improvement Sessions -->
-            <div class="card" id="active-si-sessions-card">
-                <div class="card-header">
-                    <h3>🔧 Self-Improvement Sessions</h3>
-                    <button class="btn btn-primary btn-small" onclick="showPage('self-improve')">View All</button>
-                </div>
-                <div class="card-body" id="active-si-sessions">
-                    <p class="text-muted">No active sessions</p>
-                </div>
-            </div>
-
             <!-- Trace Detail Modal -->
             <div id="trace-modal" class="modal" style="display: none;">
                 <div class="modal-content">
@@ -263,30 +252,6 @@
 
                 <!-- Chat Input -->
                 <div class="chat-input-container">
-                    <!-- STT Settings Row -->
-                    <div class="stt-settings-row" id="stt-settings-row">
-                        <div class="stt-setting">
-                            <label for="stt-mode-select">Mode:</label>
-                            <select id="stt-mode-select" class="stt-select" title="STT processing mode">
-                                <option value="command" selected>Command (single utterance)</option>
-                                <option value="realtime">Real-time (streaming)</option>
-                                <option value="ambient">Ambient (continuous)</option>
-                            </select>
-                        </div>
-                        <div class="stt-setting">
-                            <label for="stt-engine-select">Engine:</label>
-                            <select id="stt-engine-select" class="stt-select" title="STT engine">
-                                <option value="auto" selected>Auto (best available)</option>
-                                <option value="parakeet">Parakeet (GPU)</option>
-                                <option value="whisper">Whisper (CPU)</option>
-                                <option value="azure">Azure (Cloud)</option>
-                            </select>
-                        </div>
-                        <div class="stt-status" id="stt-status-indicator">
-                            <span class="stt-status-dot"></span>
-                            <span class="stt-status-text">Checking...</span>
-                        </div>
-                    </div>
                     <div class="chat-input-wrapper">
                         <button id="chat-mic-btn" class="chat-mic-btn" title="Click to record voice">
                             <span class="mic-icon">🎤</span>
@@ -297,13 +262,6 @@
                             <span class="send-icon">➤</span>
                         </button>
                     </div>
-                    <!-- Quick action buttons below chat -->
-                    <div class="chat-quick-actions">
-                        <button class="btn btn-secondary btn-sm" id="chat-self-improve-btn"
-                            title="Send to Self-Improvement Agent">
-                            🔧 Fix This
-                        </button>
-                    </div>
                     <div class="chat-voice-indicator" id="chat-voice-indicator">
                         <div class="voice-wave">
                             <span></span><span></span><span></span><span></span><span></span>
@@ -311,8 +269,7 @@
                         <span class="voice-status">Listening...</span>
                     </div>
                     <div class="chat-input-hint">
-                        Press <kbd>Enter</kbd> to send • Click <kbd>🎤</kbd> to record • Barnabee responds with
-                        personality!
+                        Press <kbd>Enter</kbd> to send • Click <kbd>🎤</kbd> to record
                     </div>
                 </div>
             </div>
@@ -354,7 +311,6 @@
                 <button class="memory-tab active" data-tab="all">📋 All Memories</button>
                 <button class="memory-tab" data-tab="semantic">💡 Facts & Knowledge</button>
                 <button class="memory-tab" data-tab="episodic">📝 Conversations</button>
-                <button class="memory-tab" data-tab="diary">📖 Diary</button>
                 <button class="memory-tab" data-tab="search">🔍 Search</button>
                 <button class="memory-tab" data-tab="add">➕ Add Memory</button>
             </div>
@@ -398,21 +354,6 @@
                 </div>
                 <div class="memory-list" id="episodic-list">
                     <div class="loading">Loading events...</div>
-                </div>
-            </div>
-
-            <!-- Tab Content: Diary -->
-            <div class="memory-tab-content" id="tab-diary">
-                <div class="memory-category-intro">
-                    <h3>📖 Daily Diary</h3>
-                    <p>Barnabee's daily journal entries summarizing household activity.</p>
-                    <div class="diary-actions">
-                        <button id="generate-diary-btn" class="btn btn-primary">✨ Generate Today's Entry</button>
-                        <input type="date" id="diary-date-picker" class="form-control" />
-                    </div>
-                </div>
-                <div class="diary-entries" id="diary-entries">
-                    <div class="loading">Loading diary...</div>
                 </div>
             </div>
 
@@ -748,7 +689,6 @@
                 <button class="ha-tab-btn" data-ha-tab="areas">🗺️ Areas</button>
                 <button class="ha-tab-btn" data-ha-tab="devices">📱 Devices</button>
                 <button class="ha-tab-btn" data-ha-tab="activity">📋 Activity Log</button>
-                <button class="ha-tab-btn" data-ha-tab="analysis">🔍 Log Analysis</button>
             </div>
 
             <!-- Overview Tab (NEW) -->
@@ -855,7 +795,7 @@
                 </div>
             </div>
 
-            <!-- Activity Log Tab (replaces Logs/Automations) -->
+            <!-- Activity Log Tab -->
             <div id="ha-tab-activity" class="ha-tab-content">
                 <div class="ha-activity-header">
                     <h3>Barnabee's Home Assistant Activity</h3>
@@ -864,23 +804,6 @@
                 <div class="ha-activity-log" id="ha-activity-log">
                     <div class="empty-state">
                         <p class="text-muted">No activity yet. Talk to Barnabee to control your home!</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Log Analysis Tab (AI-powered) -->
-            <div id="ha-tab-analysis" class="ha-tab-content">
-                <div class="ha-analysis-header">
-                    <h3>🤖 AI Log Analysis</h3>
-                    <p class="text-muted">Let AI identify important issues in your Home Assistant logs</p>
-                    <div class="ha-analysis-actions">
-                        <button class="btn" id="run-log-analysis">🔍 Analyze Logs</button>
-                        <span class="analysis-status" id="analysis-status"></span>
-                    </div>
-                </div>
-                <div class="ha-analysis-results" id="ha-analysis-results">
-                    <div class="empty-state">
-                        <p class="text-muted">Click "Analyze Logs" to scan for issues</p>
                     </div>
                 </div>
             </div>
@@ -1068,7 +991,6 @@
                     <ul class="config-nav">
                         <li class="active" data-config="providers">🤖 LLM Providers</li>
                         <li data-config="models">🧠 Model Selection</li>
-                        <li data-config="agents">🤖 AI Agents</li>
                         <li data-config="homeassistant">🏠 Home Assistant</li>
                         <li data-config="testing">🧪 Testing & Dev</li>
                     </ul>
@@ -1149,103 +1071,6 @@
 
                         <div class="agent-models-list" id="agent-models-list">
                             <div class="loading-spinner">Loading agent models...</div>
-                        </div>
-                    </div>
-
-                    <!-- AI Agents Section -->
-                    <div id="config-agents" class="config-section">
-                        <h3>🤖 AI Agents</h3>
-                        <p class="section-desc">Manage and configure AI agent settings</p>
-
-                        <div class="agents-container">
-                            <!-- Self-Improvement Agent -->
-                            <div class="agent-card">
-                                <div class="agent-card-header">
-                                    <h4>🔧 Self-Improvement Agent</h4>
-                                    <p class="agent-description">AI-powered code improvements with human approval gates</p>
-                                </div>
-                                <div class="agent-card-body">
-                                    <div class="agent-setting">
-                                        <label>Model Selection:</label>
-                                        <div class="model-toggle-group">
-                                            <label class="toggle-option">
-                                                <input type="radio" name="si-model-config" value="auto" id="si-model-auto-config">
-                                                <span>🔄 Auto</span>
-                                                <small>Opus for planning, Sonnet for implementation</small>
-                                            </label>
-                                            <label class="toggle-option">
-                                                <input type="radio" name="si-model-config" value="opus" id="si-model-opus-config">
-                                                <span>🧠 Opus 4.5</span>
-                                                <small>Best reasoning (slower, uses more quota)</small>
-                                            </label>
-                                            <label class="toggle-option">
-                                                <input type="radio" name="si-model-config" value="sonnet" id="si-model-sonnet-config">
-                                                <span>⚡ Sonnet 4.5</span>
-                                                <small>Fast and capable</small>
-                                            </label>
-                                        </div>
-                                        <button class="btn btn-primary btn-sm" id="save-si-model-config">Save</button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Model Finder Agent -->
-                            <div class="agent-card">
-                                <div class="agent-card-header">
-                                    <h4>🔍 Model Finder Agent</h4>
-                                    <p class="agent-description">Analyze all available models and recommend best for each agent</p>
-                                </div>
-                                <div class="agent-card-body">
-                                    <div class="agent-setting">
-                                        <label>Analysis Preferences:</label>
-                                        <div class="preference-group">
-                                            <label class="checkbox-label">
-                                                <input type="checkbox" id="mf-free-only-config">
-                                                <span>Free models only</span>
-                                            </label>
-                                            <label class="checkbox-label">
-                                                <input type="checkbox" id="mf-azure-free-config" checked>
-                                                <span>Azure is free (150 credits/month)</span>
-                                            </label>
-                                            <label class="checkbox-label">
-                                                <input type="checkbox" id="mf-prefer-speed-config" checked>
-                                                <span>Prefer speed</span>
-                                            </label>
-                                            <label class="checkbox-label">
-                                                <input type="checkbox" id="mf-prefer-quality-config">
-                                                <span>Prefer quality</span>
-                                            </label>
-                                        </div>
-                                        <div class="agent-actions">
-                                            <button class="btn btn-primary" id="analyze-models-btn-config">🔍 Analyze Models</button>
-                                        </div>
-                                    </div>
-                                    <div id="model-finder-results-config" class="agent-results" style="display: none;">
-                                        <h4>Recommendations</h4>
-                                        <div id="model-recommendations-list-config"></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Feature Agent -->
-                            <div class="agent-card">
-                                <div class="agent-card-header">
-                                    <h4>💡 Feature Agent</h4>
-                                    <p class="agent-description">Analyze usage patterns and recommend new features</p>
-                                </div>
-                                <div class="agent-card-body">
-                                    <div class="agent-setting">
-                                        <p class="agent-note">Runs automatically once per day. You can also trigger manual analysis.</p>
-                                        <div class="agent-actions">
-                                            <button class="btn btn-primary" id="analyze-features-btn-config">💡 Analyze Features</button>
-                                        </div>
-                                    </div>
-                                    <div id="feature-agent-results-config" class="agent-results" style="display: none;">
-                                        <h4>Feature Recommendations</h4>
-                                        <div id="feature-recommendations-list-config"></div>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
 
@@ -1403,32 +1228,6 @@
             </div>
         </div>
     </main>
-
-    <!-- Floating Chat Button -->
-    <button id="floating-chat-btn" class="floating-chat-btn" title="Chat with Barnabee">
-        🐝
-    </button>
-
-    <!-- Floating Chat Popup -->
-    <div id="floating-chat-popup" class="floating-chat-popup">
-        <div class="floating-chat-header">
-            <div class="floating-chat-title">
-                <span class="floating-chat-avatar">🐝</span>
-                <span>Chat with Barnabee</span>
-            </div>
-            <button id="floating-chat-close" class="floating-chat-close">&times;</button>
-        </div>
-        <div class="floating-chat-messages" id="floating-chat-messages">
-            <div class="floating-chat-welcome">
-                <p>Hi! I'm Barnabee. How can I help?</p>
-            </div>
-        </div>
-        <div class="floating-chat-input-container">
-            <input type="text" id="floating-chat-input" class="floating-chat-input" placeholder="Type a message..."
-                autocomplete="off">
-            <button id="floating-chat-send" class="floating-chat-send">➤</button>
-        </div>
-    </div>
 
     <script src="/static/app.js?v=3"></script>
 </body>
