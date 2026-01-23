@@ -48,7 +48,7 @@ agents:
   # PRODUCTION: Claude 3.5 Haiku - faster than Sonnet with good quality
   # Haiku: 0.36s TTFT vs Sonnet: 0.64s TTFT (40% faster)
   interaction:
-    model: "anthropic/claude-3-5-haiku-latest"
+    model: "anthropic/claude-3.5-haiku"
     temperature: 0.7
     max_tokens: 1500
     description: "Complex conversations, advice, personality"
@@ -133,21 +133,21 @@ activities:
   # Using Claude 3.5 Haiku for 40% faster TTFT while maintaining good quality
   # ---------------------------------------------------------------------------
   interaction.respond:
-    model: "anthropic/claude-3-5-haiku-latest"
+    model: "anthropic/claude-3.5-haiku"
     temperature: 0.7
     max_tokens: 1500
     priority: balanced
     description: "Main conversational responses"
 
   interaction.followup:
-    model: "anthropic/claude-3-5-haiku-latest"
+    model: "anthropic/claude-3.5-haiku"
     temperature: 0.7
     max_tokens: 1000
     priority: balanced
     description: "Follow-up in conversation"
 
   interaction.empathy:
-    model: "anthropic/claude-3-5-haiku-latest"
+    model: "anthropic/claude-3.5-haiku"
     temperature: 0.8
     max_tokens: 800
     priority: quality
@@ -226,9 +226,9 @@ pricing:
   "anthropic/claude-3.5-sonnet":
     input: 3.0
     output: 15.0
-  "anthropic/claude-3-5-haiku-latest":
-    input: 1.0
-    output: 5.0
+  "anthropic/claude-3.5-haiku":
+    input: 0.8
+    output: 4.0
   "anthropic/claude-3-haiku":
     input: 0.25
     output: 1.25
