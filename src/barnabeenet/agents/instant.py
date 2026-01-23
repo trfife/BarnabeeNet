@@ -875,6 +875,9 @@ class InstantAgent(Agent):
         # Exclude energy queries
         if "energy" in text or "power" in text or "electricity" in text:
             return False
+        # Exclude family digest queries
+        if "what happened" in text or "catch me up" in text or "what did i miss" in text:
+            return False
         date_keywords = ["date", "what day", "today", "what's today"]
         return any(kw in text for kw in date_keywords)
 
