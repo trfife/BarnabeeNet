@@ -294,14 +294,27 @@ def format_duration(td: timedelta) -> str:
 # Timer Pattern Recognition
 # =============================================================================
 
+# Word numbers for duration parsing
+WORD_NUMBERS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20,
+    "thirty": 30, "forty": 40, "forty-five": 45, "fortyfive": 45,
+    "sixty": 60, "ninety": 90,
+}
+
 # Alarm timer patterns
 ALARM_PATTERNS = [
     # "set a 30 second timer" / "set a 5 minute timer" (duration before "timer")
     r"set\s+(?:a\s+)?(\d+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))\s+timer",
+    # "set a two minute timer" / "set a five second timer" (word number before "timer")
+    r"set\s+(?:a\s+)?(\w+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))\s+timer",
     # "set a timer for 5 minutes"
     r"set\s+(?:a\s+)?timer\s+(?:for\s+)?(.+)",
     # "5 minute timer"
     r"(\d+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))\s+timer",
+    # "two minute timer" (word number)
+    r"(\w+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))\s+timer",
     # "set a pizza timer for 10 minutes"
     r"set\s+(?:a\s+)?(\w+)\s+timer\s+(?:for\s+)?(.+)",
     # "start a timer for 5 minutes"
@@ -359,14 +372,14 @@ TIMER_LIST_PATTERNS = [
     r"how\s+long\s+(?:is\s+)?left\s+on\s+(?:my|the)\s+timer",
     # "how much time is left on my timer"
     r"how\s+much\s+time\s+(?:is\s+)?left\s+on\s+(?:my|the)\s+timer",
-    # "any timers running"
-    r"(?:any|are\s+there(?:\s+any)?)\s+timers?\s+(?:running|set|active)",
+    # "any timers running" / "any timers" / "are there any timers"
+    r"(?:any|are\s+there(?:\s+any)?)\s+timers?(?:\s+(?:running|set|active))?",
     # "do I have any timers"
     r"do\s+I\s+have\s+(?:any\s+)?timers?(?:\s+(?:set|running|active))?",
     # "timer status" / "timers status"
     r"timers?\s+status",
     # "how many timers do I have"
-    r"how\s+many\s+timers?\s+(?:do\s+I\s+have|are\s+(?:set|running|active))",
+    r"how\s+many\s+timers?\s+(?:do\s+I\s+have|are\s+(?:set|running|active))?",
 ]
 
 # Generic timer control patterns (no specific label - affects all/most recent timer)
@@ -446,10 +459,36 @@ def parse_timer_command(text: str) -> TimerParseResult:
         if match:
             result.is_timer_command = True
             result.operation = TimerOperation.QUERY
-            result.label = match.group(1).strip()
+            label = match.group(1).strip()
+            # Strip trailing "timer" and leading "the" from label
+            label = re.sub(r'\s+timer$', '', label, flags=re.IGNORECASE).strip()
+            label = re.sub(r'^the\s+', '', label, flags=re.IGNORECASE).strip()
+            # Also strip trailing punctuation
+            label = re.sub(r'[?!.,]+$', '', label).strip()
+            result.label = label
             return result
 
-    # Check GENERIC timer control patterns first (e.g., "stop my timer", "cancel the timer")
+    # Check alarm patterns EARLY - before control patterns
+    # This ensures "start a timer for 5 minutes" creates a timer, not treated as "start" operation
+    for pattern in ALARM_PATTERNS:
+        match = re.match(pattern, text, re.IGNORECASE)
+        if match:
+            result.is_timer_command = True
+            result.timer_type = TimerType.ALARM
+            groups = match.groups()
+
+            if len(groups) == 1:
+                # Simple timer: "set a timer for 5 minutes"
+                result.duration = parse_duration(groups[0])
+                result.label = "timer"
+            elif len(groups) == 2:
+                # Labeled timer: "set a pizza timer for 10 minutes"
+                result.label = groups[0]
+                result.duration = parse_duration(groups[1])
+
+            return result
+
+    # Check GENERIC timer control patterns (e.g., "stop my timer", "cancel the timer")
     # These don't have a specific label and should cancel most recent or all timers
     for pattern in TIMER_GENERIC_CONTROL_PATTERNS:
         match = re.match(pattern, text, re.IGNORECASE)
@@ -468,8 +507,7 @@ def parse_timer_command(text: str) -> TimerParseResult:
 
             return result
 
-    # Check timer control patterns with specific labels (check BEFORE alarm patterns)
-    # These must be checked before other patterns that might match (like media pause)
+    # Check timer control patterns with specific labels
     for pattern in TIMER_CONTROL_PATTERNS:
         match = re.match(pattern, text, re.IGNORECASE)
         if match:
@@ -479,6 +517,11 @@ def parse_timer_command(text: str) -> TimerParseResult:
             # Skip if label is generic (my, the, all, timer) - should have matched generic patterns
             if label.lower() in ("my", "the", "all", "timer", "timers"):
                 continue
+
+            # Strip trailing "timer" from label (e.g., "the pizza timer" -> "pizza")
+            label = re.sub(r'\s+timer$', '', label, flags=re.IGNORECASE).strip()
+            # Also strip leading "the" (e.g., "the pizza" -> "pizza")
+            label = re.sub(r'^the\s+', '', label, flags=re.IGNORECASE).strip()
 
             result.label = label
 
@@ -495,26 +538,6 @@ def parse_timer_command(text: str) -> TimerParseResult:
                 result.operation = TimerOperation.START
 
             return result
-
-    # Check alarm patterns
-    for pattern in ALARM_PATTERNS:
-        match = re.match(pattern, text, re.IGNORECASE)
-        if match:
-            result.is_timer_command = True
-            result.timer_type = TimerType.ALARM
-            groups = match.groups()
-
-            if len(groups) == 1:
-                # Simple timer: "set a timer for 5 minutes"
-                result.duration = parse_duration(groups[0])
-                result.label = "timer"
-            elif len(groups) == 2:
-                # Labeled timer: "set a pizza timer for 10 minutes"
-                result.label = groups[0]
-                result.duration = parse_duration(groups[1])
-
-            if result.duration:
-                return result
 
     # Check device duration patterns
     for pattern in DEVICE_DURATION_PATTERNS:

@@ -940,10 +940,35 @@ If you cannot parse the request, respond with:
             }
 
         elif timer_result.operation == TimerOperation.PAUSE:
-            # Pause timer
+            # Pause timer - if no label, pause most recent
             if not timer_result.label:
+                active_timers = timer_manager.get_active_timers()
+                # Filter to only running (not paused) timers
+                running_timers = [t for t in active_timers if not t.is_paused]
+                if not running_timers:
+                    if active_timers:
+                        return {
+                            "response": "All your timers are already paused.",
+                            "agent": self.name,
+                            "success": True,
+                        }
+                    return {
+                        "response": "You don't have any active timers to pause.",
+                        "agent": self.name,
+                        "success": True,
+                    }
+                # Pause most recent running timer
+                running_timers.sort(key=lambda t: t.started_at, reverse=True)
+                timer = running_timers[0]
+                if await timer_manager.pause_timer(timer.id):
+                    return {
+                        "response": f"Paused the {timer.label} timer.",
+                        "agent": self.name,
+                        "timer_info": timer.to_dict(),
+                        "success": True,
+                    }
                 return {
-                    "response": "Which timer would you like to pause?",
+                    "response": "Could not pause the timer.",
                     "agent": self.name,
                     "success": False,
                 }
@@ -970,10 +995,35 @@ If you cannot parse the request, respond with:
             }
 
         elif timer_result.operation == TimerOperation.RESUME:
-            # Resume timer
+            # Resume timer - if no label, resume most recent paused
             if not timer_result.label:
+                active_timers = timer_manager.get_active_timers()
+                # Filter to only paused timers
+                paused_timers = [t for t in active_timers if t.is_paused]
+                if not paused_timers:
+                    if active_timers:
+                        return {
+                            "response": "None of your timers are paused.",
+                            "agent": self.name,
+                            "success": True,
+                        }
+                    return {
+                        "response": "You don't have any active timers to resume.",
+                        "agent": self.name,
+                        "success": True,
+                    }
+                # Resume most recent paused timer
+                paused_timers.sort(key=lambda t: t.started_at, reverse=True)
+                timer = paused_timers[0]
+                if await timer_manager.resume_timer(timer.id):
+                    return {
+                        "response": f"Resumed the {timer.label} timer.",
+                        "agent": self.name,
+                        "timer_info": timer.to_dict(),
+                        "success": True,
+                    }
                 return {
-                    "response": "Which timer would you like to resume?",
+                    "response": "Could not resume the timer.",
                     "agent": self.name,
                     "success": False,
                 }
