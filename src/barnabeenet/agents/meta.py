@@ -200,7 +200,11 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     # World clock
     (r"^what('?s| is) (the )?time in .+(\?)?$", "world_clock"),
     (r"^(what time|tell me the time) (?:is it )?in .+(\?)?$", "world_clock"),
-    # Countdown to events
+    # Sun queries (BEFORE countdown to avoid generic "when is" matching)
+    (r"^when (is|does) (sunrise|sunset|dawn|dusk)(\?)?$", "sun"),
+    (r"^when does the sun (rise|set)(\?)?$", "sun"),
+    (r"^what time is (sunrise|sunset|dawn|dusk)(\?)?$", "sun"),
+    # Countdown to events (after sun to avoid matching "when is sunrise")
     (r"^how (many|long) (days? )?(until|till|to|before) .+(\?)?$", "countdown"),
     (r"^(days? )?(until|till|to) .+(\?)?$", "countdown"),
     (r"^when is .+(\?)?$", "countdown"),
@@ -288,10 +292,6 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^is \w+( \w+)? (on|off|open|closed|locked|unlocked)(\?)?$", "device_status"),
     (r"^(status of|check) the \w+( \w+)?(\?)?$", "device_status"),
     (r"^what('s| is) the \w+( \w+)? (set to|at|temperature)(\?)?$", "device_status"),
-    # Sun queries
-    (r"^when (is|does) (sunrise|sunset|dawn|dusk)(\?)?$", "sun"),
-    (r"^when does the sun (rise|set)(\?)?$", "sun"),
-    (r"^what time is (sunrise|sunset|dawn|dusk)(\?)?$", "sun"),
     # Moon queries
     (r"^(what('s| is) the |)moon phase(\?)?$", "moon"),
     (r"^what phase is the moon( in)?(\?)?$", "moon"),
