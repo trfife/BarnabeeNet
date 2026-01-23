@@ -216,6 +216,44 @@ ACTION_PATTERNS: list[tuple[str, str]] = [
     (r"^(?:list|show)(?: all)?(?: the)? (.+?) (?:in |on )?(?:the )?(.+)$", "entity_query"),
     # Count queries
     (r"^how many (?:devices?|lights?|switches?|sensors?) (?:do i have |are )?(?:in |on )?(?:the )?(.+)$", "entity_query"),
+    # Sensor value queries (temperature, humidity, power)
+    (r"^what(?:'s| is) the (?:temperature|humidity|power|energy).*$", "entity_query"),
+    (r"^how (?:hot|cold|warm|humid) is (?:it )?.*$", "entity_query"),
+    # Climate/thermostat queries
+    (r"^what(?:'s| is) the (?:thermostat|ac|heating|climate|hvac).*$", "entity_query"),
+    (r"^(?:is|are) the (?:heating|cooling|ac|air conditioning) (?:on|off|running).*$", "entity_query"),
+    (r"^what mode is the (?:thermostat|ac|hvac|climate).*$", "entity_query"),
+    (r"^what(?:'s| is) the (?:target |set )?temperature\??$", "entity_query"),
+    # Security queries
+    (r"^(?:are|is) (?:all )?(?:the )?doors? (?:all )?locked\??$", "entity_query"),
+    (r"^(?:are|is) (?:all )?(?:the )?windows? (?:all )?closed\??$", "entity_query"),
+    (r"^(?:are|is) (?:any|the) doors? (?:unlocked|open)\??$", "entity_query"),
+    (r"^(?:are|is) (?:any|the) windows? open\??$", "entity_query"),
+    (r"^(?:is|are) the (?:house|home) (?:secure|locked|safe)\??$", "entity_query"),
+    (r"^(?:is|are) the (?:alarm|security)(?: system)? (?:armed|on|set)\??$", "entity_query"),
+    (r"^(?:is|are) the garage(?: door)? (?:open|closed)\??$", "entity_query"),
+    (r"^security status\??$", "entity_query"),
+    # Presence queries
+    (r"^(?:is|are) (?:anyone|anybody|someone|somebody) (?:home|here|in)\??$", "entity_query"),
+    (r"^(?:is|are) (?:everyone|everybody) (?:home|here|out|away|gone)\??$", "entity_query"),
+    (r"^who(?:'s| is) (?:home|here|away|out)\??$", "entity_query"),
+    (r"^(?:is|are) the (?:house|home) (?:empty|occupied)\??$", "entity_query"),
+    (r"^how many (?:people|persons?) (?:are )?(?:home|here)\??$", "entity_query"),
+    # Media queries
+    (r"^what(?:'s| is) (?:playing|on)(?: (?:on |the )?(?:the )?.+)?\??$", "entity_query"),
+    (r"^(?:is|are) (?:any )?(?:music|something|anything) playing\??$", "entity_query"),
+    (r"^(?:is|are) the (?:tv|television|speaker|music|media)(?: player)? (?:on|playing)\??$", "entity_query"),
+    (r"^what(?:'s| is) the volume.*$", "entity_query"),
+    # Cover/blind queries
+    (r"^(?:are|is) (?:the )?(?:blinds?|shades?|curtains?|covers?) (?:open|closed|up|down).*$", "entity_query"),
+    (r"^what(?:'s| is) the (?:position|status) of (?:the )?(?:blinds?|shades?|curtains?|covers?).*$", "entity_query"),
+    # Last changed queries
+    (r"^when (?:was|did) (?:the )?.+? (?:last )?(?:opened|closed|changed|turned on|turned off).*$", "entity_query"),
+    (r"^how long (?:has|have) (?:the )?.+? been (?:on|off|open|closed).*$", "entity_query"),
+    # Brightness queries
+    (r"^how bright (?:is|are) (?:the )?.+\??$", "entity_query"),
+    (r"^what(?:'s| is) the brightness.*$", "entity_query"),
+    (r"^(?:at )?what (?:level|percentage|percent) (?:is|are) (?:the )?.+.*$", "entity_query"),
     # Device control patterns
     (r"^(turn|trun|tunr|switch|swtich|swich) (on|off|of) .*$", "switch"),  # Common typos
     (r"^(on|off) .*(light|lamp|switch|fan).*$", "switch"),  # "off the light"

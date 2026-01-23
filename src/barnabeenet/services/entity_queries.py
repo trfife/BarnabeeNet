@@ -6,6 +6,13 @@ Supports various query types:
 - Domain listing: "which lights are on?"
 - Attribute queries: "what batteries need changing?"
 - Count queries: "how many devices do I have outside?"
+- Sensor values: "what's the temperature in the living room?"
+- Climate queries: "what's the thermostat set to?"
+- Security queries: "are all the doors locked?"
+- Presence queries: "is anyone home?"
+- Media queries: "what's playing on the TV?"
+- Cover queries: "are the blinds open?"
+- Last changed: "when was the front door last opened?"
 """
 
 from __future__ import annotations
@@ -13,6 +20,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -31,6 +39,14 @@ class QueryType(Enum):
     DOMAIN_LIST = "domain_list"  # "which lights are on?"
     ATTRIBUTE = "attribute"  # "what batteries need changing?"
     COUNT = "count"  # "how many lights are in the kitchen?"
+    SENSOR_VALUE = "sensor_value"  # "what's the temperature?"
+    CLIMATE = "climate"  # "what's the thermostat set to?"
+    SECURITY = "security"  # "are all the doors locked?"
+    PRESENCE = "presence"  # "is anyone home?"
+    MEDIA = "media"  # "what's playing?"
+    COVER = "cover"  # "are the blinds open?"
+    LAST_CHANGED = "last_changed"  # "when was X last opened?"
+    BRIGHTNESS = "brightness"  # "how bright is the light?"
     UNKNOWN = "unknown"
 
 
@@ -60,17 +76,34 @@ DOMAIN_MAPPING: dict[str, list[str]] = {
     "shades": ["cover"],
     "curtain": ["cover"],
     "curtains": ["cover"],
+    "garage": ["cover"],
+    "garage door": ["cover"],
     "device": ["light", "switch", "fan", "lock", "cover", "climate", "media_player"],
     "devices": ["light", "switch", "fan", "lock", "cover", "climate", "media_player"],
     "climate": ["climate"],
     "thermostat": ["climate"],
+    "thermostats": ["climate"],
+    "ac": ["climate"],
+    "air conditioning": ["climate"],
+    "heating": ["climate"],
+    "hvac": ["climate"],
     "media": ["media_player"],
+    "media player": ["media_player"],
     "speaker": ["media_player"],
+    "speakers": ["media_player"],
     "tv": ["media_player"],
+    "television": ["media_player"],
     "camera": ["camera"],
     "cameras": ["camera"],
     "battery": ["sensor"],
     "batteries": ["sensor"],
+    "motion": ["binary_sensor"],
+    "motion sensor": ["binary_sensor"],
+    "person": ["person"],
+    "people": ["person"],
+    "vacuum": ["vacuum"],
+    "robot": ["vacuum"],
+    "alarm": ["alarm_control_panel"],
 }
 
 # Map state query terms to entity states
@@ -134,6 +167,77 @@ ATTRIBUTE_PATTERNS = [
     re.compile(r"^what (?:batteries|devices?) need (?:changing|replacing|charging)", re.IGNORECASE),
     re.compile(r"^(?:which|what) (?:devices?|sensors?|batteries?) (?:are |have )?(?:low|dead|dying)", re.IGNORECASE),
     re.compile(r"^(?:which|what) (?:devices?|entities?) (?:are )?unavailable", re.IGNORECASE),
+]
+
+# Sensor value queries: "what's the temperature in the living room?"
+SENSOR_VALUE_PATTERNS = [
+    re.compile(r"^what(?:'s| is) the (temperature|humidity|power|energy|pressure|illuminance|lux)(?: (?:in |of )?(?:the )?(.+))?\??$", re.IGNORECASE),
+    re.compile(r"^(?:what's|what is) the (.+?) (temperature|humidity)\??$", re.IGNORECASE),
+    re.compile(r"^how (?:hot|cold|warm|humid) is (?:it )?(in )?(?:the )?(.+)?\??$", re.IGNORECASE),
+    re.compile(r"^(?:what's|what is) the current (temperature|humidity|power usage|energy)\??$", re.IGNORECASE),
+]
+
+# Climate/thermostat queries: "what's the thermostat set to?"
+CLIMATE_PATTERNS = [
+    re.compile(r"^what(?:'s| is) the (?:thermostat|ac|heating|climate|hvac)(?: (?:set )?(?:to|at))?\??$", re.IGNORECASE),
+    re.compile(r"^what(?:'s| is) the (.+?) (?:thermostat|ac|climate)(?: (?:set )?(?:to|at))?\??$", re.IGNORECASE),
+    re.compile(r"^(?:is|are) the (?:heating|cooling|ac|air conditioning) (on|off|running)\??$", re.IGNORECASE),
+    re.compile(r"^what mode is the (?:thermostat|ac|hvac|climate)(?: (?:set )?(?:to|on))?\??$", re.IGNORECASE),
+    re.compile(r"^what(?:'s| is) the (?:target |set )?temperature\??$", re.IGNORECASE),
+]
+
+# Security queries: "are all the doors locked?"
+SECURITY_PATTERNS = [
+    re.compile(r"^(?:are|is) (?:all )?(?:the )?doors? (?:all )?locked\??$", re.IGNORECASE),
+    re.compile(r"^(?:are|is) (?:all )?(?:the )?windows? (?:all )?closed\??$", re.IGNORECASE),
+    re.compile(r"^(?:are|is) (?:any|the) doors? (?:unlocked|open)\??$", re.IGNORECASE),
+    re.compile(r"^(?:are|is) (?:any|the) windows? open\??$", re.IGNORECASE),
+    re.compile(r"^(?:is|are) the (?:house|home) (?:secure|locked|safe)\??$", re.IGNORECASE),
+    re.compile(r"^(?:is|are) the (?:alarm|security)(?: system)? (?:armed|on|set)\??$", re.IGNORECASE),
+    re.compile(r"^(?:is|are) the garage(?: door)? (?:open|closed)\??$", re.IGNORECASE),
+    re.compile(r"^security status\??$", re.IGNORECASE),
+]
+
+# Presence queries: "is anyone home?"
+PRESENCE_PATTERNS = [
+    re.compile(r"^(?:is|are) (?:anyone|anybody|someone|somebody) (?:home|here|in)\??$", re.IGNORECASE),
+    re.compile(r"^(?:is|are) (?:everyone|everybody) (?:home|here|out|away|gone)\??$", re.IGNORECASE),
+    re.compile(r"^who(?:'s| is) (?:home|here|away|out)\??$", re.IGNORECASE),
+    re.compile(r"^(?:is|where is|where's) (\w+) (?:home|here|away|at)?\??$", re.IGNORECASE),
+    re.compile(r"^(?:is|are) the (?:house|home) (?:empty|occupied)\??$", re.IGNORECASE),
+    re.compile(r"^how many (?:people|persons?) (?:are )?(?:home|here)\??$", re.IGNORECASE),
+]
+
+# Media queries: "what's playing on the TV?"
+MEDIA_PATTERNS = [
+    re.compile(r"^what(?:'s| is) (?:playing|on)(?: (?:on |the )?(?:the )?(.+))?\??$", re.IGNORECASE),
+    re.compile(r"^(?:is|are) (?:any )?(?:music|something|anything) playing\??$", re.IGNORECASE),
+    re.compile(r"^(?:is|are) the (?:tv|television|speaker|music|media)(?: player)? (?:on|playing)\??$", re.IGNORECASE),
+    re.compile(r"^what(?:'s| is) the volume(?: (?:on |of |at )?(?:the )?(.+))?\??$", re.IGNORECASE),
+    re.compile(r"^(?:is|are) (?:the )?(.+?) (?:playing|on|paused)\??$", re.IGNORECASE),
+]
+
+# Cover/blind queries: "are the blinds open?"
+COVER_PATTERNS = [
+    re.compile(r"^(?:are|is) (?:the )?(?:blinds?|shades?|curtains?|covers?) (?:open|closed|up|down)(?: (?:in |on )?(?:the )?(.+))?\??$", re.IGNORECASE),
+    re.compile(r"^what(?:'s| is) the (?:position|status) of (?:the )?(?:blinds?|shades?|curtains?|covers?)(?: (?:in |on )?(?:the )?(.+))?\??$", re.IGNORECASE),
+    re.compile(r"^(?:are|is) the (.+?) (?:blinds?|shades?|curtains?) (?:open|closed|up|down)\??$", re.IGNORECASE),
+]
+
+# Last changed queries: "when was the front door last opened?"
+LAST_CHANGED_PATTERNS = [
+    re.compile(r"^when (?:was|did) (?:the )?(.+?) (?:last )?(?:opened|closed|changed|turned on|turned off|unlocked|locked)\??$", re.IGNORECASE),
+    re.compile(r"^how long (?:has|have) (?:the )?(.+?) been (on|off|open|closed|locked|unlocked)\??$", re.IGNORECASE),
+    re.compile(r"^when did (?:the )?(.+?) (?:turn |go )?(on|off|open|close)\??$", re.IGNORECASE),
+    re.compile(r"^(?:what|when) was the last (?:time |)?(?:the )?(.+?) (?:was )?(opened|closed|used|activated)\??$", re.IGNORECASE),
+]
+
+# Brightness queries: "how bright is the light?"
+BRIGHTNESS_PATTERNS = [
+    re.compile(r"^how bright (?:is|are) (?:the )?(.+)\??$", re.IGNORECASE),
+    re.compile(r"^what(?:'s| is) the brightness(?: of)? (?:the )?(.+)\??$", re.IGNORECASE),
+    re.compile(r"^(?:what's|what is) (?:the )?(.+?) (?:brightness|level|dim level)\??$", re.IGNORECASE),
+    re.compile(r"^(?:at )?what (?:level|percentage|percent) (?:is|are) (?:the )?(.+?)(?: set| at| on)?\??$", re.IGNORECASE),
 ]
 
 
@@ -268,6 +372,99 @@ def parse_entity_query(text: str) -> EntityQuery | None:
                 raw_text=text,
             )
 
+    # Check sensor value patterns
+    for pattern in SENSOR_VALUE_PATTERNS:
+        match = pattern.match(text)
+        if match:
+            sensor_type = match.group(1).lower() if match.group(1) else None
+            location = match.group(2).strip() if match.lastindex and match.lastindex >= 2 and match.group(2) else None
+            area, floor = _parse_location(location)
+            return EntityQuery(
+                query_type=QueryType.SENSOR_VALUE,
+                attribute_filter=sensor_type,
+                area=area,
+                floor=floor,
+                raw_text=text,
+            )
+
+    # Check climate patterns
+    for pattern in CLIMATE_PATTERNS:
+        match = pattern.match(text)
+        if match:
+            location = match.group(1).strip() if match.lastindex and match.lastindex >= 1 and match.group(1) else None
+            area, floor = _parse_location(location)
+            return EntityQuery(
+                query_type=QueryType.CLIMATE,
+                area=area,
+                floor=floor,
+                raw_text=text,
+            )
+
+    # Check security patterns
+    for pattern in SECURITY_PATTERNS:
+        if pattern.match(text):
+            return EntityQuery(
+                query_type=QueryType.SECURITY,
+                raw_text=text,
+            )
+
+    # Check presence patterns
+    for pattern in PRESENCE_PATTERNS:
+        match = pattern.match(text)
+        if match:
+            person_name = match.group(1) if match.lastindex and match.lastindex >= 1 and match.group(1) else None
+            return EntityQuery(
+                query_type=QueryType.PRESENCE,
+                entity_name=person_name,
+                raw_text=text,
+            )
+
+    # Check media patterns
+    for pattern in MEDIA_PATTERNS:
+        match = pattern.match(text)
+        if match:
+            device_name = match.group(1).strip() if match.lastindex and match.lastindex >= 1 and match.group(1) else None
+            return EntityQuery(
+                query_type=QueryType.MEDIA,
+                entity_name=device_name,
+                raw_text=text,
+            )
+
+    # Check cover patterns
+    for pattern in COVER_PATTERNS:
+        match = pattern.match(text)
+        if match:
+            location = match.group(1).strip() if match.lastindex and match.lastindex >= 1 and match.group(1) else None
+            area, floor = _parse_location(location)
+            return EntityQuery(
+                query_type=QueryType.COVER,
+                area=area,
+                floor=floor,
+                raw_text=text,
+            )
+
+    # Check last changed patterns
+    for pattern in LAST_CHANGED_PATTERNS:
+        match = pattern.match(text)
+        if match:
+            entity_name = match.group(1).strip() if match.group(1) else None
+            return EntityQuery(
+                query_type=QueryType.LAST_CHANGED,
+                entity_name=entity_name,
+                raw_text=text,
+            )
+
+    # Check brightness patterns
+    for pattern in BRIGHTNESS_PATTERNS:
+        match = pattern.match(text)
+        if match:
+            entity_name = match.group(1).strip() if match.group(1) else None
+            return EntityQuery(
+                query_type=QueryType.BRIGHTNESS,
+                entity_name=entity_name,
+                raw_text=text,
+            )
+
     return None
 
 
@@ -317,6 +514,22 @@ async def execute_entity_query(
             return await _execute_count_query(query, ha_client, topology_service)
         elif query.query_type == QueryType.ATTRIBUTE:
             return await _execute_attribute_query(query, ha_client)
+        elif query.query_type == QueryType.SENSOR_VALUE:
+            return await _execute_sensor_value_query(query, ha_client, topology_service)
+        elif query.query_type == QueryType.CLIMATE:
+            return await _execute_climate_query(query, ha_client)
+        elif query.query_type == QueryType.SECURITY:
+            return await _execute_security_query(query, ha_client)
+        elif query.query_type == QueryType.PRESENCE:
+            return await _execute_presence_query(query, ha_client)
+        elif query.query_type == QueryType.MEDIA:
+            return await _execute_media_query(query, ha_client)
+        elif query.query_type == QueryType.COVER:
+            return await _execute_cover_query(query, ha_client, topology_service)
+        elif query.query_type == QueryType.LAST_CHANGED:
+            return await _execute_last_changed_query(query, ha_client)
+        elif query.query_type == QueryType.BRIGHTNESS:
+            return await _execute_brightness_query(query, ha_client)
         else:
             return "I'm not sure how to answer that question about your devices."
     except Exception as e:
@@ -618,3 +831,469 @@ def _format_domain_singular(domain: str) -> str:
         "camera": "camera",
     }
     return singulars.get(domain, domain)
+
+
+# =============================================================================
+# New Query Executors
+# =============================================================================
+
+async def _execute_sensor_value_query(
+    query: EntityQuery,
+    ha_client: HomeAssistantClient,
+    topology_service: HATopologyService | None = None,
+) -> str:
+    """Execute a sensor value query (temperature, humidity, etc.)."""
+    sensor_type = query.attribute_filter or "temperature"
+
+    # Map sensor types to device classes
+    type_to_device_class = {
+        "temperature": "temperature",
+        "humidity": "humidity",
+        "power": "power",
+        "energy": "energy",
+        "pressure": "pressure",
+        "illuminance": "illuminance",
+        "lux": "illuminance",
+    }
+    device_class = type_to_device_class.get(sensor_type, sensor_type)
+
+    # Find matching sensors
+    sensors = ha_client._entity_registry.get_by_domain("sensor")
+    matching = []
+
+    for entity in sensors:
+        if entity.device_class == device_class:
+            # Filter by area if specified
+            if query.area:
+                area = ha_client.find_area_by_name(query.area)
+                if area and entity.area_id != area.id:
+                    continue
+            if query.floor and topology_service:
+                area_ids = topology_service.resolve_floor(query.floor)
+                if area_ids and entity.area_id not in area_ids:
+                    continue
+
+            state = await ha_client.get_state(entity.entity_id)
+            if state and state.state not in ("unknown", "unavailable"):
+                unit = state.attributes.get("unit_of_measurement", "")
+                matching.append((entity.friendly_name, state.state, unit))
+
+    if not matching:
+        location_str = _format_location(query.area, query.floor)
+        return f"I couldn't find any {sensor_type} sensors{location_str}."
+
+    if len(matching) == 1:
+        name, value, unit = matching[0]
+        return f"The {sensor_type} at {name} is {value}{unit}."
+
+    # Multiple sensors - list them
+    responses = [f"{name}: {value}{unit}" for name, value, unit in matching[:5]]
+    if len(matching) > 5:
+        responses.append(f"and {len(matching) - 5} more")
+    return f"{sensor_type.title()} readings: " + ", ".join(responses) + "."
+
+
+async def _execute_climate_query(query: EntityQuery, ha_client: HomeAssistantClient) -> str:
+    """Execute a climate/thermostat query."""
+    climate_entities = ha_client._entity_registry.get_by_domain("climate")
+
+    if not climate_entities:
+        return "I couldn't find any thermostats or climate devices."
+
+    # Filter by area if specified
+    if query.area:
+        area = ha_client.find_area_by_name(query.area)
+        if area:
+            climate_entities = [e for e in climate_entities if e.area_id == area.id]
+
+    if not climate_entities:
+        return f"I couldn't find any thermostats in {query.area}."
+
+    results = []
+    for entity in climate_entities[:3]:  # Limit to 3
+        state = await ha_client.get_state(entity.entity_id)
+        if state:
+            current_temp = state.attributes.get("current_temperature")
+            target_temp = state.attributes.get("temperature")
+            hvac_mode = state.state
+            unit = state.attributes.get("temperature_unit", "°")
+
+            parts = [entity.friendly_name]
+            if current_temp:
+                parts.append(f"currently {current_temp}{unit}")
+            if target_temp:
+                parts.append(f"set to {target_temp}{unit}")
+            if hvac_mode and hvac_mode not in ("unknown", "unavailable"):
+                parts.append(f"mode: {hvac_mode}")
+
+            results.append(" - ".join(parts[1:]) if len(parts) > 1 else f"{entity.friendly_name}: {hvac_mode}")
+
+    if len(results) == 1:
+        entity = climate_entities[0]
+        state = await ha_client.get_state(entity.entity_id)
+        if state:
+            current_temp = state.attributes.get("current_temperature")
+            target_temp = state.attributes.get("temperature")
+            hvac_mode = state.state
+            unit = state.attributes.get("temperature_unit", "°")
+
+            if target_temp and current_temp:
+                return f"{entity.friendly_name} is set to {target_temp}{unit} (currently {current_temp}{unit}, mode: {hvac_mode})."
+            elif target_temp:
+                return f"{entity.friendly_name} is set to {target_temp}{unit} ({hvac_mode})."
+            else:
+                return f"{entity.friendly_name} is in {hvac_mode} mode."
+
+    return "Climate status: " + "; ".join(results)
+
+
+async def _execute_security_query(query: EntityQuery, ha_client: HomeAssistantClient) -> str:
+    """Execute a security status query (doors, locks, windows)."""
+    text_lower = query.raw_text.lower()
+
+    # Determine what to check based on the query
+    if "door" in text_lower and "lock" in text_lower:
+        return await _check_locks(ha_client)
+    elif "door" in text_lower:
+        return await _check_doors(ha_client)
+    elif "window" in text_lower:
+        return await _check_windows(ha_client)
+    elif "garage" in text_lower:
+        return await _check_garage(ha_client)
+    elif "alarm" in text_lower or "security" in text_lower:
+        return await _check_alarm(ha_client)
+    elif "secure" in text_lower or "safe" in text_lower:
+        # Full security check
+        locks = await _check_locks(ha_client)
+        doors = await _check_doors(ha_client)
+        windows = await _check_windows(ha_client)
+        return f"{locks} {doors} {windows}"
+    else:
+        return await _check_locks(ha_client)
+
+
+async def _check_locks(ha_client: HomeAssistantClient) -> str:
+    """Check status of all locks."""
+    locks = ha_client._entity_registry.get_by_domain("lock")
+    if not locks:
+        return "No locks found."
+
+    unlocked = []
+    for entity in locks:
+        state = await ha_client.get_state(entity.entity_id)
+        if state and state.state == "unlocked":
+            unlocked.append(entity.friendly_name)
+
+    if not unlocked:
+        return f"All {len(locks)} door(s) are locked."
+    elif len(unlocked) == 1:
+        return f"{unlocked[0]} is unlocked."
+    else:
+        return f"{len(unlocked)} doors are unlocked: {', '.join(unlocked)}."
+
+
+async def _check_doors(ha_client: HomeAssistantClient) -> str:
+    """Check status of door sensors."""
+    sensors = ha_client._entity_registry.get_by_domain("binary_sensor")
+    door_sensors = [e for e in sensors if e.device_class == "door" or "door" in e.entity_id.lower()]
+
+    if not door_sensors:
+        return "No door sensors found."
+
+    open_doors = []
+    for entity in door_sensors:
+        state = await ha_client.get_state(entity.entity_id)
+        if state and state.state == "on":  # on = open for door sensors
+            open_doors.append(entity.friendly_name)
+
+    if not open_doors:
+        return f"All {len(door_sensors)} doors are closed."
+    elif len(open_doors) == 1:
+        return f"{open_doors[0]} is open."
+    else:
+        return f"{len(open_doors)} doors are open: {', '.join(open_doors)}."
+
+
+async def _check_windows(ha_client: HomeAssistantClient) -> str:
+    """Check status of window sensors."""
+    sensors = ha_client._entity_registry.get_by_domain("binary_sensor")
+    window_sensors = [e for e in sensors if e.device_class == "window" or "window" in e.entity_id.lower()]
+
+    if not window_sensors:
+        return "No window sensors found."
+
+    open_windows = []
+    for entity in window_sensors:
+        state = await ha_client.get_state(entity.entity_id)
+        if state and state.state == "on":  # on = open for window sensors
+            open_windows.append(entity.friendly_name)
+
+    if not open_windows:
+        return f"All {len(window_sensors)} windows are closed."
+    elif len(open_windows) == 1:
+        return f"{open_windows[0]} is open."
+    else:
+        return f"{len(open_windows)} windows are open: {', '.join(open_windows)}."
+
+
+async def _check_garage(ha_client: HomeAssistantClient) -> str:
+    """Check garage door status."""
+    covers = ha_client._entity_registry.get_by_domain("cover")
+    garage_doors = [e for e in covers if "garage" in e.entity_id.lower() or "garage" in e.friendly_name.lower()]
+
+    if not garage_doors:
+        return "No garage doors found."
+
+    results = []
+    for entity in garage_doors:
+        state = await ha_client.get_state(entity.entity_id)
+        if state:
+            results.append(f"{entity.friendly_name} is {state.state}.")
+
+    return " ".join(results)
+
+
+async def _check_alarm(ha_client: HomeAssistantClient) -> str:
+    """Check alarm/security panel status."""
+    alarms = ha_client._entity_registry.get_by_domain("alarm_control_panel")
+
+    if not alarms:
+        return "No alarm system found."
+
+    results = []
+    for entity in alarms:
+        state = await ha_client.get_state(entity.entity_id)
+        if state:
+            mode = state.state.replace("_", " ")
+            results.append(f"{entity.friendly_name} is {mode}.")
+
+    return " ".join(results)
+
+
+async def _execute_presence_query(query: EntityQuery, ha_client: HomeAssistantClient) -> str:
+    """Execute a presence query (who's home)."""
+    persons = ha_client._entity_registry.get_by_domain("person")
+
+    if not persons:
+        # Fallback to device_tracker
+        trackers = ha_client._entity_registry.get_by_domain("device_tracker")
+        if not trackers:
+            return "No presence tracking configured."
+        persons = trackers
+
+    home_people = []
+    away_people = []
+
+    for entity in persons:
+        state = await ha_client.get_state(entity.entity_id)
+        if state:
+            # Extract just the name from the entity
+            name = entity.friendly_name
+            if state.state.lower() in ("home", "on"):
+                home_people.append(name)
+            elif state.state.lower() in ("away", "not_home", "off"):
+                away_people.append(name)
+
+    # Check for specific person query
+    if query.entity_name:
+        person_name = query.entity_name.lower()
+        for entity in persons:
+            if person_name in entity.friendly_name.lower():
+                state = await ha_client.get_state(entity.entity_id)
+                if state:
+                    if state.state.lower() in ("home", "on"):
+                        return f"Yes, {entity.friendly_name} is home."
+                    else:
+                        return f"No, {entity.friendly_name} is {state.state}."
+        return f"I don't have presence information for {query.entity_name}."
+
+    # General presence query
+    if "everyone" in query.raw_text.lower():
+        if not away_people:
+            return f"Yes, everyone is home ({len(home_people)} people)."
+        else:
+            return f"No, {', '.join(away_people)} {'is' if len(away_people) == 1 else 'are'} away."
+
+    if not home_people:
+        return "Nobody is home."
+    elif len(home_people) == 1:
+        return f"{home_people[0]} is home."
+    else:
+        return f"{len(home_people)} people are home: {', '.join(home_people)}."
+
+
+async def _execute_media_query(query: EntityQuery, ha_client: HomeAssistantClient) -> str:
+    """Execute a media status query."""
+    media_players = ha_client._entity_registry.get_by_domain("media_player")
+
+    if not media_players:
+        return "No media players found."
+
+    # If specific device requested
+    if query.entity_name:
+        for entity in media_players:
+            if query.entity_name.lower() in entity.friendly_name.lower():
+                state = await ha_client.get_state(entity.entity_id)
+                if state:
+                    return _format_media_status(entity.friendly_name, state)
+        return f"I couldn't find a media player called '{query.entity_name}'."
+
+    # Check what's playing on all media players
+    playing = []
+    for entity in media_players:
+        state = await ha_client.get_state(entity.entity_id)
+        if state and state.state == "playing":
+            playing.append((entity.friendly_name, state))
+
+    if not playing:
+        return "Nothing is currently playing."
+
+    responses = []
+    for name, state in playing[:3]:
+        media_title = state.attributes.get("media_title", "")
+        media_artist = state.attributes.get("media_artist", "")
+        if media_title and media_artist:
+            responses.append(f"{name}: {media_artist} - {media_title}")
+        elif media_title:
+            responses.append(f"{name}: {media_title}")
+        else:
+            responses.append(f"{name} is playing")
+
+    return "; ".join(responses) + "."
+
+
+def _format_media_status(name: str, state: Any) -> str:
+    """Format media player status."""
+    if state.state in ("off", "unavailable", "unknown"):
+        return f"{name} is {state.state}."
+
+    media_title = state.attributes.get("media_title", "")
+    media_artist = state.attributes.get("media_artist", "")
+    volume = state.attributes.get("volume_level")
+
+    parts = [f"{name} is {state.state}"]
+    if media_title and media_artist:
+        parts.append(f"playing {media_artist} - {media_title}")
+    elif media_title:
+        parts.append(f"playing {media_title}")
+    if volume is not None:
+        parts.append(f"volume at {int(volume * 100)}%")
+
+    return ", ".join(parts) + "."
+
+
+async def _execute_cover_query(
+    query: EntityQuery,
+    ha_client: HomeAssistantClient,
+    topology_service: HATopologyService | None = None,
+) -> str:
+    """Execute a cover/blind status query."""
+    covers = ha_client._entity_registry.get_by_domain("cover")
+
+    if not covers:
+        return "No blinds or covers found."
+
+    # Filter by area if specified
+    if query.area:
+        area = ha_client.find_area_by_name(query.area)
+        if area:
+            covers = [e for e in covers if e.area_id == area.id]
+    if query.floor and topology_service:
+        area_ids = topology_service.resolve_floor(query.floor)
+        if area_ids:
+            covers = [e for e in covers if e.area_id in area_ids]
+
+    if not covers:
+        location_str = _format_location(query.area, query.floor)
+        return f"No blinds or covers found{location_str}."
+
+    open_covers = []
+    closed_covers = []
+
+    for entity in covers:
+        state = await ha_client.get_state(entity.entity_id)
+        if state:
+            position = state.attributes.get("current_position")
+            if state.state == "open" or (position and position > 0):
+                open_covers.append((entity.friendly_name, position))
+            else:
+                closed_covers.append(entity.friendly_name)
+
+    location_str = _format_location(query.area, query.floor)
+
+    if not open_covers and not closed_covers:
+        return f"I couldn't get the status of the covers{location_str}."
+
+    if not open_covers:
+        return f"All {len(closed_covers)} covers are closed{location_str}."
+    elif not closed_covers:
+        if len(open_covers) == 1:
+            name, pos = open_covers[0]
+            pos_str = f" ({pos}%)" if pos else ""
+            return f"{name} is open{pos_str}."
+        return f"All {len(open_covers)} covers are open{location_str}."
+    else:
+        open_names = [f"{name} ({pos}%)" if pos else name for name, pos in open_covers]
+        return f"{len(open_covers)} covers are open{location_str}: {', '.join(open_names[:3])}."
+
+
+async def _execute_last_changed_query(query: EntityQuery, ha_client: HomeAssistantClient) -> str:
+    """Execute a last changed query."""
+    if not query.entity_name:
+        return "Which device do you want to know about?"
+
+    entity = ha_client._entity_registry.find_by_name(query.entity_name)
+    if not entity:
+        return f"I couldn't find a device called '{query.entity_name}'."
+
+    state = await ha_client.get_state(entity.entity_id)
+    if not state or not state.last_changed:
+        return f"I don't have change history for {entity.friendly_name}."
+
+    try:
+        # Parse the ISO timestamp
+        last_changed = datetime.fromisoformat(state.last_changed.replace("Z", "+00:00"))
+        now = datetime.now(last_changed.tzinfo)
+        diff = now - last_changed
+
+        # Format the time difference
+        if diff.total_seconds() < 60:
+            time_ago = "just now"
+        elif diff.total_seconds() < 3600:
+            mins = int(diff.total_seconds() / 60)
+            time_ago = f"{mins} minute{'s' if mins != 1 else ''} ago"
+        elif diff.total_seconds() < 86400:
+            hours = int(diff.total_seconds() / 3600)
+            time_ago = f"{hours} hour{'s' if hours != 1 else ''} ago"
+        else:
+            days = int(diff.total_seconds() / 86400)
+            time_ago = f"{days} day{'s' if days != 1 else ''} ago"
+
+        return f"{entity.friendly_name} was last changed {time_ago} (currently {state.state})."
+    except Exception:
+        return f"{entity.friendly_name} is currently {state.state}."
+
+
+async def _execute_brightness_query(query: EntityQuery, ha_client: HomeAssistantClient) -> str:
+    """Execute a brightness level query."""
+    if not query.entity_name:
+        return "Which light do you want to know the brightness of?"
+
+    entity = ha_client._entity_registry.find_by_name(query.entity_name)
+    if not entity:
+        return f"I couldn't find a light called '{query.entity_name}'."
+
+    state = await ha_client.get_state(entity.entity_id)
+    if not state:
+        return f"I couldn't get the status of {entity.friendly_name}."
+
+    if state.state == "off":
+        return f"{entity.friendly_name} is off."
+
+    brightness = state.attributes.get("brightness")
+    if brightness is not None:
+        # Convert from 0-255 to percentage
+        percent = int((brightness / 255) * 100)
+        return f"{entity.friendly_name} is at {percent}% brightness."
+
+    return f"{entity.friendly_name} is {state.state}."
