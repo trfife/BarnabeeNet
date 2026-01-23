@@ -1,7 +1,7 @@
 # Morning Notes - Overnight Work Session
 
 **Started:** January 22, 2026 (evening)
-**Last Updated:** January 23, 2026 ~5:25 AM
+**Last Updated:** January 23, 2026 ~5:30 AM
 
 This document tracks all work done overnight and items that need your attention.
 
@@ -66,6 +66,10 @@ This document tracks all work done overnight and items that need your attention.
 | **Focus Timer** | "start pomodoro", "done with homework" | **NEW** - 15/25 min focus sessions |
 | **WiFi Password** | "what's the wifi password" | **NEW** - Returns guest network info |
 | **Family Digest** | "what happened today", "catch me up" | **NEW** - Daily activity summary |
+| **Activity Ideas** | "I'm bored", "what should I do" | **NEW** - 70+ activity suggestions |
+| **Conversation** | "conversation starter", "dinner question" | **NEW** - Family discussion prompts |
+| **Stories** | "tell me a bedtime story" | LLM-generated stories |
+| **Definitions** | "what does ephemeral mean" | LLM-powered definitions |
 
 ### Major Enhancements
 
@@ -277,6 +281,23 @@ what happened today             # Summary of stars, chores, feeding
 catch me up                     # Same as above
 what did i miss                 # Same as above
 family digest                   # Same as above
+
+# NEW: Activity Suggestions
+I'm bored                       # Random activity suggestion
+what should I do                # Same as above
+suggest something outside       # Outdoor activities
+any ideas for a rainy day       # Rainy day activities
+
+# NEW: Conversation Starters
+give me a conversation starter  # Family discussion question
+dinner question                 # Same as above
+what should we talk about       # Same as above
+
+# LLM-Powered Features (via InteractionAgent)
+tell me a bedtime story         # Short story generation
+tell me a story about dragons   # Themed story
+what does ephemeral mean        # Word definitions
+define hypothesis               # Same as above
 
 # Previous Features
 flip a coin
