@@ -2924,52 +2924,111 @@ class InstantAgent(Agent):
         if not memory_storage:
             return "Sorry, I can't access my memories right now."
 
-        # Search for recent episodic memories
-        results = await memory_storage.search_memories(
-            query="family activity event happened today",
+        # Search for recent episodic memories with different queries
+        all_results = []
+
+        # Search for stars
+        star_results = await memory_storage.search_memories(
+            query="star awarded reward",
             memory_type="episodic",
             max_results=20,
-            min_score=0.2,
+            min_score=0.3,
         )
+        all_results.extend(star_results)
 
-        if not results:
+        # Search for chores
+        chore_results = await memory_storage.search_memories(
+            query="completed chore homework dishes",
+            memory_type="episodic",
+            max_results=20,
+            min_score=0.3,
+        )
+        all_results.extend(chore_results)
+
+        # Search for pet feeding
+        feeding_results = await memory_storage.search_memories(
+            query="fed dog cat pet",
+            memory_type="episodic",
+            max_results=10,
+            min_score=0.3,
+        )
+        all_results.extend(feeding_results)
+
+        if not all_results:
             return "It's been a quiet day! Nothing major to report."
 
-        # Categorize activities
+        # Deduplicate by memory ID and categorize
+        seen_ids = set()
         activities = {
-            "chores": [],
             "stars": [],
+            "chores": [],
             "feeding": [],
-            "other": [],
         }
 
-        for mem, score in results:
-            content = mem.content.lower()
-            if "star" in content:
-                activities["stars"].append(mem.content)
-            elif "chore" in mem.tags or "homework" in content or "dishes" in content:
-                activities["chores"].append(mem.content)
-            elif "fed" in content or "feeding" in content:
-                activities["feeding"].append(mem.content)
-            else:
-                activities["other"].append(mem.content)
+        for mem, score in all_results:
+            if mem.id in seen_ids:
+                continue
+            seen_ids.add(mem.id)
+
+            # Categorize by tags
+            if "star" in mem.tags or "reward" in mem.tags:
+                activities["stars"].append(mem)
+            elif "chore_completed" in mem.tags:
+                activities["chores"].append(mem)
+            elif "pet_feeding" in mem.tags:
+                activities["feeding"].append(mem)
 
         # Build summary
         summary_parts = []
 
         if activities["stars"]:
-            summary_parts.append(f"{len(activities['stars'])} star(s) were awarded")
+            # Count unique people who got stars
+            people = set()
+            for mem in activities["stars"]:
+                for name in ["xander", "penelope", "viola", "zachary"]:
+                    if name in mem.content.lower():
+                        people.add(name.title())
+            if people:
+                summary_parts.append(f"Stars awarded to: {', '.join(sorted(people))}")
+            else:
+                summary_parts.append(f"{len(activities['stars'])} star(s) were awarded")
 
         if activities["chores"]:
-            summary_parts.append(f"{len(activities['chores'])} chore(s) were completed")
+            chore_types = set()
+            for mem in activities["chores"]:
+                content = mem.content.lower()
+                if "homework" in content:
+                    chore_types.add("homework")
+                elif "dishes" in content:
+                    chore_types.add("dishes")
+                elif "room" in content:
+                    chore_types.add("room cleaning")
+                elif "trash" in content:
+                    chore_types.add("trash")
+            if chore_types:
+                summary_parts.append(f"Chores completed: {', '.join(sorted(chore_types))}")
+            else:
+                summary_parts.append(f"{len(activities['chores'])} chore(s) completed")
 
         if activities["feeding"]:
-            summary_parts.append("pets were fed")
+            pets = set()
+            for mem in activities["feeding"]:
+                content = mem.content.lower()
+                if "dog" in content:
+                    pets.add("dog")
+                if "cat" in content:
+                    pets.add("cat")
+                if "fish" in content:
+                    pets.add("fish")
+            if pets:
+                summary_parts.append(f"Fed: {', '.join(sorted(pets))}")
+            else:
+                summary_parts.append("Pets were fed")
 
         if not summary_parts:
             return "It's been a quiet day! Nothing major to report."
 
-        summary = "Here's what happened: " + ", ".join(summary_parts) + "."
+        summary = "Here's what happened today: " + "; ".join(summary_parts) + "."
         return summary
 
     def _is_clear_conversation(self, text: str) -> bool:
