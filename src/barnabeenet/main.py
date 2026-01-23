@@ -194,6 +194,33 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error("Memory storage initialization failed", error=str(e))
         app_state.memory_storage = None
 
+    # Initialize Timer Manager (requires HA client)
+    try:
+        from barnabeenet.api.routes.homeassistant import get_ha_client
+        from barnabeenet.services.timers import init_timer_manager
+
+        ha_client = await get_ha_client()
+        if ha_client:
+            # Ensure WebSocket subscription is started for timer events
+            if not ha_client.is_subscribed:
+                await ha_client.subscribe_to_events()
+                logger.info("Started HA WebSocket event subscription")
+
+            app_state.timer_manager = await init_timer_manager(ha_client)
+            if app_state.timer_manager:
+                logger.info(
+                    "Timer Manager initialized with %d timer entities",
+                    len(app_state.timer_manager._pool.available),
+                )
+            else:
+                logger.warning("Timer Manager initialization returned None")
+        else:
+            logger.warning("HA client not available, Timer Manager not initialized")
+            app_state.timer_manager = None
+    except Exception as e:
+        logger.error("Timer Manager initialization failed", error=str(e))
+        app_state.timer_manager = None
+
     # Start GPU worker health check task
     app_state._health_check_task = asyncio.create_task(_gpu_worker_health_check_loop())
 
@@ -449,6 +476,10 @@ def _register_routes(app: FastAPI) -> None:
     # Agents management
     from barnabeenet.api.routes import agents
     app.include_router(agents.router, prefix="/api/v1", tags=["Agents"])
+
+    # Timers management
+    from barnabeenet.api.routes import timers
+    app.include_router(timers.router, prefix="/api/v1", tags=["Timers"])
 
     # Mount static files (must be after routes to not override them)
     if STATIC_DIR.exists():

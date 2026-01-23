@@ -52,7 +52,7 @@ class ActiveTimer:
     # For chained actions
     chained_actions: list[dict[str, Any]] = field(default_factory=list)  # List of {delay, action}
     paused_at: datetime | None = None  # When timer was paused
-    paused_duration: timedelta = timedelta(0)  # Total paused time
+    paused_duration: timedelta = field(default_factory=lambda: timedelta(0))  # Total paused time
 
     @property
     def remaining(self) -> timedelta:
@@ -91,6 +91,7 @@ class ActiveTimer:
             "speaker": self.speaker,
             "room": self.room,
             "on_complete": self.on_complete,
+            "is_paused": self.is_paused,
         }
 
 
@@ -135,20 +136,61 @@ class TimerPool:
 # Duration Parsing
 # =============================================================================
 
+# Word to number mapping
+WORD_NUMBERS = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
+    "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+    "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
+    "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
+    "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30,
+    "forty": 40, "fifty": 50, "sixty": 60, "ninety": 90,
+    "a": 1, "an": 1,
+}
+
+
+def word_to_number(text: str) -> int | None:
+    """Convert word number to int (e.g., 'five' -> 5, 'twenty five' -> 25)."""
+    text = text.lower().strip()
+    
+    # Try direct match
+    if text in WORD_NUMBERS:
+        return WORD_NUMBERS[text]
+    
+    # Try as integer
+    try:
+        return int(text)
+    except ValueError:
+        pass
+    
+    # Try compound numbers like "twenty five"
+    parts = text.replace("-", " ").split()
+    if len(parts) == 2:
+        first = WORD_NUMBERS.get(parts[0])
+        second = WORD_NUMBERS.get(parts[1])
+        if first is not None and second is not None:
+            if first >= 20 and second < 10:
+                return first + second
+    
+    return None
+
+
 # Patterns for parsing duration strings
 DURATION_PATTERNS = [
-    # "5 minutes", "5 mins", "5 min"
+    # Word numbers: "five minutes", "ten seconds"
+    (r"(\w+(?:\s+\w+)?)\s*(?:minutes?|mins?)", "word_minutes"),
+    (r"(\w+(?:\s+\w+)?)\s*(?:seconds?|secs?)", "word_seconds"),
+    (r"(\w+(?:\s+\w+)?)\s*(?:hours?|hrs?)", "word_hours"),
+    # Numeric: "5 minutes", "30 seconds"
     (r"(\d+)\s*(?:minutes?|mins?)", "minutes"),
-    # "30 seconds", "30 secs", "30 sec"
     (r"(\d+)\s*(?:seconds?|secs?)", "seconds"),
-    # "1 hour", "2 hours", "1 hr"
     (r"(\d+)\s*(?:hours?|hrs?)", "hours"),
-    # "1.5 hours"
+    # Float hours: "1.5 hours"
     (r"(\d+\.?\d*)\s*(?:hours?|hrs?)", "hours_float"),
-    # "half an hour", "half hour"
+    # Special phrases
     (r"half\s+(?:an?\s+)?hour", "half_hour"),
-    # "quarter hour", "quarter of an hour"
     (r"quarter\s+(?:of\s+)?(?:an?\s+)?hour", "quarter_hour"),
+    (r"(?:a|an)\s+hour", "one_hour"),
+    (r"(?:a|an)\s+minute", "one_minute"),
 ]
 
 
@@ -157,10 +199,12 @@ def parse_duration(text: str) -> timedelta | None:
 
     Examples:
         - "5 minutes" -> timedelta(minutes=5)
+        - "five minutes" -> timedelta(minutes=5)
         - "30 seconds" -> timedelta(seconds=30)
         - "1 hour" -> timedelta(hours=1)
         - "1.5 hours" -> timedelta(hours=1.5)
         - "half an hour" -> timedelta(minutes=30)
+        - "a minute" -> timedelta(minutes=1)
 
     Args:
         text: Duration string
@@ -177,17 +221,34 @@ def parse_duration(text: str) -> timedelta | None:
                 return timedelta(minutes=30)
             elif unit == "quarter_hour":
                 return timedelta(minutes=15)
+            elif unit == "one_hour":
+                return timedelta(hours=1)
+            elif unit == "one_minute":
+                return timedelta(minutes=1)
             elif unit == "hours_float":
                 hours = float(match.group(1))
                 return timedelta(hours=hours)
-            else:
-                value = int(match.group(1))
-                if unit == "minutes":
+            elif unit == "word_minutes":
+                value = word_to_number(match.group(1))
+                if value is not None:
                     return timedelta(minutes=value)
-                elif unit == "seconds":
+            elif unit == "word_seconds":
+                value = word_to_number(match.group(1))
+                if value is not None:
                     return timedelta(seconds=value)
-                elif unit == "hours":
+            elif unit == "word_hours":
+                value = word_to_number(match.group(1))
+                if value is not None:
                     return timedelta(hours=value)
+            elif unit == "minutes":
+                value = int(match.group(1))
+                return timedelta(minutes=value)
+            elif unit == "seconds":
+                value = int(match.group(1))
+                return timedelta(seconds=value)
+            elif unit == "hours":
+                value = int(match.group(1))
+                return timedelta(hours=value)
 
     return None
 
@@ -464,15 +525,43 @@ class TimerManager:
         self._active_timers: dict[str, ActiveTimer] = {}
         self._event_task: asyncio.Task[None] | None = None
         self._callbacks: list[Any] = []
+        self._initialized = False
+        self._callback_registered = False
+
+    @property
+    def is_initialized(self) -> bool:
+        """Check if timer manager is initialized."""
+        return self._initialized
 
     async def init(self) -> None:
         """Initialize the timer manager.
 
         Discovers available timer entities in HA and sets up event subscription.
         """
+        if self._initialized:
+            logger.debug("TimerManager already initialized")
+            return
+
+        # Ensure HA client is connected
+        if not await self._ha.ensure_connected():
+            logger.warning("Home Assistant not connected, timer manager initialization deferred")
+            return
+
+        # Discover timer entities
         await self._discover_timer_entities()
-        # Subscribe to timer events
-        self._ha.add_state_change_callback(self._on_state_change)
+
+        # Register state change callback (only once)
+        if not self._callback_registered:
+            self._ha.add_state_change_callback(self._on_state_change)
+            self._callback_registered = True
+            logger.info("Registered timer state change callback")
+
+        # Start WebSocket event subscription if not already running
+        if not self._ha.is_subscribed:
+            logger.info("Starting HA WebSocket event subscription for timer events")
+            await self._ha.subscribe_to_events()
+
+        self._initialized = True
         logger.info(
             "TimerManager initialized with %d available timer entities",
             len(self._pool.available),
@@ -487,8 +576,7 @@ class TimerManager:
             logger.warning("Home Assistant not connected, cannot discover timer entities")
             return
 
-        # Query HA directly for timer entities (don't rely on cached entities)
-        # Try to get state for each timer entity - if it exists, add it to the pool
+        # Query HA directly for timer entities
         logger.info("Discovering timer entities with prefix: %s (checking 1-%d)", self._config.prefix, self._config.pool_size)
         for i in range(1, self._config.pool_size + 1):
             entity_id = f"{self._config.prefix}{i}"
@@ -534,7 +622,12 @@ class TimerManager:
         Returns:
             ActiveTimer if created, None if no entities available
         """
-        # If no entities available, try to rediscover (HA might have connected)
+        # Initialize if not yet done
+        if not self._initialized:
+            logger.info("TimerManager not initialized, initializing now...")
+            await self.init()
+
+        # If still no entities available, try to rediscover
         if not self._pool.available:
             logger.info("No timer entities in pool, attempting rediscovery...")
             await self._discover_timer_entities()
@@ -570,10 +663,22 @@ class TimerManager:
 
         # Start the HA timer
         try:
+            # Format duration as HH:MM:SS for HA timer service
+            total_secs = int(duration.total_seconds())
+            hours = total_secs // 3600
+            minutes = (total_secs % 3600) // 60
+            seconds = total_secs % 60
+            duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+            logger.info(
+                "Starting HA timer %s with duration %s (%d seconds)",
+                entity_id, duration_str, total_secs
+            )
+
             result = await self._ha.call_service(
                 "timer.start",
                 entity_id=entity_id,
-                duration=str(int(duration.total_seconds())),
+                duration=duration_str,
             )
 
             if not result.success:
@@ -582,7 +687,7 @@ class TimerManager:
                 return None
 
         except Exception as e:
-            logger.error("Error starting HA timer: %s", e)
+            logger.error("Error starting HA timer: %s", e, exc_info=True)
             self._pool.release(entity_id)
             return None
 
@@ -591,14 +696,12 @@ class TimerManager:
         self._pool.in_use[timer_id] = entity_id
 
         logger.info(
-            "Created %s timer '%s' for %s (entity: %s, timer_id: %s, started_at: %s, ends_at: %s)",
+            "Created %s timer '%s' for %s (entity: %s, timer_id: %s)",
             timer_type.value,
             timer.label,
             format_duration(duration),
             entity_id,
             timer_id,
-            timer.started_at.isoformat(),
-            timer.ends_at.isoformat(),
         )
         logger.info(
             "Active timers count: %d, Pool available: %d, Pool in_use: %d",
@@ -623,8 +726,18 @@ class TimerManager:
         new_state = event.new_state
         old_state = event.old_state
 
+        logger.debug(
+            "Timer state change: %s from '%s' to '%s'",
+            entity_id, old_state, new_state
+        )
+
         if old_state == "active" and new_state == "idle":
             # Timer finished - find and handle it
+            logger.info("Timer %s finished (active -> idle)", entity_id)
+            asyncio.create_task(self._handle_timer_finished(entity_id))
+        elif old_state == "paused" and new_state == "idle":
+            # Timer was paused and then finished (resumed and completed)
+            logger.info("Timer %s finished from paused state", entity_id)
             asyncio.create_task(self._handle_timer_finished(entity_id))
 
     async def _handle_timer_finished(self, entity_id: str) -> None:
@@ -645,7 +758,7 @@ class TimerManager:
             return
 
         logger.info(
-            "Timer '%s' (%s) finished",
+            "Timer '%s' (%s) finished - executing completion action",
             timer.label,
             timer.timer_type.value,
         )
@@ -726,7 +839,6 @@ class TimerManager:
             timer: The timer that finished
         """
         # Publish event for TTS announcement
-        # This could be picked up by a message bus subscriber
         message = f"Your {timer.label} timer is done!"
 
         logger.info("Timer announcement: %s", message)
@@ -753,6 +865,11 @@ class TimerManager:
             entity_id = timer.on_complete.get("entity_id")
             service_data = timer.on_complete.get("data", {})
 
+            logger.info(
+                "Executing timer on_complete: %s for %s",
+                service, entity_id
+            )
+
             # Get state before action (for verification)
             state_before = None
             if entity_id:
@@ -760,8 +877,6 @@ class TimerManager:
                     state_before = await self._ha.get_state(entity_id)
                     if state_before:
                         logger.debug("State before action: %s = %s", entity_id, state_before.state)
-                    else:
-                        logger.debug("Could not get state before action for %s", entity_id)
                 except Exception as e:
                     logger.debug("Error getting state before action for %s: %s", entity_id, e)
 
@@ -787,10 +902,10 @@ class TimerManager:
 
                 # Check if state actually changed
                 state_changed = state_before and state_after and state_before.state != state_after.state
-                change_indicator = "✓ CHANGED" if state_changed else ("⚠️ NO CHANGE" if state_before_str != "unknown" else "? UNKNOWN")
+                change_indicator = "CHANGED" if state_changed else ("NO CHANGE" if state_before_str != "unknown" else "UNKNOWN")
 
                 logger.info(
-                    "Executed timer on_complete: %s for %s %s (state: %s -> %s)",
+                    "Timer on_complete executed: %s for %s [%s] (state: %s -> %s)",
                     service,
                     entity_id,
                     change_indicator,
@@ -802,7 +917,7 @@ class TimerManager:
                 if hasattr(result, 'response_data') and result.response_data:
                     affected = result.response_data.get('affected_states', [])
                     if affected:
-                        logger.info("Service call affected %d entities: %s", len(affected), [e.get('entity_id', 'unknown') for e in affected[:3]])
+                        logger.info("Service call affected %d entities", len(affected))
                     else:
                         logger.warning("Service call returned 0 affected entities - entity may not exist: %s", entity_id)
             else:
@@ -814,7 +929,7 @@ class TimerManager:
                 )
 
         except Exception as e:
-            logger.error("Error executing timer on_complete: %s", e)
+            logger.error("Error executing timer on_complete: %s", e, exc_info=True)
 
     async def _remove_timer(self, timer_id: str) -> None:
         """Remove a timer from the registry and release its entity.
@@ -825,6 +940,7 @@ class TimerManager:
         timer = self._active_timers.pop(timer_id, None)
         if timer:
             self._pool.release(timer.ha_timer_entity)
+            logger.info("Released timer entity %s back to pool", timer.ha_timer_entity)
 
     async def pause_timer(self, timer_id: str) -> bool:
         """Pause an active timer.
@@ -1023,7 +1139,7 @@ class TimerManager:
         delay: timedelta,
         action: dict[str, Any],
     ) -> bool:
-        """Add a chained action to a timer (e.g., "wait 3 minutes turn on fan, then in 30 seconds turn it off").
+        """Add a chained action to a timer.
 
         Args:
             timer_id: Timer ID
@@ -1043,6 +1159,22 @@ class TimerManager:
         })
         logger.info("Added chained action to timer '%s': %s after %s", timer.label, action, format_duration(delay))
         return True
+
+    def get_status(self) -> dict[str, Any]:
+        """Get timer manager status for API/debugging.
+
+        Returns:
+            Status dict with pool and timer info
+        """
+        return {
+            "initialized": self._initialized,
+            "callback_registered": self._callback_registered,
+            "pool_available": len(self._pool.available),
+            "pool_in_use": len(self._pool.in_use),
+            "active_timers": len(self._active_timers),
+            "available_entities": self._pool.available,
+            "timers": [t.to_dict() for t in self._active_timers.values()],
+        }
 
 
 # =============================================================================
@@ -1073,14 +1205,46 @@ async def get_timer_manager(
             from barnabeenet.api.routes.homeassistant import get_ha_client
 
             ha_client = await get_ha_client()
-        except Exception:
+        except Exception as e:
+            logger.warning("Could not get HA client for timer manager: %s", e)
             return None
 
     if ha_client is None:
+        logger.warning("No HA client available, timer manager cannot be created")
         return None
 
     _timer_manager = TimerManager(ha_client)
     await _timer_manager.init()
+    return _timer_manager
+
+
+async def init_timer_manager(ha_client: HomeAssistantClient) -> TimerManager | None:
+    """Initialize the timer manager with a specific HA client.
+
+    This should be called during application startup.
+
+    Args:
+        ha_client: Home Assistant client
+
+    Returns:
+        TimerManager instance
+    """
+    global _timer_manager
+
+    if _timer_manager is not None:
+        logger.info("Timer manager already initialized")
+        return _timer_manager
+
+    _timer_manager = TimerManager(ha_client)
+    await _timer_manager.init()
+    return _timer_manager
+
+
+def get_timer_manager_sync() -> TimerManager | None:
+    """Get the timer manager singleton (synchronous version).
+
+    Returns None if not initialized.
+    """
     return _timer_manager
 
 
@@ -1101,5 +1265,7 @@ __all__ = [
     "parse_timer_command",
     "TimerParseResult",
     "get_timer_manager",
+    "init_timer_manager",
+    "get_timer_manager_sync",
     "reset_timer_manager",
 ]
