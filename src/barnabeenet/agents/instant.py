@@ -1242,8 +1242,9 @@ class InstantAgent(Agent):
         """
         text_lower = text.lower()
 
-        # Exclude shopping list related phrases
-        if any(kw in text_lower for kw in ["shopping list", "groceries", "grocery"]):
+        # Exclude shopping list related phrases (but only if they're not after a colon)
+        # e.g. "add milk to shopping list" should be excluded, but "remind me: pick up groceries" should not
+        if "shopping list" in text_lower and ":" not in text_lower:
             return False, "", None
 
         # Save note patterns (require colon to distinguish from other commands)
