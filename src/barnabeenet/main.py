@@ -172,11 +172,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize Agent Orchestrator
     try:
+        from barnabeenet.agents import orchestrator as orchestrator_module
         from barnabeenet.agents.orchestrator import AgentOrchestrator
 
         app_state.orchestrator = AgentOrchestrator(pipeline_logger=app_state.pipeline_logger)
         await app_state.orchestrator.init()
-        logger.info("Agent Orchestrator initialized")
+        # Set as global orchestrator so get_orchestrator() returns this instance
+        orchestrator_module._global_orchestrator = app_state.orchestrator
+        logger.info("Agent Orchestrator initialized (set as global)")
     except Exception as e:
         logger.error("Orchestrator initialization failed", error=str(e))
         # Continue - orchestrator will init lazily on first request
