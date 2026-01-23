@@ -12,12 +12,234 @@ import random
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, date
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from barnabeenet.agents.base import Agent
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Unit Conversion Data
+# =============================================================================
+UNIT_CONVERSIONS = {
+    # Volume
+    ("cups", "liters"): (0.236588, "liters"),
+    ("cups", "liter"): (0.236588, "liters"),
+    ("liters", "cups"): (4.22675, "cups"),
+    ("liter", "cups"): (4.22675, "cups"),
+    ("gallons", "liters"): (3.78541, "liters"),
+    ("gallon", "liters"): (3.78541, "liters"),
+    ("liters", "gallons"): (0.264172, "gallons"),
+    ("liter", "gallons"): (0.264172, "gallons"),
+    ("tablespoons", "teaspoons"): (3, "teaspoons"),
+    ("tablespoon", "teaspoons"): (3, "teaspoons"),
+    ("teaspoons", "tablespoons"): (1/3, "tablespoons"),
+    ("teaspoon", "tablespoons"): (1/3, "tablespoons"),
+    ("cups", "tablespoons"): (16, "tablespoons"),
+    ("cup", "tablespoons"): (16, "tablespoons"),
+    ("tablespoons", "cups"): (1/16, "cups"),
+    ("tablespoon", "cups"): (1/16, "cups"),
+    ("ounces", "cups"): (0.125, "cups"),
+    ("ounce", "cups"): (0.125, "cups"),
+    ("cups", "ounces"): (8, "ounces"),
+    ("cup", "ounces"): (8, "ounces"),
+    # Temperature (handled specially)
+    # Weight
+    ("pounds", "kilograms"): (0.453592, "kilograms"),
+    ("pound", "kilograms"): (0.453592, "kilograms"),
+    ("kilograms", "pounds"): (2.20462, "pounds"),
+    ("kilogram", "pounds"): (2.20462, "pounds"),
+    ("ounces", "grams"): (28.3495, "grams"),
+    ("ounce", "grams"): (28.3495, "grams"),
+    ("grams", "ounces"): (0.035274, "ounces"),
+    ("gram", "ounces"): (0.035274, "ounces"),
+    ("ounces", "pounds"): (0.0625, "pounds"),
+    ("ounce", "pounds"): (0.0625, "pounds"),
+    ("pounds", "ounces"): (16, "ounces"),
+    ("pound", "ounces"): (16, "ounces"),
+    # Length
+    ("inches", "centimeters"): (2.54, "centimeters"),
+    ("inch", "centimeters"): (2.54, "centimeters"),
+    ("centimeters", "inches"): (0.393701, "inches"),
+    ("centimeter", "inches"): (0.393701, "inches"),
+    ("feet", "meters"): (0.3048, "meters"),
+    ("foot", "meters"): (0.3048, "meters"),
+    ("meters", "feet"): (3.28084, "feet"),
+    ("meter", "feet"): (3.28084, "feet"),
+    ("miles", "kilometers"): (1.60934, "kilometers"),
+    ("mile", "kilometers"): (1.60934, "kilometers"),
+    ("kilometers", "miles"): (0.621371, "miles"),
+    ("kilometer", "miles"): (0.621371, "miles"),
+    ("feet", "inches"): (12, "inches"),
+    ("foot", "inches"): (12, "inches"),
+    ("inches", "feet"): (1/12, "feet"),
+    ("inch", "feet"): (1/12, "feet"),
+    ("yards", "feet"): (3, "feet"),
+    ("yard", "feet"): (3, "feet"),
+    ("feet", "yards"): (1/3, "yards"),
+    ("foot", "yards"): (1/3, "yards"),
+    ("miles", "feet"): (5280, "feet"),
+    ("mile", "feet"): (5280, "feet"),
+    ("feet", "miles"): (1/5280, "miles"),
+    ("foot", "miles"): (1/5280, "miles"),
+}
+
+# Common unit info queries
+UNIT_INFO = {
+    ("cups", "liter"): "About 4.2 cups in a liter.",
+    ("cups", "liters"): "About 4.2 cups in a liter.",
+    ("ounces", "pound"): "16 ounces in a pound.",
+    ("ounces", "pounds"): "16 ounces in a pound.",
+    ("inches", "foot"): "12 inches in a foot.",
+    ("inches", "feet"): "12 inches in a foot.",
+    ("feet", "mile"): "5,280 feet in a mile.",
+    ("feet", "miles"): "5,280 feet in a mile.",
+    ("teaspoons", "tablespoon"): "3 teaspoons in a tablespoon.",
+    ("teaspoons", "tablespoons"): "3 teaspoons in a tablespoon.",
+    ("tablespoons", "cup"): "16 tablespoons in a cup.",
+    ("tablespoons", "cups"): "16 tablespoons in a cup.",
+    ("centimeters", "inch"): "2.54 centimeters in an inch.",
+    ("centimeters", "inches"): "2.54 centimeters in an inch.",
+    ("grams", "ounce"): "About 28.3 grams in an ounce.",
+    ("grams", "ounces"): "About 28.3 grams in an ounce.",
+}
+
+# World clock timezone mappings
+TIMEZONE_ALIASES = {
+    # Major cities
+    "tokyo": "Asia/Tokyo",
+    "japan": "Asia/Tokyo",
+    "london": "Europe/London",
+    "uk": "Europe/London",
+    "england": "Europe/London",
+    "britain": "Europe/London",
+    "paris": "Europe/Paris",
+    "france": "Europe/Paris",
+    "berlin": "Europe/Berlin",
+    "germany": "Europe/Berlin",
+    "sydney": "Australia/Sydney",
+    "australia": "Australia/Sydney",
+    "new york": "America/New_York",
+    "nyc": "America/New_York",
+    "los angeles": "America/Los_Angeles",
+    "la": "America/Los_Angeles",
+    "chicago": "America/Chicago",
+    "denver": "America/Denver",
+    "phoenix": "America/Phoenix",
+    "seattle": "America/Los_Angeles",
+    "san francisco": "America/Los_Angeles",
+    "sf": "America/Los_Angeles",
+    "miami": "America/New_York",
+    "boston": "America/New_York",
+    "dallas": "America/Chicago",
+    "houston": "America/Chicago",
+    "atlanta": "America/New_York",
+    "toronto": "America/Toronto",
+    "canada": "America/Toronto",
+    "vancouver": "America/Vancouver",
+    "mexico city": "America/Mexico_City",
+    "mexico": "America/Mexico_City",
+    "beijing": "Asia/Shanghai",
+    "china": "Asia/Shanghai",
+    "shanghai": "Asia/Shanghai",
+    "hong kong": "Asia/Hong_Kong",
+    "singapore": "Asia/Singapore",
+    "seoul": "Asia/Seoul",
+    "korea": "Asia/Seoul",
+    "south korea": "Asia/Seoul",
+    "mumbai": "Asia/Kolkata",
+    "india": "Asia/Kolkata",
+    "dubai": "Asia/Dubai",
+    "uae": "Asia/Dubai",
+    "moscow": "Europe/Moscow",
+    "russia": "Europe/Moscow",
+    "amsterdam": "Europe/Amsterdam",
+    "netherlands": "Europe/Amsterdam",
+    "rome": "Europe/Rome",
+    "italy": "Europe/Rome",
+    "madrid": "Europe/Madrid",
+    "spain": "Europe/Madrid",
+    "lisbon": "Europe/Lisbon",
+    "portugal": "Europe/Lisbon",
+    "cairo": "Africa/Cairo",
+    "egypt": "Africa/Cairo",
+    "johannesburg": "Africa/Johannesburg",
+    "south africa": "Africa/Johannesburg",
+    "hawaii": "Pacific/Honolulu",
+    "honolulu": "Pacific/Honolulu",
+    "alaska": "America/Anchorage",
+    # Time zones by abbreviation
+    "est": "America/New_York",
+    "eastern": "America/New_York",
+    "cst": "America/Chicago",
+    "central": "America/Chicago",
+    "mst": "America/Denver",
+    "mountain": "America/Denver",
+    "pst": "America/Los_Angeles",
+    "pacific": "America/Los_Angeles",
+    "gmt": "Europe/London",
+    "utc": "UTC",
+}
+
+# Magic 8-ball responses
+MAGIC_8_BALL_RESPONSES = [
+    # Positive
+    "It is certain.",
+    "It is decidedly so.",
+    "Without a doubt.",
+    "Yes, definitely.",
+    "You may rely on it.",
+    "As I see it, yes.",
+    "Most likely.",
+    "Outlook good.",
+    "Yes.",
+    "Signs point to yes.",
+    # Neutral
+    "Reply hazy, try again.",
+    "Ask again later.",
+    "Better not tell you now.",
+    "Cannot predict now.",
+    "Concentrate and ask again.",
+    # Negative
+    "Don't count on it.",
+    "My reply is no.",
+    "My sources say no.",
+    "Outlook not so good.",
+    "Very doubtful.",
+]
+
+# Holiday dates (month, day) - updated annually or calculated
+HOLIDAYS = {
+    "christmas": (12, 25),
+    "christmas eve": (12, 24),
+    "new year": (1, 1),
+    "new years": (1, 1),
+    "new year's": (1, 1),
+    "new year's day": (1, 1),
+    "new year's eve": (12, 31),
+    "valentine's day": (2, 14),
+    "valentines day": (2, 14),
+    "st patrick's day": (3, 17),
+    "st patricks day": (3, 17),
+    "easter": None,  # Calculated
+    "mother's day": None,  # 2nd Sunday in May
+    "mothers day": None,
+    "father's day": None,  # 3rd Sunday in June
+    "fathers day": None,
+    "independence day": (7, 4),
+    "fourth of july": (7, 4),
+    "4th of july": (7, 4),
+    "halloween": (10, 31),
+    "thanksgiving": None,  # 4th Thursday in November
+    "summer": (6, 21),  # Summer solstice
+    "winter": (12, 21),  # Winter solstice
+    "spring": (3, 20),  # Spring equinox
+    "fall": (9, 22),  # Fall equinox
+    "autumn": (9, 22),
+}
 
 
 @dataclass
@@ -171,6 +393,38 @@ class InstantAgent(Agent):
         "Hmm, I'll need to process that.",
     ]
 
+    # Random choice responses
+    COIN_FLIP_RESPONSES = [
+        "I flipped a coin and got... {result}!",
+        "The coin landed on... {result}!",
+        "{result}!",
+    ]
+
+    DICE_ROLL_RESPONSES = [
+        "You rolled a {result}!",
+        "The dice shows {result}!",
+        "It's a {result}!",
+    ]
+
+    NUMBER_PICK_RESPONSES = [
+        "I pick... {result}!",
+        "How about {result}?",
+        "My choice is {result}!",
+        "I'm going with {result}!",
+    ]
+
+    YES_NO_RESPONSES = [
+        "Yes!",
+        "No!",
+    ]
+
+    # Counting responses
+    COUNTING_RESPONSES = [
+        "{numbers}, blastoff!",
+        "{numbers}!",
+        "Here you go: {numbers}",
+    ]
+
     def __init__(self) -> None:
         """Initialize the Instant Agent."""
         self._math_pattern: re.Pattern[str] | None = None
@@ -193,7 +447,61 @@ class InstantAgent(Agent):
             r"spell out)\s+(?:the word\s+)?[\"']?(\w+)[\"']?\??$",
             re.IGNORECASE,
         )
-        logger.info("InstantAgent initialized")
+        # Dice roll pattern - "roll a dice", "roll a d20", "roll 2d6"
+        self._dice_pattern = re.compile(
+            r"(?:roll|throw)\s+(?:a\s+)?(?:(?:d|dice|die)(?:(\d+))?|(\d+)d(\d+))",
+            re.IGNORECASE,
+        )
+        # Pick number pattern - "pick a number between X and Y"
+        self._number_pick_pattern = re.compile(
+            r"pick\s+(?:a\s+)?(?:random\s+)?number\s+(?:between|from)\s+(\d+)\s+(?:and|to)\s+(\d+)",
+            re.IGNORECASE,
+        )
+        # Unit conversion pattern - "convert X unit to unit" or "how many X in Y"
+        self._unit_convert_pattern = re.compile(
+            r"(?:convert\s+)?(\d+(?:\.\d+)?)\s*"
+            r"(fahrenheit|celsius|cups?|liters?|gallons?|pounds?|kilograms?|ounces?|grams?|"
+            r"inches?|centimeters?|feet|foot|meters?|miles?|kilometers?|yards?|"
+            r"tablespoons?|teaspoons?)\s+"
+            r"(?:to|in(?:to)?)\s+"
+            r"(fahrenheit|celsius|cups?|liters?|gallons?|pounds?|kilograms?|ounces?|grams?|"
+            r"inches?|centimeters?|feet|foot|meters?|miles?|kilometers?|yards?|"
+            r"tablespoons?|teaspoons?)",
+            re.IGNORECASE,
+        )
+        # "How many X in a Y" pattern
+        self._unit_info_pattern = re.compile(
+            r"how many\s+(cups?|liters?|ounces?|inches?|feet|foot|"
+            r"centimeters?|teaspoons?|tablespoons?|grams?)\s+"
+            r"(?:are\s+)?(?:there\s+)?in\s+(?:a\s+)?"
+            r"(cup|liter|pound|foot|feet|mile|tablespoon|inch|ounce)",
+            re.IGNORECASE,
+        )
+        # World clock pattern - "what time is it in Tokyo"
+        self._world_clock_pattern = re.compile(
+            r"(?:what(?:'s| is)?|tell me)\s+(?:the\s+)?time\s+(?:is\s+it\s+)?in\s+(.+?)(?:\?|$)",
+            re.IGNORECASE,
+        )
+        # Countdown pattern - "how many days until Christmas"
+        self._countdown_pattern = re.compile(
+            r"(?:how (?:many|long)|when is|days? (?:until|till|to))\s+"
+            r"(?:days?\s+)?(?:until|till|to|before)?\s*(.+?)(?:\?|$)",
+            re.IGNORECASE,
+        )
+        # Counting pattern - "count to 10", "count by 2s to 20", "count backwards from 10"
+        self._counting_pattern = re.compile(
+            r"count\s+"
+            r"(?:(backwards?|down)\s+)?(?:from\s+)?(\d+)?\s*"
+            r"(?:to\s+(\d+))?\s*"
+            r"(?:by\s+(\d+)(?:s|'s)?)?",
+            re.IGNORECASE,
+        )
+        # "What comes after X" pattern
+        self._next_number_pattern = re.compile(
+            r"what(?:'s| is)?\s+(?:comes?\s+)?(?:after|next after|before)\s+(\d+)",
+            re.IGNORECASE,
+        )
+        logger.info("InstantAgent initialized with extended patterns")
 
     async def shutdown(self) -> None:
         """Clean up resources."""
@@ -255,6 +563,58 @@ class InstantAgent(Agent):
         elif sub_category == "mic_check" or self._is_mic_check(text_lower):
             response = self._handle_mic_check()
             response_type = "mic_check"
+        # Random choices
+        elif sub_category == "coin_flip" or self._is_coin_flip(text_lower):
+            response = self._handle_coin_flip()
+            response_type = "coin_flip"
+        elif sub_category == "dice_roll" or self._is_dice_roll(text_lower):
+            response = self._handle_dice_roll(text)
+            response_type = "dice_roll"
+        elif sub_category == "yes_no" or self._is_yes_no(text_lower):
+            response = self._handle_yes_no()
+            response_type = "yes_no"
+        elif sub_category == "magic_8_ball" or self._is_magic_8_ball(text_lower):
+            response = self._handle_magic_8_ball()
+            response_type = "magic_8_ball"
+        elif sub_category == "number_pick" or "pick a number" in text_lower or "pick a random" in text_lower:
+            response = self._handle_number_pick(text)
+            response_type = "number_pick"
+        # World clock
+        elif sub_category == "world_clock" or self._is_world_clock(text_lower):
+            result = self._handle_world_clock(text)
+            if result:
+                response = result
+                response_type = "world_clock"
+            else:
+                response = random.choice(self.FALLBACK_RESPONSES)
+                response_type = "fallback"
+        # Countdown to events
+        elif sub_category == "countdown" or self._is_countdown(text_lower):
+            result = self._handle_countdown(text)
+            if result:
+                response = result
+                response_type = "countdown"
+            else:
+                response = random.choice(self.FALLBACK_RESPONSES)
+                response_type = "fallback"
+        # Counting
+        elif sub_category == "counting" or self._is_counting(text_lower):
+            result = self._handle_counting(text)
+            if result:
+                response = result
+                response_type = "counting"
+            else:
+                response = random.choice(self.FALLBACK_RESPONSES)
+                response_type = "fallback"
+        # Unit conversions
+        elif sub_category == "unit_conversion" or self._is_unit_conversion(text_lower):
+            result = self._handle_unit_conversion(text)
+            if result:
+                response = result
+                response_type = "unit_conversion"
+            else:
+                response = random.choice(self.FALLBACK_RESPONSES)
+                response_type = "fallback"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -342,6 +702,40 @@ class InstantAgent(Agent):
             "am i working",
         ]
         return any(kw in text for kw in mic_keywords)
+
+    def _is_coin_flip(self, text: str) -> bool:
+        """Check if user wants to flip a coin."""
+        return any(kw in text for kw in ["flip a coin", "flip coin", "heads or tails", "coin flip"])
+
+    def _is_dice_roll(self, text: str) -> bool:
+        """Check if user wants to roll dice."""
+        return any(kw in text for kw in ["roll a dice", "roll dice", "roll a die", "roll a d", "throw dice"])
+
+    def _is_yes_no(self, text: str) -> bool:
+        """Check if user wants a yes/no decision."""
+        return text.strip().lower() in ["yes or no", "yes or no?"]
+
+    def _is_magic_8_ball(self, text: str) -> bool:
+        """Check if user wants magic 8-ball."""
+        return any(kw in text for kw in ["magic 8 ball", "magic 8-ball", "magic eight ball", "8 ball"])
+
+    def _is_world_clock(self, text: str) -> bool:
+        """Check if asking about time in another location."""
+        return self._world_clock_pattern and self._world_clock_pattern.search(text) is not None
+
+    def _is_countdown(self, text: str) -> bool:
+        """Check if asking about countdown to event."""
+        countdown_keywords = ["days until", "days till", "how long until", "how many days", "when is"]
+        return any(kw in text for kw in countdown_keywords)
+
+    def _is_counting(self, text: str) -> bool:
+        """Check if user wants counting help."""
+        return text.startswith("count ") or "what comes after" in text or "what comes before" in text
+
+    def _is_unit_conversion(self, text: str) -> bool:
+        """Check if asking about unit conversion."""
+        conversion_keywords = ["convert", "how many", "in a ", "to celsius", "to fahrenheit", "to cups", "to liters"]
+        return any(kw in text for kw in conversion_keywords)
 
     # =========================================================================
     # Response Handlers
@@ -474,6 +868,329 @@ class InstantAgent(Agent):
 
         except (ValueError, KeyError, ZeroDivisionError):
             return None
+
+    # =========================================================================
+    # Random Choice Handlers
+    # =========================================================================
+
+    def _handle_coin_flip(self) -> str:
+        """Flip a coin and return the result."""
+        result = random.choice(["Heads", "Tails"])
+        template = random.choice(self.COIN_FLIP_RESPONSES)
+        return template.format(result=result)
+
+    def _handle_dice_roll(self, text: str) -> str:
+        """Roll dice and return the result.
+
+        Supports: "roll a dice", "roll a d20", "roll 2d6"
+        """
+        if self._dice_pattern is None:
+            return "You rolled a " + str(random.randint(1, 6)) + "!"
+
+        match = self._dice_pattern.search(text)
+        if match:
+            # Check for dX format (e.g., d20)
+            if match.group(1):
+                sides = int(match.group(1))
+                result = random.randint(1, sides)
+            # Check for XdY format (e.g., 2d6)
+            elif match.group(2) and match.group(3):
+                num_dice = int(match.group(2))
+                sides = int(match.group(3))
+                rolls = [random.randint(1, sides) for _ in range(num_dice)]
+                if num_dice > 1:
+                    result = sum(rolls)
+                    roll_str = " + ".join(map(str, rolls))
+                    return f"You rolled {roll_str} = {result}!"
+                result = rolls[0]
+            else:
+                # Standard d6
+                result = random.randint(1, 6)
+        else:
+            # Default to d6
+            result = random.randint(1, 6)
+
+        template = random.choice(self.DICE_ROLL_RESPONSES)
+        return template.format(result=result)
+
+    def _handle_number_pick(self, text: str) -> str:
+        """Pick a random number from a range."""
+        if self._number_pick_pattern is None:
+            result = random.randint(1, 10)
+        else:
+            match = self._number_pick_pattern.search(text)
+            if match:
+                low = int(match.group(1))
+                high = int(match.group(2))
+                if low > high:
+                    low, high = high, low
+                result = random.randint(low, high)
+            else:
+                result = random.randint(1, 10)
+
+        template = random.choice(self.NUMBER_PICK_RESPONSES)
+        return template.format(result=result)
+
+    def _handle_yes_no(self) -> str:
+        """Return a random yes or no."""
+        return random.choice(self.YES_NO_RESPONSES)
+
+    def _handle_magic_8_ball(self) -> str:
+        """Return a magic 8-ball response."""
+        return random.choice(MAGIC_8_BALL_RESPONSES)
+
+    # =========================================================================
+    # Unit Conversion Handlers
+    # =========================================================================
+
+    def _handle_unit_conversion(self, text: str) -> str | None:
+        """Handle unit conversion queries."""
+        text_lower = text.lower()
+
+        # First check for "how many X in a Y" questions
+        if self._unit_info_pattern:
+            match = self._unit_info_pattern.search(text_lower)
+            if match:
+                unit_from = match.group(1).rstrip("s")
+                unit_to = match.group(2).rstrip("s")
+                # Try to find in UNIT_INFO
+                for key, response in UNIT_INFO.items():
+                    if unit_from in key[0] and unit_to in key[1]:
+                        return response
+                    if unit_to in key[0] and unit_from in key[1]:
+                        return response
+
+        # Check for temperature conversion
+        if "fahrenheit" in text_lower and "celsius" in text_lower:
+            # Extract number
+            num_match = re.search(r"(\d+(?:\.\d+)?)", text)
+            if num_match:
+                value = float(num_match.group(1))
+                if "to celsius" in text_lower or ("fahrenheit" in text_lower and text_lower.index("fahrenheit") < text_lower.index("celsius")):
+                    # F to C
+                    result = (value - 32) * 5/9
+                    return f"That's about {result:.1f} degrees Celsius."
+                else:
+                    # C to F
+                    result = value * 9/5 + 32
+                    return f"That's about {result:.1f} degrees Fahrenheit."
+
+        # Check for other unit conversions
+        if self._unit_convert_pattern:
+            match = self._unit_convert_pattern.search(text_lower)
+            if match:
+                value = float(match.group(1))
+                from_unit = match.group(2).lower().rstrip("s")
+                to_unit = match.group(3).lower().rstrip("s")
+
+                # Normalize units
+                if from_unit == "foot":
+                    from_unit = "feet"
+                if to_unit == "foot":
+                    to_unit = "feet"
+
+                # Look up conversion
+                key = (from_unit + "s", to_unit + "s")
+                if key in UNIT_CONVERSIONS:
+                    factor, unit_name = UNIT_CONVERSIONS[key]
+                    result = value * factor
+                    if result == int(result):
+                        result_str = str(int(result))
+                    else:
+                        result_str = f"{result:.2f}".rstrip("0").rstrip(".")
+                    return f"That's {result_str} {unit_name}."
+
+                # Try alternate key forms
+                for conv_key, (factor, unit_name) in UNIT_CONVERSIONS.items():
+                    if from_unit in conv_key[0] and to_unit in conv_key[1]:
+                        result = value * factor
+                        if result == int(result):
+                            result_str = str(int(result))
+                        else:
+                            result_str = f"{result:.2f}".rstrip("0").rstrip(".")
+                        return f"That's {result_str} {unit_name}."
+
+        return None
+
+    # =========================================================================
+    # World Clock Handler
+    # =========================================================================
+
+    def _handle_world_clock(self, text: str) -> str | None:
+        """Handle world clock queries."""
+        if self._world_clock_pattern is None:
+            return None
+
+        match = self._world_clock_pattern.search(text)
+        if not match:
+            return None
+
+        location = match.group(1).strip().lower()
+
+        # Look up timezone
+        tz_name = TIMEZONE_ALIASES.get(location)
+        if not tz_name:
+            # Try partial match
+            for alias, tz in TIMEZONE_ALIASES.items():
+                if alias in location or location in alias:
+                    tz_name = tz
+                    break
+
+        if not tz_name:
+            return f"I don't know the timezone for {location}. Try a major city like Tokyo, London, or New York."
+
+        try:
+            tz = ZoneInfo(tz_name)
+            now = datetime.now(tz)
+            time_str = now.strftime("%I:%M %p").lstrip("0")
+            day_str = now.strftime("%A")
+            return f"It's {time_str} on {day_str} in {location.title()}."
+        except Exception:
+            return f"I couldn't get the time for {location}."
+
+    # =========================================================================
+    # Countdown Handler
+    # =========================================================================
+
+    def _handle_countdown(self, text: str) -> str | None:
+        """Handle countdown to event queries."""
+        if self._countdown_pattern is None:
+            return None
+
+        match = self._countdown_pattern.search(text.lower())
+        if not match:
+            return None
+
+        event = match.group(1).strip().lower()
+
+        # Check for known holidays
+        target_date = None
+        today = date.today()
+
+        if event in HOLIDAYS:
+            holiday_info = HOLIDAYS[event]
+            if holiday_info:
+                month, day = holiday_info
+                target_date = date(today.year, month, day)
+                # If the date has passed this year, use next year
+                if target_date < today:
+                    target_date = date(today.year + 1, month, day)
+            else:
+                # Special calculated holidays
+                if "easter" in event:
+                    target_date = self._calculate_easter(today.year)
+                    if target_date < today:
+                        target_date = self._calculate_easter(today.year + 1)
+                elif "thanksgiving" in event:
+                    target_date = self._calculate_thanksgiving(today.year)
+                    if target_date < today:
+                        target_date = self._calculate_thanksgiving(today.year + 1)
+                elif "mother" in event:
+                    target_date = self._calculate_mothers_day(today.year)
+                    if target_date < today:
+                        target_date = self._calculate_mothers_day(today.year + 1)
+                elif "father" in event:
+                    target_date = self._calculate_fathers_day(today.year)
+                    if target_date < today:
+                        target_date = self._calculate_fathers_day(today.year + 1)
+
+        if target_date:
+            days = (target_date - today).days
+            event_name = event.title()
+            if days == 0:
+                return f"{event_name} is today!"
+            elif days == 1:
+                return f"{event_name} is tomorrow!"
+            else:
+                return f"{days} days until {event_name}!"
+
+        return None
+
+    def _calculate_easter(self, year: int) -> date:
+        """Calculate Easter Sunday using the Anonymous Gregorian algorithm."""
+        a = year % 19
+        b = year // 100
+        c = year % 100
+        d = b // 4
+        e = b % 4
+        f = (b + 8) // 25
+        g = (b - f + 1) // 3
+        h = (19 * a + b - d - g + 15) % 30
+        i = c // 4
+        k = c % 4
+        l = (32 + 2 * e + 2 * i - h - k) % 7
+        m = (a + 11 * h + 22 * l) // 451
+        month = (h + l - 7 * m + 114) // 31
+        day = ((h + l - 7 * m + 114) % 31) + 1
+        return date(year, month, day)
+
+    def _calculate_thanksgiving(self, year: int) -> date:
+        """Calculate Thanksgiving (4th Thursday in November)."""
+        nov1 = date(year, 11, 1)
+        # Find first Thursday
+        days_until_thursday = (3 - nov1.weekday()) % 7
+        first_thursday = nov1.day + days_until_thursday
+        # 4th Thursday
+        thanksgiving_day = first_thursday + 21
+        return date(year, 11, thanksgiving_day)
+
+    def _calculate_mothers_day(self, year: int) -> date:
+        """Calculate Mother's Day (2nd Sunday in May)."""
+        may1 = date(year, 5, 1)
+        days_until_sunday = (6 - may1.weekday()) % 7
+        first_sunday = may1.day + days_until_sunday
+        second_sunday = first_sunday + 7
+        return date(year, 5, second_sunday)
+
+    def _calculate_fathers_day(self, year: int) -> date:
+        """Calculate Father's Day (3rd Sunday in June)."""
+        jun1 = date(year, 6, 1)
+        days_until_sunday = (6 - jun1.weekday()) % 7
+        first_sunday = jun1.day + days_until_sunday
+        third_sunday = first_sunday + 14
+        return date(year, 6, third_sunday)
+
+    # =========================================================================
+    # Counting Handler
+    # =========================================================================
+
+    def _handle_counting(self, text: str) -> str | None:
+        """Handle counting requests."""
+        text_lower = text.lower()
+
+        # Check for "what comes after X"
+        if self._next_number_pattern:
+            match = self._next_number_pattern.search(text_lower)
+            if match:
+                num = int(match.group(1))
+                if "before" in text_lower:
+                    return f"{num - 1}!"
+                return f"{num + 1}!"
+
+        # Check for counting pattern
+        if self._counting_pattern:
+            match = self._counting_pattern.search(text_lower)
+            if match:
+                backwards = match.group(1) is not None
+                start = int(match.group(2)) if match.group(2) else (10 if backwards else 1)
+                end = int(match.group(3)) if match.group(3) else (1 if backwards else 10)
+                step = int(match.group(4)) if match.group(4) else 1
+
+                # Generate the count
+                if backwards:
+                    numbers = list(range(start, end - 1, -step))
+                else:
+                    numbers = list(range(start, end + 1, step))
+
+                # Limit to reasonable length
+                if len(numbers) > 50:
+                    return "That's a lot of counting! Let's stick to smaller numbers."
+
+                numbers_str = ", ".join(map(str, numbers))
+                template = random.choice(self.COUNTING_RESPONSES)
+                return template.format(numbers=numbers_str)
+
+        return None
 
     def _handle_spelling_continuation(self, text_lower: str, speaker: str) -> str | None:
         """Handle continuation of a letter-by-letter spelling session.

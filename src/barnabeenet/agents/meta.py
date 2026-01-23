@@ -184,6 +184,32 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^wipe\s+(the\s+)?slate\s+clean$", "clear_conversation"),
     (r"^test(ing)?( 1 2 3)?(\?)?$", "mic_check"),
     (r"^(is this|this is|am i) (working|on)(\?)?$", "mic_check"),
+    # Random choices / games
+    (r"^flip (a )?coin(\?)?$", "coin_flip"),
+    (r"^(heads or tails|coin flip)(\?)?$", "coin_flip"),
+    (r"^roll (a )?(dice|die|d\d+)(\?)?$", "dice_roll"),
+    (r"^roll (\d+)d(\d+)(\?)?$", "dice_roll"),
+    (r"^throw (a )?(dice|die)(\?)?$", "dice_roll"),
+    (r"^yes or no(\?)?$", "yes_no"),
+    (r"^(magic )?8[- ]?ball(\?)?$", "magic_8_ball"),
+    (r"^magic eight ball(\?)?$", "magic_8_ball"),
+    (r"^pick (a )?(random )?number.*$", "number_pick"),
+    (r"^give me a (random )?number.*$", "number_pick"),
+    # World clock
+    (r"^what('?s| is) (the )?time in .+(\?)?$", "world_clock"),
+    (r"^(what time|tell me the time) (?:is it )?in .+(\?)?$", "world_clock"),
+    # Countdown to events
+    (r"^how (many|long) (days? )?(until|till|to|before) .+(\?)?$", "countdown"),
+    (r"^(days? )?(until|till|to) .+(\?)?$", "countdown"),
+    (r"^when is .+(\?)?$", "countdown"),
+    # Counting
+    (r"^count (to|from|backwards?|down) .*$", "counting"),
+    (r"^count by \d+s? .*$", "counting"),
+    (r"^what('?s| is| comes?)? (after|before|next after) \d+(\?)?$", "counting"),
+    # Unit conversions
+    (r"^convert \d+.* to .*$", "unit_conversion"),
+    (r"^how many (cups?|liters?|ounces?|inches?|feet|foot|centimeters?|grams?|tablespoons?|teaspoons?) .*$", "unit_conversion"),
+    (r"^\d+ (fahrenheit|celsius|cups?|liters?|pounds?|kilograms?|ounces?|inches?|feet|foot|meters?|miles?) (to|in) .*$", "unit_conversion"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
