@@ -264,6 +264,43 @@ body {
     text-transform: uppercase;
 }
 
+/* Quick Actions Grid */
+.quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+}
+
+.quick-action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.quick-action-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+    transform: translateY(-2px);
+}
+
+.quick-action-icon {
+    font-size: 32px;
+}
+
+.quick-action-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
 /* Activity Feed */
 .activity-feed {
     max-height: 400px;

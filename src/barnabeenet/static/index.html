@@ -27,17 +27,15 @@
     <nav class="navbar">
         <div class="nav-brand">
             <span class="logo">🐝</span>
-            <span class="brand-name">BarnabeeNet Dashboard</span>
+            <span class="brand-name">BarnabeeNet</span>
         </div>
         <div class="nav-links">
             <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
             <a href="#" class="nav-link" data-page="chat">Chat</a>
-            <a href="#" class="nav-link" data-page="memory">Memory</a>
-            <a href="#" class="nav-link" data-page="self-improve">Self-Improve</a>
-            <a href="#" class="nav-link" data-page="logs">Logs</a>
             <a href="#" class="nav-link" data-page="family">Family</a>
-            <a href="#" class="nav-link" data-page="entities">Entities</a>
-            <a href="#" class="nav-link" data-page="config">Configuration</a>
+            <a href="#" class="nav-link" data-page="memory">Memory</a>
+            <a href="#" class="nav-link" data-page="entities">Home</a>
+            <a href="#" class="nav-link" data-page="config">Settings</a>
         </div>
         <div class="nav-status">
             <span class="status-indicator" id="ws-status"></span>
@@ -49,8 +47,8 @@
         <!-- Dashboard Page -->
         <div id="page-dashboard" class="page active">
             <div class="page-header">
-                <h1>BarnabeeNet Dashboard</h1>
-                <p>Monitor your smart home AI system status and activity</p>
+                <h1>Welcome to BarnabeeNet</h1>
+                <p>Your AI-powered smart home assistant</p>
             </div>
 
             <div class="dashboard-grid">
@@ -82,17 +80,13 @@
                 <!-- Quick Stats -->
                 <div class="card">
                     <div class="card-header">
-                        <h3>📊 Statistics</h3>
+                        <h3>📊 Today's Activity</h3>
                     </div>
                     <div class="card-body" id="quick-stats">
                         <div class="stats-grid">
                             <div class="stat-item">
                                 <span class="stat-value" id="stat-requests">-</span>
                                 <span class="stat-label">Requests</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-value" id="stat-signals">-</span>
-                                <span class="stat-label">Signals</span>
                             </div>
                             <div class="stat-item">
                                 <span class="stat-value" id="stat-memories">-</span>
@@ -106,111 +100,59 @@
                     </div>
                 </div>
 
-                <!-- Recent Errors -->
-                <div class="card">
+                <!-- Active Timers -->
+                <div class="card" id="active-timers-card">
                     <div class="card-header">
-                        <h3>⚠️ Recent Errors</h3>
+                        <h3>⏱️ Active Timers</h3>
                     </div>
-                    <div class="card-body" id="recent-errors">
-                        <p class="text-muted">No recent errors</p>
+                    <div class="card-body" id="active-timers">
+                        <p class="text-muted">No active timers</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Activity Feed -->
+            <!-- Quick Actions -->
             <div class="card full-width">
                 <div class="card-header">
-                    <h3>📡 Live Activity Feed</h3>
+                    <h3>🚀 Quick Actions</h3>
+                </div>
+                <div class="card-body">
+                    <div class="quick-actions-grid">
+                        <button class="quick-action-btn" onclick="showPage('chat')">
+                            <span class="quick-action-icon">💬</span>
+                            <span class="quick-action-label">Chat with Barnabee</span>
+                        </button>
+                        <button class="quick-action-btn" onclick="showPage('family')">
+                            <span class="quick-action-icon">👨‍👩‍👧‍👦</span>
+                            <span class="quick-action-label">Manage Family</span>
+                        </button>
+                        <button class="quick-action-btn" onclick="showPage('memory')">
+                            <span class="quick-action-icon">🧠</span>
+                            <span class="quick-action-label">View Memories</span>
+                        </button>
+                        <button class="quick-action-btn" onclick="showPage('entities')">
+                            <span class="quick-action-icon">🏠</span>
+                            <span class="quick-action-label">Home Devices</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Feed (compact) -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <h3>📡 Recent Activity</h3>
                     <div class="card-actions">
-                        <select id="activity-filter" class="filter-select">
-                            <option value="">All Types</option>
-                            <optgroup label="Categories">
-                                <option value="category:ha">🏠 Home Assistant Only</option>
-                                <option value="category:llm">🤖 LLM Only</option>
-                                <option value="category:agent">🧠 Agents Only</option>
-                                <option value="category:memory">📝 Memory Only</option>
-                            </optgroup>
-                            <optgroup label="Pipeline">
-                                <option value="request_start">Requests</option>
-                                <option value="stt">STT</option>
-                                <option value="meta_classify">Classification</option>
-                                <option value="tts">TTS</option>
-                            </optgroup>
-                            <optgroup label="Agents">
-                                <option value="instant">Instant Agent</option>
-                                <option value="action">Action Agent</option>
-                                <option value="interaction">Interaction Agent</option>
-                                <option value="memory">Memory Agent</option>
-                            </optgroup>
-                            <optgroup label="LLM">
-                                <option value="llm_request">LLM Calls</option>
-                                <option value="llm.error">LLM Errors</option>
-                            </optgroup>
-                            <optgroup label="Home Assistant">
-                                <option value="ha.state_change">State Changes</option>
-                                <option value="ha.service_call">Service Calls</option>
-                                <option value="ha.event">HA Events</option>
-                            </optgroup>
-                            <optgroup label="System">
-                                <option value="error">Errors</option>
-                                <option value="system">System</option>
-                            </optgroup>
-                        </select>
                         <button class="btn btn-small" id="clear-activity">Clear</button>
-                        <label class="toggle-label">
-                            <input type="checkbox" id="auto-scroll" checked>
-                            Auto-scroll
-                        </label>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="activity-feed" id="activity-feed">
+                    <div class="activity-feed" id="activity-feed" style="max-height: 250px;">
                         <div class="activity-item info">
                             <span class="activity-time">--:--:--</span>
                             <span class="activity-badge system">System</span>
                             <span class="activity-message">Connecting to activity stream...</span>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Recent Request Traces -->
-            <div class="card full-width">
-                <div class="card-header">
-                    <h3>🔍 Recent Request Traces</h3>
-                    <div class="card-actions">
-                        <button class="btn btn-small" id="refresh-traces">🔄 Refresh</button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="traces-list" id="traces-list">
-                        <p class="text-muted">Loading traces...</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Active Timers -->
-            <div class="card" id="active-timers-card">
-                <div class="card-header">
-                    <h3>⏱️ Active Timers</h3>
-                    <div class="card-actions">
-                        <button class="btn btn-small" id="refresh-timers-btn">🔄 Refresh</button>
-                    </div>
-                </div>
-                <div class="card-body" id="active-timers">
-                    <p class="text-muted">No active timers</p>
-                </div>
-            </div>
-
-            <!-- Trace Detail Modal -->
-            <div id="trace-modal" class="modal" style="display: none;">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>🔬 Request Trace Detail</h3>
-                        <button class="btn btn-small" id="close-modal">✕</button>
-                    </div>
-                    <div class="modal-body" id="trace-detail">
-                        <!-- Populated dynamically -->
                     </div>
                 </div>
             </div>
@@ -413,147 +355,6 @@
             </div>
         </div>
 
-        <!-- Logs Page -->
-        <div id="page-logs" class="page">
-            <div class="page-header">
-                <h1>📋 System Logs</h1>
-                <p>Real-time log stream with filtering and performance graphs</p>
-            </div>
-
-            <!-- Live Activity Stats Bar -->
-            <div class="card full-width" style="margin-bottom: 20px;">
-                <div class="activity-stats-bar">
-                    <div class="stat">
-                        <span id="events-per-sec">0.0</span>
-                        <span>Events/sec</span>
-                    </div>
-                    <div class="stat">
-                        <span id="events-total">0</span>
-                        <span>Total</span>
-                    </div>
-                    <div class="stat">
-                        <span id="events-llm">0</span>
-                        <span>LLM Calls</span>
-                    </div>
-                    <div class="stat">
-                        <span id="events-ha">0</span>
-                        <span>HA Events</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Performance Graphs -->
-            <div class="card full-width">
-                <div class="card-header">
-                    <h3>📊 Performance Metrics</h3>
-                    <div class="card-actions">
-                        <select id="metrics-time-range" class="filter-select">
-                            <option value="15">Last 15 minutes</option>
-                            <option value="60" selected>Last hour</option>
-                            <option value="360">Last 6 hours</option>
-                            <option value="1440">Last 24 hours</option>
-                        </select>
-                        <button class="btn btn-small" id="refresh-metrics">🔄 Refresh</button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="metrics-grid">
-                        <!-- STT Latency Chart -->
-                        <div class="metric-chart">
-                            <h4>🎤 STT Latency</h4>
-                            <div class="chart-container">
-                                <canvas id="stt-latency-chart"></canvas>
-                            </div>
-                            <div class="metric-stats" id="stt-stats">
-                                <span class="stat">P50: <strong>--</strong>ms</span>
-                                <span class="stat">P95: <strong>--</strong>ms</span>
-                                <span class="stat">Avg: <strong>--</strong>ms</span>
-                            </div>
-                        </div>
-                        <!-- TTS Latency Chart -->
-                        <div class="metric-chart">
-                            <h4>🔊 TTS Latency</h4>
-                            <div class="chart-container">
-                                <canvas id="tts-latency-chart"></canvas>
-                            </div>
-                            <div class="metric-stats" id="tts-stats">
-                                <span class="stat">P50: <strong>--</strong>ms</span>
-                                <span class="stat">P95: <strong>--</strong>ms</span>
-                                <span class="stat">Avg: <strong>--</strong>ms</span>
-                            </div>
-                        </div>
-                        <!-- LLM Latency Chart -->
-                        <div class="metric-chart">
-                            <h4>🧠 LLM Latency</h4>
-                            <div class="chart-container">
-                                <canvas id="llm-latency-chart"></canvas>
-                            </div>
-                            <div class="metric-stats" id="llm-stats">
-                                <span class="stat">P50: <strong>--</strong>ms</span>
-                                <span class="stat">P95: <strong>--</strong>ms</span>
-                                <span class="stat">Avg: <strong>--</strong>ms</span>
-                            </div>
-                        </div>
-                        <!-- Pipeline Latency Chart -->
-                        <div class="metric-chart">
-                            <h4>⚡ Pipeline Total</h4>
-                            <div class="chart-container">
-                                <canvas id="pipeline-latency-chart"></canvas>
-                            </div>
-                            <div class="metric-stats" id="pipeline-stats">
-                                <span class="stat">P50: <strong>--</strong>ms</span>
-                                <span class="stat">P95: <strong>--</strong>ms</span>
-                                <span class="stat">Avg: <strong>--</strong>ms</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Log Stream -->
-            <div class="card full-width">
-                <div class="card-header">
-                    <h3>📜 Log Stream</h3>
-                    <div class="card-actions">
-                        <select id="log-component-filter" class="filter-select">
-                            <option value="">All Components</option>
-                            <option value="stt">STT</option>
-                            <option value="tts">TTS</option>
-                            <option value="llm">LLM</option>
-                            <option value="memory">Memory</option>
-                            <option value="action">Action</option>
-                            <option value="homeassistant">Home Assistant</option>
-                            <option value="system">System</option>
-                        </select>
-                        <select id="log-level-filter" class="filter-select">
-                            <option value="">All Levels</option>
-                            <option value="debug">Debug</option>
-                            <option value="info">Info</option>
-                            <option value="warn">Warning</option>
-                            <option value="error">Error</option>
-                        </select>
-                        <input type="text" id="log-search" class="filter-search" placeholder="🔍 Search logs...">
-                        <button class="btn btn-small" id="export-logs">📤 Export</button>
-                        <button class="btn btn-small" id="clear-logs">🗑️ Clear</button>
-                        <label class="toggle-label">
-                            <input type="checkbox" id="log-auto-scroll" checked> Auto-scroll
-                        </label>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="log-stream" id="log-stream">
-                        <div class="log-entry info">
-                            <span class="log-time">--:--:--</span>
-                            <span class="log-level info">INFO</span>
-                            <span class="log-component">system</span>
-                            <span class="log-message">Connecting to log stream...</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-
         <!-- Family Page -->
         <div id="page-family" class="page">
             <div class="page-header">
@@ -664,11 +465,11 @@
             </div>
         </div>
 
-        <!-- Entities Page (Home Assistant Dashboard) -->
+        <!-- Home Page (Home Assistant Dashboard) -->
         <div id="page-entities" class="page">
             <div class="page-header">
-                <h1>🏠 What Barnabee Knows</h1>
-                <p>Barnabee's understanding of your Home Assistant environment</p>
+                <h1>🏠 Home Devices</h1>
+                <p>Your Home Assistant devices and entities</p>
             </div>
 
             <!-- Discovery Status Banner -->
@@ -809,189 +610,22 @@
             </div>
         </div>
 
-        <!-- Self-Improve Page -->
-        <div id="page-self-improve" class="page">
-            <!-- Action Required Banner (sticky at top) -->
-            <div id="si-action-required" class="si-action-required hidden">
-                <div class="action-banner">
-                    <span class="action-icon">⚠️</span>
-                    <span class="action-title" id="action-required-title">Action Required</span>
-                    <span class="action-description" id="action-required-description"></span>
-                    <div class="action-buttons" id="action-required-buttons"></div>
-                </div>
-            </div>
-
-            <!-- Progress Timeline -->
-            <div class="si-timeline-container" id="si-timeline-container">
-                <div class="si-timeline" id="si-timeline">
-                    <div class="timeline-step" data-step="started">
-                        <div class="step-dot"></div>
-                        <div class="step-label">Started</div>
-                    </div>
-                    <div class="timeline-connector"></div>
-                    <div class="timeline-step" data-step="diagnosing">
-                        <div class="step-dot"></div>
-                        <div class="step-label">Diagnosing</div>
-                    </div>
-                    <div class="timeline-connector"></div>
-                    <div class="timeline-step" data-step="plan_approval">
-                        <div class="step-dot"></div>
-                        <div class="step-label">Plan Review</div>
-                    </div>
-                    <div class="timeline-connector"></div>
-                    <div class="timeline-step" data-step="implementing">
-                        <div class="step-dot"></div>
-                        <div class="step-label">Implementing</div>
-                    </div>
-                    <div class="timeline-connector"></div>
-                    <div class="timeline-step" data-step="testing">
-                        <div class="step-dot"></div>
-                        <div class="step-label">Testing</div>
-                    </div>
-                    <div class="timeline-connector"></div>
-                    <div class="timeline-step" data-step="commit_approval">
-                        <div class="step-dot"></div>
-                        <div class="step-label">Commit</div>
-                    </div>
-                    <div class="timeline-connector"></div>
-                    <div class="timeline-step" data-step="completed">
-                        <div class="step-dot"></div>
-                        <div class="step-label">Done</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="page-header">
-                <h1>🔧 Self-Improvement Agent</h1>
-                <p>AI-powered code improvements with human approval gates</p>
-            </div>
-
-            <div class="self-improvement-panel">
-                <!-- Top Bar: Status + New Request -->
-                <div class="si-top-bar">
-                    <div class="si-status" id="si-status-section">
-                        <span class="status-dot" id="si-status-dot"></span>
-                        <span id="si-status-text">Ready</span>
-                        <span id="si-request-text" class="si-request-text"></span>
-                    </div>
-                    <div class="si-actions">
-                        <button id="si-stop-btn" class="btn btn-danger btn-sm hidden">⏹ Stop</button>
-                        <button class="btn btn-primary btn-sm" id="new-improvement-btn">+ New Request</button>
-                    </div>
-                </div>
-
-                <!-- CLI Output - Main Focus -->
-                <div id="si-cli-section" class="si-cli-main">
-                    <div class="cli-header">
-                        <div class="cli-title">
-                            <span>💻 Claude Code CLI</span>
-                            <span id="si-cli-status" class="si-cli-status"></span>
-                        </div>
-                        <div class="cli-controls">
-                            <label class="toggle-label">
-                                <input type="checkbox" id="cli-auto-scroll" checked>
-                                Auto-scroll
-                            </label>
-                            <button class="btn btn-sm" onclick="SelfImprovement.clearCLI()">Clear</button>
-                            <button class="btn btn-sm" onclick="SelfImprovement.copyCLI()">Copy</button>
-                        </div>
-                    </div>
-                    <div class="cli-terminal" id="cli-terminal">
-                        <pre
-                            id="si-cli-output"><span class="cli-empty">No active session. Click "+ New Request" to start.</span></pre>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Plan Approval Modal -->
-            <div id="si-plan-modal" class="modal" style="display: none;">
-                <div class="modal-content modal-large">
-                    <div class="modal-header">
-                        <h3>📋 Proposed Plan</h3>
-                        <div id="si-safety-score" class="si-safety-score"></div>
-                    </div>
-                    <div class="modal-body">
-                        <div id="si-plan-content" class="si-plan-content"></div>
-                        <div class="si-plan-actions">
-                            <input type="text" id="si-plan-feedback"
-                                placeholder="Optional: Add guidance or conditions...">
-                            <div class="si-plan-buttons">
-                                <button id="si-reject-plan" class="btn btn-secondary">✗ Reject & Revise</button>
-                                <button id="si-approve-plan" class="btn btn-success">✓ Approve & Proceed</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Commit Approval Modal -->
-            <div id="si-commit-modal" class="modal" style="display: none;">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>📝 Changes Ready</h3>
-                        <button class="btn btn-small modal-close-btn"
-                            onclick="document.getElementById('si-commit-modal').style.display='none'">✕</button>
-                    </div>
-                    <div class="modal-body">
-                        <div id="si-changes-summary" class="si-changes-summary"></div>
-                        <div class="si-commit-actions">
-                            <button id="si-reject-changes" class="btn btn-danger">✗ Discard Changes</button>
-                            <button id="si-approve-changes" class="btn btn-success">✓ Commit Changes</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- New Improvement Modal -->
-            <div id="si-modal" class="modal" style="display: none;">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>Request Improvement</h3>
-                        <button class="btn btn-small modal-close-btn" id="si-modal-close">✕</button>
-                    </div>
-                    <div class="modal-body">
-                        <textarea id="si-improvement-request"
-                            placeholder="Describe the issue or improvement...&#10;&#10;Examples:&#10;- 'The last voice command didn't work, look into it'&#10;- 'Add better error messages to action agent'&#10;- 'Optimize the STT pipeline latency'"
-                            rows="6"></textarea>
-                        <div class="model-select">
-                            <label>
-                                <input type="radio" name="si-model" value="opusplan" checked>
-                                🔄 Auto (opusplan) - Opus for planning, Sonnet for implementation
-                            </label>
-                            <label>
-                                <input type="radio" name="si-model" value="opus">
-                                🧠 Opus 4.5 - Best reasoning (slower, uses more quota)
-                            </label>
-                            <label>
-                                <input type="radio" name="si-model" value="sonnet">
-                                ⚡ Sonnet 4.5 - Fast and capable
-                            </label>
-                        </div>
-                        <div class="modal-actions">
-                            <button id="si-cancel" class="btn btn-secondary">Cancel</button>
-                            <button id="si-submit" class="btn btn-primary">
-                                Start Investigation
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Configuration Page -->
+        <!-- Settings Page -->
         <div id="page-config" class="page">
             <div class="page-header">
-                <h1>⚙️ Configuration</h1>
-                <p>Manage LLM providers and system configuration</p>
+                <h1>⚙️ Settings</h1>
+                <p>Configure your BarnabeeNet system</p>
             </div>
 
             <div class="config-layout">
                 <div class="config-sidebar">
-                    <h4>Categories</h4>
+                    <h4>Settings</h4>
                     <ul class="config-nav">
                         <li class="active" data-config="providers">🤖 LLM Providers</li>
                         <li data-config="models">🧠 Model Selection</li>
                         <li data-config="homeassistant">🏠 Home Assistant</li>
+                        <li data-config="logs">📋 System Logs</li>
+                        <li data-config="self-improve">🔧 Self-Improve</li>
                         <li data-config="testing">🧪 Testing & Dev</li>
                     </ul>
                 </div>
@@ -1119,6 +753,166 @@
                             <li>Click <strong>Test Connection</strong> to verify</li>
                             <li>Click <strong>Save</strong> to store the configuration</li>
                         </ol>
+                    </div>
+
+                    <!-- System Logs Section -->
+                    <div id="config-logs" class="config-section">
+                        <h3>📋 System Logs</h3>
+                        <p class="section-desc">Real-time log stream from BarnabeeNet</p>
+
+                        <!-- Log Stream -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h4>📜 Log Stream</h4>
+                                <div class="card-actions">
+                                    <select id="log-level-filter" class="filter-select">
+                                        <option value="">All Levels</option>
+                                        <option value="debug">Debug</option>
+                                        <option value="info">Info</option>
+                                        <option value="warn">Warning</option>
+                                        <option value="error">Error</option>
+                                    </select>
+                                    <button class="btn btn-small" id="clear-logs">🗑️ Clear</button>
+                                    <label class="toggle-label">
+                                        <input type="checkbox" id="log-auto-scroll" checked> Auto-scroll
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="log-stream" id="log-stream" style="max-height: 400px;">
+                                    <div class="log-entry info">
+                                        <span class="log-time">--:--:--</span>
+                                        <span class="log-level info">INFO</span>
+                                        <span class="log-component">system</span>
+                                        <span class="log-message">Select this section to view logs...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Self-Improvement Section -->
+                    <div id="config-self-improve" class="config-section">
+                        <h3>🔧 Self-Improvement Agent</h3>
+                        <p class="section-desc">AI-powered code improvements with human approval gates</p>
+
+                        <!-- Progress Timeline -->
+                        <div class="si-timeline-container" id="si-timeline-container">
+                            <div class="si-timeline" id="si-timeline">
+                                <div class="timeline-step" data-step="started">
+                                    <div class="step-dot"></div>
+                                    <div class="step-label">Started</div>
+                                </div>
+                                <div class="timeline-connector"></div>
+                                <div class="timeline-step" data-step="diagnosing">
+                                    <div class="step-dot"></div>
+                                    <div class="step-label">Diagnosing</div>
+                                </div>
+                                <div class="timeline-connector"></div>
+                                <div class="timeline-step" data-step="implementing">
+                                    <div class="step-dot"></div>
+                                    <div class="step-label">Implementing</div>
+                                </div>
+                                <div class="timeline-connector"></div>
+                                <div class="timeline-step" data-step="completed">
+                                    <div class="step-dot"></div>
+                                    <div class="step-label">Done</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="si-top-bar" style="margin-top: 20px;">
+                            <div class="si-status" id="si-status-section">
+                                <span class="status-dot" id="si-status-dot"></span>
+                                <span id="si-status-text">Ready</span>
+                            </div>
+                            <div class="si-actions">
+                                <button id="si-stop-btn" class="btn btn-danger btn-sm hidden">⏹ Stop</button>
+                                <button class="btn btn-primary btn-sm" id="new-improvement-btn">+ New Request</button>
+                            </div>
+                        </div>
+
+                        <div id="si-cli-section" class="si-cli-main" style="margin-top: 16px;">
+                            <div class="cli-header">
+                                <div class="cli-title">
+                                    <span>💻 Claude Code CLI</span>
+                                    <span id="si-cli-status" class="si-cli-status"></span>
+                                </div>
+                                <div class="cli-controls">
+                                    <label class="toggle-label">
+                                        <input type="checkbox" id="cli-auto-scroll" checked>
+                                        Auto-scroll
+                                    </label>
+                                    <button class="btn btn-sm" onclick="SelfImprovement.clearCLI()">Clear</button>
+                                </div>
+                            </div>
+                            <div class="cli-terminal" id="cli-terminal">
+                                <pre id="si-cli-output"><span class="cli-empty">No active session. Click "+ New Request" to start.</span></pre>
+                            </div>
+                        </div>
+
+                        <!-- Self-Improve Modals -->
+                        <div id="si-modal" class="modal" style="display: none;">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>Request Improvement</h3>
+                                    <button class="btn btn-small modal-close-btn" id="si-modal-close">✕</button>
+                                </div>
+                                <div class="modal-body">
+                                    <textarea id="si-improvement-request"
+                                        placeholder="Describe the issue or improvement...&#10;&#10;Examples:&#10;- 'The last voice command didn't work, look into it'&#10;- 'Add better error messages to action agent'"
+                                        rows="5"></textarea>
+                                    <div class="model-select">
+                                        <label>
+                                            <input type="radio" name="si-model" value="opusplan" checked>
+                                            🔄 Auto - Opus for planning, Sonnet for implementation
+                                        </label>
+                                        <label>
+                                            <input type="radio" name="si-model" value="sonnet">
+                                            ⚡ Sonnet 4.5 - Fast and capable
+                                        </label>
+                                    </div>
+                                    <div class="modal-actions">
+                                        <button id="si-cancel" class="btn btn-secondary">Cancel</button>
+                                        <button id="si-submit" class="btn btn-primary">Start</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="si-plan-modal" class="modal" style="display: none;">
+                            <div class="modal-content modal-large">
+                                <div class="modal-header">
+                                    <h3>📋 Proposed Plan</h3>
+                                    <div id="si-safety-score" class="si-safety-score"></div>
+                                </div>
+                                <div class="modal-body">
+                                    <div id="si-plan-content" class="si-plan-content"></div>
+                                    <div class="si-plan-actions">
+                                        <div class="si-plan-buttons">
+                                            <button id="si-reject-plan" class="btn btn-secondary">✗ Reject</button>
+                                            <button id="si-approve-plan" class="btn btn-success">✓ Approve</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="si-commit-modal" class="modal" style="display: none;">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>📝 Changes Ready</h3>
+                                    <button class="btn btn-small modal-close-btn" onclick="document.getElementById('si-commit-modal').style.display='none'">✕</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div id="si-changes-summary" class="si-changes-summary"></div>
+                                    <div class="si-commit-actions">
+                                        <button id="si-reject-changes" class="btn btn-danger">✗ Discard</button>
+                                        <button id="si-approve-changes" class="btn btn-success">✓ Commit</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Testing & Development Section -->

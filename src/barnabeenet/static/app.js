@@ -221,24 +221,6 @@ function showPage(pageId) {
     document.querySelectorAll('.page').forEach(page => {
         page.classList.toggle('active', page.id === `page-${pageId}`);
     });
-
-    // Initialize Self-Improve page when navigating to it
-    if (pageId === 'self-improve') {
-        const siPage = document.getElementById('page-self-improve');
-        if (siPage && !siPage.dataset.initialized) {
-            SelfImprovement.init();
-            siPage.dataset.initialized = 'true';
-        }
-    }
-
-    // Initialize Agents page when navigating to it
-    if (pageId === 'agents') {
-        const agentsPage = document.getElementById('page-agents');
-        if (agentsPage && !agentsPage.dataset.initialized) {
-            loadSelfImprovementConfig();
-            agentsPage.dataset.initialized = 'true';
-        }
-    }
 }
 
 // =============================================================================
@@ -433,10 +415,13 @@ function truncate(str, len) {
 // =============================================================================
 
 function initActivityControls() {
-    document.getElementById('activity-filter').addEventListener('change', (e) => {
-        activityFilter = e.target.value;
-        filterActivityFeed();
-    });
+    const filterEl = document.getElementById('activity-filter');
+    if (filterEl) {
+        filterEl.addEventListener('change', (e) => {
+            activityFilter = e.target.value;
+            filterActivityFeed();
+        });
+    }
 
     document.getElementById('clear-activity').addEventListener('click', () => {
         document.getElementById('activity-feed').innerHTML = '';
@@ -1158,6 +1143,15 @@ function initConfigNav() {
             document.querySelectorAll('.config-section').forEach(section => {
                 section.classList.toggle('active', section.id === `config-${configId}`);
             });
+
+            // Initialize self-improve section if needed
+            if (configId === 'self-improve') {
+                const siSection = document.getElementById('config-self-improve');
+                if (siSection && !siSection.dataset.initialized && typeof SelfImprovement !== 'undefined') {
+                    SelfImprovement.initConfigSection();
+                    siSection.dataset.initialized = 'true';
+                }
+            }
         });
     });
 }
@@ -1326,7 +1320,7 @@ function initTraceModal() {
         }
     });
 
-    document.getElementById('refresh-traces').addEventListener('click', loadTraces);
+    document.getElementById('refresh-traces')?.addEventListener('click', loadTraces);
 }
 
 async function loadTraces() {
@@ -1392,9 +1386,12 @@ async function loadActiveSISessions() {
     }
 }
 
-// Navigate to self-improve page and select a session
+// Navigate to self-improve section in config and select a session
 function navigateToSelfImprove(sessionId) {
-    showPage('self-improve');
+    showPage('config');
+    // Click on self-improve nav item
+    const siNav = document.querySelector('.config-nav li[data-config="self-improve"]');
+    if (siNav) siNav.click();
     if (sessionId && typeof SelfImprovement !== 'undefined') {
         SelfImprovement.activeSessionId = sessionId;
         SelfImprovement.loadActiveSession();
@@ -6753,6 +6750,14 @@ const SelfImprovement = {
 
     async init() {
         console.log('Initializing Self-Improvement page...');
+        this.bindEvents();
+        await this.checkAvailability();
+        await this.loadActiveSession();
+    },
+
+    // Initialize when shown in config section (uses same element IDs as before)
+    async initConfigSection() {
+        console.log('Initializing Self-Improvement config section...');
         this.bindEvents();
         await this.checkAvailability();
         await this.loadActiveSession();
