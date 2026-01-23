@@ -215,10 +215,11 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(reverse|take back) that(\?)?$", "undo"),
     (r"^never ?mind$", "undo"),
     # Repeat / Say that again
-    (r"^(say|repeat) (that|it) again(\?)?$", "repeat"),
+    (r"^(say|repeat) (that|it)( again)?(\?)?$", "repeat"),
+    (r"^repeat that(\?)?$", "repeat"),
     (r"^what did you say(\?)?$", "repeat"),
     (r"^come again(\?)?$", "repeat"),
-    (r"^(pardon|sorry)(\?)?$", "repeat"),
+    (r"^(pardon)(\?)?$", "repeat"),
     (r"^i didn'?t (hear|catch) (that|you)(\?)?$", "repeat"),
     (r"^one more time(\?)?$", "repeat"),
     # Spelling queries
