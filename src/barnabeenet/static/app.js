@@ -899,7 +899,7 @@ function renderTimers(timers) {
         const remaining = timer.remaining_seconds || 0;
         const total = timer.duration_seconds || 1;
         const progress = Math.max(0, Math.min(100, ((total - remaining) / total) * 100));
-        
+
         // Format remaining time
         let timeStr;
         if (remaining >= 3600) {
@@ -919,17 +919,17 @@ function renderTimers(timers) {
         if (timer.on_complete) {
             const service = timer.on_complete.service || '';
             const entityId = timer.on_complete.entity_id || '';
-            
+
             // Parse service into action (e.g., "light.turn_off" -> "Turn off")
             const parts = service.split('.');
             let action = parts[1] || parts[0] || 'Action';
             action = action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-            
+
             // Get friendly entity name from entity_id
             const entityParts = entityId.split('.');
             let entityName = entityParts[1] || entityId;
             entityName = entityName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-            
+
             actionStr = `
                 <div class="timer-action">
                     <span class="action-label">On complete:</span>
@@ -939,7 +939,7 @@ function renderTimers(timers) {
         }
 
         const pausedBadge = timer.is_paused ? '<span class="timer-badge paused">Paused</span>' : '';
-        
+
         return `
             <div class="timer-item ${timer.is_paused ? 'paused' : ''}">
                 <div class="timer-header">
@@ -953,10 +953,10 @@ function renderTimers(timers) {
                 ${actionStr}
                 <div class="timer-actions">
                     <button class="btn btn-tiny" onclick="cancelTimer('${timer.id}')" title="Cancel timer">✕</button>
-                    ${timer.is_paused 
-                        ? `<button class="btn btn-tiny" onclick="resumeTimer('${timer.id}')" title="Resume">▶</button>`
-                        : `<button class="btn btn-tiny" onclick="pauseTimer('${timer.id}')" title="Pause">⏸</button>`
-                    }
+                    ${timer.is_paused
+                ? `<button class="btn btn-tiny" onclick="resumeTimer('${timer.id}')" title="Resume">▶</button>`
+                : `<button class="btn btn-tiny" onclick="pauseTimer('${timer.id}')" title="Pause">⏸</button>`
+            }
                 </div>
             </div>
         `;
