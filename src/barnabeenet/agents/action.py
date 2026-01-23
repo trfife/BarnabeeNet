@@ -847,7 +847,7 @@ If you cannot parse the request, respond with:
             # Build response listing all timers
             timer_descriptions = []
             for timer in active_timers:
-                remaining = timer.remaining_seconds
+                remaining = timer.remaining.total_seconds()
                 if remaining > 0:
                     if remaining >= 3600:
                         hours = int(remaining // 3600)
@@ -893,7 +893,7 @@ If you cannot parse the request, respond with:
 
                 timer_descriptions = []
                 for timer in active_timers:
-                    remaining = timer.remaining_seconds
+                    remaining = timer.remaining.total_seconds()
                     if remaining > 0:
                         if remaining >= 60:
                             mins = int(remaining // 60)
