@@ -7433,7 +7433,9 @@ async function loadSelfImprovementConfig() {
 }
 
 async function saveSelfImprovementModel() {
-    const selected = document.querySelector('input[name="si-model"]:checked');
+    // Support both the old and new radio button names
+    const selected = document.querySelector('input[name="si-model-config"]:checked') || 
+                     document.querySelector('input[name="si-model"]:checked');
     if (!selected) return;
 
     try {
@@ -7454,9 +7456,9 @@ async function saveSelfImprovementModel() {
 }
 
 async function analyzeModels() {
-    const btn = document.getElementById('analyze-models-btn');
-    const resultsDiv = document.getElementById('model-finder-results');
-    const applyBtn = document.getElementById('apply-recommendations-btn');
+    const btn = document.getElementById('analyze-models-btn-config') || document.getElementById('analyze-models-btn');
+    const resultsDiv = document.getElementById('model-finder-results-config') || document.getElementById('model-finder-results');
+    const listDiv = document.getElementById('model-recommendations-list-config') || document.getElementById('model-recommendations-list');
 
     if (!btn) return;
 
@@ -7465,10 +7467,10 @@ async function analyzeModels() {
 
     try {
         const params = {
-            free_only: document.getElementById('mf-free-only')?.checked || false,
-            azure_free: document.getElementById('mf-azure-free')?.checked || true,
-            prefer_speed: document.getElementById('mf-prefer-speed')?.checked || true,
-            prefer_quality: document.getElementById('mf-prefer-quality')?.checked || false,
+            free_only: (document.getElementById('mf-free-only-config') || document.getElementById('mf-free-only'))?.checked || false,
+            azure_free: (document.getElementById('mf-azure-free-config') || document.getElementById('mf-azure-free'))?.checked ?? true,
+            prefer_speed: (document.getElementById('mf-prefer-speed-config') || document.getElementById('mf-prefer-speed'))?.checked ?? true,
+            prefer_quality: (document.getElementById('mf-prefer-quality-config') || document.getElementById('mf-prefer-quality'))?.checked || false,
         };
 
         const response = await fetch(`${API_BASE}/api/v1/agents/model-finder/analyze`, {
@@ -7546,8 +7548,8 @@ async function applyModelRecommendations() {
 }
 
 async function analyzeFeatures() {
-    const btn = document.getElementById('analyze-features-btn');
-    const resultsDiv = document.getElementById('feature-agent-results');
+    const btn = document.getElementById('analyze-features-btn-config') || document.getElementById('analyze-features-btn');
+    const resultsDiv = document.getElementById('feature-agent-results-config') || document.getElementById('feature-agent-results');
 
     if (!btn) return;
 
@@ -7603,11 +7605,15 @@ function displayFeatureRecommendations(recommendations) {
     container.innerHTML = html;
 }
 
-// Initialize agents page event listeners
+// Initialize agents config section event listeners
 document.addEventListener('DOMContentLoaded', () => {
+    // Support both old page IDs and new config section IDs
+    document.getElementById('save-si-model-config')?.addEventListener('click', saveSelfImprovementModel);
     document.getElementById('save-si-model')?.addEventListener('click', saveSelfImprovementModel);
+    document.getElementById('analyze-models-btn-config')?.addEventListener('click', analyzeModels);
     document.getElementById('analyze-models-btn')?.addEventListener('click', analyzeModels);
     document.getElementById('apply-recommendations-btn')?.addEventListener('click', applyModelRecommendations);
+    document.getElementById('analyze-features-btn-config')?.addEventListener('click', analyzeFeatures);
     document.getElementById('analyze-features-btn')?.addEventListener('click', analyzeFeatures);
 });
 
