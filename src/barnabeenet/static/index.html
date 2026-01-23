@@ -134,6 +134,10 @@
                             <span class="quick-action-icon">🏠</span>
                             <span class="quick-action-label">Home Devices</span>
                         </button>
+                        <button class="quick-action-btn" onclick="openCapabilitiesModal()">
+                            <span class="quick-action-icon">❓</span>
+                            <span class="quick-action-label">What Can Barnabee Do?</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1022,6 +1026,126 @@
             </div>
         </div>
     </main>
+
+    <!-- Capabilities Modal -->
+    <div id="capabilities-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 900px; max-height: 85vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2>🐝 What Can Barnabee Do?</h2>
+                <button class="close-btn" onclick="closeCapabilitiesModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 20px; color: var(--text-secondary);">Talk to Barnabee using voice or text! Here's everything I can help with:</p>
+                
+                <div class="capabilities-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                    <!-- Smart Home Control -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-cyan); margin-bottom: 12px;">🏠 Smart Home Control</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">💡 <strong>Lights:</strong> "Turn on/off the living room light"</li>
+                            <li style="margin-bottom: 8px;">🌀 <strong>Fans:</strong> "Turn on the bedroom fan"</li>
+                            <li style="margin-bottom: 8px;">🔌 <strong>Switches:</strong> "Turn off the kitchen switch"</li>
+                            <li style="margin-bottom: 8px;">🌡️ <strong>Thermostat:</strong> "Set temperature to 72"</li>
+                            <li style="margin-bottom: 8px;">🚪 <strong>Locks:</strong> "Lock the front door"</li>
+                            <li style="margin-bottom: 8px;">🪟 <strong>Blinds:</strong> "Open/close the blinds"</li>
+                        </ul>
+                    </div>
+
+                    <!-- Timers & Alarms -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-green); margin-bottom: 12px;">⏱️ Timers & Alarms</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">⏲️ <strong>Set timer:</strong> "Set a timer for 5 minutes"</li>
+                            <li style="margin-bottom: 8px;">🍕 <strong>Named timer:</strong> "Set a pizza timer for 15 minutes"</li>
+                            <li style="margin-bottom: 8px;">❌ <strong>Cancel:</strong> "Cancel the pizza timer"</li>
+                            <li style="margin-bottom: 8px;">📋 <strong>Check:</strong> "How much time is left?"</li>
+                            <li style="margin-bottom: 8px;">⏰ <strong>Alarm:</strong> "Set an alarm for 7am"</li>
+                        </ul>
+                    </div>
+
+                    <!-- Family & Chores -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-yellow); margin-bottom: 12px;">👨‍👩‍👧‍👦 Family & Chores</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">✅ <strong>Chores:</strong> "I did the dishes"</li>
+                            <li style="margin-bottom: 8px;">⭐ <strong>Stars:</strong> "Award Viola a star"</li>
+                            <li style="margin-bottom: 8px;">📊 <strong>Check stars:</strong> "How many stars does Xander have?"</li>
+                            <li style="margin-bottom: 8px;">🐕 <strong>Pet feeding:</strong> "I fed the dog"</li>
+                            <li style="margin-bottom: 8px;">🐱 <strong>Pet check:</strong> "Was the cat fed today?"</li>
+                        </ul>
+                    </div>
+
+                    <!-- Notes & Memory -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-purple); margin-bottom: 12px;">🧠 Notes & Memory</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">📝 <strong>Save note:</strong> "Remember that we need milk"</li>
+                            <li style="margin-bottom: 8px;">💬 <strong>For someone:</strong> "Note for Elizabeth: meeting at 3pm"</li>
+                            <li style="margin-bottom: 8px;">📋 <strong>List notes:</strong> "What are my notes?"</li>
+                            <li style="margin-bottom: 8px;">🔍 <strong>Search:</strong> "Notes about groceries"</li>
+                            <li style="margin-bottom: 8px;">🗂️ <strong>Recall:</strong> "Do you remember what I said about..."</li>
+                        </ul>
+                    </div>
+
+                    <!-- Information & Fun -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-cyan); margin-bottom: 12px;">ℹ️ Information & Fun</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">🕐 <strong>Time:</strong> "What time is it?"</li>
+                            <li style="margin-bottom: 8px;">📅 <strong>Date:</strong> "What day is it?"</li>
+                            <li style="margin-bottom: 8px;">🌤️ <strong>Weather:</strong> "What's the weather?"</li>
+                            <li style="margin-bottom: 8px;">😄 <strong>Jokes:</strong> "Tell me a joke"</li>
+                            <li style="margin-bottom: 8px;">🧩 <strong>Riddles:</strong> "Tell me a riddle"</li>
+                            <li style="margin-bottom: 8px;">🪙 <strong>Games:</strong> "Flip a coin" / "Roll a dice"</li>
+                        </ul>
+                    </div>
+
+                    <!-- Learning & Stories -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-green); margin-bottom: 12px;">📚 Learning & Stories</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">📖 <strong>Definitions:</strong> "Define photosynthesis"</li>
+                            <li style="margin-bottom: 8px;">🔤 <strong>Spelling:</strong> "How do you spell necessary?"</li>
+                            <li style="margin-bottom: 8px;">📐 <strong>Math:</strong> "What's 15 times 7?"</li>
+                            <li style="margin-bottom: 8px;">📕 <strong>Stories:</strong> "Tell me a bedtime story"</li>
+                            <li style="margin-bottom: 8px;">🐉 <strong>Themed:</strong> "Tell me a story about dragons"</li>
+                            <li style="margin-bottom: 8px;">💡 <strong>Fun facts:</strong> "Tell me a fun fact"</li>
+                        </ul>
+                    </div>
+
+                    <!-- Kids Features -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-yellow); margin-bottom: 12px;">🧒 Kids Features</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">🔊 <strong>Animal sounds:</strong> "What does a cow say?"</li>
+                            <li style="margin-bottom: 8px;">🎵 <strong>Songs:</strong> "Sing happy birthday"</li>
+                            <li style="margin-bottom: 8px;">🧮 <strong>Counting:</strong> "Count to 10"</li>
+                            <li style="margin-bottom: 8px;">🌈 <strong>Colors:</strong> "Name the rainbow colors"</li>
+                            <li style="margin-bottom: 8px;">❓ <strong>Trivia:</strong> "Ask me a trivia question"</li>
+                        </ul>
+                    </div>
+
+                    <!-- Conversations -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-purple); margin-bottom: 12px;">💬 Conversations</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">👋 <strong>Greetings:</strong> "Hello" / "Good morning"</li>
+                            <li style="margin-bottom: 8px;">❓ <strong>Questions:</strong> Ask anything!</li>
+                            <li style="margin-bottom: 8px;">💭 <strong>Advice:</strong> "What should I do if..."</li>
+                            <li style="margin-bottom: 8px;">📋 <strong>Briefing:</strong> "Give me a morning briefing"</li>
+                            <li style="margin-bottom: 8px;">🤔 <strong>Help:</strong> "What can you do?"</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div style="margin-top: 24px; padding: 16px; background: var(--bg-tertiary); border-radius: 8px;">
+                    <p style="margin: 0; font-size: 14px; color: var(--text-secondary);">
+                        <strong>💡 Tip:</strong> Barnabee recognizes family members by voice! Say "Hey Barnabee" followed by your request in any room with a voice assistant.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="/static/app.js?v=3"></script>
 </body>

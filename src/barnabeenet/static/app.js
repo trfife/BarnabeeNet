@@ -7933,6 +7933,39 @@ const FloatingChat = {
     }
 };
 
+// =============================================================================
+// Capabilities Modal
+// =============================================================================
+
+function openCapabilitiesModal() {
+    const modal = document.getElementById('capabilities-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeCapabilitiesModal() {
+    const modal = document.getElementById('capabilities-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', (e) => {
+    const modal = document.getElementById('capabilities-modal');
+    if (modal && e.target === modal) {
+        closeCapabilitiesModal();
+    }
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeCapabilitiesModal();
+    }
+});
+
 // Initialize floating chat on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
     FloatingChat.init();
