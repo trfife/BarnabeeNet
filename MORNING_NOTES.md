@@ -57,6 +57,7 @@ This document tracks all work done overnight and items that need your attention.
 | **Weather** | "what's the weather" | **NEW** - Uses HA weather entity |
 | **Shopping List** | "add X to shopping list" | **NEW** - Uses HA todo entity |
 | **Calendar** | "what's on my calendar" | **NEW** - Uses HA calendar entities |
+| **Energy** | "how much energy are we using" | **NEW** - Uses HA energy sensors |
 
 ### Major Enhancements
 
@@ -208,6 +209,12 @@ what time is it in London       # "It's 9:08 AM on Friday in London."
 count by 2s to 20               # "2, 4, 6, 8, 10, 12, 14, 16, 18, 20!"
 count by 5s to 50               # "5, 10, 15, 20, 25, 30, 35, 40, 45, 50!"
 count backwards from 10         # "10, 9, 8, 7, 6, 5, 4, 3, 2, 1!"
+
+# NEW: Energy Usage
+how much energy are we using    # "We're generating 2800 watts more than we're using."
+energy usage today              # "Today we've generated 8.8 kWh more than we've used."
+energy this month               # "This month we've generated 525 kWh more than we've used!"
+how's the solar                 # Shows current solar production vs usage
 
 # Previous Features
 flip a coin
