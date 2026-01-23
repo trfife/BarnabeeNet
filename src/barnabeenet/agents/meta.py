@@ -258,6 +258,20 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^bedtime countdown(\?)?$", "bedtime"),
     (r"^how much longer until bed(\?)?$", "bedtime"),
     (r"^when do i (go to|have to go to) bed(\?)?$", "bedtime"),
+    # Trivia
+    (r"^(ask me a |give me a )?(trivia|quiz) question(\?)?$", "trivia"),
+    (r"^trivia( time)?(\?)?$", "trivia"),
+    (r"^test my knowledge(\?)?$", "trivia"),
+    # Would you rather
+    (r"^would you rather(\?)?$", "would_you_rather"),
+    (r"^give me a would you rather(\?)?$", "would_you_rather"),
+    # Encouragement / compliments
+    (r"^(give me a |)compliment(\?)?$", "encouragement"),
+    (r"^say something nice(\?)?$", "encouragement"),
+    (r"^(i('m| am) feeling down|i feel sad)(\?)?$", "encouragement"),
+    (r"^cheer me up(\?)?$", "encouragement"),
+    (r"^motivate me(\?)?$", "encouragement"),
+    (r"^(i need |)encouragement(\?)?$", "encouragement"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),

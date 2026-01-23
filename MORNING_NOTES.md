@@ -1,4 +1,5 @@
 # Morning Notes - Overnight Work Session
+
 **Started:** January 22, 2026 (evening)
 **Last Updated:** January 23, 2026 ~4:00 AM
 
@@ -9,6 +10,7 @@ This document tracks all work done overnight and items that need your attention.
 ## Work Completed ✅
 
 ### Sprint 1 Features (Before This Session)
+
 - ✅ Random choices (flip coin, roll dice, pick number, magic 8-ball, yes/no)
 - ✅ Unit conversions (F↔C, cups↔liters, lbs↔kg, inches↔cm, etc.)
 - ✅ World clock (time in Tokyo, London, Paris, etc.)
@@ -20,6 +22,7 @@ This document tracks all work done overnight and items that need your attention.
 ### This Session
 
 #### New Features
+
 - ✅ **Jokes Database** - 70+ jokes in categories: general, dad jokes, knock-knock, riddles, animal, school
 - ✅ **Fun Facts Database** - 70+ facts in categories: general, space, animals, science, history, food, geography
 - ✅ **Math with Words** - "what's 7 times 8", "5 plus 3", "10 divided by 2"
@@ -34,12 +37,14 @@ This document tracks all work done overnight and items that need your attention.
   - Returns time remaining until bedtime
 
 #### Major Enhancement: Device Capabilities Database
+
 - ✅ Created `device_capabilities.py` module that:
   - Stores device features (dimmable, color, temperature, etc.)
   - Auto-syncs from Home Assistant on startup
   - Persists to JSON file
 
 #### Major Enhancement: Smart Undo System
+
 - ✅ **Previous State Tracking** - Saves entity state BEFORE any action
 - ✅ **State Restoration** - Undo restores to exact previous state
   - Lights: restores brightness, color, color_temp
@@ -53,10 +58,12 @@ This document tracks all work done overnight and items that need your attention.
 ## Items Needing Your Attention 🔔
 
 ### Optional Future Enhancements
+
 1. **Weather Integration** - Would need API key (OpenWeatherMap or similar)
 2. **Self-Improvement Agent Hook** - Auto-research new devices
 
 ### Voice Testing Recommended
+
 - [ ] Test animal sounds via voice - kids will love these!
 - [ ] Test math practice via voice
 - [ ] Test bedtime countdown via voice
@@ -66,6 +73,7 @@ This document tracks all work done overnight and items that need your attention.
 ## Test Results Summary 📊
 
 ### All Features Working (Live Verified)
+
 | Feature | Example | Response |
 |---------|---------|----------|
 | Animal sounds | "what does a cow say" | "Moo!" |
@@ -76,6 +84,7 @@ This document tracks all work done overnight and items that need your attention.
 | Undo | "undo" | Restores previous state |
 
 ### Instant Response Features
+
 All responses under 400ms for instant features.
 
 ---
@@ -83,12 +92,14 @@ All responses under 400ms for instant features.
 ## Files Created This Session
 
 ### New Files
+
 - `src/barnabeenet/services/device_capabilities.py` - Device capabilities database
 - `src/barnabeenet/data/jokes.json` - Jokes database (70+ jokes)
 - `src/barnabeenet/data/fun_facts.json` - Fun facts database (70+ facts)
 - `src/barnabeenet/data/animal_sounds.json` - Animal sounds (30+ animals)
 
 ### Modified Files
+
 - `src/barnabeenet/agents/instant.py` - Added all new features
 - `src/barnabeenet/agents/meta.py` - Added patterns for new features
 - `src/barnabeenet/agents/orchestrator.py` - Enhanced undo with state restoration
@@ -116,7 +127,8 @@ All responses under 400ms for instant features.
 ## Deployment Status 🚀
 
 **Current VM State:**
-- API: http://192.168.86.51:8000
+
+- API: <http://192.168.86.51:8000>
 - Last deployed: January 23, 2026 ~4:00 AM
 - **All features verified working**
 
@@ -166,6 +178,7 @@ spell dinosaur
 ## Family-Specific Features
 
 ### Bedtime Defaults
+
 | Person | Bedtime |
 |--------|---------|
 | Viola | 7:30 PM |
@@ -176,6 +189,7 @@ spell dinosaur
 | Elizabeth | 10:30 PM |
 
 ### Math Practice Difficulty
+
 | Person | Difficulty | Operations |
 |--------|------------|------------|
 | Viola, Zachary | Easy | +, - (small numbers) |

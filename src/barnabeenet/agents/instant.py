@@ -39,6 +39,9 @@ def _load_json_data(filename: str) -> dict:
 JOKES_DATA = _load_json_data("jokes.json")
 FUN_FACTS_DATA = _load_json_data("fun_facts.json")
 ANIMAL_SOUNDS_DATA = _load_json_data("animal_sounds.json")
+TRIVIA_DATA = _load_json_data("trivia.json")
+WOULD_YOU_RATHER_DATA = _load_json_data("would_you_rather.json")
+ENCOURAGEMENT_DATA = _load_json_data("encouragement.json")
 
 
 # =============================================================================
@@ -700,6 +703,18 @@ class InstantAgent(Agent):
         elif sub_category == "bedtime" or self._is_bedtime_query(text_lower):
             response = await self._handle_bedtime_countdown(context)
             response_type = "bedtime"
+        # Trivia
+        elif sub_category == "trivia" or self._is_trivia(text_lower):
+            response = self._handle_trivia(context)
+            response_type = "trivia"
+        # Would you rather
+        elif sub_category == "would_you_rather" or self._is_would_you_rather(text_lower):
+            response = self._handle_would_you_rather()
+            response_type = "would_you_rather"
+        # Encouragement / compliments
+        elif sub_category == "encouragement" or self._is_encouragement(text_lower):
+            response = self._handle_encouragement(text)
+            response_type = "encouragement"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -879,6 +894,26 @@ class InstantAgent(Agent):
             "time until bed", "when do i go to bed", "how much longer until bed"
         ]
         return any(kw in text for kw in bedtime_keywords)
+
+    def _is_trivia(self, text: str) -> bool:
+        """Check if user wants trivia."""
+        trivia_keywords = [
+            "trivia", "quiz question", "ask me a question", "test my knowledge"
+        ]
+        return any(kw in text for kw in trivia_keywords)
+
+    def _is_would_you_rather(self, text: str) -> bool:
+        """Check if user wants a 'would you rather' question."""
+        return "would you rather" in text
+
+    def _is_encouragement(self, text: str) -> bool:
+        """Check if user wants encouragement or a compliment."""
+        keywords = [
+            "give me a compliment", "compliment me", "say something nice",
+            "i'm feeling down", "i feel sad", "cheer me up", "motivate me",
+            "encourage me", "i need encouragement"
+        ]
+        return any(kw in text for kw in keywords)
 
     # =========================================================================
     # Response Handlers
@@ -1202,6 +1237,68 @@ class InstantAgent(Agent):
         except Exception as e:
             logger.warning(f"Failed to calculate bedtime: {e}")
             return "I'm not sure when bedtime is. Ask mom or dad!"
+
+    def _handle_trivia(self, context: dict[str, Any]) -> str:
+        """Ask a trivia question based on speaker's age."""
+        speaker = context.get("speaker", "").lower()
+
+        # Determine difficulty based on speaker
+        if speaker in ["viola", "zachary"]:
+            difficulty = "easy"
+        elif speaker in ["penelope", "xander"]:
+            difficulty = "medium"
+        else:
+            difficulty = random.choice(["medium", "hard"])
+
+        questions = TRIVIA_DATA.get(difficulty, TRIVIA_DATA.get("medium", []))
+        if not questions:
+            return "I don't have any trivia questions right now!"
+
+        q = random.choice(questions)
+        question = q.get("question", "")
+        answer = q.get("answer", "")
+
+        # Store the answer for later (could be used for follow-up)
+        prompts = [
+            f"Here's a trivia question: {question}",
+            f"Trivia time! {question}",
+            f"Test your knowledge: {question}",
+        ]
+        response = random.choice(prompts)
+        response += f" (The answer is: {answer})"
+        return response
+
+    def _handle_would_you_rather(self) -> str:
+        """Give a 'would you rather' question."""
+        kid_friendly = WOULD_YOU_RATHER_DATA.get("kid_friendly", [])
+        family = WOULD_YOU_RATHER_DATA.get("family", [])
+
+        # Combine and pick randomly
+        all_questions = kid_friendly + family
+        if not all_questions:
+            return "I don't have any would-you-rather questions right now!"
+
+        question = random.choice(all_questions)
+        return question
+
+    def _handle_encouragement(self, text: str) -> str:
+        """Give encouragement, compliments, or support based on what user needs."""
+        text_lower = text.lower()
+
+        if "down" in text_lower or "sad" in text_lower:
+            responses = ENCOURAGEMENT_DATA.get("feeling_down", [])
+        elif "motivate" in text_lower:
+            responses = ENCOURAGEMENT_DATA.get("motivation", [])
+        elif "encourage" in text_lower:
+            responses = ENCOURAGEMENT_DATA.get("encouragement", [])
+        else:
+            # Default to compliments
+            responses = ENCOURAGEMENT_DATA.get("compliments", [])
+
+        if not responses:
+            return "You're doing great! Keep it up!"
+
+        return random.choice(responses)
 
     def _is_clear_conversation(self, text: str) -> bool:
         """Check if user wants to clear/reset the conversation."""

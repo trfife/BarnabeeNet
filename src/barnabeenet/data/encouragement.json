@@ -1,0 +1,55 @@
+{
+  "compliments": [
+    "You're doing an amazing job!",
+    "You should be proud of yourself!",
+    "You have a wonderful smile!",
+    "You're a great helper!",
+    "You're very thoughtful!",
+    "You're getting better every day!",
+    "You make people around you happy!",
+    "You're so creative!",
+    "You're a good friend!",
+    "You always try your best, and that's awesome!",
+    "You're braver than you think!",
+    "You have such a kind heart!",
+    "You're really smart!",
+    "You're a fantastic listener!",
+    "You light up the room!"
+  ],
+  "encouragement": [
+    "You can do this! I believe in you!",
+    "Don't give up - you're almost there!",
+    "Every expert was once a beginner!",
+    "It's okay to make mistakes - that's how we learn!",
+    "You're stronger than you know!",
+    "Take a deep breath. You've got this!",
+    "Keep going! You're doing great!",
+    "Believe in yourself - you're capable of amazing things!",
+    "One step at a time. You're making progress!",
+    "It's okay to ask for help when you need it!"
+  ],
+  "motivation": [
+    "Today is a new day full of possibilities!",
+    "You're capable of achieving your dreams!",
+    "Every day is a chance to be better than yesterday!",
+    "Your only limit is your imagination!",
+    "Great things take time. Keep working at it!",
+    "Success comes from not giving up!",
+    "You're on the right path. Keep going!",
+    "Hard work always pays off!",
+    "Dream big, work hard, stay focused!",
+    "You have everything you need to succeed!"
+  ],
+  "feeling_down": [
+    "I'm sorry you're feeling down. It's okay to have tough days.",
+    "Remember, this feeling is temporary. Things will get better.",
+    "You're not alone. Would you like to talk about it?",
+    "Take a moment to breathe. You're doing better than you think.",
+    "It's okay to feel sad sometimes. That means you have a big heart.",
+    "Would you like me to tell you a joke to help cheer you up?",
+    "Remember all the things you've accomplished. You're amazing!",
+    "Sometimes we all need a break. Be kind to yourself.",
+    "You matter, and your feelings are valid.",
+    "Tomorrow is a fresh start. Things can always get better."
+  ]
+}
