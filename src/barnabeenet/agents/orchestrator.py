@@ -1825,6 +1825,9 @@ class AgentOrchestrator:
             last_response_time=datetime.now(),
         )
         AgentOrchestrator._session_states[ctx.conversation_id] = state
+        
+        if new_actions:
+            logger.info(f"SESSION STATE: Saved {len(new_actions)} action(s) for {ctx.conversation_id}: {new_actions}")
 
     def get_last_response(self, conversation_id: str) -> str | None:
         """Get the last response for a conversation (for 'say that again')."""
@@ -1834,7 +1837,9 @@ class AgentOrchestrator:
     def get_last_actions(self, conversation_id: str) -> list[dict[str, Any]]:
         """Get the last actions for a conversation (for 'undo')."""
         state = AgentOrchestrator._session_states.get(conversation_id)
-        return state.last_actions if state else []
+        actions = state.last_actions if state else []
+        logger.info(f"GET_LAST_ACTIONS: conversation_id={conversation_id}, found {len(actions)} action(s)")
+        return actions
 
     async def undo_last_action(self, conversation_id: str) -> dict[str, Any]:
         """Undo the last action(s) for a conversation.
@@ -1899,8 +1904,8 @@ class AgentOrchestrator:
             entity_id = action.get("entity_id") or action.get("target")
             service = action.get("service", "")
             action_type = action.get("action_type", "")
-            
-            logger.debug(f"Attempting to reverse action: entity_id={entity_id}, service={service}, action_type={action_type}")
+
+            logger.info(f"UNDO: Attempting to reverse action: entity_id={entity_id}, service={service}, action_type={action_type}")
 
             if not entity_id:
                 logger.warning(f"Undo failed: No entity_id in action: {action}")
@@ -1928,7 +1933,7 @@ class AgentOrchestrator:
 
             # Extract just the service name (e.g., "turn_on" from "light.turn_on")
             service_name = service.split(".")[-1] if "." in service else service
-            
+
             # Try service-based reverse first, then action_type
             reverse_service = reverse_map.get(service_name)
             if not reverse_service and action_type:
@@ -1941,7 +1946,7 @@ class AgentOrchestrator:
             # Execute reverse action
             full_service = f"{domain}.{reverse_service}"
             logger.info(f"Executing undo: {full_service} on {entity_id}")
-            
+
             result = await self._ha_client.call_service(
                 domain=domain,
                 service=reverse_service,
