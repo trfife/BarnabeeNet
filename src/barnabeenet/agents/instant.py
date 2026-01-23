@@ -674,6 +674,12 @@ class InstantAgent(Agent):
             else:
                 response = random.choice(self.FALLBACK_RESPONSES)
                 response_type = "fallback"
+        # Chore/Star tracking (before unit conversion to avoid "how many stars" matching)
+        elif sub_category == "chore" or self._is_chore_query(text_lower)[0]:
+            result = self._is_chore_query(text_lower)
+            _, action, person, chore = result
+            response = await self._handle_chore_query(action, person, chore, speaker)
+            response_type = "chore"
         # Unit conversions
         elif sub_category == "unit_conversion" or self._is_unit_conversion(text_lower):
             result = self._handle_unit_conversion(text)
@@ -791,11 +797,6 @@ class InstantAgent(Agent):
             _, action, content = note_result
             response = await self._handle_quick_note(action, content, speaker)
             response_type = "quick_note"
-        # Chore/Star tracking
-        elif (chore_result := self._is_chore_query(text_lower))[0]:
-            _, action, person, chore = chore_result
-            response = await self._handle_chore_query(action, person, chore, speaker)
-            response_type = "chore"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
