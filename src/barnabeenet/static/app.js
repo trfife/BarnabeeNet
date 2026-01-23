@@ -181,6 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStats();
     loadTraces();
     loadActiveSISessions();
+    loadTimers();
 
     // Connect WebSocket
     connectWebSocket();
@@ -190,6 +191,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(loadStats, 60000);
     setInterval(loadTraces, 10000);
     setInterval(loadActiveSISessions, 10000);
+    setInterval(loadTimers, 3000);  // Refresh timers every 3 seconds
+
+    // Timer refresh button
+    document.getElementById('refresh-timers-btn')?.addEventListener('click', loadTimers);
 });
 
 // =============================================================================
@@ -860,6 +865,147 @@ function updateServicesHealth(services) {
             </div>
         `;
     }).join('');
+}
+
+// =============================================================================
+// Timers
+// =============================================================================
+
+async function loadTimers() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/timers/`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        renderTimers(data.timers || []);
+    } catch (e) {
+        console.error('Failed to load timers:', e);
+        const container = document.getElementById('active-timers');
+        if (container) {
+            container.innerHTML = '<p class="text-muted">Failed to load timers</p>';
+        }
+    }
+}
+
+function renderTimers(timers) {
+    const container = document.getElementById('active-timers');
+    if (!container) return;
+
+    if (timers.length === 0) {
+        container.innerHTML = '<p class="text-muted">No active timers</p>';
+        return;
+    }
+
+    container.innerHTML = timers.map(timer => {
+        const remaining = timer.remaining_seconds || 0;
+        const total = timer.duration_seconds || 1;
+        const progress = Math.max(0, Math.min(100, ((total - remaining) / total) * 100));
+        
+        // Format remaining time
+        let timeStr;
+        if (remaining >= 3600) {
+            const hrs = Math.floor(remaining / 3600);
+            const mins = Math.floor((remaining % 3600) / 60);
+            timeStr = `${hrs}h ${mins}m`;
+        } else if (remaining >= 60) {
+            const mins = Math.floor(remaining / 60);
+            const secs = Math.floor(remaining % 60);
+            timeStr = `${mins}m ${secs}s`;
+        } else {
+            timeStr = `${Math.floor(remaining)}s`;
+        }
+
+        // Format the on_complete action
+        let actionStr = '';
+        if (timer.on_complete) {
+            const service = timer.on_complete.service || '';
+            const entityId = timer.on_complete.entity_id || '';
+            
+            // Parse service into action (e.g., "light.turn_off" -> "Turn off")
+            const parts = service.split('.');
+            let action = parts[1] || parts[0] || 'Action';
+            action = action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            
+            // Get friendly entity name from entity_id
+            const entityParts = entityId.split('.');
+            let entityName = entityParts[1] || entityId;
+            entityName = entityName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            
+            actionStr = `
+                <div class="timer-action">
+                    <span class="action-label">On complete:</span>
+                    <span class="action-detail">${action} ${entityName}</span>
+                </div>
+            `;
+        }
+
+        const pausedBadge = timer.is_paused ? '<span class="timer-badge paused">Paused</span>' : '';
+        
+        return `
+            <div class="timer-item ${timer.is_paused ? 'paused' : ''}">
+                <div class="timer-header">
+                    <span class="timer-label">${timer.label || 'Timer'}</span>
+                    ${pausedBadge}
+                    <span class="timer-remaining">${timeStr}</span>
+                </div>
+                <div class="timer-progress">
+                    <div class="timer-progress-bar" style="width: ${progress}%"></div>
+                </div>
+                ${actionStr}
+                <div class="timer-actions">
+                    <button class="btn btn-tiny" onclick="cancelTimer('${timer.id}')" title="Cancel timer">✕</button>
+                    ${timer.is_paused 
+                        ? `<button class="btn btn-tiny" onclick="resumeTimer('${timer.id}')" title="Resume">▶</button>`
+                        : `<button class="btn btn-tiny" onclick="pauseTimer('${timer.id}')" title="Pause">⏸</button>`
+                    }
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function cancelTimer(timerId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/timers/${timerId}`, { method: 'DELETE' });
+        if (response.ok) {
+            showToast('Timer cancelled', 'success');
+            loadTimers();
+        } else {
+            showToast('Failed to cancel timer', 'error');
+        }
+    } catch (e) {
+        console.error('Failed to cancel timer:', e);
+        showToast('Failed to cancel timer', 'error');
+    }
+}
+
+async function pauseTimer(timerId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/timers/${timerId}/pause`, { method: 'POST' });
+        if (response.ok) {
+            showToast('Timer paused', 'success');
+            loadTimers();
+        } else {
+            showToast('Failed to pause timer', 'error');
+        }
+    } catch (e) {
+        console.error('Failed to pause timer:', e);
+        showToast('Failed to pause timer', 'error');
+    }
+}
+
+async function resumeTimer(timerId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/timers/${timerId}/resume`, { method: 'POST' });
+        if (response.ok) {
+            showToast('Timer resumed', 'success');
+            loadTimers();
+        } else {
+            showToast('Failed to resume timer', 'error');
+        }
+    } catch (e) {
+        console.error('Failed to resume timer:', e);
+        showToast('Failed to resume timer', 'error');
+    }
 }
 
 // =============================================================================
