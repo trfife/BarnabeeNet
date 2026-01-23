@@ -196,6 +196,7 @@ ACTION_PATTERNS: list[tuple[str, str]] = [
     (r"^how\s+long\s+(?:is\s+)?left\s+on\s+(?:my|the)\s+timer.*$", "timer"),  # "how long is left on my timer"
     (r"^how\s+much\s+time\s+(?:is\s+)?left\s+on\s+(?:my|the)\s+timer.*$", "timer"),  # "how much time is left on my timer"
     (r"^(?:any|do\s+I\s+have(?:\s+any)?)\s+timers?.*$", "timer"),  # "any timers" / "do I have any timers"
+    (r"^are\s+there\s+(?:any\s+)?timers?.*$", "timer"),  # "are there any timers"
     (r"^how\s+many\s+timers?.*$", "timer"),  # "how many timers do I have"
     (r"^timers?\s+status.*$", "timer"),  # "timer status"
     # Device control patterns
