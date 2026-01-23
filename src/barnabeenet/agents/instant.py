@@ -898,6 +898,9 @@ class InstantAgent(Agent):
         # Exclude family digest queries
         if "what happened" in text or "catch me up" in text or "what did i miss" in text:
             return False
+        # Exclude daily briefing queries
+        if "need to know" in text or "briefing" in text or "brief me" in text:
+            return False
         date_keywords = ["date", "what day", "today", "what's today"]
         return any(kw in text for kw in date_keywords)
 
@@ -968,6 +971,9 @@ class InstantAgent(Agent):
         # Exclude sun-related queries
         sun_words = ["sunrise", "sunset", "dawn", "dusk", "sun rise", "sun set"]
         if any(sw in text for sw in sun_words):
+            return False
+        # Exclude birthday queries (handled separately)
+        if "birthday" in text:
             return False
         countdown_keywords = ["days until", "days till", "how long until", "how many days", "when is"]
         return any(kw in text for kw in countdown_keywords)

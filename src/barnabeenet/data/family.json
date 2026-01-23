@@ -51,12 +51,18 @@
     "dog": {
       "name": "Unknown",
       "type": "dog",
-      "feeding_times": ["07:00", "17:00"]
+      "feeding_times": [
+        "07:00",
+        "17:00"
+      ]
     },
     "cat": {
-      "name": "Unknown", 
+      "name": "Unknown",
       "type": "cat",
-      "feeding_times": ["07:00", "17:00"]
+      "feeding_times": [
+        "07:00",
+        "17:00"
+      ]
     }
   },
   "household": {
