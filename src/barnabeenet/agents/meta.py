@@ -390,6 +390,9 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(give me |suggest )?(something to do|an activity)(\?)?$", "bored"),
     (r"^(any |got any )?(ideas|suggestions)(\?)?$", "bored"),
     (r"^(i have |there's )nothing to do(\?)?$", "bored"),
+    (r"^suggest (something|an activity) (to do )?(outside|outdoors|inside|indoors)(\?)?$", "bored"),
+    (r"^(any |)(ideas|suggestions) for (a )?(rainy|rain) day(\?)?$", "bored"),
+    (r"^what (can|should) (i|we) do (outside|inside|today|now)(\?)?$", "bored"),
     # Conversation starters
     (r"^(give me a |)(conversation starter|dinner question|table talk|icebreaker)(\?)?$", "conversation_starter"),
     (r"^(what should we |give me something to )talk about(\?)?$", "conversation_starter"),

@@ -690,19 +690,19 @@ class InstantAgent(Agent):
         elif sub_category == "wifi" or self._is_wifi_query(text_lower):
             response = self._handle_wifi_query()
             response_type = "wifi"
-        # Family digest / what happened today
-        elif sub_category == "family_digest" or self._is_family_digest_query(text_lower):
-            response = await self._handle_family_digest(speaker)
-            response_type = "family_digest"
+        # Conversation starters (before chore to avoid "starter" matching "star")
+        elif sub_category == "conversation_starter" or self._is_conversation_starter_query(text_lower):
+            response = self._handle_conversation_starter()
+            response_type = "conversation_starter"
         # Bored / activity suggestions
         elif sub_category == "bored" or self._is_bored_query(text_lower)[0]:
             _, activity_type = self._is_bored_query(text_lower)
             response = self._handle_bored_query(activity_type)
             response_type = "bored"
-        # Conversation starters
-        elif sub_category == "conversation_starter" or self._is_conversation_starter_query(text_lower):
-            response = self._handle_conversation_starter()
-            response_type = "conversation_starter"
+        # Family digest / what happened today
+        elif sub_category == "family_digest" or self._is_family_digest_query(text_lower):
+            response = await self._handle_family_digest(speaker)
+            response_type = "family_digest"
         # Unit conversions
         elif sub_category == "unit_conversion" or self._is_unit_conversion(text_lower):
             result = self._handle_unit_conversion(text)
@@ -1338,6 +1338,9 @@ class InstantAgent(Agent):
                 break
 
         # Award star: "give Xander a star", "star for Penelope"
+        # But NOT "conversation starter" - check for that first
+        if "starter" in text or "start" in text:
+            return False, "", None, None
         if any(kw in text for kw in ["give", "award", "add"]) and "star" in text:
             return True, "star", person, None
 
