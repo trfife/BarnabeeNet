@@ -186,8 +186,8 @@ class ConversationContextManager:
         conv_ctx.history = recent_turns
 
         logger.info(
-            f"Summarized {len(turns_to_summarize)} turns, kept {len(recent_turns)} recent turns",
-            conversation_id=conv_ctx.conversation_id,
+            f"Summarized {len(turns_to_summarize)} turns, kept {len(recent_turns)} recent turns "
+            f"for conversation {conv_ctx.conversation_id}"
         )
 
         return optimized_messages, summary
