@@ -1113,7 +1113,7 @@ class InstantAgent(Agent):
 
     def _is_phone_battery_query(self, text: str) -> tuple[bool, str | None]:
         """Check if user is asking about phone battery.
-        
+
         Returns (is_query, person_name).
         """
         battery_words = ["battery", "batteries", "charged", "charge"]

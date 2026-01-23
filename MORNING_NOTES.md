@@ -58,6 +58,7 @@ This document tracks all work done overnight and items that need your attention.
 | **Shopping List** | "add X to shopping list" | **NEW** - Uses HA todo entity |
 | **Calendar** | "what's on my calendar" | **NEW** - Uses HA calendar entities |
 | **Energy** | "how much energy are we using" | **NEW** - Uses HA energy sensors |
+| **Phone Battery** | "is Xander's phone charged" | **NEW** - Uses HA device trackers |
 
 ### Major Enhancements
 
@@ -215,6 +216,11 @@ how much energy are we using    # "We're generating 2800 watts more than we're u
 energy usage today              # "Today we've generated 8.8 kWh more than we've used."
 energy this month               # "This month we've generated 525 kWh more than we've used!"
 how's the solar                 # Shows current solar production vs usage
+
+# NEW: Phone Battery
+is elizabeth's phone charged    # "Elizabeth's phone is at 95%. Looking good!"
+phone batteries                 # Lists all phones with battery data
+what's my phone battery         # Uses speaker context
 
 # Previous Features
 flip a coin
