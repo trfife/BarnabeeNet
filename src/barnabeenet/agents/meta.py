@@ -501,6 +501,7 @@ class MetaAgent(Agent):
                 "instant",
                 "gesture",
                 "self_improvement",
+                "conversation",
                 "action",
                 "memory",
                 "query",
@@ -509,28 +510,37 @@ class MetaAgent(Agent):
                 self._compiled_patterns[group_name] = [
                     (re.compile(p, re.IGNORECASE), c) for p, c in patterns
                 ]
-            logger.info(
-                "MetaAgent initialized from LogicRegistry with %d pattern groups",
-                len(self._compiled_patterns),
-            )
-        else:
-            # Use hardcoded patterns (backward compatibility)
-            self._compiled_patterns = {
-                "emergency": [(re.compile(p, re.IGNORECASE), c) for p, c in EMERGENCY_PATTERNS],
-                "instant": [(re.compile(p, re.IGNORECASE), c) for p, c in INSTANT_PATTERNS],
-                "gesture": [(re.compile(p, re.IGNORECASE), c) for p, c in GESTURE_PATTERNS],
-                "self_improvement": [
-                    (re.compile(p, re.IGNORECASE), c) for p, c in SELF_IMPROVEMENT_PATTERNS
-                ],
-                "conversation": [(re.compile(p, re.IGNORECASE), c) for p, c in CONVERSATION_PATTERNS],
-                "action": [(re.compile(p, re.IGNORECASE), c) for p, c in ACTION_PATTERNS],
-                "memory": [(re.compile(p, re.IGNORECASE), c) for p, c in MEMORY_PATTERNS],
-                "query": [(re.compile(p, re.IGNORECASE), c) for p, c in QUERY_PATTERNS],
-            }
-            logger.info(
-                "MetaAgent initialized with hardcoded patterns (%d groups)",
-                len(self._compiled_patterns),
-            )
+
+            # Check if registry actually loaded any patterns
+            total_patterns = sum(len(p) for p in self._compiled_patterns.values())
+            if total_patterns == 0:
+                logger.warning("LogicRegistry loaded no patterns, falling back to hardcoded")
+                self._use_registry = False
+            else:
+                logger.info(
+                    "MetaAgent initialized from LogicRegistry with %d pattern groups (%d patterns)",
+                    len(self._compiled_patterns),
+                    total_patterns,
+                )
+                return  # Successfully loaded from registry
+
+        # Use hardcoded patterns (backward compatibility or registry fallback)
+        self._compiled_patterns = {
+            "emergency": [(re.compile(p, re.IGNORECASE), c) for p, c in EMERGENCY_PATTERNS],
+            "instant": [(re.compile(p, re.IGNORECASE), c) for p, c in INSTANT_PATTERNS],
+            "gesture": [(re.compile(p, re.IGNORECASE), c) for p, c in GESTURE_PATTERNS],
+            "self_improvement": [
+                (re.compile(p, re.IGNORECASE), c) for p, c in SELF_IMPROVEMENT_PATTERNS
+            ],
+            "conversation": [(re.compile(p, re.IGNORECASE), c) for p, c in CONVERSATION_PATTERNS],
+            "action": [(re.compile(p, re.IGNORECASE), c) for p, c in ACTION_PATTERNS],
+            "memory": [(re.compile(p, re.IGNORECASE), c) for p, c in MEMORY_PATTERNS],
+            "query": [(re.compile(p, re.IGNORECASE), c) for p, c in QUERY_PATTERNS],
+        }
+        logger.info(
+            "MetaAgent initialized with hardcoded patterns (%d groups)",
+            len(self._compiled_patterns),
+        )
 
     async def reload_patterns(self) -> None:
         """Reload patterns from LogicRegistry (for hot-reload)."""

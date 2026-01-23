@@ -15,13 +15,19 @@ from barnabeenet.agents.meta import (
 
 @pytest.fixture
 def meta_agent() -> MetaAgent:
-    """Create a MetaAgent for testing."""
-    return MetaAgent()
+    """Create a MetaAgent for testing with hardcoded patterns (no registry)."""
+    # Pass logic_registry=None to use hardcoded patterns instead of LogicRegistry
+    # This ensures tests run consistently without depending on config files
+    agent = MetaAgent(logic_registry=None)
+    agent._use_registry = False  # Force hardcoded patterns
+    return agent
 
 
 @pytest.fixture
 async def initialized_agent(meta_agent: MetaAgent) -> MetaAgent:
-    """Create an initialized MetaAgent."""
+    """Create an initialized MetaAgent with hardcoded patterns."""
+    # Temporarily set _logic_registry to prevent init() from loading registry
+    meta_agent._logic_registry = None
     await meta_agent.init()
     return meta_agent
 

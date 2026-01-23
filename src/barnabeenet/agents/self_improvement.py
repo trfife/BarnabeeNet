@@ -562,25 +562,38 @@ class SelfImprovementAgent:
     - REQUIRES_APPROVAL: code changes, new automations
     """
 
-    # Safety boundaries - RELAXED for full autonomy
-    # Only truly dangerous operations are forbidden
-    # User has robust git repo and can rollback easily
+    # Safety boundaries - protect system and secrets
     FORBIDDEN_PATHS = [
-        # Only block actual secret files, not config files
-        ".env.local",
-        "secrets/private_keys",
-        "secrets/api_keys",
+        # Secret files and directories
+        ".env",
+        "secrets/",
+        "credentials",
+        "private_key",
+        "api_key",
+        ".pem",
+        ".key",
     ]
 
     FORBIDDEN_OPERATIONS = [
-        # Only block operations that could damage the system
+        # System damage
         "rm -rf /",
         "rm -rf ~",
-        "sudo rm -rf",
+        "sudo rm",
         "dd if=",  # Disk destruction
         "mkfs",  # Format disk
-        "curl | sudo bash",  # Only block with sudo
-        "wget | sudo sh",  # Only block with sudo
+        # Privilege escalation
+        "sudo apt",
+        "sudo yum",
+        "sudo dnf",
+        "sudo pacman",
+        "chmod 777",
+        "chmod 666",
+        "chown root",
+        # Remote execution
+        "curl | bash",
+        "curl | sh",
+        "wget | bash",
+        "wget | sh",
     ]
 
     # Man-of-war connection for GPU management
