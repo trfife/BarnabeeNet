@@ -1,7 +1,7 @@
 # Morning Notes - Overnight Work Session
 
 **Started:** January 22, 2026 (evening)
-**Last Updated:** January 23, 2026 ~4:55 AM
+**Last Updated:** January 23, 2026 ~5:05 AM
 
 This document tracks all work done overnight and items that need your attention.
 
@@ -60,6 +60,8 @@ This document tracks all work done overnight and items that need your attention.
 | **Energy** | "how much energy are we using" | **NEW** - Uses HA energy sensors |
 | **Phone Battery** | "is Xander's phone charged" | **NEW** - Uses HA device trackers |
 | **Security** | "is the front door locked" | **NEW** - Locks and blinds status |
+| **Pet Feeding** | "I fed the dog", "did anyone feed the cat" | **NEW** - Logs/checks pet feeding |
+| **Quick Notes** | "note: call dentist", "what are my notes" | **NEW** - Voice memos in memory |
 
 ### Major Enhancements
 
@@ -237,6 +239,17 @@ what's my phone battery         # Uses speaker context
 is the front door locked        # "The front door is locked."
 are any blinds open             # "One blind is open: Playroom Left."
 security check                  # Overview of locks and blinds
+
+# NEW: Pet Feeding Tracker
+I fed the dog                   # Logs feeding time
+did anyone feed the cat         # Checks if pet was fed
+has the dog been fed            # Same as above
+when was the cat last fed       # Shows last feeding time
+
+# NEW: Quick Notes
+note: call the dentist          # Saves a note
+remind me: pick up groceries    # Saves a reminder note
+what are my notes               # Lists all saved notes
 
 # Previous Features
 flip a coin
