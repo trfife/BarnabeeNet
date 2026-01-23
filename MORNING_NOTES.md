@@ -180,6 +180,15 @@ what do we have scheduled       # Shows upcoming events
 any appointments this week      # Week overview
 what's happening tomorrow       # Tomorrow's schedule
 
+# Time Zones (fixed)
+what time is it in Tokyo        # "It's 6:08 PM on Friday in Tokyo."
+what time is it in London       # "It's 9:08 AM on Friday in London."
+
+# Counting (fixed)
+count by 2s to 20               # "2, 4, 6, 8, 10, 12, 14, 16, 18, 20!"
+count by 5s to 50               # "5, 10, 15, 20, 25, 30, 35, 40, 45, 50!"
+count backwards from 10         # "10, 9, 8, 7, 6, 5, 4, 3, 2, 1!"
+
 # Previous Features
 flip a coin
 roll a d20
