@@ -7,18 +7,37 @@ interactions like time, date, greetings, and simple math.
 
 from __future__ import annotations
 
+import json
 import logging
 import random
 import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, date
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from barnabeenet.agents.base import Agent
 
 logger = logging.getLogger(__name__)
+
+# Load jokes and fun facts from data files
+DATA_DIR = Path(__file__).parent.parent / "data"
+
+def _load_json_data(filename: str) -> dict:
+    """Load JSON data from the data directory."""
+    filepath = DATA_DIR / filename
+    if filepath.exists():
+        try:
+            with open(filepath, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load {filename}: {e}")
+    return {}
+
+JOKES_DATA = _load_json_data("jokes.json")
+FUN_FACTS_DATA = _load_json_data("fun_facts.json")
 
 
 # =============================================================================
@@ -453,6 +472,14 @@ class InstantAgent(Agent):
         """Initialize the Instant Agent."""
         self._math_pattern: re.Pattern[str] | None = None
         self._spelling_pattern: re.Pattern[str] | None = None
+        self._dice_pattern: re.Pattern[str] | None = None
+        self._number_pick_pattern: re.Pattern[str] | None = None
+        self._unit_convert_pattern: re.Pattern[str] | None = None
+        self._unit_info_pattern: re.Pattern[str] | None = None
+        self._world_clock_pattern: re.Pattern[str] | None = None
+        self._countdown_pattern: re.Pattern[str] | None = None
+        self._counting_pattern: re.Pattern[str] | None = None
+        self._next_number_pattern: re.Pattern[str] | None = None
         # Track active spelling sessions by speaker (or "default" if no speaker)
         self._spelling_sessions: dict[str, SpellingSession] = {}
 
@@ -646,6 +673,17 @@ class InstantAgent(Agent):
             else:
                 response = random.choice(self.FALLBACK_RESPONSES)
                 response_type = "fallback"
+        # Jokes
+        elif sub_category == "joke" or self._is_joke(text_lower):
+            response = self._handle_joke(text)
+            response_type = "joke"
+        elif sub_category == "riddle" or self._is_riddle(text_lower):
+            response = self._handle_riddle()
+            response_type = "riddle"
+        # Fun facts
+        elif sub_category == "fun_fact" or self._is_fun_fact(text_lower):
+            response = self._handle_fun_fact(text)
+            response_type = "fun_fact"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -782,6 +820,22 @@ class InstantAgent(Agent):
         ]
         return any(kw in text for kw in repeat_keywords)
 
+    def _is_joke(self, text: str) -> bool:
+        """Check if user wants a joke."""
+        joke_keywords = ["tell me a joke", "tell a joke", "joke please", "another joke", "got a joke",
+                        "dad joke", "knock knock", "make me laugh", "animal joke", "school joke"]
+        return any(kw in text for kw in joke_keywords)
+
+    def _is_riddle(self, text: str) -> bool:
+        """Check if user wants a riddle."""
+        riddle_keywords = ["tell me a riddle", "riddle", "give me a riddle"]
+        return any(kw in text for kw in riddle_keywords)
+
+    def _is_fun_fact(self, text: str) -> bool:
+        """Check if user wants a fun fact."""
+        fact_keywords = ["tell me a fact", "fun fact", "interesting fact", "tell me something", "did you know"]
+        return any(kw in text for kw in fact_keywords)
+
     # =========================================================================
     # Response Handlers
     # =========================================================================
@@ -883,6 +937,74 @@ class InstantAgent(Agent):
             logger.warning(f"Failed to get last response: {e}")
 
         return random.choice(self.NOTHING_TO_REPEAT_RESPONSES)
+
+    def _handle_joke(self, text: str) -> str:
+        """Tell a joke based on the type requested."""
+        text_lower = text.lower()
+
+        # Determine joke category
+        if "dad" in text_lower:
+            category = "dad_jokes"
+        elif "knock" in text_lower:
+            category = "knock_knock"
+        elif "animal" in text_lower:
+            category = "animal"
+        elif "school" in text_lower:
+            category = "school"
+        else:
+            # Pick from general or dad jokes
+            category = random.choice(["general", "dad_jokes"])
+
+        jokes = JOKES_DATA.get(category, JOKES_DATA.get("general", []))
+        if not jokes:
+            return "I'm sorry, I'm fresh out of jokes right now!"
+
+        joke = random.choice(jokes)
+        setup = joke.get("setup", "")
+        punchline = joke.get("punchline", "")
+
+        return f"{setup} {punchline}"
+
+    def _handle_riddle(self) -> str:
+        """Tell a riddle."""
+        riddles = JOKES_DATA.get("riddles", [])
+        if not riddles:
+            return "I don't have any riddles right now!"
+
+        riddle = random.choice(riddles)
+        setup = riddle.get("setup", "")
+        punchline = riddle.get("punchline", "")
+
+        # For riddles, give time to think
+        return f"Here's a riddle: {setup} Think about it... The answer is: {punchline}"
+
+    def _handle_fun_fact(self, text: str) -> str:
+        """Tell a fun fact based on the topic requested."""
+        text_lower = text.lower()
+
+        # Determine fact category
+        if "space" in text_lower or "planet" in text_lower or "star" in text_lower:
+            category = "space"
+        elif "animal" in text_lower:
+            category = "animals"
+        elif "science" in text_lower:
+            category = "science"
+        elif "history" in text_lower:
+            category = "history"
+        elif "food" in text_lower:
+            category = "food"
+        elif "geography" in text_lower or "country" in text_lower or "world" in text_lower:
+            category = "geography"
+        else:
+            category = "general"
+
+        facts = FUN_FACTS_DATA.get(category, FUN_FACTS_DATA.get("general", []))
+        if not facts:
+            return "I don't have any fun facts right now!"
+
+        fact = random.choice(facts)
+        prefixes = ["Did you know? ", "Here's a fun fact: ", "Fun fact: ", ""]
+        return random.choice(prefixes) + fact
 
     def _is_clear_conversation(self, text: str) -> bool:
         """Check if user wants to clear/reset the conversation."""

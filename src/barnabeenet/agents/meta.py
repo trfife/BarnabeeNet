@@ -222,6 +222,20 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(pardon)(\?)?$", "repeat"),
     (r"^i didn'?t (hear|catch) (that|you)(\?)?$", "repeat"),
     (r"^one more time(\?)?$", "repeat"),
+    # Jokes
+    (r"^tell me a( \w+)? joke(\?)?$", "joke"),
+    (r"^(got a|another|one more) joke(\?)?$", "joke"),
+    (r"^joke please(\?)?$", "joke"),
+    (r"^make me laugh(\?)?$", "joke"),
+    # Riddles
+    (r"^tell me a riddle(\?)?$", "riddle"),
+    (r"^(give me|got) a riddle(\?)?$", "riddle"),
+    (r"^riddle me this(\?)?$", "riddle"),
+    # Fun facts
+    (r"^tell me a( \w+)? (fun )?fact(\?)?$", "fun_fact"),
+    (r"^(fun|interesting|cool) fact(\?)?$", "fun_fact"),
+    (r"^did you know(\?)?$", "fun_fact"),
+    (r"^tell me something (interesting|cool|fun)(\?)?$", "fun_fact"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
