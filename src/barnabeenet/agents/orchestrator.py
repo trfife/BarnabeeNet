@@ -1800,7 +1800,7 @@ class AgentOrchestrator:
 
     def _save_session_state(self, ctx: RequestContext) -> None:
         """Save session state for undo/repeat functionality.
-        
+
         Only updates last_actions if actions were actually taken in this request.
         This prevents undo/repeat commands from clearing the action history.
         """
@@ -1808,7 +1808,7 @@ class AgentOrchestrator:
             return
 
         existing_state = AgentOrchestrator._session_states.get(ctx.conversation_id)
-        
+
         # Determine whether to update actions
         # If no actions were taken this request, preserve the previous actions
         # (This allows "undo" command to still access previous actions)
@@ -1891,14 +1891,19 @@ class AgentOrchestrator:
             Dict with success status
         """
         if not self._ha_client:
+            logger.warning("Undo failed: Home Assistant not available")
             return {"success": False, "error": "Home Assistant not available"}
 
         try:
             # Get entity and service from action
             entity_id = action.get("entity_id") or action.get("target")
             service = action.get("service", "")
+            action_type = action.get("action_type", "")
+            
+            logger.debug(f"Attempting to reverse action: entity_id={entity_id}, service={service}, action_type={action_type}")
 
             if not entity_id:
+                logger.warning(f"Undo failed: No entity_id in action: {action}")
                 return {"success": False, "error": "No entity to reverse"}
 
             # Determine reverse action
@@ -1915,27 +1920,39 @@ class AgentOrchestrator:
                 "start": "cancel",  # timers
             }
 
+            # Also map action_type to reverse service (as backup)
+            action_type_reverse_map = {
+                "turn_on": "turn_off",
+                "turn_off": "turn_on",
+            }
+
             # Extract just the service name (e.g., "turn_on" from "light.turn_on")
             service_name = service.split(".")[-1] if "." in service else service
-
+            
+            # Try service-based reverse first, then action_type
             reverse_service = reverse_map.get(service_name)
+            if not reverse_service and action_type:
+                reverse_service = action_type_reverse_map.get(action_type)
             if not reverse_service:
                 # Try to toggle instead
                 reverse_service = "toggle"
+                logger.info(f"No direct reverse for {service_name}, using toggle")
 
             # Execute reverse action
             full_service = f"{domain}.{reverse_service}"
-            await self._ha_client.call_service(
+            logger.info(f"Executing undo: {full_service} on {entity_id}")
+            
+            result = await self._ha_client.call_service(
                 domain=domain,
                 service=reverse_service,
                 entity_id=entity_id,
             )
 
-            logger.info(f"Undid action: {entity_id} via {full_service}")
+            logger.info(f"Undo successful: {entity_id} via {full_service}, result: {result}")
             return {"success": True}
 
         except Exception as e:
-            logger.warning(f"Failed to reverse action: {e}")
+            logger.warning(f"Failed to reverse action: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     def _build_response(self, ctx: RequestContext) -> dict[str, Any]:

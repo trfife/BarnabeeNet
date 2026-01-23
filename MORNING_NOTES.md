@@ -1,4 +1,5 @@
 # Morning Notes - Overnight Work Session
+
 **Started:** January 22, 2026 (evening)
 **Last Updated:** January 23, 2026 ~3:00 AM
 
@@ -9,6 +10,7 @@ This document tracks all work done overnight and items that need your attention.
 ## Work Completed ✅
 
 ### Sprint 1 Features (Before This Session)
+
 - ✅ Random choices (flip coin, roll dice, pick number, magic 8-ball, yes/no)
 - ✅ Unit conversions (F↔C, cups↔liters, lbs↔kg, inches↔cm, etc.)
 - ✅ World clock (time in Tokyo, London, Paris, etc.)
@@ -18,6 +20,7 @@ This document tracks all work done overnight and items that need your attention.
 - ✅ Say that again / repeat (repeats last response)
 
 ### This Session
+
 - ✅ **Jokes Database** - Added 70+ jokes in categories: general, dad jokes, knock-knock, riddles, animal, school
   - "tell me a joke", "tell me a dad joke", "tell me a riddle"
 - ✅ **Fun Facts Database** - Added 70+ facts in categories: general, space, animals, science, history, food, geography
@@ -31,17 +34,21 @@ This document tracks all work done overnight and items that need your attention.
 ## Items Needing Your Attention 🔔
 
 ### Must Test
+
 - [ ] **Voice testing** - Test new features via actual voice input
 - [ ] **Jokes via voice** - Ensure joke delivery sounds natural with TTS
 - [ ] **Repeat command** - Verify "say that again" works in real conversation flow
 
 ### Configuration Changes
+
 None required.
 
 ### Home Assistant Setup
+
 None required.
 
 ### Decisions Needed
+
 1. **Undo feature** - Currently undo only works for device actions (turn on/off). Do you want it to also work for:
    - Timer cancellation?
    - Reverting brightness/temperature changes?
@@ -71,6 +78,7 @@ None required.
 ## Test Results Summary 📊
 
 ### Instant Response Features (Live Test)
+
 | Feature | Status | Response Time |
 |---------|--------|---------------|
 | Time/Date | ✅ Working | ~350ms |
@@ -87,6 +95,7 @@ None required.
 | Spelling | ✅ Working | ~350ms |
 
 ### Device Control (Office Light Only)
+
 | Command | Status |
 |---------|--------|
 | Turn on | ✅ |
@@ -96,6 +105,7 @@ None required.
 | Undo | ⚠️ (not tracking) |
 
 ### Unit Tests
+
 - `test_instant_agent.py` - 46 tests passed ✅
 - `test_meta_agent.py` - 26 tests passed ✅
 - `test_action_agent.py` - 5 tests passed ✅
@@ -104,8 +114,9 @@ None required.
 
 ## Deployment Status 🚀
 
-**Current VM State:** 
-- API: http://192.168.86.51:8000
+**Current VM State:**
+
+- API: <http://192.168.86.51:8000>
 - Last deployed: January 23, 2026 ~3:00 AM
 - Commits deployed: jokes, fun facts, math fix, code cleanup
 
