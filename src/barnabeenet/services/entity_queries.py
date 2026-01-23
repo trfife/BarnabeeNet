@@ -523,7 +523,7 @@ async def _get_low_battery_devices(ha_client: HomeAssistantClient, threshold: in
                     pass
 
     # Also check attributes of other entities for battery_level
-    for entity in ha_client._entity_registry:
+    for entity in ha_client._entity_registry.all():
         if entity.state and entity.state.attributes:
             battery_level = entity.state.attributes.get("battery_level")
             if battery_level is not None:
@@ -559,7 +559,7 @@ async def _get_unavailable_devices(ha_client: HomeAssistantClient) -> str:
     """Get unavailable devices."""
     unavailable = []
 
-    for entity in ha_client._entity_registry:
+    for entity in ha_client._entity_registry.all():
         state = await ha_client.get_state(entity.entity_id)
         if state and state.is_unavailable:
             unavailable.append(entity.friendly_name)
