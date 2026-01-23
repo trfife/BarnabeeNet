@@ -176,6 +176,8 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^what date(\?)?$", "date"),
     (r"^tell me the date(\?)?$", "date"),
     (r"^current date(\?)?$", "date"),
+    (r"^what day is it(\?)?$", "date"),
+    (r"^what day is (today|this)(\?)?$", "date"),
     (r"^(hello|hey|hi)( barnabee)?(\?)?$", "greeting"),
     (r"^good (morning|afternoon|evening|night)$", "greeting"),
     (r"^(what('s| is) )?(\d+)\s*[\+\-\*\/]\s*(\d+)(\?)?$", "math"),

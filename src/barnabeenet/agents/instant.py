@@ -3405,9 +3405,10 @@ class InstantAgent(Agent):
                 weather_state = await ha_client.get_state("weather.outside")
 
             if weather_state:
-                attrs = weather_state.get("attributes", {})
-                temp = attrs.get("temperature", "?")
-                condition = weather_state.get("state", "unknown")
+                # weather_state is an EntityState object, not a dict
+                attrs = weather_state.attributes if hasattr(weather_state, "attributes") else {}
+                temp = attrs.get("temperature", "?") if isinstance(attrs, dict) else "?"
+                condition = weather_state.state if hasattr(weather_state, "state") else "unknown"
 
                 # Friendly condition names
                 condition_map = {
