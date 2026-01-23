@@ -209,6 +209,11 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     # World clock
     (r"^what('?s| is) (the )?time in .+(\?)?$", "world_clock"),
     (r"^(what time|tell me the time) (?:is it )?in .+(\?)?$", "world_clock"),
+    # Birthday queries (BEFORE countdown to avoid generic "when is" matching)
+    (r"^(when is |how many days until )(\w+('s)? )?birthday(\?)?$", "birthday"),
+    (r"^(\w+('s)? )?birthday(\?)?$", "birthday"),
+    (r"^(when is the |what's the )next birthday(\?)?$", "birthday"),
+    (r"^(upcoming |)birthdays(\?)?$", "birthday"),
     # Sun queries (BEFORE countdown to avoid generic "when is" matching)
     (r"^when (is|does) (sunrise|sunset|dawn|dusk)(\?)?$", "sun"),
     (r"^when does the sun (rise|set)(\?)?$", "sun"),
@@ -397,11 +402,6 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(give me a |)(conversation starter|dinner question|table talk|icebreaker)(\?)?$", "conversation_starter"),
     (r"^(what should we |give me something to )talk about(\?)?$", "conversation_starter"),
     (r"^(family |discussion )question(\?)?$", "conversation_starter"),
-    # Birthday queries
-    (r"^(when is |how many days until )(\w+('s)? )?birthday(\?)?$", "birthday"),
-    (r"^(\w+('s)? )?birthday(\?)?$", "birthday"),
-    (r"^(when is the |what's the )next birthday(\?)?$", "birthday"),
-    (r"^(upcoming |)birthdays(\?)?$", "birthday"),
     # Daily briefing
     (r"^(daily |morning )?briefing(\?)?$", "daily_briefing"),
     (r"^(daily |morning )summary(\?)?$", "daily_briefing"),
