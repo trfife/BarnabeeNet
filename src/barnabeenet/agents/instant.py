@@ -38,6 +38,7 @@ def _load_json_data(filename: str) -> dict:
 
 JOKES_DATA = _load_json_data("jokes.json")
 FUN_FACTS_DATA = _load_json_data("fun_facts.json")
+ANIMAL_SOUNDS_DATA = _load_json_data("animal_sounds.json")
 
 
 # =============================================================================
@@ -687,6 +688,18 @@ class InstantAgent(Agent):
         elif sub_category == "fun_fact" or self._is_fun_fact(text_lower):
             response = self._handle_fun_fact(text)
             response_type = "fun_fact"
+        # Animal sounds
+        elif sub_category == "animal_sound" or self._is_animal_sound(text_lower):
+            response = self._handle_animal_sound(text)
+            response_type = "animal_sound"
+        # Math practice
+        elif sub_category == "math_practice" or self._is_math_practice(text_lower):
+            response = self._handle_math_practice(context)
+            response_type = "math_practice"
+        # Bedtime countdown
+        elif sub_category == "bedtime" or self._is_bedtime_query(text_lower):
+            response = await self._handle_bedtime_countdown(context)
+            response_type = "bedtime"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -841,6 +854,31 @@ class InstantAgent(Agent):
         """Check if user wants a fun fact."""
         fact_keywords = ["tell me a fact", "fun fact", "interesting fact", "tell me something", "did you know"]
         return any(kw in text for kw in fact_keywords)
+
+    def _is_animal_sound(self, text: str) -> bool:
+        """Check if user wants to know an animal sound."""
+        sound_keywords = [
+            "what does a", "what do", "what sound does",
+            "how does a", "what noise does", "sound does a"
+        ]
+        animal_words = ["say", "sound", "noise", "make", "go"]
+        return any(kw in text for kw in sound_keywords) and any(aw in text for aw in animal_words)
+
+    def _is_math_practice(self, text: str) -> bool:
+        """Check if user wants math practice."""
+        math_keywords = [
+            "math problem", "math question", "quiz me", "test me",
+            "give me a math", "practice math", "math practice"
+        ]
+        return any(kw in text for kw in math_keywords)
+
+    def _is_bedtime_query(self, text: str) -> bool:
+        """Check if user is asking about bedtime."""
+        bedtime_keywords = [
+            "how long until bedtime", "when is bedtime", "bedtime countdown",
+            "time until bed", "when do i go to bed", "how much longer until bed"
+        ]
+        return any(kw in text for kw in bedtime_keywords)
 
     # =========================================================================
     # Response Handlers
@@ -1011,6 +1049,159 @@ class InstantAgent(Agent):
         fact = random.choice(facts)
         prefixes = ["Did you know? ", "Here's a fun fact: ", "Fun fact: ", ""]
         return random.choice(prefixes) + fact
+
+    def _handle_animal_sound(self, text: str) -> str:
+        """Tell what sound an animal makes."""
+        text_lower = text.lower()
+        animals = ANIMAL_SOUNDS_DATA.get("animals", {})
+        templates = ANIMAL_SOUNDS_DATA.get("response_templates", ["{animal}s say {sound}"])
+
+        # Find which animal is being asked about
+        found_animal = None
+        for animal in animals.keys():
+            if animal in text_lower:
+                found_animal = animal
+                break
+
+        if not found_animal:
+            return "I'm not sure which animal you're asking about. Try asking about a dog, cat, cow, or another animal!"
+
+        animal_data = animals[found_animal]
+        sound = animal_data.get("sound", "makes a sound")
+
+        template = random.choice(templates)
+        return template.format(animal=found_animal.capitalize(), sound=sound)
+
+    def _handle_math_practice(self, context: dict[str, Any]) -> str:
+        """Generate a math problem appropriate for the speaker's age."""
+        speaker = context.get("speaker", "").lower()
+
+        # Determine difficulty based on speaker (family member profiles)
+        # Default to medium difficulty
+        difficulty = "medium"
+        if speaker in ["viola", "zachary"]:  # Younger kids
+            difficulty = "easy"
+        elif speaker in ["penelope", "xander"]:  # Older kids
+            difficulty = "medium"
+        elif speaker in ["thom", "elizabeth"]:  # Adults
+            difficulty = "hard"
+
+        if difficulty == "easy":
+            # Simple addition/subtraction with small numbers
+            ops = ["+", "-"]
+            a = random.randint(1, 10)
+            b = random.randint(1, 10)
+            if random.choice(ops) == "-":
+                a, b = max(a, b), min(a, b)  # Ensure positive result
+                op, answer = "-", a - b
+            else:
+                op, answer = "+", a + b
+        elif difficulty == "medium":
+            # Addition, subtraction, multiplication
+            ops = ["+", "-", "×"]
+            op = random.choice(ops)
+            if op == "×":
+                a = random.randint(2, 12)
+                b = random.randint(2, 12)
+                answer = a * b
+            elif op == "-":
+                a = random.randint(10, 50)
+                b = random.randint(1, a)
+                answer = a - b
+            else:
+                a = random.randint(10, 50)
+                b = random.randint(10, 50)
+                answer = a + b
+        else:  # hard
+            # Include division and larger numbers
+            ops = ["+", "-", "×", "÷"]
+            op = random.choice(ops)
+            if op == "÷":
+                answer = random.randint(2, 12)
+                b = random.randint(2, 12)
+                a = answer * b
+            elif op == "×":
+                a = random.randint(5, 20)
+                b = random.randint(5, 20)
+                answer = a * b
+            elif op == "-":
+                a = random.randint(50, 200)
+                b = random.randint(1, a)
+                answer = a - b
+            else:
+                a = random.randint(50, 200)
+                b = random.randint(50, 200)
+                answer = a + b
+
+        # Store the answer in session for checking later (future feature)
+        problem = f"What is {a} {op} {b}?"
+        prompts = [
+            f"Here's a math problem for you: {problem}",
+            f"Try this one: {problem}",
+            f"Math time! {problem}",
+            f"Okay, here we go: {problem}",
+        ]
+        return random.choice(prompts)
+
+    async def _handle_bedtime_countdown(self, context: dict[str, Any]) -> str:
+        """Calculate time until bedtime based on speaker's profile."""
+        speaker = context.get("speaker", "").lower()
+        now = datetime.now()
+
+        # Default bedtimes by person (can be overridden by profile)
+        default_bedtimes = {
+            "viola": "19:30",      # 7:30 PM
+            "zachary": "19:30",   # 7:30 PM
+            "penelope": "20:30",  # 8:30 PM
+            "xander": "21:00",    # 9:00 PM
+            "thom": "22:30",      # 10:30 PM
+            "elizabeth": "22:30", # 10:30 PM
+        }
+
+        # Try to get from profile first (future enhancement)
+        # For now, use defaults based on speaker
+        bedtime_str = None
+
+        # Fall back to default
+        if not bedtime_str:
+            bedtime_str = default_bedtimes.get(speaker, "21:00")
+
+        try:
+            # Parse bedtime
+            hour, minute = map(int, bedtime_str.replace("am", "").replace("pm", "").replace(":", " ").split()[:2])
+            if "pm" in bedtime_str.lower() and hour != 12:
+                hour += 12
+            elif "am" in bedtime_str.lower() and hour == 12:
+                hour = 0
+
+            bedtime = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+            # If bedtime has passed today, it's tomorrow's bedtime
+            if now > bedtime:
+                return "It's past bedtime! Time for sleep!"
+
+            # Calculate time remaining
+            delta = bedtime - now
+            hours = delta.seconds // 3600
+            minutes = (delta.seconds % 3600) // 60
+
+            if hours > 0 and minutes > 0:
+                time_str = f"{hours} hour{'s' if hours != 1 else ''} and {minutes} minute{'s' if minutes != 1 else ''}"
+            elif hours > 0:
+                time_str = f"{hours} hour{'s' if hours != 1 else ''}"
+            else:
+                time_str = f"{minutes} minute{'s' if minutes != 1 else ''}"
+
+            responses = [
+                f"You have {time_str} until bedtime!",
+                f"Bedtime is in {time_str}.",
+                f"{time_str} left until bedtime!",
+            ]
+            return random.choice(responses)
+
+        except Exception as e:
+            logger.warning(f"Failed to calculate bedtime: {e}")
+            return "I'm not sure when bedtime is. Ask mom or dad!"
 
     def _is_clear_conversation(self, text: str) -> bool:
         """Check if user wants to clear/reset the conversation."""

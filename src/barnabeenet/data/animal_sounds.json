@@ -1,0 +1,43 @@
+{
+  "animals": {
+    "cow": {"sound": "Moo!", "description": "Cows say moo"},
+    "dog": {"sound": "Woof woof!", "description": "Dogs bark and say woof"},
+    "cat": {"sound": "Meow!", "description": "Cats say meow"},
+    "pig": {"sound": "Oink oink!", "description": "Pigs say oink"},
+    "sheep": {"sound": "Baa!", "description": "Sheep say baa"},
+    "horse": {"sound": "Neigh!", "description": "Horses neigh"},
+    "chicken": {"sound": "Cluck cluck!", "description": "Chickens cluck"},
+    "rooster": {"sound": "Cock-a-doodle-doo!", "description": "Roosters crow cock-a-doodle-doo"},
+    "duck": {"sound": "Quack quack!", "description": "Ducks quack"},
+    "goose": {"sound": "Honk honk!", "description": "Geese honk"},
+    "turkey": {"sound": "Gobble gobble!", "description": "Turkeys gobble"},
+    "lion": {"sound": "Roar!", "description": "Lions roar"},
+    "tiger": {"sound": "Roar!", "description": "Tigers roar"},
+    "elephant": {"sound": "Trumpet!", "description": "Elephants make a trumpeting sound"},
+    "monkey": {"sound": "Ooh ooh ah ah!", "description": "Monkeys make ooh ooh ah ah sounds"},
+    "snake": {"sound": "Hiss!", "description": "Snakes hiss"},
+    "bee": {"sound": "Buzz buzz!", "description": "Bees buzz"},
+    "frog": {"sound": "Ribbit ribbit!", "description": "Frogs say ribbit"},
+    "owl": {"sound": "Hoot hoot!", "description": "Owls hoot"},
+    "wolf": {"sound": "Howl!", "description": "Wolves howl"},
+    "bear": {"sound": "Growl!", "description": "Bears growl"},
+    "mouse": {"sound": "Squeak squeak!", "description": "Mice squeak"},
+    "bird": {"sound": "Tweet tweet!", "description": "Birds tweet and chirp"},
+    "crow": {"sound": "Caw caw!", "description": "Crows caw"},
+    "donkey": {"sound": "Hee-haw!", "description": "Donkeys bray hee-haw"},
+    "goat": {"sound": "Meh!", "description": "Goats say meh or bleat"},
+    "seal": {"sound": "Arf arf!", "description": "Seals bark arf arf"},
+    "dolphin": {"sound": "Click click!", "description": "Dolphins click and whistle"},
+    "whale": {"sound": "Wooo!", "description": "Whales sing low, haunting songs"},
+    "parrot": {"sound": "Squawk!", "description": "Parrots squawk and can mimic speech"},
+    "cricket": {"sound": "Chirp chirp!", "description": "Crickets chirp"},
+    "dinosaur": {"sound": "Rawr!", "description": "Dinosaurs probably roared... Rawr!"},
+    "dragon": {"sound": "Roar! Fire breath!", "description": "Dragons roar and breathe fire!"}
+  },
+  "response_templates": [
+    "A {animal} says {sound}",
+    "{sound} That's what a {animal} says!",
+    "The {animal} goes {sound}",
+    "{animal}s say {sound}"
+  ]
+}

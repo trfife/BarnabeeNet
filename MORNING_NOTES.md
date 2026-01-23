@@ -1,4 +1,5 @@
 # Morning Notes - Overnight Work Session
+
 **Started:** January 22, 2026 (evening)
 **Last Updated:** January 23, 2026 ~3:30 AM
 
@@ -9,6 +10,7 @@ This document tracks all work done overnight and items that need your attention.
 ## Work Completed ✅
 
 ### Sprint 1 Features (Before This Session)
+
 - ✅ Random choices (flip coin, roll dice, pick number, magic 8-ball, yes/no)
 - ✅ Unit conversions (F↔C, cups↔liters, lbs↔kg, inches↔cm, etc.)
 - ✅ World clock (time in Tokyo, London, Paris, etc.)
@@ -20,6 +22,7 @@ This document tracks all work done overnight and items that need your attention.
 ### This Session
 
 #### New Features
+
 - ✅ **Jokes Database** - 70+ jokes in categories: general, dad jokes, knock-knock, riddles, animal, school
   - Commands: "tell me a joke", "tell me a dad joke", "tell me a riddle"
 - ✅ **Fun Facts Database** - 70+ facts in categories: general, space, animals, science, history, food, geography
@@ -27,6 +30,7 @@ This document tracks all work done overnight and items that need your attention.
 - ✅ **Math with Words** - "what's 7 times 8", "5 plus 3", "10 divided by 2"
 
 #### Major Enhancement: Device Capabilities Database
+
 - ✅ Created `device_capabilities.py` module that:
   - Stores device features (dimmable, color, temperature, etc.)
   - Auto-syncs from Home Assistant on startup
@@ -34,6 +38,7 @@ This document tracks all work done overnight and items that need your attention.
   - Tracks supported color modes, HVAC modes, effects, etc.
 
 #### Major Enhancement: Smart Undo System
+
 - ✅ **Previous State Tracking** - Saves entity state BEFORE any action
 - ✅ **State Restoration** - Undo now restores to exact previous state, not just toggle
   - Lights: restores brightness, color, color_temp
@@ -44,6 +49,7 @@ This document tracks all work done overnight and items that need your attention.
 - ✅ **Verified Working** - Turn on/off undo tested and confirmed working with office light
 
 #### Bug Fixes
+
 - ✅ Fixed AttributeError in InstantAgent when used without init()
 - ✅ Fixed undo session state not preserving action history
 - ✅ Fixed time query detection matching "7 times 8" as time query
@@ -56,6 +62,7 @@ This document tracks all work done overnight and items that need your attention.
 ## Items Needing Your Attention 🔔
 
 ### To Implement Later
+
 1. **Self-Improvement Agent Hook for New Devices**
    - When a new device is added to HA, self-improvement agent should:
      - Research the device online
@@ -63,6 +70,7 @@ This document tracks all work done overnight and items that need your attention.
    - This is a nice-to-have, not critical
 
 ### Voice Testing
+
 - [ ] Test jokes via actual voice - ensure TTS sounds natural
 - [ ] Test undo via voice in real conversation flow
 
@@ -71,6 +79,7 @@ This document tracks all work done overnight and items that need your attention.
 ## Test Results Summary 📊
 
 ### Undo System (VERIFIED WORKING)
+
 | Scenario | Result |
 |----------|--------|
 | Turn on light → Undo | ✅ Light turns off |
@@ -78,6 +87,7 @@ This document tracks all work done overnight and items that need your attention.
 | Previous state tracking | ✅ Working |
 
 ### Instant Response Features
+
 | Feature | Status | Response Time |
 |---------|--------|---------------|
 | Time/Date | ✅ | ~350ms |
@@ -96,6 +106,7 @@ This document tracks all work done overnight and items that need your attention.
 | Repeat | ✅ | ~350ms |
 
 ### Unit Tests
+
 - `test_instant_agent.py` - 46 passed ✅
 - `test_meta_agent.py` - 52 passed ✅
 
@@ -120,11 +131,13 @@ This document tracks all work done overnight and items that need your attention.
 ## Files Created/Modified
 
 ### New Files
+
 - `src/barnabeenet/services/device_capabilities.py` - Device capabilities database
 - `src/barnabeenet/data/jokes.json` - Jokes database (70+ jokes)
 - `src/barnabeenet/data/fun_facts.json` - Fun facts database (70+ facts)
 
 ### Modified Files
+
 - `src/barnabeenet/agents/instant.py` - Added jokes, facts, math with words
 - `src/barnabeenet/agents/meta.py` - Added patterns for new features
 - `src/barnabeenet/agents/orchestrator.py` - Enhanced undo with state restoration
@@ -134,8 +147,9 @@ This document tracks all work done overnight and items that need your attention.
 
 ## Deployment Status 🚀
 
-**Current VM State:** 
-- API: http://192.168.86.51:8000
+**Current VM State:**
+
+- API: <http://192.168.86.51:8000>
 - Last deployed: January 23, 2026 ~3:20 AM
 - **All features verified working**
 

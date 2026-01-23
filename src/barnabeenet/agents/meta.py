@@ -240,6 +240,24 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^did you know(\?)?$", "fun_fact"),
     (r"^tell me something (interesting|cool|fun)(\?)?$", "fun_fact"),
     (r"^fact about \w+(\?)?$", "fun_fact"),
+    # Animal sounds
+    (r"^what does a \w+ say(\?)?$", "animal_sound"),
+    (r"^what do \w+s? say(\?)?$", "animal_sound"),
+    (r"^what sound does a \w+ make(\?)?$", "animal_sound"),
+    (r"^how does a \w+ (go|sound)(\?)?$", "animal_sound"),
+    (r"^what noise does a \w+ make(\?)?$", "animal_sound"),
+    # Math practice
+    (r"^(give me a |)math (problem|question)(\?)?$", "math_practice"),
+    (r"^quiz me( on math)?(\?)?$", "math_practice"),
+    (r"^test me( on math)?(\?)?$", "math_practice"),
+    (r"^(math|number) practice(\?)?$", "math_practice"),
+    (r"^practice math(\?)?$", "math_practice"),
+    # Bedtime countdown
+    (r"^(how long|how much time) until bedtime(\?)?$", "bedtime"),
+    (r"^when is (my )?bedtime(\?)?$", "bedtime"),
+    (r"^bedtime countdown(\?)?$", "bedtime"),
+    (r"^how much longer until bed(\?)?$", "bedtime"),
+    (r"^when do i (go to|have to go to) bed(\?)?$", "bedtime"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
