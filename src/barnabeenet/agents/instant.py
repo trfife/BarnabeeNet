@@ -1356,11 +1356,12 @@ class InstantAgent(Agent):
             return f"I don't know who {person_name} is."
 
         try:
-            from barnabeenet.main import app_state
-            if not hasattr(app_state, "ha_client") or not app_state.ha_client:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            ha_client = await get_ha_client()
+            if not ha_client:
                 return f"I can't check {person_name.capitalize()}'s location right now."
 
-            state = await app_state.ha_client.get_state(entity_id)
+            state = await ha_client.get_state(entity_id)
             if not state:
                 return f"I couldn't find location info for {person_name.capitalize()}."
 
