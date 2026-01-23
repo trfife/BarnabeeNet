@@ -5832,7 +5832,9 @@ function renderMemoryCard(memory) {
     };
 
     const icon = typeIcons[memory.memory_type] || '💭';
-    const timestamp = new Date(memory.timestamp).toLocaleString();
+    // Use created_at (API field) or timestamp (legacy) or show fallback
+    const dateStr = memory.created_at || memory.timestamp;
+    const timestamp = dateStr ? new Date(dateStr).toLocaleString() : 'Unknown';
     const participants = memory.participants?.join(', ') || '-';
     const importance = memory.importance ? `${Math.round(memory.importance * 100)}%` : '-';
 
