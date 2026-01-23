@@ -42,6 +42,7 @@ ANIMAL_SOUNDS_DATA = _load_json_data("animal_sounds.json")
 TRIVIA_DATA = _load_json_data("trivia.json")
 WOULD_YOU_RATHER_DATA = _load_json_data("would_you_rather.json")
 ENCOURAGEMENT_DATA = _load_json_data("encouragement.json")
+ACTIVITIES_DATA = _load_json_data("activities.json")
 
 
 # =============================================================================
@@ -693,6 +694,15 @@ class InstantAgent(Agent):
         elif sub_category == "family_digest" or self._is_family_digest_query(text_lower):
             response = await self._handle_family_digest(speaker)
             response_type = "family_digest"
+        # Bored / activity suggestions
+        elif sub_category == "bored" or self._is_bored_query(text_lower)[0]:
+            _, activity_type = self._is_bored_query(text_lower)
+            response = self._handle_bored_query(activity_type)
+            response_type = "bored"
+        # Conversation starters
+        elif sub_category == "conversation_starter" or self._is_conversation_starter_query(text_lower):
+            response = self._handle_conversation_starter()
+            response_type = "conversation_starter"
         # Unit conversions
         elif sub_category == "unit_conversion" or self._is_unit_conversion(text_lower):
             result = self._handle_unit_conversion(text)
@@ -1411,6 +1421,45 @@ class InstantAgent(Agent):
         if text in ["what did i miss", "what did i miss?"]:
             return True
         return False
+
+    def _is_bored_query(self, text: str) -> tuple[bool, str]:
+        """Check if user is bored and wants activity suggestions.
+
+        Returns (is_bored, activity_type).
+        Activity types: 'any', 'indoor', 'outdoor', 'family', 'creative'
+        """
+        text = text.lower()
+
+        bored_keywords = ["bored", "nothing to do", "what should i do", "what can i do",
+                         "give me something to do", "suggest something", "i'm bored",
+                         "any ideas", "activity", "activities"]
+
+        if not any(kw in text for kw in bored_keywords):
+            return False, ""
+
+        # Determine activity type
+        if "outside" in text or "outdoor" in text:
+            return True, "outdoor"
+        if "inside" in text or "indoor" in text:
+            return True, "indoor"
+        if "family" in text or "together" in text:
+            return True, "family"
+        if "creative" in text or "art" in text or "craft" in text:
+            return True, "creative"
+        if "rain" in text:
+            return True, "rainy_day"
+
+        return True, "any"
+
+    def _is_conversation_starter_query(self, text: str) -> bool:
+        """Check if user wants a conversation starter or dinner table question."""
+        text = text.lower()
+        keywords = [
+            "conversation starter", "dinner question", "table talk",
+            "something to talk about", "discussion question",
+            "family question", "get to know", "icebreaker"
+        ]
+        return any(kw in text for kw in keywords)
 
     # =========================================================================
     # Response Handlers
@@ -3030,6 +3079,68 @@ class InstantAgent(Agent):
 
         summary = "Here's what happened today: " + "; ".join(summary_parts) + "."
         return summary
+
+    def _handle_bored_query(self, activity_type: str) -> str:
+        """Suggest an activity for a bored user."""
+        if not ACTIVITIES_DATA:
+            return "How about reading a book, playing a game, or going outside?"
+
+        now = datetime.now()
+        hour = now.hour
+
+        # Build a pool of activities based on type and time
+        activity_pool = []
+
+        if activity_type == "any":
+            # Mix of everything, weighted by time of day
+            if 6 <= hour < 20:  # Daytime
+                activity_pool.extend(ACTIVITIES_DATA.get("outdoor", []))
+            activity_pool.extend(ACTIVITIES_DATA.get("indoor", {}).get("creative", []))
+            activity_pool.extend(ACTIVITIES_DATA.get("indoor", {}).get("active", []))
+            activity_pool.extend(ACTIVITIES_DATA.get("indoor", {}).get("learning", []))
+        elif activity_type == "outdoor":
+            activity_pool = ACTIVITIES_DATA.get("outdoor", [])
+        elif activity_type == "indoor":
+            indoor = ACTIVITIES_DATA.get("indoor", {})
+            for category in indoor.values():
+                activity_pool.extend(category)
+        elif activity_type == "family":
+            activity_pool = ACTIVITIES_DATA.get("family", [])
+        elif activity_type == "creative":
+            activity_pool = ACTIVITIES_DATA.get("indoor", {}).get("creative", [])
+        elif activity_type == "rainy_day":
+            activity_pool = ACTIVITIES_DATA.get("rainy_day", [])
+
+        if not activity_pool:
+            return "How about reading a book or playing a game?"
+
+        activity = random.choice(activity_pool)
+
+        responses = [
+            f"How about this: {activity}",
+            f"Here's an idea: {activity}",
+            f"You could try this: {activity}",
+            f"Why not: {activity}",
+        ]
+        return random.choice(responses)
+
+    def _handle_conversation_starter(self) -> str:
+        """Return a random conversation starter for family time."""
+        if not ACTIVITIES_DATA:
+            return "What was the best part of your day?"
+
+        starters = ACTIVITIES_DATA.get("conversation_starters", [])
+        if not starters:
+            return "What was the best part of your day?"
+
+        starter = random.choice(starters)
+
+        responses = [
+            f"Here's one: {starter}",
+            f"Try this question: {starter}",
+            f"How about: {starter}",
+        ]
+        return random.choice(responses)
 
     def _is_clear_conversation(self, text: str) -> bool:
         """Check if user wants to clear/reset the conversation."""

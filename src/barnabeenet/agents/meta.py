@@ -384,6 +384,16 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(catch me up|fill me in)(\?)?$", "family_digest"),
     (r"^what did i miss(\?)?$", "family_digest"),
     (r"^(family |home )?digest(\?)?$", "family_digest"),
+    # Bored / activity suggestions
+    (r"^i('m| am) bored(\?)?$", "bored"),
+    (r"^(what should i do|what can i do)(\?)?$", "bored"),
+    (r"^(give me |suggest )?(something to do|an activity)(\?)?$", "bored"),
+    (r"^(any |got any )?(ideas|suggestions)(\?)?$", "bored"),
+    (r"^(i have |there's )nothing to do(\?)?$", "bored"),
+    # Conversation starters
+    (r"^(give me a |)(conversation starter|dinner question|table talk|icebreaker)(\?)?$", "conversation_starter"),
+    (r"^(what should we |give me something to )talk about(\?)?$", "conversation_starter"),
+    (r"^(family |discussion )question(\?)?$", "conversation_starter"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
