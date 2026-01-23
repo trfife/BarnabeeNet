@@ -1610,7 +1610,33 @@
         </div>
     </main>
 
-    <script src="/static/app.js?v=2"></script>
+    <!-- Floating Chat Button -->
+    <button id="floating-chat-btn" class="floating-chat-btn" title="Chat with Barnabee">
+        🐝
+    </button>
+
+    <!-- Floating Chat Popup -->
+    <div id="floating-chat-popup" class="floating-chat-popup">
+        <div class="floating-chat-header">
+            <div class="floating-chat-title">
+                <span class="floating-chat-avatar">🐝</span>
+                <span>Chat with Barnabee</span>
+            </div>
+            <button id="floating-chat-close" class="floating-chat-close">&times;</button>
+        </div>
+        <div class="floating-chat-messages" id="floating-chat-messages">
+            <div class="floating-chat-welcome">
+                <p>Hi! I'm Barnabee. How can I help?</p>
+            </div>
+        </div>
+        <div class="floating-chat-input-container">
+            <input type="text" id="floating-chat-input" class="floating-chat-input" 
+                   placeholder="Type a message..." autocomplete="off">
+            <button id="floating-chat-send" class="floating-chat-send">➤</button>
+        </div>
+    </div>
+
+    <script src="/static/app.js?v=3"></script>
 </body>
 
 </html>

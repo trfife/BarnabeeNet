@@ -8722,3 +8722,175 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('analyze-features-btn')?.addEventListener('click', analyzeFeatures);
 });
 
+// =============================================================================
+// Floating Chat Widget
+// =============================================================================
+
+const FloatingChat = {
+    isOpen: false,
+    isLoading: false,
+
+    init() {
+        const btn = document.getElementById('floating-chat-btn');
+        const popup = document.getElementById('floating-chat-popup');
+        const closeBtn = document.getElementById('floating-chat-close');
+        const input = document.getElementById('floating-chat-input');
+        const sendBtn = document.getElementById('floating-chat-send');
+
+        if (!btn || !popup) return;
+
+        // Toggle popup on button click
+        btn.addEventListener('click', () => this.toggle());
+
+        // Close popup
+        closeBtn?.addEventListener('click', () => this.close());
+
+        // Send message on button click
+        sendBtn?.addEventListener('click', () => this.sendMessage());
+
+        // Send message on Enter key
+        input?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.sendMessage();
+            }
+        });
+
+        // Close on click outside
+        document.addEventListener('click', (e) => {
+            if (this.isOpen && 
+                !popup.contains(e.target) && 
+                !btn.contains(e.target)) {
+                this.close();
+            }
+        });
+    },
+
+    toggle() {
+        if (this.isOpen) {
+            this.close();
+        } else {
+            this.open();
+        }
+    },
+
+    open() {
+        const popup = document.getElementById('floating-chat-popup');
+        const btn = document.getElementById('floating-chat-btn');
+        const input = document.getElementById('floating-chat-input');
+
+        popup?.classList.add('open');
+        btn?.classList.add('active');
+        this.isOpen = true;
+
+        // Focus input
+        setTimeout(() => input?.focus(), 100);
+    },
+
+    close() {
+        const popup = document.getElementById('floating-chat-popup');
+        const btn = document.getElementById('floating-chat-btn');
+
+        popup?.classList.remove('open');
+        btn?.classList.remove('active');
+        this.isOpen = false;
+    },
+
+    async sendMessage() {
+        const input = document.getElementById('floating-chat-input');
+        const messagesContainer = document.getElementById('floating-chat-messages');
+        const sendBtn = document.getElementById('floating-chat-send');
+
+        if (!input || !messagesContainer || this.isLoading) return;
+
+        const text = input.value.trim();
+        if (!text) return;
+
+        // Clear input and disable
+        input.value = '';
+        this.isLoading = true;
+        sendBtn.disabled = true;
+
+        // Clear welcome message if present
+        const welcome = messagesContainer.querySelector('.floating-chat-welcome');
+        if (welcome) welcome.remove();
+
+        // Add user message
+        this.addMessage(text, 'user');
+
+        // Add typing indicator
+        const typingId = this.addTypingIndicator();
+
+        try {
+            const response = await fetch(`${API_BASE}/api/v1/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+
+            const data = await response.json();
+
+            // Remove typing indicator
+            this.removeTypingIndicator(typingId);
+
+            if (data.response) {
+                this.addMessage(data.response, 'assistant', data.agent);
+            } else {
+                this.addMessage('Sorry, I encountered an error.', 'assistant');
+            }
+        } catch (error) {
+            console.error('Floating chat error:', error);
+            this.removeTypingIndicator(typingId);
+            this.addMessage('Sorry, I couldn\'t connect. Please try again.', 'assistant');
+        } finally {
+            this.isLoading = false;
+            sendBtn.disabled = false;
+            input.focus();
+        }
+    },
+
+    addMessage(text, role, agent = null) {
+        const messagesContainer = document.getElementById('floating-chat-messages');
+        if (!messagesContainer) return;
+
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `floating-chat-message ${role}`;
+        
+        let html = text;
+        if (agent && role === 'assistant') {
+            html += `<span class="agent-tag">${agent} agent</span>`;
+        }
+        messageDiv.innerHTML = html;
+
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    },
+
+    addTypingIndicator() {
+        const messagesContainer = document.getElementById('floating-chat-messages');
+        if (!messagesContainer) return null;
+
+        const id = 'typing-' + Date.now();
+        const typingDiv = document.createElement('div');
+        typingDiv.id = id;
+        typingDiv.className = 'floating-chat-message assistant typing';
+        typingDiv.textContent = 'Thinking';
+
+        messagesContainer.appendChild(typingDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        return id;
+    },
+
+    removeTypingIndicator(id) {
+        if (!id) return;
+        const typingDiv = document.getElementById(id);
+        if (typingDiv) typingDiv.remove();
+    }
+};
+
+// Initialize floating chat on DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+    FloatingChat.init();
+});
+
