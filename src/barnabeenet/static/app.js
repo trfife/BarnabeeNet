@@ -2306,12 +2306,104 @@ async function loadAgentModels() {
     }
 }
 
+// =============================================================================
+// Model Mode Toggle (Free vs Paid)
+// =============================================================================
+
+async function loadCurrentMode() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/config/mode`);
+        const data = await response.json();
+        updateModeUI(data.mode || 'testing');
+    } catch (e) {
+        console.error('Failed to load mode:', e);
+        updateModeUI('testing'); // Default to free
+    }
+}
+
+function updateModeUI(mode) {
+    const freeBtn = document.getElementById('mode-free-btn');
+    const paidBtn = document.getElementById('mode-paid-btn');
+    const description = document.getElementById('mode-description');
+    const status = document.getElementById('mode-status');
+    
+    if (!freeBtn || !paidBtn) return;
+    
+    // Update button states
+    if (mode === 'testing') {
+        freeBtn.classList.add('btn-primary');
+        freeBtn.classList.remove('btn-secondary');
+        paidBtn.classList.add('btn-secondary');
+        paidBtn.classList.remove('btn-primary');
+        if (description) {
+            description.innerHTML = '<strong>Free Mode</strong> - Using free models from OpenRouter. No API costs, but may have rate limits.';
+        }
+    } else {
+        paidBtn.classList.add('btn-primary');
+        paidBtn.classList.remove('btn-secondary');
+        freeBtn.classList.add('btn-secondary');
+        freeBtn.classList.remove('btn-primary');
+        if (description) {
+            description.innerHTML = '<strong>Paid Mode</strong> - Using premium models (Claude, GPT-4, etc). Better quality, costs apply.';
+        }
+    }
+    
+    if (status) {
+        status.textContent = '';
+    }
+}
+
+async function setModelMode(mode) {
+    const freeBtn = document.getElementById('mode-free-btn');
+    const paidBtn = document.getElementById('mode-paid-btn');
+    const status = document.getElementById('mode-status');
+    
+    // Disable buttons during switch
+    if (freeBtn) freeBtn.disabled = true;
+    if (paidBtn) paidBtn.disabled = true;
+    if (status) status.textContent = 'Switching mode...';
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/config/mode`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            updateModeUI(data.mode);
+            if (status) {
+                status.textContent = `✓ Switched to ${mode === 'testing' ? 'Free' : 'Paid'} mode. ${data.updated_count} activities updated.`;
+                status.style.color = 'var(--accent-green)';
+            }
+            // Reload agent models to show new configuration
+            loadAgentModels();
+            showToast({ title: 'Mode Changed', message: `Now using ${mode === 'testing' ? 'free' : 'paid'} models`, type: 'success' });
+        } else {
+            throw new Error(data.detail || 'Failed to switch mode');
+        }
+    } catch (e) {
+        console.error('Failed to set mode:', e);
+        if (status) {
+            status.textContent = `✗ Error: ${e.message}`;
+            status.style.color = 'var(--accent-red)';
+        }
+        showToast({ title: 'Error', message: e.message, type: 'error' });
+    } finally {
+        if (freeBtn) freeBtn.disabled = false;
+        if (paidBtn) paidBtn.disabled = false;
+    }
+}
+
 function initModelSelection() {
     // Load agent models when models config section is shown
     document.querySelectorAll('.config-nav li').forEach(item => {
         item.addEventListener('click', () => {
             if (item.dataset.config === 'models') {
                 loadAgentModels();
+                loadCurrentMode();
             }
         });
     });
@@ -2320,6 +2412,7 @@ function initModelSelection() {
     const modelsNav = document.querySelector('.config-nav li[data-config="models"]');
     if (modelsNav && modelsNav.classList.contains('active')) {
         loadAgentModels();
+        loadCurrentMode();
     }
 }
 

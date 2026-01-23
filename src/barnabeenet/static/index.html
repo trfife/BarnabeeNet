@@ -704,8 +704,28 @@
                     <!-- Model Selection Section -->
                     <div id="config-models" class="config-section">
                         <h3>🧠 Model Selection</h3>
-                        <p class="section-desc">Each agent uses one model configured in <code>config/llm.yaml</code>.
-                            Edit the config file to change models.</p>
+                        <p class="section-desc">Switch between free and paid models. Free models have no cost but may have rate limits.</p>
+
+                        <!-- Mode Toggle -->
+                        <div class="mode-toggle-card" style="background: var(--bg-tertiary); border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid var(--border-color);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: var(--text-primary);">Model Mode</h4>
+                                    <p style="margin: 0; font-size: 14px; color: var(--text-secondary);" id="mode-description">
+                                        Loading current mode...
+                                    </p>
+                                </div>
+                                <div class="mode-toggle-buttons" style="display: flex; gap: 8px;">
+                                    <button id="mode-free-btn" class="btn mode-btn" onclick="setModelMode('testing')">
+                                        🆓 Free Models
+                                    </button>
+                                    <button id="mode-paid-btn" class="btn mode-btn" onclick="setModelMode('production')">
+                                        💰 Paid Models
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="mode-status" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
+                        </div>
 
                         <div class="agent-models-list" id="agent-models-list">
                             <div class="loading-spinner">Loading agent models...</div>

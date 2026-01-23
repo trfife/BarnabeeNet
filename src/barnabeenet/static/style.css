@@ -301,6 +301,36 @@ body {
     color: var(--text-primary);
 }
 
+/* Mode Toggle Buttons */
+.mode-btn {
+    padding: 10px 20px;
+    font-weight: 500;
+    min-width: 140px;
+    transition: all 0.2s ease;
+}
+
+.mode-btn.btn-primary {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+    box-shadow: 0 2px 8px rgba(0, 212, 255, 0.3);
+}
+
+.mode-btn.btn-secondary {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+
+.mode-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.mode-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 /* Activity Feed */
 .activity-feed {
     max-height: 400px;
