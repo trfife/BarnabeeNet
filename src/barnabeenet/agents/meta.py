@@ -319,7 +319,7 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^what phase is the moon( in)?(\?)?$", "moon"),
     (r"^(moon|lunar) phase tonight(\?)?$", "moon"),
     # Weather queries
-    (r"^(what('s| is) the |)weather(\?)?$", "weather"),
+    (r"^(what'?s the |what is the |)weather(\?)?$", "weather"),
     (r"^(what('s| is) the |)temperature( outside)?(\?)?$", "weather"),
     (r"^how (cold|hot|warm) is it( outside)?(\?)?$", "weather"),
     (r"^(will it|is it going to) rain( today| tomorrow)?(\?)?$", "weather"),
