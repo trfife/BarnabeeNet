@@ -1921,29 +1921,31 @@ TESTING_MODE_MODELS: dict[str, str] = {
     "instant.fallback": "google/gemini-2.0-flash-exp:free",
 }
 
-# Recommended production models (quality + cost balance)
+# Recommended production models (FAST + quality balance)
+# Optimized for sub-second responses while maintaining quality
 PRODUCTION_MODE_MODELS: dict[str, str] = {
-    # MetaAgent - fast/cheap for every request
-    "meta.classify_intent": "deepseek/deepseek-chat",
-    "meta.evaluate_context": "deepseek/deepseek-chat",
-    "meta.generate_queries": "deepseek/deepseek-chat",
-    # ActionAgent - accuracy for device control
+    # MetaAgent - must be ultra-fast (runs on every request)
+    "meta.classify_intent": "openai/gpt-4o-mini",
+    "meta.evaluate_context": "openai/gpt-4o-mini",
+    "meta.generate_queries": "openai/gpt-4o-mini",
+    # ActionAgent - fast + accurate for device control
     "action.parse_intent": "openai/gpt-4o-mini",
     "action.resolve_entities": "openai/gpt-4o-mini",
-    "action.generate_confirm": "deepseek/deepseek-chat",
-    "action.generate_error": "deepseek/deepseek-chat",
-    # InteractionAgent - quality for personality
-    "interaction.respond": "anthropic/claude-3.5-sonnet",
-    "interaction.followup": "anthropic/claude-3.5-sonnet",
-    "interaction.empathy": "anthropic/claude-3.5-sonnet",
-    "interaction.factual": "openai/gpt-4o",
-    # MemoryAgent - good summarization
+    "action.generate_confirm": "openai/gpt-4o-mini",
+    "action.generate_error": "openai/gpt-4o-mini",
+    # InteractionAgent - fast models with good personality
+    # claude-3.5-haiku is fast (~300ms) and great for conversation
+    "interaction.respond": "anthropic/claude-3.5-haiku",
+    "interaction.followup": "anthropic/claude-3.5-haiku",
+    "interaction.empathy": "anthropic/claude-3.5-haiku",
+    "interaction.factual": "openai/gpt-4o-mini",
+    # MemoryAgent - fast summarization
     "memory.generate": "openai/gpt-4o-mini",
     "memory.extract_facts": "openai/gpt-4o-mini",
     "memory.summarize": "openai/gpt-4o-mini",
-    "memory.rank": "deepseek/deepseek-chat",
+    "memory.rank": "openai/gpt-4o-mini",
     # InstantAgent fallback
-    "instant.fallback": "deepseek/deepseek-chat",
+    "instant.fallback": "openai/gpt-4o-mini",
 }
 
 # Redis key for current mode
