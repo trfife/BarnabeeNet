@@ -751,6 +751,15 @@ class InstantAgent(Agent):
         elif sub_category == "moon" or self._is_moon_query(text_lower):
             response = self._handle_moon_query()
             response_type = "moon"
+        # Weather
+        elif sub_category == "weather" or self._is_weather_query(text_lower):
+            response = await self._handle_weather_query(text)
+            response_type = "weather"
+        # Shopping list
+        elif (shopping_result := self._is_shopping_list_query(text_lower))[0]:
+            _, action = shopping_result
+            response = await self._handle_shopping_list(text, action)
+            response_type = "shopping_list"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -1048,6 +1057,35 @@ class InstantAgent(Agent):
         """Check if user is asking about moon phase."""
         keywords = ["moon phase", "phase of the moon", "what phase is the moon", "moon tonight"]
         return any(kw in text for kw in keywords)
+
+    def _is_weather_query(self, text: str) -> bool:
+        """Check if user is asking about weather."""
+        keywords = [
+            "weather", "temperature outside", "how cold", "how hot", "how warm",
+            "will it rain", "is it raining", "going to rain", "need an umbrella",
+            "going to snow", "is it snowing", "forecast", "humid", "humidity"
+        ]
+        return any(kw in text for kw in keywords)
+
+    def _is_shopping_list_query(self, text: str) -> tuple[bool, str]:
+        """Check if user is asking about shopping list.
+        
+        Returns (is_shopping_query, action_type).
+        Action types: 'add', 'read', 'clear', 'remove'
+        """
+        if "shopping list" not in text and "groceries" not in text:
+            return False, ""
+        
+        if any(kw in text for kw in ["add", "put", "need"]):
+            return True, "add"
+        if any(kw in text for kw in ["what's on", "read", "show", "list"]):
+            return True, "read"
+        if any(kw in text for kw in ["clear", "empty", "delete all"]):
+            return True, "clear"
+        if any(kw in text for kw in ["remove", "take off", "cross off"]):
+            return True, "remove"
+        
+        return True, "read"  # Default to read
 
     # =========================================================================
     # Response Handlers
@@ -1669,6 +1707,172 @@ class InstantAgent(Agent):
         except Exception as e:
             logger.warning(f"Failed to get sun info: {e}")
             return "I had trouble checking the sun times."
+
+    async def _handle_weather_query(self, text: str) -> str:
+        """Get weather information from Home Assistant."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't check the weather right now."
+
+            # Try forecast_home first, then outside
+            state = await ha_client.get_state("weather.forecast_home")
+            if not state:
+                state = await ha_client.get_state("weather.outside")
+            if not state:
+                return "I couldn't get the weather information."
+
+            condition = state.state  # e.g., "rainy", "cloudy", "sunny"
+            attrs = state.attributes
+            temp = attrs.get("temperature")
+            temp_unit = attrs.get("temperature_unit", "°F")
+            humidity = attrs.get("humidity")
+            wind_speed = attrs.get("wind_speed")
+            wind_unit = attrs.get("wind_speed_unit", "mph")
+
+            text_lower = text.lower()
+
+            # Specific questions
+            if "rain" in text_lower or "umbrella" in text_lower:
+                if condition in ["rainy", "pouring", "lightning-rainy"]:
+                    return "Yes, it's raining! You'll definitely want an umbrella."
+                elif condition in ["partlycloudy", "cloudy"]:
+                    return "It's cloudy but not raining right now."
+                else:
+                    return "No rain expected right now."
+
+            if "snow" in text_lower:
+                if condition in ["snowy", "snowy-rainy"]:
+                    return "Yes, it's snowing!"
+                else:
+                    return "No snow right now."
+
+            if "temperature" in text_lower or "cold" in text_lower or "hot" in text_lower or "warm" in text_lower:
+                if temp:
+                    return f"It's currently {temp}{temp_unit} outside."
+                return "I couldn't get the temperature."
+
+            if "humid" in text_lower:
+                if humidity:
+                    return f"The humidity is {humidity}%."
+                return "I couldn't get the humidity."
+
+            # General weather query
+            response_parts = []
+            
+            # Condition description
+            condition_map = {
+                "sunny": "sunny",
+                "clear-night": "clear",
+                "partlycloudy": "partly cloudy",
+                "cloudy": "cloudy",
+                "rainy": "rainy",
+                "pouring": "pouring rain",
+                "snowy": "snowing",
+                "fog": "foggy",
+                "windy": "windy",
+                "lightning": "stormy with lightning",
+            }
+            condition_text = condition_map.get(condition, condition)
+            
+            if temp:
+                response_parts.append(f"It's {temp}{temp_unit} and {condition_text}")
+            else:
+                response_parts.append(f"It's {condition_text}")
+
+            if humidity and humidity > 70:
+                response_parts.append(f"with {humidity}% humidity")
+
+            if wind_speed and wind_speed > 10:
+                response_parts.append(f"and wind at {wind_speed} {wind_unit}")
+
+            return ". ".join(response_parts) + "."
+
+        except Exception as e:
+            logger.warning(f"Failed to get weather: {e}")
+            return "I had trouble checking the weather."
+
+    async def _handle_shopping_list(self, text: str, action: str) -> str:
+        """Handle shopping list operations."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't access the shopping list right now."
+
+            if action == "read":
+                # Get shopping list items
+                state = await ha_client.get_state("todo.shopping_list")
+                if not state:
+                    return "I couldn't find the shopping list."
+                
+                # Get items via HA API
+                try:
+                    items_response = await ha_client.call_service(
+                        "todo.get_items",
+                        entity_id="todo.shopping_list"
+                    )
+                    # The items are returned in the response
+                    if items_response and "items" in str(items_response):
+                        # Parse items from response
+                        items = items_response.get("todo.shopping_list", {}).get("items", [])
+                        if not items:
+                            return "The shopping list is empty."
+                        item_names = [item.get("summary", item.get("name", "unknown")) for item in items]
+                        if len(item_names) == 1:
+                            return f"There's 1 item on the shopping list: {item_names[0]}."
+                        return f"There are {len(item_names)} items on the shopping list: {', '.join(item_names[:10])}" + ("..." if len(item_names) > 10 else ".")
+                except Exception:
+                    # Fallback to state count
+                    count = int(state.state) if state.state.isdigit() else 0
+                    if count == 0:
+                        return "The shopping list is empty."
+                    return f"There are {count} items on the shopping list."
+
+            elif action == "add":
+                # Extract item to add
+                item = text.lower()
+                for phrase in ["add", "put", "need", "to the shopping list", "to shopping list", "to my shopping list", "to groceries"]:
+                    item = item.replace(phrase, "")
+                item = item.strip()
+                
+                if not item:
+                    return "What would you like me to add to the shopping list?"
+
+                await ha_client.call_service(
+                    "todo.add_item",
+                    entity_id="todo.shopping_list",
+                    item=item
+                )
+                return f"Added {item} to the shopping list."
+
+            elif action == "clear":
+                # Would need to remove all items - not easily supported
+                return "To clear the shopping list, please use the Home Assistant app."
+
+            elif action == "remove":
+                # Extract item to remove
+                item = text.lower()
+                for phrase in ["remove", "take off", "cross off", "from the shopping list", "from shopping list"]:
+                    item = item.replace(phrase, "")
+                item = item.strip()
+                
+                if not item:
+                    return "What would you like me to remove from the shopping list?"
+
+                await ha_client.call_service(
+                    "todo.remove_item",
+                    entity_id="todo.shopping_list",
+                    item=item
+                )
+                return f"Removed {item} from the shopping list."
+
+            return "I'm not sure what you want me to do with the shopping list."
+
+        except Exception as e:
+            logger.warning(f"Failed to handle shopping list: {e}")
+            return "I had trouble with the shopping list."
 
     def _handle_moon_query(self) -> str:
         """Calculate current moon phase."""

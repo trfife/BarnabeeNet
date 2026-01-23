@@ -7434,8 +7434,8 @@ async function loadSelfImprovementConfig() {
 
 async function saveSelfImprovementModel() {
     // Support both the old and new radio button names
-    const selected = document.querySelector('input[name="si-model-config"]:checked') || 
-                     document.querySelector('input[name="si-model"]:checked');
+    const selected = document.querySelector('input[name="si-model-config"]:checked') ||
+        document.querySelector('input[name="si-model"]:checked');
     if (!selected) return;
 
     try {

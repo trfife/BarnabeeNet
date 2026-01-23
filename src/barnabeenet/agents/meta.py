@@ -296,6 +296,22 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(what('s| is) the |)moon phase(\?)?$", "moon"),
     (r"^what phase is the moon( in)?(\?)?$", "moon"),
     (r"^(moon|lunar) phase tonight(\?)?$", "moon"),
+    # Weather queries
+    (r"^(what('s| is) the |)weather(\?)?$", "weather"),
+    (r"^(what('s| is) the |)temperature( outside)?(\?)?$", "weather"),
+    (r"^how (cold|hot|warm) is it( outside)?(\?)?$", "weather"),
+    (r"^(will it|is it going to) rain(\?)?$", "weather"),
+    (r"^is it raining(\?)?$", "weather"),
+    (r"^do i need (an |)umbrella(\?)?$", "weather"),
+    (r"^(will it|is it going to) snow(\?)?$", "weather"),
+    (r"^is it snowing(\?)?$", "weather"),
+    (r"^(what('s| is) the |)forecast(\?)?$", "weather"),
+    # Shopping list
+    (r"^(add|put) .+ (to |on )(the |my )?(shopping list|groceries)(\?)?$", "shopping_list"),
+    (r"^what('s| is) on (the |my )?(shopping list|groceries)(\?)?$", "shopping_list"),
+    (r"^(read|show)( me)? (the |my )?(shopping list|groceries)(\?)?$", "shopping_list"),
+    (r"^(clear|empty) (the |my )?(shopping list|groceries)(\?)?$", "shopping_list"),
+    (r"^(remove|take off|cross off) .+ (from |off )(the |my )?(shopping list|groceries)(\?)?$", "shopping_list"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
