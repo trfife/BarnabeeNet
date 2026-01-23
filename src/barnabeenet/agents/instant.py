@@ -975,6 +975,9 @@ class InstantAgent(Agent):
         # Exclude birthday queries (handled separately)
         if "birthday" in text:
             return False
+        # Exclude bedtime queries (handled separately)
+        if "bedtime" in text or "bed time" in text:
+            return False
         countdown_keywords = ["days until", "days till", "how long until", "how many days", "when is"]
         return any(kw in text for kw in countdown_keywords)
 

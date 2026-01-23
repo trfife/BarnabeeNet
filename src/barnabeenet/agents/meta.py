@@ -214,6 +214,12 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(\w+('s)? )?birthday(\?)?$", "birthday"),
     (r"^(when is the |what's the )next birthday(\?)?$", "birthday"),
     (r"^(upcoming |)birthdays(\?)?$", "birthday"),
+    # Bedtime countdown (BEFORE countdown to avoid generic "how long until" matching)
+    (r"^(how long|how much time) until bedtime(\?)?$", "bedtime"),
+    (r"^when is (my )?bedtime(\?)?$", "bedtime"),
+    (r"^bedtime countdown(\?)?$", "bedtime"),
+    (r"^how much longer until bed(\?)?$", "bedtime"),
+    (r"^when do i (go to|have to go to) bed(\?)?$", "bedtime"),
     # Sun queries (BEFORE countdown to avoid generic "when is" matching)
     (r"^when (is|does) (sunrise|sunset|dawn|dusk)(\?)?$", "sun"),
     (r"^when does the sun (rise|set)(\?)?$", "sun"),
@@ -270,12 +276,6 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^test me( on math)?(\?)?$", "math_practice"),
     (r"^(math|number) practice(\?)?$", "math_practice"),
     (r"^practice math(\?)?$", "math_practice"),
-    # Bedtime countdown
-    (r"^(how long|how much time) until bedtime(\?)?$", "bedtime"),
-    (r"^when is (my )?bedtime(\?)?$", "bedtime"),
-    (r"^bedtime countdown(\?)?$", "bedtime"),
-    (r"^how much longer until bed(\?)?$", "bedtime"),
-    (r"^when do i (go to|have to go to) bed(\?)?$", "bedtime"),
     # Trivia
     (r"^(ask me a |give me a )?(trivia|quiz) question(\?)?$", "trivia"),
     (r"^trivia( time)?(\?)?$", "trivia"),
