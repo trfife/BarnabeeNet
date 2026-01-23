@@ -68,6 +68,7 @@ This document tracks all work done overnight and items that need your attention.
 | **Family Digest** | "what happened today", "catch me up" | **NEW** - Daily activity summary |
 | **Activity Ideas** | "I'm bored", "what should I do" | **NEW** - 70+ activity suggestions |
 | **Conversation** | "conversation starter", "dinner question" | **NEW** - Family discussion prompts |
+| **Bedtime** | "how long until bedtime" | **NEW** - Age-aware bedtime countdown |
 | **Birthday** | "when is Penelope's birthday" | **NEW** - Family birthday countdown |
 | **Daily Briefing** | "morning briefing", "brief me" | **NEW** - Weather + calendar + birthdays |
 | **Stories** | "tell me a bedtime story" | LLM-generated stories |
@@ -294,6 +295,11 @@ any ideas for a rainy day       # Rainy day activities
 give me a conversation starter  # Family discussion question
 dinner question                 # Same as above
 what should we talk about       # Same as above
+
+# NEW: Bedtime Countdown (age-aware)
+how long until bedtime      # "16 hours and 47 minutes left until bedtime!"
+when is bedtime             # Different times for each family member
+bedtime countdown           # Same as above
 
 # NEW: Birthday Countdown
 when is penelope's birthday     # "Penelope's birthday is May 10. That's 107 days away!"
