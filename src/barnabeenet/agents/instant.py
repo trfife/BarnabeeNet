@@ -43,6 +43,7 @@ TRIVIA_DATA = _load_json_data("trivia.json")
 WOULD_YOU_RATHER_DATA = _load_json_data("would_you_rather.json")
 ENCOURAGEMENT_DATA = _load_json_data("encouragement.json")
 ACTIVITIES_DATA = _load_json_data("activities.json")
+FAMILY_DATA = _load_json_data("family.json")
 
 
 # =============================================================================
@@ -699,6 +700,15 @@ class InstantAgent(Agent):
             _, activity_type = self._is_bored_query(text_lower)
             response = self._handle_bored_query(activity_type)
             response_type = "bored"
+        # Birthday queries
+        elif sub_category == "birthday" or self._is_birthday_query(text_lower)[0]:
+            _, person = self._is_birthday_query(text_lower)
+            response = self._handle_birthday_query(person, speaker)
+            response_type = "birthday"
+        # Daily briefing
+        elif sub_category == "daily_briefing" or self._is_daily_briefing_query(text_lower):
+            response = await self._handle_daily_briefing(speaker)
+            response_type = "daily_briefing"
         # Family digest / what happened today
         elif sub_category == "family_digest" or self._is_family_digest_query(text_lower):
             response = await self._handle_family_digest(speaker)
@@ -1461,6 +1471,51 @@ class InstantAgent(Agent):
             "conversation starter", "dinner question", "table talk",
             "something to talk about", "discussion question",
             "family question", "get to know", "icebreaker"
+        ]
+        return any(kw in text for kw in keywords)
+
+    def _is_birthday_query(self, text: str) -> tuple[bool, str | None]:
+        """Check if user is asking about birthdays.
+
+        Returns (is_birthday_query, person_name).
+        """
+        text = text.lower()
+
+        if "birthday" not in text:
+            return False, ""
+
+        # Family member names
+        family_names = ["thom", "elizabeth", "penelope", "xander", "viola", "zachary",
+                       "mom", "dad", "mommy", "daddy"]
+
+        # Check for specific person
+        for name in family_names:
+            if name in text:
+                # Map mom/dad to actual names
+                if name in ["mom", "mommy"]:
+                    return True, "elizabeth"
+                elif name in ["dad", "daddy"]:
+                    return True, "thom"
+                return True, name
+
+        # Check for "my birthday"
+        if "my birthday" in text:
+            return True, "speaker"
+
+        # Check for "next birthday" or "upcoming birthdays"
+        if any(kw in text for kw in ["next", "upcoming", "soon", "coming up"]):
+            return True, "next"
+
+        return True, None
+
+    def _is_daily_briefing_query(self, text: str) -> bool:
+        """Check if user wants a daily briefing or morning summary."""
+        text = text.lower()
+        keywords = [
+            "daily briefing", "morning briefing", "daily summary",
+            "morning summary", "what do i need to know",
+            "brief me", "give me the rundown", "what's the plan",
+            "what's happening today"
         ]
         return any(kw in text for kw in keywords)
 
@@ -3144,6 +3199,159 @@ class InstantAgent(Agent):
             f"How about: {starter}",
         ]
         return random.choice(responses)
+
+    def _handle_birthday_query(self, person: str | None, speaker: str | None) -> str:
+        """Handle birthday-related queries."""
+        if not FAMILY_DATA:
+            return "I don't have birthday information stored."
+
+        members = FAMILY_DATA.get("members", {})
+        today = date.today()
+
+        def get_next_birthday(birthday_str: str) -> tuple[date, int]:
+            """Calculate next birthday and days until."""
+            bday = datetime.strptime(birthday_str, "%Y-%m-%d").date()
+            next_bday = bday.replace(year=today.year)
+            if next_bday < today:
+                next_bday = next_bday.replace(year=today.year + 1)
+            days_until = (next_bday - today).days
+            return next_bday, days_until
+
+        # Handle specific person
+        if person and person not in ["next", "speaker", None]:
+            if person not in members:
+                return f"I don't have birthday information for {person.title()}."
+
+            member = members[person]
+            birthday_str = member.get("birthday")
+            if not birthday_str:
+                return f"I don't have {member['name']}'s birthday stored."
+
+            next_bday, days_until = get_next_birthday(birthday_str)
+            bday_month_day = next_bday.strftime("%B %d")
+
+            if days_until == 0:
+                return f"Today is {member['name']}'s birthday! Happy Birthday! 🎂"
+            elif days_until == 1:
+                return f"{member['name']}'s birthday is tomorrow ({bday_month_day})! 🎂"
+            else:
+                return f"{member['name']}'s birthday is {bday_month_day}. That's {days_until} days away!"
+
+        # Handle "my birthday"
+        if person == "speaker" and speaker:
+            return self._handle_birthday_query(speaker.lower(), None)
+
+        # Handle "next birthday" or general query
+        if person in ["next", None]:
+            # Find the next upcoming birthday
+            upcoming = []
+            for member_id, member in members.items():
+                birthday_str = member.get("birthday")
+                if birthday_str:
+                    next_bday, days_until = get_next_birthday(birthday_str)
+                    upcoming.append((member["name"], next_bday, days_until))
+
+            # Sort by days until
+            upcoming.sort(key=lambda x: x[2])
+
+            if not upcoming:
+                return "I don't have any birthday information stored."
+
+            # Get the next birthday
+            next_name, next_date, days = upcoming[0]
+            bday_str = next_date.strftime("%B %d")
+
+            if days == 0:
+                return f"Today is {next_name}'s birthday! 🎂"
+            elif days == 1:
+                return f"The next birthday is {next_name}'s, which is tomorrow! 🎂"
+            else:
+                return f"The next birthday is {next_name}'s on {bday_str} ({days} days away)."
+
+        return "I'm not sure whose birthday you're asking about."
+
+    async def _handle_daily_briefing(self, speaker: str | None) -> str:
+        """Generate a comprehensive daily briefing."""
+        from barnabeenet.api.routes.homeassistant import get_ha_client
+
+        parts = []
+        speaker_name = speaker.title() if speaker else "there"
+
+        # Time-appropriate greeting
+        hour = datetime.now().hour
+        if hour < 12:
+            greeting = f"Good morning, {speaker_name}!"
+        elif hour < 17:
+            greeting = f"Good afternoon, {speaker_name}!"
+        else:
+            greeting = f"Good evening, {speaker_name}!"
+        parts.append(greeting)
+
+        try:
+            ha_client = await get_ha_client()
+
+            # Weather
+            weather_state = await ha_client.get_state("weather.forecast_home")
+            if not weather_state:
+                weather_state = await ha_client.get_state("weather.outside")
+
+            if weather_state:
+                temp = weather_state.get("attributes", {}).get("temperature", "?")
+                condition = weather_state.get("state", "unknown")
+                parts.append(f"It's {temp}°F and {condition} outside.")
+
+            # Calendar - today's events
+            calendar_entities = ["calendar.family", "calendar.fife_family"]
+            for cal_entity in calendar_entities:
+                try:
+                    now = datetime.now()
+                    start = now.strftime("%Y-%m-%dT00:00:00")
+                    end = now.strftime("%Y-%m-%dT23:59:59")
+
+                    events = await ha_client.call_service(
+                        "calendar",
+                        "get_events",
+                        {
+                            "entity_id": cal_entity,
+                            "start_date_time": start,
+                            "end_date_time": end,
+                        },
+                        return_response=True,
+                    )
+
+                    if events and cal_entity in events:
+                        event_list = events[cal_entity].get("events", [])
+                        if event_list:
+                            event_names = [e.get("summary", "Event") for e in event_list[:3]]
+                            parts.append(f"Today: {', '.join(event_names)}.")
+                            break
+                except Exception:
+                    continue
+
+        except Exception as e:
+            logger.warning(f"Daily briefing HA error: {e}")
+
+        # Check for upcoming birthdays
+        if FAMILY_DATA:
+            members = FAMILY_DATA.get("members", {})
+            today = date.today()
+            for member_id, member in members.items():
+                birthday_str = member.get("birthday")
+                if birthday_str:
+                    bday = datetime.strptime(birthday_str, "%Y-%m-%d").date()
+                    next_bday = bday.replace(year=today.year)
+                    if next_bday < today:
+                        next_bday = next_bday.replace(year=today.year + 1)
+                    days_until = (next_bday - today).days
+                    if days_until == 0:
+                        parts.append(f"It's {member['name']}'s birthday today! 🎂")
+                    elif days_until <= 7:
+                        parts.append(f"{member['name']}'s birthday is in {days_until} days.")
+
+        if len(parts) == 1:
+            parts.append("Have a great day!")
+
+        return " ".join(parts)
 
     def _is_clear_conversation(self, text: str) -> bool:
         """Check if user wants to clear/reset the conversation."""

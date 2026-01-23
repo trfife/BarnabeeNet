@@ -397,6 +397,17 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(give me a |)(conversation starter|dinner question|table talk|icebreaker)(\?)?$", "conversation_starter"),
     (r"^(what should we |give me something to )talk about(\?)?$", "conversation_starter"),
     (r"^(family |discussion )question(\?)?$", "conversation_starter"),
+    # Birthday queries
+    (r"^(when is |how many days until )(\w+('s)? )?birthday(\?)?$", "birthday"),
+    (r"^(\w+('s)? )?birthday(\?)?$", "birthday"),
+    (r"^(when is the |what's the )next birthday(\?)?$", "birthday"),
+    (r"^(upcoming |)birthdays(\?)?$", "birthday"),
+    # Daily briefing
+    (r"^(daily |morning )?briefing(\?)?$", "daily_briefing"),
+    (r"^(daily |morning )summary(\?)?$", "daily_briefing"),
+    (r"^(brief me|give me the rundown)(\?)?$", "daily_briefing"),
+    (r"^what do i need to know( today)?(\?)?$", "daily_briefing"),
+    (r"^what's (the plan|happening) today(\?)?$", "daily_briefing"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
