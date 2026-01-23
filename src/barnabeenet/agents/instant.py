@@ -781,6 +781,16 @@ class InstantAgent(Agent):
             _, person_name = phone_battery_result
             response = await self._handle_phone_battery_query(person_name, speaker)
             response_type = "phone_battery"
+        # Pet feeding queries
+        elif (pet_result := self._is_pet_feeding_query(text_lower))[0]:
+            _, action, pet_name = pet_result
+            response = await self._handle_pet_feeding(action, pet_name, speaker)
+            response_type = "pet_feeding"
+        # Quick notes
+        elif (note_result := self._is_quick_note_query(text_lower))[0]:
+            _, action, content = note_result
+            response = await self._handle_quick_note(action, content, speaker)
+            response_type = "quick_note"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -1183,6 +1193,88 @@ class InstantAgent(Agent):
             return True, "remove"
 
         return True, "read"  # Default to read
+
+    def _is_pet_feeding_query(self, text: str) -> tuple[bool, str, str | None]:
+        """Check if user is asking about pet feeding.
+
+        Returns (is_pet_query, action_type, pet_name).
+        Action types: 'log', 'check', 'when'
+        """
+        text = text.lower()
+
+        # Common pet names to detect
+        pets = ["dog", "cat", "fish", "hamster", "rabbit", "bird", "guinea pig"]
+
+        # Find which pet is mentioned
+        pet_name = None
+        for pet in pets:
+            if pet in text:
+                pet_name = pet
+                break
+
+        # If no pet mentioned, check for general pet/animal terms
+        if not pet_name and ("pet" in text or "animal" in text):
+            pet_name = "pet"
+
+        if not pet_name:
+            return False, "", None
+
+        # Determine action type (order matters - check most specific first)
+        # When last fed: "when was the dog last fed", "last time the cat was fed"
+        if any(kw in text for kw in ["when was", "when did", "last time", "last fed"]):
+            return True, "when", pet_name
+
+        # Log feeding: "I fed the dog", "fed the cat", "dog has been fed"
+        if any(kw in text for kw in ["i fed", "fed the", "just fed", "has been fed", "was fed", "log"]):
+            return True, "log", pet_name
+
+        # Check if fed: "did anyone feed", "has the dog been fed", "was the cat fed"
+        if any(kw in text for kw in ["did anyone", "did someone", "has the", "was the", "been fed", "feed the"]):
+            return True, "check", pet_name
+
+        return False, "", None
+
+    def _is_quick_note_query(self, text: str) -> tuple[bool, str, str | None]:
+        """Check if user wants to save or retrieve a quick note.
+
+        Returns (is_note_query, action_type, note_content).
+        Action types: 'save', 'list', 'search'
+        """
+        text_lower = text.lower()
+
+        # Save note patterns
+        save_patterns = [
+            r"^note[:\s]+(.+)",  # "note: call dentist"
+            r"^remember[:\s]+(.+)",  # "remember: pick up milk"
+            r"^remind me[:\s]+(.+)",  # "remind me: call mom"
+            r"^make a note[:\s]+(.+)",  # "make a note: meeting at 3"
+            r"^save note[:\s]+(.+)",  # "save note: important stuff"
+        ]
+
+        for pattern in save_patterns:
+            match = re.search(pattern, text_lower)
+            if match:
+                content = match.group(1).strip()
+                return True, "save", content
+
+        # List notes
+        if any(phrase in text_lower for phrase in [
+            "what are my notes",
+            "show my notes",
+            "list my notes",
+            "read my notes",
+            "my notes",
+        ]):
+            return True, "list", None
+
+        # Search notes
+        if "note about" in text_lower or "notes about" in text_lower:
+            # Extract search term
+            match = re.search(r"notes? about\s+(.+)", text_lower)
+            if match:
+                return True, "search", match.group(1).strip()
+
+        return False, "", None
 
     # =========================================================================
     # Response Handlers
@@ -2321,6 +2413,167 @@ class InstantAgent(Agent):
             f"It's a {phase_name} tonight.",
         ]
         return random.choice(responses)
+
+    async def _handle_pet_feeding(
+        self, action: str, pet_name: str | None, speaker: str | None
+    ) -> str:
+        """Handle pet feeding queries - log, check, or query when last fed."""
+        from barnabeenet.main import app_state
+
+        memory_storage = getattr(app_state, "memory_storage", None)
+        if not memory_storage:
+            return "Sorry, I can't access the memory system right now."
+
+        pet_display = pet_name.title() if pet_name and pet_name != "pet" else "the pet"
+        speaker_name = speaker.title() if speaker else "Someone"
+
+        if action == "log":
+            # Store a feeding event
+            now = datetime.now()
+            time_str = now.strftime("%I:%M %p").lstrip("0")
+            content = f"{speaker_name} fed {pet_display} at {time_str} on {now.strftime('%A, %B %d')}."
+
+            await memory_storage.store_memory(
+                content=content,
+                memory_type="episodic",
+                importance=0.6,
+                participants=[speaker] if speaker else [],
+                tags=["pet_feeding", pet_name or "pet", "household"],
+            )
+
+            responses = [
+                f"Got it! I've logged that you fed {pet_display} at {time_str}.",
+                f"Noted! {pet_display} was fed at {time_str}.",
+                f"Thanks for letting me know! {pet_display} fed at {time_str}.",
+            ]
+            return random.choice(responses)
+
+        elif action == "check" or action == "when":
+            # Search for recent feeding events
+            search_query = f"fed {pet_name or 'pet'}"
+            results = await memory_storage.search_memories(
+                query=search_query,
+                memory_type="episodic",
+                max_results=5,
+                min_score=0.3,
+            )
+
+            # Filter to pet feeding tags
+            feeding_results = [
+                (mem, score)
+                for mem, score in results
+                if "pet_feeding" in mem.tags
+            ]
+
+            if not feeding_results:
+                responses = [
+                    f"I don't have any record of {pet_display} being fed recently.",
+                    f"I haven't logged any feeding for {pet_display}. Did someone forget?",
+                    f"No feeding logged for {pet_display}. You might want to check!",
+                ]
+                return random.choice(responses)
+
+            # Get the most recent feeding
+            most_recent = feeding_results[0][0]
+
+            if action == "check":
+                responses = [
+                    f"Yes! {most_recent.content}",
+                    f"According to my records: {most_recent.content}",
+                ]
+            else:  # action == "when"
+                responses = [
+                    f"{most_recent.content}",
+                    f"Last feeding: {most_recent.content}",
+                ]
+            return random.choice(responses)
+
+        return "I'm not sure what you want to do with pet feeding."
+
+    async def _handle_quick_note(
+        self, action: str, content: str | None, speaker: str | None
+    ) -> str:
+        """Handle quick note queries - save, list, or search notes."""
+        from barnabeenet.main import app_state
+
+        memory_storage = getattr(app_state, "memory_storage", None)
+        if not memory_storage:
+            return "Sorry, I can't access the memory system right now."
+
+        speaker_name = speaker.title() if speaker else "User"
+
+        if action == "save" and content:
+            # Store the note
+            now = datetime.now()
+            time_str = now.strftime("%I:%M %p").lstrip("0")
+            full_content = f"Note from {speaker_name} at {time_str}: {content}"
+
+            await memory_storage.store_memory(
+                content=full_content,
+                memory_type="semantic",
+                importance=0.7,
+                participants=[speaker] if speaker else [],
+                tags=["quick_note", "user_note", "reminder"],
+            )
+
+            responses = [
+                f"Got it! I've saved your note: {content}",
+                f"Note saved: {content}",
+                f"I'll remember that: {content}",
+            ]
+            return random.choice(responses)
+
+        elif action == "list":
+            # Get recent notes
+            results = await memory_storage.search_memories(
+                query="note reminder",
+                memory_type="semantic",
+                max_results=10,
+                min_score=0.2,
+            )
+
+            # Filter to notes with our tags
+            notes = [
+                mem
+                for mem, score in results
+                if "quick_note" in mem.tags or "user_note" in mem.tags
+            ]
+
+            if not notes:
+                return "You don't have any saved notes right now."
+
+            # Format recent notes
+            note_list = []
+            for note in notes[:5]:
+                # Extract the note content from the stored format
+                content = note.content
+                if ": " in content:
+                    content = content.split(": ", 1)[1]
+                note_list.append(f"- {content[:50]}{'...' if len(content) > 50 else ''}")
+
+            return f"Here are your recent notes:\n" + "\n".join(note_list)
+
+        elif action == "search" and content:
+            # Search for specific notes
+            results = await memory_storage.search_memories(
+                query=f"note {content}",
+                memory_type="semantic",
+                max_results=5,
+                min_score=0.3,
+            )
+
+            notes = [
+                mem
+                for mem, score in results
+                if "quick_note" in mem.tags or "user_note" in mem.tags
+            ]
+
+            if not notes:
+                return f"I couldn't find any notes about '{content}'."
+
+            return f"Found a note: {notes[0].content}"
+
+        return "I'm not sure what you want to do with your notes."
 
     def _is_clear_conversation(self, text: str) -> bool:
         """Check if user wants to clear/reset the conversation."""

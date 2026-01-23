@@ -346,6 +346,20 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^how much (energy|power)( did we use)? today(\?)?$", "energy"),
     (r"^(energy|power) (today|this month)(\?)?$", "energy"),
     (r"^(energy|power) usage( today| this month)?(\?)?$", "energy"),
+    # Pet feeding queries
+    (r"^(did anyone |did someone |has anyone )fed (the )?\w+(\?)?$", "pet_feeding"),
+    (r"^(i |i'?ve )(fed|just fed) (the )?\w+(\?)?$", "pet_feeding"),
+    (r"^(has |was )(the )?\w+ been fed(\?)?$", "pet_feeding"),
+    (r"^(when was |when did ).*(the )?\w+ (last |)fed(\?)?$", "pet_feeding"),
+    (r"^(log that i fed|log feeding|record feeding) (the )?\w+(\?)?$", "pet_feeding"),
+    (r"^did (the |)(dog|cat|fish|pet) (get |)fed(\?)?$", "pet_feeding"),
+    # Quick notes
+    (r"^note[:\s]+.+$", "quick_note"),
+    (r"^remember[:\s]+.+$", "quick_note"),
+    (r"^remind me[:\s]+.+$", "quick_note"),
+    (r"^(make a|save (a |))note[:\s]+.+$", "quick_note"),
+    (r"^(what are|show|list|read) (my )?notes(\?)?$", "quick_note"),
+    (r"^(my |)notes( about .+)?(\?)?$", "quick_note"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
