@@ -1799,13 +1799,29 @@ class AgentOrchestrator:
     # =========================================================================
 
     def _save_session_state(self, ctx: RequestContext) -> None:
-        """Save session state for undo/repeat functionality."""
+        """Save session state for undo/repeat functionality.
+        
+        Only updates last_actions if actions were actually taken in this request.
+        This prevents undo/repeat commands from clearing the action history.
+        """
         if not ctx.conversation_id:
             return
 
+        existing_state = AgentOrchestrator._session_states.get(ctx.conversation_id)
+        
+        # Determine whether to update actions
+        # If no actions were taken this request, preserve the previous actions
+        # (This allows "undo" command to still access previous actions)
+        if ctx.actions_taken:
+            new_actions = ctx.actions_taken.copy()
+        elif existing_state:
+            new_actions = existing_state.last_actions
+        else:
+            new_actions = []
+
         state = SessionState(
             last_response=ctx.response_text,
-            last_actions=ctx.actions_taken.copy() if ctx.actions_taken else [],
+            last_actions=new_actions,
             last_response_time=datetime.now(),
         )
         AgentOrchestrator._session_states[ctx.conversation_id] = state
