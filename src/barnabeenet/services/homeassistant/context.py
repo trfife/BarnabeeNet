@@ -133,7 +133,7 @@ class HAContextService:
                 # In that case, we'll use refresh_entities() which uses REST API
                 # If the registry already has entities from REST API, we can use those instead
                 registry_already_has_entities = len(list(ha_client._entity_registry.all())) > 0
-                
+
                 entity_registry_data = await ha_client._ws_command("config/entity_registry/list")
                 if not entity_registry_data:
                     logger.warning("No entity registry data from HA WebSocket - entity registry may be too large")

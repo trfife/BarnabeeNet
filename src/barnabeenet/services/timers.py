@@ -151,17 +151,17 @@ WORD_NUMBERS = {
 def word_to_number(text: str) -> int | None:
     """Convert word number to int (e.g., 'five' -> 5, 'twenty five' -> 25)."""
     text = text.lower().strip()
-    
+
     # Try direct match
     if text in WORD_NUMBERS:
         return WORD_NUMBERS[text]
-    
+
     # Try as integer
     try:
         return int(text)
     except ValueError:
         pass
-    
+
     # Try compound numbers like "twenty five"
     parts = text.replace("-", " ").split()
     if len(parts) == 2:
@@ -170,7 +170,7 @@ def word_to_number(text: str) -> int | None:
         if first is not None and second is not None:
             if first >= 20 and second < 10:
                 return first + second
-    
+
     return None
 
 

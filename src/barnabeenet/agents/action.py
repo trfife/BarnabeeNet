@@ -1041,10 +1041,13 @@ If you cannot parse the request, respond with:
                         logger.info("Resolved '%s' to entity_id: %s for delayed action", entity_name, resolved_entity_id)
                     else:
                         # Try without domain restriction - use async version
+                        logger.warning("No candidates found for '%s' in domain '%s' or alternatives, trying without domain restriction", entity_name, domain)
                         entity = await orchestrator._ha_client.resolve_entity_async(entity_name, None)
                         if entity:
                             resolved_entity_id = entity.entity_id
                             logger.info("Resolved '%s' to entity_id: %s (no domain restriction) for delayed action", entity_name, resolved_entity_id)
+                        else:
+                            logger.warning("Entity resolution failed for '%s', using placeholder: %s", entity_name, resolved_entity_id)
 
                 on_complete = {
                     "service": service,
@@ -1094,6 +1097,7 @@ If you cannot parse the request, respond with:
                         logger.info("Resolved '%s' to entity_id: %s (domain: %s -> %s) for timer action", entity_name, resolved_entity_id, domain, actual_domain)
                     else:
                         # Try without domain restriction - use async version
+                        logger.warning("No candidates found for '%s' in domain '%s' or alternatives, trying without domain restriction", entity_name, domain)
                         entity = await orchestrator._ha_client.resolve_entity_async(entity_name, None)
                         if entity:
                             resolved_entity_id = entity.entity_id
