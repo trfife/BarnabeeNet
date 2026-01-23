@@ -798,6 +798,10 @@ class InstantAgent(Agent):
         # Avoid matching "times" (as in multiplication)
         if "times" in text and any(c.isdigit() for c in text):
             return False
+        # Exclude sun-related queries
+        sun_words = ["sunrise", "sunset", "dawn", "dusk"]
+        if any(sw in text for sw in sun_words):
+            return False
         time_keywords = ["what time", "the time", "clock", "o'clock"]
         return any(kw in text for kw in time_keywords)
 
