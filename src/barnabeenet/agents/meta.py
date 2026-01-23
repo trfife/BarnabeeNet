@@ -174,6 +174,14 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^thank(s| you).*$", "thanks"),
     # Mic check / test queries
     (r"^(can you hear me|do you hear me|are you there|testing)(\?)?$", "mic_check"),
+    # Clear conversation / Start fresh commands
+    (r"^start\s*fresh$", "clear_conversation"),
+    (r"^forget\s+this\s+conversation$", "clear_conversation"),
+    (r"^clear\s+(the\s+)?conversation$", "clear_conversation"),
+    (r"^new\s+conversation$", "clear_conversation"),
+    (r"^reset\s+(our\s+)?(conversation|chat)$", "clear_conversation"),
+    (r"^let'?s?\s+start\s+over$", "clear_conversation"),
+    (r"^wipe\s+(the\s+)?slate\s+clean$", "clear_conversation"),
     (r"^test(ing)?( 1 2 3)?(\?)?$", "mic_check"),
     (r"^(is this|this is|am i) (working|on)(\?)?$", "mic_check"),
     # Spelling queries
@@ -290,6 +298,25 @@ QUERY_PATTERNS: list[tuple[str, str]] = [
     (r"^(when|where) .*$", "query"),
 ]
 
+# Conversation patterns - for complex interactions that need InteractionAgent
+CONVERSATION_PATTERNS: list[tuple[str, str]] = [
+    # Super user / Audit log access (parents only)
+    (r"^show\s+(me\s+)?(all|the)\s+(audit\s+)?(logs?|conversations?|history)$", "audit_access"),
+    (r"^(what\s+did\s+)?(everyone|the\s+kids?|they)\s+(say|talk\s+about|discuss)$", "audit_access"),
+    (r"^show\s+(me\s+)?deleted\s+(conversations?|messages?)$", "audit_access"),
+    (r"^(parent(al)?|audit)\s+(access|log|mode)$", "audit_access"),
+    (r"^full\s+(history|log|access)$", "audit_access"),
+    # Cross-device handoff
+    (r"^continue\s+(the\s+)?conversation\s+.*(on|from)\s+.*$", "handoff"),
+    (r"^pick\s+up\s+(where\s+I\s+left\s+off\s+)?(on|from)\s+.*$", "handoff"),
+    (r"^(what\s+was\s+I|were\s+we)\s+(talking|discussing)\s+about\s+(on|in)\s+.*$", "handoff"),
+    (r"^resume\s+(my\s+)?(conversation\s+)?(from\s+)?(the\s+)?.*$", "handoff"),
+    # Recall with expansion
+    (r"^tell\s+me\s+more$", "expand_recall"),
+    (r"^more\s+details?$", "expand_recall"),
+    (r"^(expand|full\s+conversation)$", "expand_recall"),
+]
+
 MEMORY_PATTERNS: list[tuple[str, str]] = [
     # Explicit store commands
     (r"^remember (that )?.*$", "store"),
@@ -300,6 +327,10 @@ MEMORY_PATTERNS: list[tuple[str, str]] = [
     ),
     (r"^make a note (that )?.*$", "store"),
     (r"^don'?t forget (that )?.*$", "store"),
+    # Forget/delete memory commands (route to conversation for handling)
+    (r"^forget\s+about\s+.*conversation$", "forget"),
+    (r"^forget\s+that$", "forget"),
+    (r"^delete\s+(that|this)\s+(conversation|memory)$", "forget"),
     # Factual statements about preferences/information (implicit store)
     (r"^(my|our|\w+'s) (favorite|favourite) .+ (is|are) .+$", "store"),
     (r"^(the )?(secret|password|code|pin) (word )?(is|are) .+$", "store"),
@@ -488,6 +519,7 @@ class MetaAgent(Agent):
                 "self_improvement": [
                     (re.compile(p, re.IGNORECASE), c) for p, c in SELF_IMPROVEMENT_PATTERNS
                 ],
+                "conversation": [(re.compile(p, re.IGNORECASE), c) for p, c in CONVERSATION_PATTERNS],
                 "action": [(re.compile(p, re.IGNORECASE), c) for p, c in ACTION_PATTERNS],
                 "memory": [(re.compile(p, re.IGNORECASE), c) for p, c in MEMORY_PATTERNS],
                 "query": [(re.compile(p, re.IGNORECASE), c) for p, c in QUERY_PATTERNS],

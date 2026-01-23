@@ -224,7 +224,7 @@ class InstantAgent(Agent):
         response_type: str
 
         # First, check for clear conversation commands
-        if self._is_clear_conversation(text_lower):
+        if sub_category == "clear_conversation" or self._is_clear_conversation(text_lower):
             response = await self._handle_clear_conversation(context)
             response_type = "clear_conversation"
         # Check if this is a continuation of a letter-by-letter spelling session
