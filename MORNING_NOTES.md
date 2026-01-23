@@ -1,7 +1,6 @@
 # Morning Notes - Overnight Work Session
-
 **Started:** January 22, 2026 (evening)
-**Last Updated:** January 23, 2026 ~3:30 AM
+**Last Updated:** January 23, 2026 ~4:00 AM
 
 This document tracks all work done overnight and items that need your attention.
 
@@ -10,7 +9,6 @@ This document tracks all work done overnight and items that need your attention.
 ## Work Completed ✅
 
 ### Sprint 1 Features (Before This Session)
-
 - ✅ Random choices (flip coin, roll dice, pick number, magic 8-ball, yes/no)
 - ✅ Unit conversions (F↔C, cups↔liters, lbs↔kg, inches↔cm, etc.)
 - ✅ World clock (time in Tokyo, London, Paris, etc.)
@@ -22,93 +20,79 @@ This document tracks all work done overnight and items that need your attention.
 ### This Session
 
 #### New Features
-
 - ✅ **Jokes Database** - 70+ jokes in categories: general, dad jokes, knock-knock, riddles, animal, school
-  - Commands: "tell me a joke", "tell me a dad joke", "tell me a riddle"
 - ✅ **Fun Facts Database** - 70+ facts in categories: general, space, animals, science, history, food, geography
-  - Commands: "tell me a fun fact", "tell me a fact about space"
 - ✅ **Math with Words** - "what's 7 times 8", "5 plus 3", "10 divided by 2"
+- ✅ **Animal Sounds** - "what does a cow say" -> "Moo!"
+  - 30+ animals with sounds (cow, dog, cat, lion, elephant, monkey, etc.)
+  - Great for young kids
+- ✅ **Math Practice** - "give me a math problem"
+  - Difficulty adjusted by speaker (easier for younger kids)
+  - Addition, subtraction, multiplication, division
+- ✅ **Bedtime Countdown** - "how long until bedtime"
+  - Default bedtimes per family member
+  - Returns time remaining until bedtime
 
 #### Major Enhancement: Device Capabilities Database
-
 - ✅ Created `device_capabilities.py` module that:
   - Stores device features (dimmable, color, temperature, etc.)
   - Auto-syncs from Home Assistant on startup
   - Persists to JSON file
-  - Tracks supported color modes, HVAC modes, effects, etc.
 
 #### Major Enhancement: Smart Undo System
-
 - ✅ **Previous State Tracking** - Saves entity state BEFORE any action
-- ✅ **State Restoration** - Undo now restores to exact previous state, not just toggle
+- ✅ **State Restoration** - Undo restores to exact previous state
   - Lights: restores brightness, color, color_temp
   - Climate: restores temperature, HVAC mode, fan mode
   - Covers: restores position
   - Timers: restarts if cancelled, cancels if started
-- ✅ **Entity Resolution Fix** - Action_spec now always updated with resolved entity_id
-- ✅ **Verified Working** - Turn on/off undo tested and confirmed working with office light
-
-#### Bug Fixes
-
-- ✅ Fixed AttributeError in InstantAgent when used without init()
-- ✅ Fixed undo session state not preserving action history
-- ✅ Fixed time query detection matching "7 times 8" as time query
-- ✅ Fixed "repeat that" pattern matching
-- ✅ Fixed HA service call format (must use "domain.service" format)
-- ✅ Fixed entity resolution not updating action_spec
+- ✅ **Verified Working** - Turn on/off undo tested and confirmed
 
 ---
 
 ## Items Needing Your Attention 🔔
 
-### To Implement Later
+### Optional Future Enhancements
+1. **Weather Integration** - Would need API key (OpenWeatherMap or similar)
+2. **Self-Improvement Agent Hook** - Auto-research new devices
 
-1. **Self-Improvement Agent Hook for New Devices**
-   - When a new device is added to HA, self-improvement agent should:
-     - Research the device online
-     - Add capability notes to the database
-   - This is a nice-to-have, not critical
-
-### Voice Testing
-
-- [ ] Test jokes via actual voice - ensure TTS sounds natural
-- [ ] Test undo via voice in real conversation flow
+### Voice Testing Recommended
+- [ ] Test animal sounds via voice - kids will love these!
+- [ ] Test math practice via voice
+- [ ] Test bedtime countdown via voice
 
 ---
 
 ## Test Results Summary 📊
 
-### Undo System (VERIFIED WORKING)
-
-| Scenario | Result |
-|----------|--------|
-| Turn on light → Undo | ✅ Light turns off |
-| Turn off light → Undo | ✅ Light turns on |
-| Previous state tracking | ✅ Working |
+### All Features Working (Live Verified)
+| Feature | Example | Response |
+|---------|---------|----------|
+| Animal sounds | "what does a cow say" | "Moo!" |
+| Math practice | "give me a math problem" | "What is 8 - 6?" |
+| Bedtime countdown | "bedtime countdown" | "17 hours until bedtime!" |
+| Jokes | "tell me a joke" | Random joke |
+| Fun facts | "tell me a fun fact" | Random fact |
+| Undo | "undo" | Restores previous state |
 
 ### Instant Response Features
+All responses under 400ms for instant features.
 
-| Feature | Status | Response Time |
-|---------|--------|---------------|
-| Time/Date | ✅ | ~350ms |
-| Greetings | ✅ | ~340ms |
-| Math (symbols: 5+3) | ✅ | ~350ms |
-| Math (words: 7 times 8) | ✅ | ~350ms |
-| Random (coin, dice, d20) | ✅ | ~350ms |
-| Unit conversion | ✅ | ~380ms |
-| World clock | ✅ | ~378ms |
-| Countdown | ✅ | ~370ms |
-| Counting | ✅ | ~350ms |
-| Jokes | ✅ | ~370ms |
-| Riddles | ✅ | ~370ms |
-| Fun facts | ✅ | ~365ms |
-| Spelling | ✅ | ~350ms |
-| Repeat | ✅ | ~350ms |
+---
 
-### Unit Tests
+## Files Created This Session
 
-- `test_instant_agent.py` - 46 passed ✅
-- `test_meta_agent.py` - 52 passed ✅
+### New Files
+- `src/barnabeenet/services/device_capabilities.py` - Device capabilities database
+- `src/barnabeenet/data/jokes.json` - Jokes database (70+ jokes)
+- `src/barnabeenet/data/fun_facts.json` - Fun facts database (70+ facts)
+- `src/barnabeenet/data/animal_sounds.json` - Animal sounds (30+ animals)
+
+### Modified Files
+- `src/barnabeenet/agents/instant.py` - Added all new features
+- `src/barnabeenet/agents/meta.py` - Added patterns for new features
+- `src/barnabeenet/agents/orchestrator.py` - Enhanced undo with state restoration
+- `src/barnabeenet/main.py` - Added device capabilities sync on startup
 
 ---
 
@@ -117,40 +101,23 @@ This document tracks all work done overnight and items that need your attention.
 1. `7bbf3dd` - Add jokes and fun facts database
 2. `a8883d0` - Fix math detection for word-based operators
 3. `6b1c20c` - Code cleanup: remove unused imports and variables
-4. `b9570a4` - Fix undo not tracking actions - preserve action history
-5. `2441301` - Add debug logging to undo functionality
-6. `3f0763d` - Add INFO level logging for undo debugging
-7. `826d3af` - Update morning notes with entity resolution bug finding
-8. `54c7523` - Add MetaAgent patterns for word-based math and category facts
-9. `e0b1e3c` - Add device capabilities DB and enhanced undo with state restore
-10. `c756f81` - Fix undo: use correct get_state method and always update entity_id
-11. `41aa693` - Fix HA service calls to use 'domain.service' format
-
----
-
-## Files Created/Modified
-
-### New Files
-
-- `src/barnabeenet/services/device_capabilities.py` - Device capabilities database
-- `src/barnabeenet/data/jokes.json` - Jokes database (70+ jokes)
-- `src/barnabeenet/data/fun_facts.json` - Fun facts database (70+ facts)
-
-### Modified Files
-
-- `src/barnabeenet/agents/instant.py` - Added jokes, facts, math with words
-- `src/barnabeenet/agents/meta.py` - Added patterns for new features
-- `src/barnabeenet/agents/orchestrator.py` - Enhanced undo with state restoration
-- `src/barnabeenet/main.py` - Added device capabilities sync on startup
+4. `b9570a4` - Fix undo not tracking actions
+5. `2441301` - Add debug logging to undo
+6. `3f0763d` - Add INFO level logging for undo
+7. `826d3af` - Update morning notes
+8. `54c7523` - Add MetaAgent patterns for word-based math
+9. `e0b1e3c` - Add device capabilities DB and enhanced undo
+10. `c756f81` - Fix undo: use correct get_state method
+11. `41aa693` - Fix HA service calls format
+12. `ce9a3d1` - Add animal sounds, math practice, and bedtime countdown
 
 ---
 
 ## Deployment Status 🚀
 
 **Current VM State:**
-
-- API: <http://192.168.86.51:8000>
-- Last deployed: January 23, 2026 ~3:20 AM
+- API: http://192.168.86.51:8000
+- Last deployed: January 23, 2026 ~4:00 AM
 - **All features verified working**
 
 ---
@@ -158,29 +125,59 @@ This document tracks all work done overnight and items that need your attention.
 ## Sample Commands for Testing
 
 ```bash
-# Jokes
+# Animal Sounds (great for young kids!)
+what does a cow say          # "Moo!"
+what sound does a dog make   # "Woof woof!"
+what does a lion say         # "Roar!"
+what does an elephant say    # "Trumpet!"
+what does a monkey say       # "Ooh ooh ah ah!"
+
+# Math Practice (difficulty by age)
+give me a math problem
+quiz me on math
+test me on math
+
+# Bedtime Countdown
+how long until bedtime
+bedtime countdown
+when is bedtime
+
+# Jokes & Facts
 tell me a joke
 tell me a dad joke
-tell me a knock knock joke
 tell me a riddle
-
-# Fun Facts
 tell me a fun fact
 tell me a fact about space
-tell me something interesting
-
-# Math (with words)
-what's 7 times 8
-5 plus 3
-100 divided by 4
 
 # Undo (WORKING!)
 turn on the office light
 undo                        # Light turns off
-turn off the office light
-undo                        # Light turns on
 
-# Repeat
-say that again
-repeat that
+# Other instant features
+flip a coin
+roll a dice
+what's 7 times 8
+how many days until christmas
+spell dinosaur
 ```
+
+---
+
+## Family-Specific Features
+
+### Bedtime Defaults
+| Person | Bedtime |
+|--------|---------|
+| Viola | 7:30 PM |
+| Zachary | 7:30 PM |
+| Penelope | 8:30 PM |
+| Xander | 9:00 PM |
+| Thom | 10:30 PM |
+| Elizabeth | 10:30 PM |
+
+### Math Practice Difficulty
+| Person | Difficulty | Operations |
+|--------|------------|------------|
+| Viola, Zachary | Easy | +, - (small numbers) |
+| Penelope, Xander | Medium | +, -, × |
+| Thom, Elizabeth | Hard | +, -, ×, ÷ (large numbers) |
