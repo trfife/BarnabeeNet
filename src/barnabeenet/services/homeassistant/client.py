@@ -1125,13 +1125,20 @@ class HomeAssistantClient:
         # This prevents the "empty registry" issue from recurring
         # Only check if registry is empty (don't refresh if it has entities to avoid loops)
         entity_count = len(list(self._entity_registry.all()))
+        logger.info("[RESOLVE] resolve_entity_async('%s', domain='%s') - registry has %d entities", name, domain, entity_count)
         if entity_count == 0:
+            logger.info("[RESOLVE] Registry empty, loading entities...")
             await self.ensure_entities_loaded()
+            entity_count = len(list(self._entity_registry.all()))
+            logger.info("[RESOLVE] After loading: %d entities", entity_count)
 
         # First try with existing registry
         entity = self._entity_registry.find_by_name(name, domain)
         if entity:
+            logger.info("[RESOLVE] Found '%s' in domain '%s': %s (friendly_name: %s)", name, domain, entity.entity_id, entity.friendly_name)
             return entity
+        else:
+            logger.info("[RESOLVE] No match for '%s' in domain '%s' - will try refresh", name, domain)
 
         # If not found, refresh metadata to ensure we have the latest entity list
         # This addresses the performance optimization issue where entity registry
