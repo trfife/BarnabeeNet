@@ -59,6 +59,7 @@ This document tracks all work done overnight and items that need your attention.
 | **Calendar** | "what's on my calendar" | **NEW** - Uses HA calendar entities |
 | **Energy** | "how much energy are we using" | **NEW** - Uses HA energy sensors |
 | **Phone Battery** | "is Xander's phone charged" | **NEW** - Uses HA device trackers |
+| **Security** | "is the front door locked" | **NEW** - Locks and blinds status |
 
 ### Major Enhancements
 
@@ -221,6 +222,11 @@ how's the solar                 # Shows current solar production vs usage
 is elizabeth's phone charged    # "Elizabeth's phone is at 95%. Looking good!"
 phone batteries                 # Lists all phones with battery data
 what's my phone battery         # Uses speaker context
+
+# NEW: Security Status
+is the front door locked        # "The front door is locked."
+are any blinds open             # "One blind is open: Playroom Left."
+security check                  # Overview of locks and blinds
 
 # Previous Features
 flip a coin
