@@ -1116,22 +1116,23 @@ class InstantAgent(Agent):
         
         Returns (is_query, person_name).
         """
-        if "battery" not in text and "charged" not in text and "charge" not in text:
+        battery_words = ["battery", "batteries", "charged", "charge"]
+        if not any(kw in text for kw in battery_words):
             return False, None
         if "phone" not in text:
             return False, None
-        
+
         # Extract person name
         text_lower = text.lower()
         family_names = ["thom", "elizabeth", "xander", "viola", "penelope", "zachary"]
         for name in family_names:
             if name in text_lower or f"{name}'s" in text_lower:
                 return True, name
-        
+
         # Check for "my phone"
         if "my phone" in text_lower:
             return True, "speaker"
-        
+
         return True, None  # Generic phone battery query
 
     def _is_shopping_list_query(self, text: str) -> tuple[bool, str]:
@@ -1898,10 +1899,10 @@ class InstantAgent(Agent):
                             return f"{name_display}'s phone is at {battery}%. Might want to charge it soon."
                         else:
                             return f"{name_display}'s phone is at {battery}%! It needs to be charged!"
-                    return f"I couldn't get battery info for {person_name.title()}'s phone."
+                    return f"Battery info isn't available for {person_name.title()}'s phone. The companion app might need to be set up."
                 return f"I couldn't find {person_name.title()}'s phone."
 
-            # No specific person - list all phones
+            # No specific person - list all phones with battery data
             results = []
             for name, entity_id in name_to_entity.items():
                 state = await ha_client.get_state(entity_id)
@@ -1912,7 +1913,7 @@ class InstantAgent(Agent):
 
             if results:
                 return "Phone batteries: " + ", ".join(results) + "."
-            return "I couldn't get phone battery information."
+            return "No phone battery data is available. The companion app needs to be set up to report battery levels."
 
         except Exception as e:
             logger.warning(f"Failed to get phone battery: {e}")
