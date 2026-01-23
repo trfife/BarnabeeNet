@@ -523,12 +523,21 @@ class InteractionAgent(Agent):
 
         Checks memory first, then Redis, then creates new.
         Persists to Redis for survival across restarts.
+
+        IMPORTANT: Speaker and room are ALWAYS updated from the current request
+        to ensure proper access control (e.g., child vs parent permissions).
         """
         conv_id = ctx.get("conversation_id") or f"conv_{id(ctx)}"
 
         # Check in-memory cache first
         if conv_id in self._conversations:
             conv_ctx = self._conversations[conv_id]
+            # ALWAYS update speaker and room from current request for security
+            # Different family members may use the same device
+            if ctx.get("speaker"):
+                conv_ctx.speaker = ctx["speaker"]
+            if ctx.get("room"):
+                conv_ctx.room = ctx["room"]
             # Update with any new context
             if ctx.get("retrieved_memories"):
                 conv_ctx.retrieved_memories = ctx["retrieved_memories"]
@@ -541,6 +550,11 @@ class InteractionAgent(Agent):
         # Try to load from Redis (for server restart recovery)
         conv_ctx = await self._load_context_from_redis(conv_id)
         if conv_ctx:
+            # ALWAYS update speaker and room from current request for security
+            if ctx.get("speaker"):
+                conv_ctx.speaker = ctx["speaker"]
+            if ctx.get("room"):
+                conv_ctx.room = ctx["room"]
             # Update with new context from this request
             if ctx.get("retrieved_memories"):
                 conv_ctx.retrieved_memories = ctx["retrieved_memories"]

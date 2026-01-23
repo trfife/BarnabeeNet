@@ -468,7 +468,7 @@ async function loadActivityHistory() {
         if (existingCount > 5) return;
 
         // Add historical items (oldest first so newest end up at bottom)
-        const sortedActivities = [...data.activities].sort((a, b) => 
+        const sortedActivities = [...data.activities].sort((a, b) =>
             new Date(a.timestamp) - new Date(b.timestamp)
         );
 
