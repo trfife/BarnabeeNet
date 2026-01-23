@@ -449,15 +449,22 @@ function initActivityControls() {
         });
     }
 
-    document.getElementById('clear-activity').addEventListener('click', () => {
-        document.getElementById('activity-feed').innerHTML = '';
-        // Also clear localStorage cache
-        localStorage.removeItem('barnabeenet_activity_cache');
-    });
+    const clearBtn = document.getElementById('clear-activity');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            const feed = document.getElementById('activity-feed');
+            if (feed) feed.innerHTML = '';
+            // Also clear localStorage cache
+            localStorage.removeItem('barnabeenet_activity_cache');
+        });
+    }
 
-    document.getElementById('auto-scroll').addEventListener('change', (e) => {
-        autoScroll = e.target.checked;
-    });
+    const autoScrollEl = document.getElementById('auto-scroll');
+    if (autoScrollEl) {
+        autoScrollEl.addEventListener('change', (e) => {
+            autoScroll = e.target.checked;
+        });
+    }
 
     // Load cached activity from localStorage on init
     loadCachedActivity();
@@ -1394,15 +1401,21 @@ function escapeHtml(str) {
 // =============================================================================
 
 function initTraceModal() {
-    document.getElementById('close-modal').addEventListener('click', () => {
-        document.getElementById('trace-modal').style.display = 'none';
-    });
+    // Trace modal elements may not exist if traces section is removed
+    const closeBtn = document.getElementById('close-modal');
+    const modal = document.getElementById('trace-modal');
+    
+    if (closeBtn && modal) {
+        closeBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
 
-    document.getElementById('trace-modal').addEventListener('click', (e) => {
-        if (e.target.id === 'trace-modal') {
-            document.getElementById('trace-modal').style.display = 'none';
-        }
-    });
+        modal.addEventListener('click', (e) => {
+            if (e.target.id === 'trace-modal') {
+                modal.style.display = 'none';
+            }
+        });
+    }
 
     document.getElementById('refresh-traces')?.addEventListener('click', loadTraces);
 }
