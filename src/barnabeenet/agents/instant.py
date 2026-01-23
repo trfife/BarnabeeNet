@@ -547,11 +547,14 @@ class InstantAgent(Agent):
             re.IGNORECASE,
         )
         # Counting pattern - "count to 10", "count by 2s to 20", "count backwards from 10"
+        # Counting pattern - handles multiple formats:
+        # "count to 20", "count from 1 to 20", "count by 2s to 20", "count backwards from 10"
         self._counting_pattern = re.compile(
             r"count\s+"
             r"(?:(backwards?|down)\s+)?(?:from\s+)?(\d+)?\s*"
+            r"(?:by\s+(\d+)(?:s|'s)?\s*)?"  # "by X" can come before "to"
             r"(?:to\s+(\d+))?\s*"
-            r"(?:by\s+(\d+)(?:s|'s)?)?",
+            r"(?:by\s+(\d+)(?:s|'s)?)?",  # "by X" can also come after "to"
             re.IGNORECASE,
         )
         # "What comes after X" pattern
@@ -2432,11 +2435,13 @@ class InstantAgent(Agent):
             match = self._counting_pattern.search(text_lower)
             if match:
                 backwards = match.group(1) is not None
-                step = int(match.group(4)) if match.group(4) else 1
+                # Step can be in group 3 (before "to") or group 5 (after "to")
+                step = int(match.group(3) or match.group(5) or 1)
+                # End number is in group 4
+                end = int(match.group(4)) if match.group(4) else (1 if backwards else 10)
                 # When counting by X (e.g., "count by 2s"), start at the step value
                 default_start = step if step > 1 and not backwards else (10 if backwards else 1)
                 start = int(match.group(2)) if match.group(2) else default_start
-                end = int(match.group(3)) if match.group(3) else (1 if backwards else 10)
 
                 # Generate the count
                 if backwards:
