@@ -1004,6 +1004,12 @@ class InstantAgent(Agent):
 
     def _is_unit_conversion(self, text: str) -> bool:
         """Check if asking about unit conversion."""
+        # Exclude simple time facts (handled by simple_fact)
+        # e.g., "how many days in a year" is not a unit conversion
+        time_units = ["days in a year", "weeks in a year", "months in a year", 
+                      "days in a month", "days in a week", "legs"]
+        if any(tu in text for tu in time_units):
+            return False
         conversion_keywords = ["convert", "how many", "in a ", "to celsius", "to fahrenheit", "to cups", "to liters"]
         return any(kw in text for kw in conversion_keywords)
 
