@@ -815,6 +815,9 @@ class InstantAgent(Agent):
         sun_words = ["sunrise", "sunset", "dawn", "dusk"]
         if any(sw in text for sw in sun_words):
             return False
+        # Exclude world clock queries (time in another location)
+        if " in " in text:
+            return False
         time_keywords = ["what time", "the time", "clock", "o'clock"]
         return any(kw in text for kw in time_keywords)
 
@@ -2429,9 +2432,11 @@ class InstantAgent(Agent):
             match = self._counting_pattern.search(text_lower)
             if match:
                 backwards = match.group(1) is not None
-                start = int(match.group(2)) if match.group(2) else (10 if backwards else 1)
-                end = int(match.group(3)) if match.group(3) else (1 if backwards else 10)
                 step = int(match.group(4)) if match.group(4) else 1
+                # When counting by X (e.g., "count by 2s"), start at the step value
+                default_start = step if step > 1 and not backwards else (10 if backwards else 1)
+                start = int(match.group(2)) if match.group(2) else default_start
+                end = int(match.group(3)) if match.group(3) else (1 if backwards else 10)
 
                 # Generate the count
                 if backwards:
