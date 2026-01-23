@@ -730,8 +730,21 @@ class InstantAgent(Agent):
             response = await self._handle_device_status_query(device_name)
             response_type = "device_status"
         # Sun queries (sunrise/sunset)
-        elif (sun_result := self._is_sun_query(text_lower))[0]:
-            _, query_type = sun_result
+        elif sub_category == "sun" or (sun_result := self._is_sun_query(text_lower))[0]:
+            # Determine query type from text
+            if "sunrise" in text_lower or "sun rise" in text_lower:
+                query_type = "sunrise"
+            elif "sunset" in text_lower or "sun set" in text_lower:
+                query_type = "sunset"
+            elif "dawn" in text_lower:
+                query_type = "dawn"
+            elif "dusk" in text_lower:
+                query_type = "dusk"
+            else:
+                # Try to get from _is_sun_query
+                _, query_type = self._is_sun_query(text_lower)
+                if not query_type:
+                    query_type = "sunrise"  # Default
             response = await self._handle_sun_query(query_type)
             response_type = "sun"
         # Moon phase
