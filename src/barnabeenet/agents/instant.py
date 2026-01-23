@@ -833,6 +833,9 @@ class InstantAgent(Agent):
         # Exclude calendar queries
         if "calendar" in text or "schedule" in text or "appointment" in text:
             return False
+        # Exclude energy queries
+        if "energy" in text or "power" in text or "electricity" in text:
+            return False
         date_keywords = ["date", "what day", "today", "what's today"]
         return any(kw in text for kw in date_keywords)
 
