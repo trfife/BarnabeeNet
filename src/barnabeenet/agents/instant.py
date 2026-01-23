@@ -820,6 +820,9 @@ class InstantAgent(Agent):
 
     def _is_date_query(self, text: str) -> bool:
         """Check if query is about date."""
+        # Exclude calendar queries
+        if "calendar" in text or "schedule" in text or "appointment" in text:
+            return False
         date_keywords = ["date", "what day", "today", "what's today"]
         return any(kw in text for kw in date_keywords)
 
