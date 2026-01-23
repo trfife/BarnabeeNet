@@ -13,7 +13,7 @@ import random
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -760,6 +760,10 @@ class InstantAgent(Agent):
             _, action = shopping_result
             response = await self._handle_shopping_list(text, action)
             response_type = "shopping_list"
+        # Calendar
+        elif sub_category == "calendar" or self._is_calendar_query(text_lower):
+            response = await self._handle_calendar_query(text)
+            response_type = "calendar"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -1064,6 +1068,15 @@ class InstantAgent(Agent):
             "weather", "temperature outside", "how cold", "how hot", "how warm",
             "will it rain", "is it raining", "going to rain", "need an umbrella",
             "going to snow", "is it snowing", "forecast", "humid", "humidity"
+        ]
+        return any(kw in text for kw in keywords)
+
+    def _is_calendar_query(self, text: str) -> bool:
+        """Check if user is asking about calendar/schedule."""
+        keywords = [
+            "calendar", "schedule", "what's on", "appointment", "events",
+            "what do i have", "what do we have", "what's happening",
+            "any plans", "anything scheduled", "next event"
         ]
         return any(kw in text for kw in keywords)
 
@@ -1792,6 +1805,107 @@ class InstantAgent(Agent):
         except Exception as e:
             logger.warning(f"Failed to get weather: {e}")
             return "I had trouble checking the weather."
+
+    async def _handle_calendar_query(self, text: str) -> str:
+        """Get calendar information from Home Assistant."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            from datetime import datetime
+
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't access the calendar right now."
+
+            text_lower = text.lower()
+
+            # Determine time frame
+            if "today" in text_lower or "this morning" in text_lower or "tonight" in text_lower:
+                timeframe = "today"
+            elif "tomorrow" in text_lower:
+                timeframe = "tomorrow"
+            elif "this week" in text_lower or "this weekend" in text_lower:
+                timeframe = "week"
+            else:
+                timeframe = "today"
+
+            # Check relevant calendars
+            calendar_ids = [
+                "calendar.thefifelife217_gmail_com",
+                "calendar.family",
+                "calendar.birthdays",
+            ]
+
+            events = []
+            now = datetime.now()
+            today_str = now.strftime("%Y-%m-%d")
+
+            for cal_id in calendar_ids:
+                state = await ha_client.get_state(cal_id)
+                if state and state.attributes:
+                    attrs = state.attributes
+                    message = attrs.get("message", "")
+                    start_time = attrs.get("start_time", "")
+                    all_day = attrs.get("all_day", False)
+
+                    if message and start_time:
+                        # Parse start date
+                        try:
+                            start_dt = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
+                            event_date = start_dt.strftime("%Y-%m-%d")
+
+                            if timeframe == "today" and event_date == today_str:
+                                if all_day:
+                                    events.append(f"{message} (all day)")
+                                else:
+                                    time_str = start_dt.strftime("%I:%M %p").lstrip("0")
+                                    events.append(f"{message} at {time_str}")
+                            elif timeframe == "tomorrow":
+                                tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+                                if event_date == tomorrow:
+                                    if all_day:
+                                        events.append(f"{message} (all day)")
+                                    else:
+                                        time_str = start_dt.strftime("%I:%M %p").lstrip("0")
+                                        events.append(f"{message} at {time_str}")
+                            elif timeframe == "week":
+                                week_end = (now + timedelta(days=7)).strftime("%Y-%m-%d")
+                                if today_str <= event_date <= week_end:
+                                    day_name = start_dt.strftime("%A")
+                                    events.append(f"{message} on {day_name}")
+                        except ValueError:
+                            pass
+
+            # Also check kids' chore calendars if asking about chores
+            if "chore" in text_lower:
+                chore_calendars = [
+                    ("calendar.kidschores_calendar_penelope", "Penelope"),
+                    ("calendar.kidschores_calendar_viola", "Viola"),
+                    ("calendar.kidschores_calendar_xander", "Xander"),
+                    ("calendar.kidschores_calendar_zachary", "Zachary"),
+                ]
+                for cal_id, name in chore_calendars:
+                    state = await ha_client.get_state(cal_id)
+                    if state and state.attributes:
+                        message = state.attributes.get("message", "")
+                        if message:
+                            events.append(f"{name}: {message}")
+
+            if not events:
+                if timeframe == "today":
+                    return "Nothing scheduled for today."
+                elif timeframe == "tomorrow":
+                    return "Nothing scheduled for tomorrow."
+                else:
+                    return "No upcoming events this week."
+
+            if len(events) == 1:
+                return f"You have: {events[0]}."
+            else:
+                return f"You have {len(events)} things: " + ", ".join(events) + "."
+
+        except Exception as e:
+            logger.warning(f"Failed to get calendar: {e}")
+            return "I had trouble checking the calendar."
 
     async def _handle_shopping_list(self, text: str, action: str) -> str:
         """Handle shopping list operations."""

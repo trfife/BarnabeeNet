@@ -312,6 +312,12 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(read|show)( me)? (the |my )?(shopping list|groceries)(\?)?$", "shopping_list"),
     (r"^(clear|empty) (the |my )?(shopping list|groceries)(\?)?$", "shopping_list"),
     (r"^(remove|take off|cross off) .+ (from |off )(the |my )?(shopping list|groceries)(\?)?$", "shopping_list"),
+    # Calendar queries
+    (r"^what('s| is) on (the |my )?(calendar|schedule)( today| tomorrow| this week)?(\?)?$", "calendar"),
+    (r"^(what do i|what do we) have (today|tomorrow|this week|scheduled)(\?)?$", "calendar"),
+    (r"^(any|do i have any) (appointments?|events?|plans?) (today|tomorrow|this week)?(\?)?$", "calendar"),
+    (r"^what('s| is) (happening|scheduled)( today| tomorrow| this week)?(\?)?$", "calendar"),
+    (r"^(when is|what is) (the |my )?next (event|appointment)(\?)?$", "calendar"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
