@@ -1685,12 +1685,14 @@ class AgentOrchestrator:
 
             if entity:
                 entity_id = entity.entity_id
+                # Always update the action_spec with resolved entity_id (for undo)
+                action_spec["entity_id"] = entity_id
+                
                 # Update service to match the actual entity domain
                 actual_domain = entity.entity_id.split(".")[0] if "." in entity.entity_id else None
                 if actual_domain and actual_domain != domain:
                     service = self._adapt_service_to_domain(service, actual_domain)
                     action_spec["service"] = service
-                    action_spec["entity_id"] = entity_id
                     logger.info(
                         "Adapted service from %s domain to %s: %s",
                         domain,
@@ -1710,16 +1712,16 @@ class AgentOrchestrator:
         # Save previous state BEFORE executing action (for undo)
         previous_state = None
         try:
-            current_state = await self._ha_client.get_entity_state(entity_id)
-            if current_state:
+            entity_state = await self._ha_client.get_state(entity_id)
+            if entity_state:
                 previous_state = {
-                    "state": current_state.get("state"),
-                    "attributes": current_state.get("attributes", {}),
+                    "state": entity_state.state,
+                    "attributes": entity_state.attributes,
                 }
                 action_spec["_previous_state"] = previous_state
-                logger.debug(f"Saved previous state for {entity_id}: {previous_state.get('state')}")
+                logger.info(f"Saved previous state for {entity_id}: state={entity_state.state}")
         except Exception as e:
-            logger.debug(f"Could not get previous state for {entity_id}: {e}")
+            logger.warning(f"Could not get previous state for {entity_id}: {e}")
 
         # Execute the service call
         try:
