@@ -1707,6 +1707,20 @@ class AgentOrchestrator:
                     "error": f"No entity matching '{entity_name}' found",
                 }
 
+        # Save previous state BEFORE executing action (for undo)
+        previous_state = None
+        try:
+            current_state = await self._ha_client.get_entity_state(entity_id)
+            if current_state:
+                previous_state = {
+                    "state": current_state.get("state"),
+                    "attributes": current_state.get("attributes", {}),
+                }
+                action_spec["_previous_state"] = previous_state
+                logger.debug(f"Saved previous state for {entity_id}: {previous_state.get('state')}")
+        except Exception as e:
+            logger.debug(f"Could not get previous state for {entity_id}: {e}")
+
         # Execute the service call
         try:
             logger.info(
@@ -1887,10 +1901,17 @@ class AgentOrchestrator:
             }
 
     async def _reverse_action(self, action: dict[str, Any]) -> dict[str, Any]:
-        """Reverse a single action.
+        """Reverse a single action by restoring to previous state.
+
+        This is smarter than simple toggle/reverse - it restores the entity
+        to exactly what it was before the action:
+        - Lights: restore brightness, color, color_temp
+        - Climate: restore temperature, mode
+        - Covers: restore position
+        - Timers: restart if cancelled, cancel if started
 
         Args:
-            action: The action to reverse
+            action: The action to reverse (includes _previous_state if available)
 
         Returns:
             Dict with success status
@@ -1904,61 +1925,219 @@ class AgentOrchestrator:
             entity_id = action.get("entity_id") or action.get("target")
             service = action.get("service", "")
             action_type = action.get("action_type", "")
+            previous_state = action.get("_previous_state")
 
-            logger.info(f"UNDO: Attempting to reverse action: entity_id={entity_id}, service={service}, action_type={action_type}")
+            logger.info(f"UNDO: Reversing action: entity_id={entity_id}, service={service}, previous_state={previous_state}")
 
             if not entity_id:
                 logger.warning(f"Undo failed: No entity_id in action: {action}")
                 return {"success": False, "error": "No entity to reverse"}
 
-            # Determine reverse action
             domain = entity_id.split(".")[0] if "." in entity_id else "light"
 
-            # Map services to their reverse
-            reverse_map = {
-                "turn_on": "turn_off",
-                "turn_off": "turn_on",
-                "open_cover": "close_cover",
-                "close_cover": "open_cover",
-                "lock": "unlock",
-                "unlock": "lock",
-                "start": "cancel",  # timers
-            }
+            # If we have previous state, restore it intelligently
+            if previous_state:
+                return await self._restore_to_previous_state(entity_id, domain, previous_state)
 
-            # Also map action_type to reverse service (as backup)
-            action_type_reverse_map = {
-                "turn_on": "turn_off",
-                "turn_off": "turn_on",
-            }
-
-            # Extract just the service name (e.g., "turn_on" from "light.turn_on")
-            service_name = service.split(".")[-1] if "." in service else service
-
-            # Try service-based reverse first, then action_type
-            reverse_service = reverse_map.get(service_name)
-            if not reverse_service and action_type:
-                reverse_service = action_type_reverse_map.get(action_type)
-            if not reverse_service:
-                # Try to toggle instead
-                reverse_service = "toggle"
-                logger.info(f"No direct reverse for {service_name}, using toggle")
-
-            # Execute reverse action
-            full_service = f"{domain}.{reverse_service}"
-            logger.info(f"Executing undo: {full_service} on {entity_id}")
-
-            result = await self._ha_client.call_service(
-                domain=domain,
-                service=reverse_service,
-                entity_id=entity_id,
-            )
-
-            logger.info(f"Undo successful: {entity_id} via {full_service}, result: {result}")
-            return {"success": True}
+            # Fall back to simple reverse mapping
+            return await self._simple_reverse_action(entity_id, domain, service, action_type)
 
         except Exception as e:
             logger.warning(f"Failed to reverse action: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
+
+    async def _restore_to_previous_state(
+        self, entity_id: str, domain: str, previous_state: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Restore an entity to its previous state."""
+        prev_state_value = previous_state.get("state", "")
+        prev_attrs = previous_state.get("attributes", {})
+
+        logger.info(f"Restoring {entity_id} to previous state: {prev_state_value}")
+
+        try:
+            if domain == "light":
+                return await self._restore_light_state(entity_id, prev_state_value, prev_attrs)
+            elif domain == "climate":
+                return await self._restore_climate_state(entity_id, prev_state_value, prev_attrs)
+            elif domain == "cover":
+                return await self._restore_cover_state(entity_id, prev_state_value, prev_attrs)
+            elif domain == "timer":
+                return await self._restore_timer_state(entity_id, prev_state_value, prev_attrs)
+            elif domain in ("switch", "fan", "lock"):
+                return await self._restore_simple_state(entity_id, domain, prev_state_value)
+            else:
+                # Generic on/off restore
+                return await self._restore_simple_state(entity_id, domain, prev_state_value)
+        except Exception as e:
+            logger.warning(f"Failed to restore state for {entity_id}: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _restore_light_state(
+        self, entity_id: str, prev_state: str, prev_attrs: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Restore a light to its previous state including brightness and color."""
+        if prev_state == "off":
+            await self._ha_client.call_service(domain="light", service="turn_off", entity_id=entity_id)
+            logger.info(f"Restored {entity_id} to OFF")
+            return {"success": True}
+
+        # Light was on - restore with all attributes
+        service_data: dict[str, Any] = {}
+
+        # Restore brightness if it was set
+        if prev_attrs.get("brightness") is not None:
+            service_data["brightness"] = prev_attrs["brightness"]
+
+        # Restore color temperature if it was set
+        if prev_attrs.get("color_temp") is not None:
+            service_data["color_temp"] = prev_attrs["color_temp"]
+        elif prev_attrs.get("color_temp_kelvin") is not None:
+            service_data["color_temp_kelvin"] = prev_attrs["color_temp_kelvin"]
+
+        # Restore color if it was set
+        if prev_attrs.get("rgb_color") is not None:
+            service_data["rgb_color"] = prev_attrs["rgb_color"]
+        elif prev_attrs.get("hs_color") is not None:
+            service_data["hs_color"] = prev_attrs["hs_color"]
+
+        # Restore effect if it was set
+        if prev_attrs.get("effect") is not None and prev_attrs["effect"] != "none":
+            service_data["effect"] = prev_attrs["effect"]
+
+        await self._ha_client.call_service(
+            domain="light", service="turn_on", entity_id=entity_id, **service_data
+        )
+        logger.info(f"Restored {entity_id} to ON with attrs: {service_data}")
+        return {"success": True}
+
+    async def _restore_climate_state(
+        self, entity_id: str, prev_state: str, prev_attrs: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Restore a climate device to its previous state."""
+        # Restore HVAC mode
+        if prev_state in ["off", "heat", "cool", "auto", "heat_cool", "dry", "fan_only"]:
+            await self._ha_client.call_service(
+                domain="climate", service="set_hvac_mode", entity_id=entity_id, hvac_mode=prev_state
+            )
+
+        # Restore temperature
+        if prev_attrs.get("temperature") is not None:
+            await self._ha_client.call_service(
+                domain="climate", service="set_temperature", entity_id=entity_id,
+                temperature=prev_attrs["temperature"]
+            )
+
+        # Restore fan mode if set
+        if prev_attrs.get("fan_mode") is not None:
+            await self._ha_client.call_service(
+                domain="climate", service="set_fan_mode", entity_id=entity_id,
+                fan_mode=prev_attrs["fan_mode"]
+            )
+
+        logger.info(f"Restored {entity_id} to {prev_state} with temp={prev_attrs.get('temperature')}")
+        return {"success": True}
+
+    async def _restore_cover_state(
+        self, entity_id: str, prev_state: str, prev_attrs: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Restore a cover to its previous state including position."""
+        # Restore position if available
+        if prev_attrs.get("current_position") is not None:
+            await self._ha_client.call_service(
+                domain="cover", service="set_cover_position", entity_id=entity_id,
+                position=prev_attrs["current_position"]
+            )
+            logger.info(f"Restored {entity_id} to position {prev_attrs['current_position']}")
+        elif prev_state == "closed":
+            await self._ha_client.call_service(domain="cover", service="close_cover", entity_id=entity_id)
+            logger.info(f"Restored {entity_id} to CLOSED")
+        else:
+            await self._ha_client.call_service(domain="cover", service="open_cover", entity_id=entity_id)
+            logger.info(f"Restored {entity_id} to OPEN")
+
+        return {"success": True}
+
+    async def _restore_timer_state(
+        self, entity_id: str, prev_state: str, prev_attrs: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Restore a timer to its previous state."""
+        if prev_state == "active":
+            # Timer was running, restart it with remaining duration
+            remaining = prev_attrs.get("remaining")
+            if remaining:
+                await self._ha_client.call_service(
+                    domain="timer", service="start", entity_id=entity_id, duration=remaining
+                )
+                logger.info(f"Restarted {entity_id} with remaining time {remaining}")
+            else:
+                # Just start with original duration
+                duration = prev_attrs.get("duration")
+                if duration:
+                    await self._ha_client.call_service(
+                        domain="timer", service="start", entity_id=entity_id, duration=duration
+                    )
+                    logger.info(f"Restarted {entity_id} with duration {duration}")
+        elif prev_state == "paused":
+            # Timer was paused, pause it again
+            await self._ha_client.call_service(domain="timer", service="pause", entity_id=entity_id)
+            logger.info(f"Paused {entity_id}")
+        else:
+            # Timer was idle, cancel it
+            await self._ha_client.call_service(domain="timer", service="cancel", entity_id=entity_id)
+            logger.info(f"Cancelled {entity_id}")
+
+        return {"success": True}
+
+    async def _restore_simple_state(
+        self, entity_id: str, domain: str, prev_state: str
+    ) -> dict[str, Any]:
+        """Restore a simple on/off device to its previous state."""
+        if domain == "lock":
+            service = "lock" if prev_state == "locked" else "unlock"
+        else:
+            service = "turn_on" if prev_state == "on" else "turn_off"
+
+        await self._ha_client.call_service(domain=domain, service=service, entity_id=entity_id)
+        logger.info(f"Restored {entity_id} to {prev_state}")
+        return {"success": True}
+
+    async def _simple_reverse_action(
+        self, entity_id: str, domain: str, service: str, action_type: str
+    ) -> dict[str, Any]:
+        """Fall back to simple reverse mapping when no previous state is available."""
+        # Map services to their reverse
+        reverse_map = {
+            "turn_on": "turn_off",
+            "turn_off": "turn_on",
+            "open_cover": "close_cover",
+            "close_cover": "open_cover",
+            "lock": "unlock",
+            "unlock": "lock",
+            "start": "cancel",
+            "cancel": "start",
+            "pause": "start",
+        }
+
+        # Extract just the service name
+        service_name = service.split(".")[-1] if "." in service else service
+
+        # Try service-based reverse first, then action_type
+        reverse_service = reverse_map.get(service_name)
+        if not reverse_service and action_type:
+            reverse_service = reverse_map.get(action_type)
+        if not reverse_service:
+            reverse_service = "toggle"
+            logger.info(f"No direct reverse for {service_name}, using toggle")
+
+        # Execute reverse action
+        full_service = f"{domain}.{reverse_service}"
+        logger.info(f"Executing simple undo: {full_service} on {entity_id}")
+
+        await self._ha_client.call_service(domain=domain, service=reverse_service, entity_id=entity_id)
+
+        logger.info(f"Undo successful: {entity_id} via {full_service}")
+        return {"success": True}
 
     def _build_response(self, ctx: RequestContext) -> dict[str, Any]:
         """Build the final response dict."""

@@ -229,6 +229,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error("Timer Manager initialization failed", error=str(e))
         app_state.timer_manager = None
 
+    # Sync device capabilities from Home Assistant
+    try:
+        from barnabeenet.api.routes.homeassistant import get_ha_client
+        from barnabeenet.services.device_capabilities import sync_capabilities
+
+        ha_client = await get_ha_client()
+        if ha_client:
+            updated = await sync_capabilities(ha_client)
+            logger.info("Device capabilities synced", count=updated)
+    except Exception as e:
+        logger.warning("Device capabilities sync failed", error=str(e))
+
     # Start GPU worker health check task
     app_state._health_check_task = asyncio.create_task(_gpu_worker_health_check_loop())
 
