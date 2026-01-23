@@ -166,12 +166,13 @@ FORGET_PATTERNS = [
 ]
 
 # Pattern for forgetting specific topics
+import re
+
 FORGET_TOPIC_PATTERN = re.compile(
     r"forget\s+(?:about\s+)?(?:the\s+)?(.+?)\s+conversation",
     re.IGNORECASE
 )
 
-import re
 SUPER_USER_PATTERNS_COMPILED = [
     re.compile(pattern, re.IGNORECASE) for pattern in SUPER_USER_PATTERNS
 ]
