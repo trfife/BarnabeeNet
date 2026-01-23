@@ -1,7 +1,7 @@
 # Morning Notes - Overnight Work Session
 
 **Started:** January 22, 2026 (evening)
-**Last Updated:** January 23, 2026 ~5:15 AM
+**Last Updated:** January 23, 2026 ~5:25 AM
 
 This document tracks all work done overnight and items that need your attention.
 
@@ -64,6 +64,8 @@ This document tracks all work done overnight and items that need your attention.
 | **Quick Notes** | "note: call dentist", "what are my notes" | **NEW** - Voice memos in memory |
 | **Chore/Stars** | "give Xander a star", "who should do dishes" | **NEW** - Weekly star tracking |
 | **Focus Timer** | "start pomodoro", "done with homework" | **NEW** - 15/25 min focus sessions |
+| **WiFi Password** | "what's the wifi password" | **NEW** - Returns guest network info |
+| **Family Digest** | "what happened today", "catch me up" | **NEW** - Daily activity summary |
 
 ### Major Enhancements
 
@@ -265,6 +267,16 @@ start pomodoro                  # 15 min for kids, 25 min for adults
 start homework time             # Same as pomodoro
 done with homework              # Ends focus session (without person name)
 done with pomodoro              # Ends focus session
+
+# NEW: WiFi Password
+what's the wifi password        # Returns guest network credentials
+how do i connect to wifi        # Same as above
+
+# NEW: Family Digest
+what happened today             # Summary of stars, chores, feeding
+catch me up                     # Same as above
+what did i miss                 # Same as above
+family digest                   # Same as above
 
 # Previous Features
 flip a coin
