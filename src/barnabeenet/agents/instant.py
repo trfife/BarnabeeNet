@@ -685,6 +685,14 @@ class InstantAgent(Agent):
             _, action, person, chore = result
             response = await self._handle_chore_query(action, person, chore, speaker)
             response_type = "chore"
+        # WiFi password
+        elif sub_category == "wifi" or self._is_wifi_query(text_lower):
+            response = self._handle_wifi_query()
+            response_type = "wifi"
+        # Family digest / what happened today
+        elif sub_category == "family_digest" or self._is_family_digest_query(text_lower):
+            response = await self._handle_family_digest(speaker)
+            response_type = "family_digest"
         # Unit conversions
         elif sub_category == "unit_conversion" or self._is_unit_conversion(text_lower):
             result = self._handle_unit_conversion(text)
@@ -1378,6 +1386,28 @@ class InstantAgent(Agent):
                     return True, "stop"
 
         return False, ""
+
+    def _is_wifi_query(self, text: str) -> bool:
+        """Check if user is asking for WiFi password."""
+        text = text.lower()
+        if "wifi" in text or "wi-fi" in text or "wi fi" in text:
+            if any(kw in text for kw in ["password", "pass", "code", "credentials", "connect"]):
+                return True
+        if "guest network" in text:
+            return True
+        return False
+
+    def _is_family_digest_query(self, text: str) -> bool:
+        """Check if user wants a summary of what happened at home."""
+        text = text.lower()
+        if any(kw in text for kw in ["what happened", "what's happened", "family digest", "home summary"]):
+            if any(kw in text for kw in ["today", "at home", "while i was", "this morning", "this evening"]):
+                return True
+        if "catch me up" in text or "fill me in" in text:
+            return True
+        if text in ["what did i miss", "what did i miss?"]:
+            return True
+        return False
 
     # =========================================================================
     # Response Handlers
@@ -2867,6 +2897,77 @@ class InstantAgent(Agent):
                 return f"Okay, focus time is over. Nice work, {speaker_name}!"
 
         return "I can start, check, or stop a focus timer for you."
+
+    def _handle_wifi_query(self) -> str:
+        """Return the guest WiFi password.
+
+        Note: In production, this should be configurable via environment variable
+        or stored securely. For now, returns a placeholder response.
+        """
+        import os
+        guest_password = os.environ.get("GUEST_WIFI_PASSWORD", None)
+
+        if guest_password:
+            return f"The guest WiFi network is 'FifeGuest' and the password is {guest_password}."
+        else:
+            # Fallback - remind user to ask an adult
+            return "For the WiFi password, please ask Mom or Dad. I don't have it stored yet."
+
+    async def _handle_family_digest(self, speaker: str | None) -> str:
+        """Generate a summary of what happened at home today."""
+        from barnabeenet.main import app_state
+
+        memory_storage = getattr(app_state, "memory_storage", None)
+        if not memory_storage:
+            return "Sorry, I can't access my memories right now."
+
+        # Search for recent episodic memories
+        results = await memory_storage.search_memories(
+            query="family activity event happened today",
+            memory_type="episodic",
+            max_results=20,
+            min_score=0.2,
+        )
+
+        if not results:
+            return "It's been a quiet day! Nothing major to report."
+
+        # Categorize activities
+        activities = {
+            "chores": [],
+            "stars": [],
+            "feeding": [],
+            "other": [],
+        }
+
+        for mem, score in results:
+            content = mem.content.lower()
+            if "star" in content:
+                activities["stars"].append(mem.content)
+            elif "chore" in mem.tags or "homework" in content or "dishes" in content:
+                activities["chores"].append(mem.content)
+            elif "fed" in content or "feeding" in content:
+                activities["feeding"].append(mem.content)
+            else:
+                activities["other"].append(mem.content)
+
+        # Build summary
+        summary_parts = []
+
+        if activities["stars"]:
+            summary_parts.append(f"{len(activities['stars'])} star(s) were awarded")
+
+        if activities["chores"]:
+            summary_parts.append(f"{len(activities['chores'])} chore(s) were completed")
+
+        if activities["feeding"]:
+            summary_parts.append("pets were fed")
+
+        if not summary_parts:
+            return "It's been a quiet day! Nothing major to report."
+
+        summary = "Here's what happened: " + ", ".join(summary_parts) + "."
+        return summary
 
     def _is_clear_conversation(self, text: str) -> bool:
         """Check if user wants to clear/reset the conversation."""

@@ -375,6 +375,15 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(begin|let'?s (start|do)) (a )?(pomodoro|focus|homework|study)( time| session)?(\?)?$", "focus_timer"),
     (r"^(how long|how much time) (have i been|left) (studying|focusing|working)(\?)?$", "focus_timer"),
     (r"^(stop|end|finish|done with) (the )?(pomodoro|focus|study|homework)( session| time)?(\?)?$", "focus_timer"),
+    # WiFi password
+    (r"^(what('s| is) (the )?)?wifi (password|pass|code)(\?)?$", "wifi"),
+    (r"^(what('s| is) (the )?)?(guest )?(wifi|wi-fi|network) (password|pass|credentials)(\?)?$", "wifi"),
+    (r"^(how do i |can i )connect to (the )?(wifi|wi-fi|internet)(\?)?$", "wifi"),
+    # Family digest / what happened
+    (r"^what happened (today|at home|this morning|this evening|while i was (gone|out|away))(\?)?$", "family_digest"),
+    (r"^(catch me up|fill me in)(\?)?$", "family_digest"),
+    (r"^what did i miss(\?)?$", "family_digest"),
+    (r"^(family |home )?digest(\?)?$", "family_digest"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
