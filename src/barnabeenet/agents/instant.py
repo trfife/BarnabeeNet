@@ -1320,19 +1320,33 @@ class InstantAgent(Agent):
         if "shopping list" in text_lower and ":" not in text_lower:
             return False, "", None
 
-        # Save note patterns (require colon to distinguish from other commands)
+        # Save note patterns
         save_patterns = [
+            # Colon-based patterns (explicit)
             r"^note:\s*(.+)",  # "note: call dentist"
             r"^remember:\s*(.+)",  # "remember: pick up milk"
             r"^remind me:\s*(.+)",  # "remind me: call mom"
             r"^make a note:\s*(.+)",  # "make a note: meeting at 3"
             r"^save note:\s*(.+)",  # "save note: important stuff"
+            # Natural language patterns
+            r"^remember that\s+(.+)",  # "remember that we need milk"
+            r"^remember i need to\s+(.+)",  # "remember I need to call mom"
+            r"^remember we need to\s+(.+)",  # "remember we need to buy milk"
+            r"^remember to\s+(.+)",  # "remember to take out trash"
+            r"^note for (\w+):\s*(.+)",  # "note for Elizabeth: meeting at 3pm"
+            r"^can you remember that\s+(.+)",  # "can you remember that..."
+            r"^please remember that\s+(.+)",  # "please remember that..."
         ]
 
         for pattern in save_patterns:
             match = re.search(pattern, text_lower)
             if match:
-                content = match.group(1).strip()
+                # Handle "note for X: content" pattern which has 2 groups
+                if len(match.groups()) == 2:
+                    recipient = match.group(1).strip()
+                    content = f"Note for {recipient}: {match.group(2).strip()}"
+                else:
+                    content = match.group(1).strip()
                 return True, "save", content
 
         # List notes
