@@ -388,10 +388,7 @@ function handleActivityMessage(data) {
             activeTraces.get(signalData.trace_id).signals.push(signalData);
         }
 
-        // Refresh traces list for new/completed traces
-        if (signalData.signal_type === 'request_start' || signalData.signal_type === 'request_complete') {
-            loadTraces();
-        }
+        // Note: Traces section removed from dashboard, no longer refreshing
     } else if (messageType === 'activity') {
         // Activity log message from /ws/dashboard (including HA state changes)
         addActivityItem({
