@@ -190,6 +190,13 @@ ACTION_PATTERNS: list[tuple[str, str]] = [
     (r"^how\s+much\s+time\s+left\s+(?:on|for)\s+.*$", "timer"),  # "how much time left on pizza"
     (r"^time\s+left\s+(?:on|for)\s+.*$", "timer"),  # "time left on lasagna"
     (r"^(pause|resume|cancel|stop|start)\s+(?:the\s+)?.*(?:\s+timer)?$", "timer"),  # "pause the lasagna timer" - MUST come before media patterns
+    # Timer list/query patterns
+    (r"^what\s+timers?.*$", "timer"),  # "what timers do I have"
+    (r"^(?:list|show)\s+(?:my\s+)?timers?.*$", "timer"),  # "list my timers"
+    (r"^how\s+long\s+(?:is\s+)?left\s+on\s+(?:my|the)\s+timer.*$", "timer"),  # "how long is left on my timer"
+    (r"^how\s+much\s+time\s+(?:is\s+)?left\s+on\s+(?:my|the)\s+timer.*$", "timer"),  # "how much time is left on my timer"
+    (r"^(?:any|do\s+I\s+have(?:\s+any)?)\s+timers?.*$", "timer"),  # "any timers" / "do I have any timers"
+    (r"^timers?\s+status.*$", "timer"),  # "timer status"
     # Device control patterns
     (r"^(turn|trun|tunr|switch|swtich|swich) (on|off|of) .*$", "switch"),  # Common typos
     (r"^(on|off) .*(light|lamp|switch|fan).*$", "switch"),  # "off the light"

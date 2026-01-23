@@ -833,13 +833,91 @@ If you cannot parse the request, respond with:
         room = context.get("room")
 
         # Handle timer operations
-        if timer_result.operation == TimerOperation.QUERY:
-            # Query timer status
-            if not timer_result.label:
+        if timer_result.operation == TimerOperation.LIST:
+            # List all active timers
+            active_timers = timer_manager.get_active_timers()
+            if not active_timers:
                 return {
-                    "response": "Which timer would you like to check?",
+                    "response": "You don't have any active timers.",
                     "agent": self.name,
-                    "success": False,
+                    "timers": [],
+                    "success": True,
+                }
+
+            # Build response listing all timers
+            timer_descriptions = []
+            for timer in active_timers:
+                remaining = timer.remaining_seconds
+                if remaining > 0:
+                    if remaining >= 3600:
+                        hours = int(remaining // 3600)
+                        mins = int((remaining % 3600) // 60)
+                        time_str = f"{hours} hour{'s' if hours != 1 else ''} {mins} minute{'s' if mins != 1 else ''}"
+                    elif remaining >= 60:
+                        mins = int(remaining // 60)
+                        secs = int(remaining % 60)
+                        time_str = f"{mins} minute{'s' if mins != 1 else ''}"
+                        if secs > 0:
+                            time_str += f" {secs} second{'s' if secs != 1 else ''}"
+                    else:
+                        secs = int(remaining)
+                        time_str = f"{secs} second{'s' if secs != 1 else ''}"
+
+                    status = " (paused)" if timer.is_paused else ""
+                    timer_descriptions.append(f"{timer.label}: {time_str} left{status}")
+
+            if len(timer_descriptions) == 1:
+                response = f"You have 1 active timer: {timer_descriptions[0]}"
+            else:
+                response = f"You have {len(timer_descriptions)} active timers: " + ", ".join(timer_descriptions)
+
+            return {
+                "response": response,
+                "agent": self.name,
+                "timers": [t.to_dict() for t in active_timers],
+                "success": True,
+            }
+
+        elif timer_result.operation == TimerOperation.QUERY:
+            # Query timer status - if no label, list all timers instead
+            if not timer_result.label:
+                # Fall through to LIST behavior
+                active_timers = timer_manager.get_active_timers()
+                if not active_timers:
+                    return {
+                        "response": "You don't have any active timers.",
+                        "agent": self.name,
+                        "timers": [],
+                        "success": True,
+                    }
+
+                timer_descriptions = []
+                for timer in active_timers:
+                    remaining = timer.remaining_seconds
+                    if remaining > 0:
+                        if remaining >= 60:
+                            mins = int(remaining // 60)
+                            secs = int(remaining % 60)
+                            time_str = f"{mins} minute{'s' if mins != 1 else ''}"
+                            if secs > 0 and mins < 5:
+                                time_str += f" {secs} second{'s' if secs != 1 else ''}"
+                        else:
+                            secs = int(remaining)
+                            time_str = f"{secs} second{'s' if secs != 1 else ''}"
+
+                        status = " (paused)" if timer.is_paused else ""
+                        timer_descriptions.append(f"{timer.label}: {time_str} left{status}")
+
+                if len(timer_descriptions) == 1:
+                    response = f"You have 1 active timer: {timer_descriptions[0]}"
+                else:
+                    response = f"You have {len(timer_descriptions)} active timers: " + ", ".join(timer_descriptions)
+
+                return {
+                    "response": response,
+                    "agent": self.name,
+                    "timers": [t.to_dict() for t in active_timers],
+                    "success": True,
                 }
 
             timer_info = timer_manager.query_timer(timer_result.label)

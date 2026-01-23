@@ -333,7 +333,7 @@ DELAYED_ACTION_PATTERNS = [
     r"((?:turn|switch)\s+(?:off|on)\s+(?:the\s+)?.+?)\s+in\s+(\d+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))$",
 ]
 
-# Timer query patterns
+# Timer query patterns (with label capture)
 TIMER_QUERY_PATTERNS = [
     # "how long on lasagna"
     r"how\s+long\s+(?:on|for|left\s+on)\s+(.+)",
@@ -345,6 +345,24 @@ TIMER_QUERY_PATTERNS = [
     r"how\s+long\s+is\s+(?:the\s+)?(.+?)\s+timer",
     # "what's left on lasagna"
     r"what'?s?\s+left\s+(?:on|for)\s+(.+)",
+]
+
+# Timer list patterns (list all timers, no label required)
+TIMER_LIST_PATTERNS = [
+    # "what timers do I have" / "what timers are set"
+    r"what\s+timers?\s+(?:do\s+I\s+have|are\s+(?:set|running|active))",
+    # "list my timers" / "show my timers"
+    r"(?:list|show)\s+(?:my\s+)?timers?",
+    # "how long is left on my timer" (generic, no specific label)
+    r"how\s+long\s+(?:is\s+)?left\s+on\s+(?:my|the)\s+timer",
+    # "how much time is left on my timer"
+    r"how\s+much\s+time\s+(?:is\s+)?left\s+on\s+(?:my|the)\s+timer",
+    # "any timers running"
+    r"(?:any|are\s+there(?:\s+any)?)\s+timers?\s+(?:running|set|active)",
+    # "do I have any timers"
+    r"do\s+I\s+have\s+(?:any\s+)?timers?(?:\s+(?:set|running|active))?",
+    # "timer status" / "timers status"
+    r"timers?\s+status",
 ]
 
 # Timer control patterns (MUST be more specific than media patterns)
@@ -367,6 +385,7 @@ class TimerOperation(str, Enum):
 
     CREATE = "create"
     QUERY = "query"
+    LIST = "list"  # List all active timers
     PAUSE = "pause"
     RESUME = "resume"
     CANCEL = "cancel"
@@ -400,7 +419,15 @@ def parse_timer_command(text: str) -> TimerParseResult:
     text = text.strip()
     result = TimerParseResult()
 
-    # Check timer query patterns first
+    # Check timer LIST patterns first (list all timers, no label)
+    for pattern in TIMER_LIST_PATTERNS:
+        match = re.match(pattern, text, re.IGNORECASE)
+        if match:
+            result.is_timer_command = True
+            result.operation = TimerOperation.LIST
+            return result
+
+    # Check timer query patterns (query specific timer by label)
     for pattern in TIMER_QUERY_PATTERNS:
         match = re.match(pattern, text, re.IGNORECASE)
         if match:
