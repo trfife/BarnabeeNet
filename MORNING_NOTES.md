@@ -1,7 +1,7 @@
 # Morning Notes - Overnight Work Session
 
 **Started:** January 22, 2026 (evening)
-**Last Updated:** January 23, 2026 ~5:05 AM
+**Last Updated:** January 23, 2026 ~5:15 AM
 
 This document tracks all work done overnight and items that need your attention.
 
@@ -62,6 +62,8 @@ This document tracks all work done overnight and items that need your attention.
 | **Security** | "is the front door locked" | **NEW** - Locks and blinds status |
 | **Pet Feeding** | "I fed the dog", "did anyone feed the cat" | **NEW** - Logs/checks pet feeding |
 | **Quick Notes** | "note: call dentist", "what are my notes" | **NEW** - Voice memos in memory |
+| **Chore/Stars** | "give Xander a star", "who should do dishes" | **NEW** - Weekly star tracking |
+| **Focus Timer** | "start pomodoro", "done with homework" | **NEW** - 15/25 min focus sessions |
 
 ### Major Enhancements
 
@@ -250,6 +252,19 @@ when was the cat last fed       # Shows last feeding time
 note: call the dentist          # Saves a note
 remind me: pick up groceries    # Saves a reminder note
 what are my notes               # Lists all saved notes
+
+# NEW: Chore/Star Tracking
+give xander a star              # Awards a star (tracked weekly)
+how many stars does penelope have  # Checks star count
+viola finished her homework     # Logs chore completion
+whose turn to do dishes         # Randomly picks a kid
+xander did the dishes           # Logs chore as complete
+
+# NEW: Focus/Pomodoro Timer
+start pomodoro                  # 15 min for kids, 25 min for adults
+start homework time             # Same as pomodoro
+done with homework              # Ends focus session (without person name)
+done with pomodoro              # Ends focus session
 
 # Previous Features
 flip a coin
