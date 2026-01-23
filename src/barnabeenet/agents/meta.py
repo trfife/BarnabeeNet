@@ -299,13 +299,15 @@ QUERY_PATTERNS: list[tuple[str, str]] = [
 ]
 
 # Conversation patterns - for complex interactions that need InteractionAgent
+# These use ^ anchor because _pattern_match uses pattern.match() which starts at beginning
 CONVERSATION_PATTERNS: list[tuple[str, str]] = [
     # Super user / Audit log access (parents only)
-    (r"^show\s+(me\s+)?(all|the)\s+(audit\s+)?(logs?|conversations?|history)$", "audit_access"),
-    (r"^(what\s+did\s+)?(everyone|the\s+kids?|they)\s+(say|talk\s+about|discuss)$", "audit_access"),
-    (r"^show\s+(me\s+)?deleted\s+(conversations?|messages?)$", "audit_access"),
-    (r"^(parent(al)?|audit)\s+(access|log|mode)$", "audit_access"),
-    (r"^full\s+(history|log|access)$", "audit_access"),
+    (r"^show\s+(me\s+)?(all|the)\s+(audit\s+)?(logs?|conversations?|history).*$", "audit_access"),
+    (r"^(what\s+did\s+)?(everyone|the\s+kids?|they)\s+(say|talk\s+about|discuss).*$", "audit_access"),
+    (r"^show\s+(me\s+)?deleted\s+(conversations?|messages?).*$", "audit_access"),
+    (r"^(parent(al)?|audit)\s+(access|log|mode).*$", "audit_access"),
+    (r"^full\s+(history|log|access).*$", "audit_access"),
+    (r"^show\s+(me\s+)?alerts?.*$", "audit_access"),
     # Cross-device handoff
     (r"^continue\s+(the\s+)?conversation\s+.*(on|from)\s+.*$", "handoff"),
     (r"^pick\s+up\s+(where\s+I\s+left\s+off\s+)?(on|from)\s+.*$", "handoff"),
@@ -434,6 +436,7 @@ class MetaAgent(Agent):
         ("instant", IntentCategory.INSTANT, 0.95),
         ("gesture", IntentCategory.GESTURE, 0.95),
         ("self_improvement", IntentCategory.SELF_IMPROVEMENT, 0.92),
+        ("conversation", IntentCategory.CONVERSATION, 0.92),  # Super user, handoff, recall
         ("action", IntentCategory.ACTION, 0.90),
         ("memory", IntentCategory.MEMORY, 0.90),
         ("query", IntentCategory.QUERY, 0.85),
