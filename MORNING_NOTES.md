@@ -1,7 +1,7 @@
 # Morning Notes - Overnight Work Session
 
 **Started:** January 22, 2026 (evening)
-**Last Updated:** January 23, 2026 ~5:45 AM
+**Last Updated:** January 23, 2026 ~5:55 AM
 
 This document tracks all work done overnight and items that need your attention.
 
@@ -70,7 +70,9 @@ This document tracks all work done overnight and items that need your attention.
 | **Conversation** | "conversation starter", "dinner question" | **NEW** - Family discussion prompts |
 | **Bedtime** | "how long until bedtime" | **NEW** - Age-aware bedtime countdown |
 | **Birthday** | "when is Penelope's birthday" | **NEW** - Family birthday countdown |
-| **Daily Briefing** | "morning briefing", "brief me" | **NEW** - Weather + calendar + birthdays |
+| **Daily Briefing** | "morning briefing", "brief me" | **IMPROVED** - Day, weather, high/low, rain, calendar |
+| **Riddles** | "tell me a riddle" → "whats the answer" | **IMPROVED** - Interactive, stores answer |
+| **Weather** | "will it rain", "need an umbrella" | **IMPROVED** - Rain forecast + tomorrow |
 | **Stories** | "tell me a bedtime story" | LLM-generated stories |
 | **Definitions** | "what does ephemeral mean" | LLM-powered definitions |
 
