@@ -176,6 +176,13 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(can you hear me|do you hear me|are you there|testing)(\?)?$", "mic_check"),
     (r"^test(ing)?( 1 2 3)?(\?)?$", "mic_check"),
     (r"^(is this|this is|am i) (working|on)(\?)?$", "mic_check"),
+    # Spelling queries
+    (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
+    (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
+    (r"^what(?:'s| is) the spelling of (\w+)(\?)?$", "spelling"),
+    (r"^how do you spell (\w+)(\?)?$", "spelling"),
+    (r"^how do i spell (\w+)(\?)?$", "spelling"),
+    (r"^spell out (\w+)(\?)?$", "spelling"),
 ]
 
 ACTION_PATTERNS: list[tuple[str, str]] = [

@@ -97,6 +97,12 @@ class InstantAgent(Agent):
         "I hear you perfectly!",
     ]
 
+    SPELLING_RESPONSES = [
+        "{word} is spelled {spelling}.",
+        "That's {spelling}.",
+        "{word}: {spelling}.",
+    ]
+
     FALLBACK_RESPONSES = [
         "I'm not sure how to respond to that.",
         "Let me think about that for a moment...",
@@ -106,6 +112,7 @@ class InstantAgent(Agent):
     def __init__(self) -> None:
         """Initialize the Instant Agent."""
         self._math_pattern: re.Pattern[str] | None = None
+        self._spelling_pattern: re.Pattern[str] | None = None
 
     async def init(self) -> None:
         """Initialize patterns and resources."""
@@ -114,11 +121,20 @@ class InstantAgent(Agent):
             r"(?:what(?:'s| is) )?(\d+(?:\.\d+)?)\s*([\+\-\*\/])\s*(\d+(?:\.\d+)?)",
             re.IGNORECASE,
         )
+        # Compile spelling pattern - matches "spell X", "how do you spell X", "what's the spelling of X"
+        self._spelling_pattern = re.compile(
+            r"(?:how (?:do (?:you |i )?)?(?:spell|write)|"
+            r"(?:can you |please )?spell(?: me)?|"
+            r"what(?:'s| is) the spelling of|"
+            r"spell out)\s+(?:the word\s+)?[\"']?(\w+)[\"']?\??$",
+            re.IGNORECASE,
+        )
         logger.info("InstantAgent initialized")
 
     async def shutdown(self) -> None:
         """Clean up resources."""
         self._math_pattern = None
+        self._spelling_pattern = None
 
     async def handle_input(self, text: str, context: dict | None = None) -> dict[str, Any]:
         """Handle an instant response request.
@@ -161,6 +177,15 @@ class InstantAgent(Agent):
         elif sub_category == "mic_check" or self._is_mic_check(text_lower):
             response = self._handle_mic_check()
             response_type = "mic_check"
+        elif sub_category == "spelling" or (spelling_result := self._try_spelling(text)):
+            if sub_category == "spelling":
+                spelling_result = self._try_spelling(text)
+            if spelling_result:
+                response = spelling_result
+                response_type = "spelling"
+            else:
+                response = random.choice(self.FALLBACK_RESPONSES)
+                response_type = "fallback"
         elif sub_category == "math" or (math_result := self._try_math(text)):
             if sub_category == "math":
                 math_result = self._try_math(text)
@@ -343,6 +368,29 @@ class InstantAgent(Agent):
 
         except (ValueError, KeyError, ZeroDivisionError):
             return None
+
+    def _try_spelling(self, text: str) -> str | None:
+        """Try to spell a word from the input.
+
+        Supports: "spell dinosaur", "how do you spell beautiful", etc.
+        Returns the word spelled out letter by letter.
+        """
+        if self._spelling_pattern is None:
+            return None
+
+        match = self._spelling_pattern.search(text)
+        if not match:
+            return None
+
+        word = match.group(1).strip()
+        if not word:
+            return None
+
+        # Spell out the word with spaces between letters
+        spelling = " ".join(letter.upper() for letter in word)
+
+        template = random.choice(self.SPELLING_RESPONSES)
+        return template.format(word=word.lower(), spelling=spelling)
 
 
 __all__ = ["InstantAgent"]
