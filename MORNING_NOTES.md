@@ -37,6 +37,7 @@ This document tracks all work done overnight and items that need your attention.
 | **Moon Phase** | "moon phase" | **NEW** - Calculated algorithmically |
 | **Weather** | "what's the weather" | **NEW** - Uses HA weather entity |
 | **Shopping List** | "add X to shopping list" | **NEW** - Uses HA todo entity |
+| **Calendar** | "what's on my calendar" | **NEW** - Uses HA calendar entities |
 
 ### Major Enhancements
 
@@ -172,6 +173,12 @@ how cold is it            # "It's currently 43°F outside."
 add milk to shopping list       # "Added milk to the shopping list."
 what's on my shopping list      # "There are 44 items..."
 remove coffee from shopping list  # Removes item
+
+# NEW: Calendar
+what's on my calendar today     # "You have: Trash and Recycling (all day)."
+what do we have scheduled       # Shows upcoming events
+any appointments this week      # Week overview
+what's happening tomorrow       # Tomorrow's schedule
 
 # Previous Features
 flip a coin
