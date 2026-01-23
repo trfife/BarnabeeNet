@@ -2248,7 +2248,8 @@ async function loadAgentModels() {
     if (!container) return;
 
     try {
-        const response = await fetch(`${API_BASE}/api/v1/config/agents/models`);
+        // Fetch actual runtime activities (reflects mode changes)
+        const response = await fetch(`${API_BASE}/api/v1/config/activities`);
         const data = await response.json();
 
         const agentIcons = {
@@ -2267,33 +2268,80 @@ async function loadAgentModels() {
             'instant': 'InstantAgent'
         };
 
+        const agentDescriptions = {
+            'meta': 'Fast routing decisions for every request',
+            'action': 'Device control and home automation',
+            'interaction': 'Complex conversations, advice, personality',
+            'memory': 'Memory generation and summarization',
+            'instant': 'Fast responses for simple queries'
+        };
+
+        // Primary activity for each agent (to display as "the" model)
+        const primaryActivities = {
+            'meta': 'meta.classify_intent',
+            'action': 'action.parse_intent',
+            'interaction': 'interaction.respond',
+            'memory': 'memory.generate',
+            'instant': 'instant.fallback'
+        };
+
+        // Group activities by agent
+        const agentActivities = {};
+        for (const activity of data.activities) {
+            const agent = activity.activity.split('.')[0];
+            if (!agentActivities[agent]) {
+                agentActivities[agent] = [];
+            }
+            agentActivities[agent].push(activity);
+        }
+
+        // Build display for main agents
+        const mainAgents = ['meta', 'action', 'interaction', 'memory', 'instant'];
         let html = '<div class="agent-models-grid">';
-        for (const [agent, config] of Object.entries(data.agents)) {
+        
+        for (const agent of mainAgents) {
+            const activities = agentActivities[agent] || [];
+            const primaryActivity = primaryActivities[agent];
+            
+            // Find the primary activity config
+            let primaryConfig = activities.find(a => a.activity === primaryActivity);
+            if (!primaryConfig && activities.length > 0) {
+                primaryConfig = activities[0];
+            }
+            
+            if (!primaryConfig) continue;
+
+            // Get unique models used by this agent
+            const uniqueModels = [...new Set(activities.map(a => a.model))];
+            const modelDisplay = uniqueModels.length === 1 
+                ? primaryConfig.model 
+                : `${primaryConfig.model} (+${uniqueModels.length - 1} more)`;
+
             html += `
                 <div class="agent-model-card">
                     <div class="agent-model-header">
                         <span class="agent-icon">${agentIcons[agent] || '🤖'}</span>
                         <div>
                             <h4>${agentNames[agent] || agent}</h4>
-                            <p class="agent-desc">${config.description || ''}</p>
+                            <p class="agent-desc">${agentDescriptions[agent] || ''}</p>
                         </div>
                     </div>
                     <div class="agent-model-info">
                         <div class="model-field">
                             <label>Model:</label>
-                            <code>${config.model}</code>
+                            <code>${modelDisplay}</code>
                         </div>
                         <div class="model-field">
                             <label>Temperature:</label>
-                            <span>${config.temperature}</span>
+                            <span>${primaryConfig.temperature}</span>
                         </div>
                         <div class="model-field">
                             <label>Max Tokens:</label>
-                            <span>${config.max_tokens}</span>
+                            <span>${primaryConfig.max_tokens}</span>
                         </div>
                     </div>
                     <div class="agent-model-source">
-                        <small>Source: ${data.source}</small>
+                        <small>${activities.length} activities</small>
                     </div>
                 </div>
             `;
