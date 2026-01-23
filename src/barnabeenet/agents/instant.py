@@ -990,6 +990,11 @@ class InstantAgent(Agent):
         # Exclude bedtime queries (handled separately)
         if "bedtime" in text or "bed time" in text:
             return False
+        # Exclude simple time unit questions (handled by simple_fact)
+        # e.g., "how many days in a year" is not a countdown
+        time_unit_patterns = ["in a year", "in a month", "in a week", "days in", "weeks in", "months in"]
+        if any(tp in text for tp in time_unit_patterns):
+            return False
         countdown_keywords = ["days until", "days till", "how long until", "how many days", "when is"]
         return any(kw in text for kw in countdown_keywords)
 
