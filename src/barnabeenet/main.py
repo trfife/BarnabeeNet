@@ -201,6 +201,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         ha_client = await get_ha_client()
         if ha_client:
+            # Set HA client on orchestrator so it can resolve entities
+            if app_state.orchestrator:
+                app_state.orchestrator.set_ha_client(ha_client)
+                logger.info("Set HA client on orchestrator for entity resolution")
+
             # Ensure WebSocket subscription is started for timer events
             if not ha_client.is_subscribed:
                 await ha_client.subscribe_to_events()
