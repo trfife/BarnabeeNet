@@ -720,6 +720,15 @@ class InstantAgent(Agent):
             _, person_name = location_result
             response = await self._handle_location_query(person_name)
             response_type = "location"
+        # Who's home queries
+        elif sub_category == "whos_home" or self._is_whos_home_query(text_lower):
+            response = await self._handle_whos_home_query(text)
+            response_type = "whos_home"
+        # Device status queries
+        elif (device_result := self._is_device_status_query(text_lower))[0]:
+            _, device_name, _ = device_result
+            response = await self._handle_device_status_query(device_name)
+            response_type = "device_status"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -953,6 +962,42 @@ class InstantAgent(Agent):
                         return True, family_name
 
         return False, None
+
+    def _is_whos_home_query(self, text: str) -> bool:
+        """Check if user is asking who's home."""
+        keywords = [
+            "who's home", "who is home", "who is at home", "who's at home",
+            "is anyone home", "is anybody home", "anyone home", "anybody home",
+            "is the house empty", "is everyone home", "is everybody home",
+            "who all is home", "who's here", "who is here"
+        ]
+        return any(kw in text for kw in keywords)
+
+    def _is_device_status_query(self, text: str) -> tuple[bool, str | None, str | None]:
+        """Check if user is asking about device status.
+
+        Returns (is_device_query, device_name or None, domain or None).
+        """
+        # Patterns for device status
+        patterns = [
+            (r"is the (\w+(?:\s+\w+)?) (on|off|open|closed|locked|unlocked)", None),
+            (r"is (\w+(?:\s+\w+)?) (on|off|open|closed|locked|unlocked)", None),
+            (r"what('s| is) the (\w+(?:\s+\w+)?) (set to|at|temperature)", "climate"),
+            (r"(status of|check) the (\w+(?:\s+\w+)?)", None),
+        ]
+
+        for pattern, domain in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                groups = match.groups()
+                # Extract device name (usually the first or second group)
+                device_name = groups[0] if len(groups) >= 1 else None
+                if device_name and device_name.lower() in ["the", "a", "my"]:
+                    device_name = groups[1] if len(groups) >= 2 else None
+                if device_name:
+                    return True, device_name.lower(), domain
+
+        return False, None, None
 
     # =========================================================================
     # Response Handlers
@@ -1393,6 +1438,140 @@ class InstantAgent(Agent):
         except Exception as e:
             logger.warning(f"Failed to get location for {person_name}: {e}")
             return f"I had trouble checking {person_name.capitalize()}'s location."
+
+    async def _handle_whos_home_query(self, text: str) -> str:
+        """Get list of who's home from Home Assistant."""
+        person_entities = {
+            "person.thom_fife": "Thom",
+            "person.elizabeth_fife": "Elizabeth",
+            "person.penelope_fife": "Penelope",
+            "person.xander_fife": "Xander",
+            "person.viola_fife": "Viola",
+            "person.zachary_fife": "Zachary",
+        }
+
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't check who's home right now."
+
+            at_home = []
+            away = []
+
+            for entity_id, name in person_entities.items():
+                state = await ha_client.get_state(entity_id)
+                if state:
+                    if state.state == "home":
+                        at_home.append(name)
+                    else:
+                        away.append(name)
+
+            # Check what the user is asking
+            text_lower = text.lower()
+            if "anyone" in text_lower or "anybody" in text_lower or "empty" in text_lower:
+                # "Is anyone home?" / "Is the house empty?"
+                if not at_home:
+                    return "No one is home right now. The house is empty."
+                elif len(at_home) == 1:
+                    return f"Yes, {at_home[0]} is home."
+                else:
+                    return f"Yes, {', '.join(at_home[:-1])} and {at_home[-1]} are home."
+
+            elif "everyone" in text_lower or "everybody" in text_lower:
+                # "Is everyone home?"
+                if not away:
+                    return "Yes, everyone is home!"
+                elif len(away) == 1:
+                    return f"Almost! {away[0]} is not home yet."
+                else:
+                    return f"{', '.join(away[:-1])} and {away[-1]} are not home yet."
+
+            else:
+                # "Who's home?"
+                if not at_home:
+                    return "No one is home right now."
+                elif len(at_home) == 1:
+                    return f"Just {at_home[0]} is home."
+                elif len(at_home) == len(person_entities):
+                    return "Everyone is home!"
+                else:
+                    return f"{', '.join(at_home[:-1])} and {at_home[-1]} are home."
+
+        except Exception as e:
+            logger.warning(f"Failed to check who's home: {e}")
+            return "I had trouble checking who's home."
+
+    async def _handle_device_status_query(self, device_name: str) -> str:
+        """Get status of a device from Home Assistant."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return f"I can't check the {device_name} right now."
+
+            # Try to resolve the device name to an entity
+            entity = await ha_client.resolve_entity_async(device_name)
+            if not entity:
+                return f"I couldn't find a device called {device_name}."
+
+            entity_id = entity.entity_id
+            state = await ha_client.get_state(entity_id)
+            if not state:
+                return f"I couldn't get the status of the {device_name}."
+
+            domain = entity_id.split(".")[0]
+            device_state = state.state
+            attributes = state.attributes
+            friendly_name = attributes.get("friendly_name", device_name)
+
+            # Format response based on domain
+            if domain == "light":
+                if device_state == "on":
+                    brightness = attributes.get("brightness")
+                    if brightness:
+                        pct = round(brightness / 255 * 100)
+                        return f"The {friendly_name} is on at {pct}% brightness."
+                    return f"The {friendly_name} is on."
+                return f"The {friendly_name} is off."
+
+            elif domain == "switch":
+                return f"The {friendly_name} is {'on' if device_state == 'on' else 'off'}."
+
+            elif domain == "lock":
+                return f"The {friendly_name} is {device_state}."
+
+            elif domain == "cover":
+                if device_state == "open":
+                    position = attributes.get("current_position")
+                    if position:
+                        return f"The {friendly_name} is open at {position}%."
+                    return f"The {friendly_name} is open."
+                return f"The {friendly_name} is {device_state}."
+
+            elif domain == "climate":
+                current_temp = attributes.get("current_temperature")
+                target_temp = attributes.get("temperature")
+                hvac_mode = attributes.get("hvac_mode", device_state)
+                if current_temp and target_temp:
+                    return f"The {friendly_name} is set to {hvac_mode} at {target_temp}°. Current temperature is {current_temp}°."
+                elif target_temp:
+                    return f"The {friendly_name} is set to {target_temp}° ({hvac_mode})."
+                return f"The {friendly_name} is {hvac_mode}."
+
+            elif domain == "sensor":
+                unit = attributes.get("unit_of_measurement", "")
+                return f"The {friendly_name} is {device_state}{unit}."
+
+            elif domain == "binary_sensor":
+                return f"The {friendly_name} is {device_state}."
+
+            else:
+                return f"The {friendly_name} is {device_state}."
+
+        except Exception as e:
+            logger.warning(f"Failed to get device status for {device_name}: {e}")
+            return f"I had trouble checking the {device_name}."
 
     def _is_clear_conversation(self, text: str) -> bool:
         """Check if user wants to clear/reset the conversation."""

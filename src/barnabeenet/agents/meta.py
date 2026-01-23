@@ -278,6 +278,16 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^where are \w+(\?)?$", "location"),
     (r"^(find|locate) \w+(\?)?$", "location"),
     (r"^\w+'s location(\?)?$", "location"),
+    # Who's home queries
+    (r"^who('s| is) (home|at home|here)(\?)?$", "whos_home"),
+    (r"^is (anyone|anybody|everyone|everybody) (home|at home)(\?)?$", "whos_home"),
+    (r"^(anyone|anybody) home(\?)?$", "whos_home"),
+    (r"^is the house empty(\?)?$", "whos_home"),
+    # Device status queries
+    (r"^is the \w+( \w+)? (on|off|open|closed|locked|unlocked)(\?)?$", "device_status"),
+    (r"^is \w+( \w+)? (on|off|open|closed|locked|unlocked)(\?)?$", "device_status"),
+    (r"^(status of|check) the \w+( \w+)?(\?)?$", "device_status"),
+    (r"^what('s| is) the \w+( \w+)? (set to|at|temperature)(\?)?$", "device_status"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
