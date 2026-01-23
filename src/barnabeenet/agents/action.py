@@ -23,6 +23,10 @@ from enum import Enum
 from typing import Any
 
 from barnabeenet.agents.base import Agent
+from barnabeenet.services.entity_queries import (
+    execute_entity_query,
+    parse_entity_query,
+)
 from barnabeenet.services.llm.openrouter import OpenRouterClient
 from barnabeenet.services.timers import (
     TimerManager,
@@ -265,6 +269,11 @@ class ActionAgent(Agent):
         timer_result = parse_timer_command(text)
         if timer_result.is_timer_command:
             return await self._handle_timer_command(text, timer_result, context)
+
+        # Check if this is an entity state query
+        entity_query_result = await self._handle_entity_query(text, context)
+        if entity_query_result:
+            return entity_query_result
 
         # Parse the action
         action_spec = await self.parse_action(text, context)
@@ -1375,6 +1384,64 @@ If you cannot parse the request, respond with:
                     })
 
         return chained_actions
+
+    async def _handle_entity_query(
+        self,
+        text: str,
+        context: dict,
+    ) -> dict[str, Any] | None:
+        """Handle entity state queries.
+
+        Args:
+            text: Original query text
+            context: Request context
+
+        Returns:
+            Response dict if query was handled, None otherwise
+        """
+        # Parse the entity query
+        query = parse_entity_query(text)
+        if not query:
+            return None
+
+        # Get HA client from orchestrator
+        from barnabeenet.agents.orchestrator import get_orchestrator
+
+        orchestrator = get_orchestrator()
+        if not orchestrator or not orchestrator._ha_client:
+            return {
+                "response": "I can't check device states right now. Home Assistant is not connected.",
+                "agent": self.name,
+                "success": False,
+            }
+
+        ha_client = orchestrator._ha_client
+
+        # Get topology service for floor resolution
+        topology_service = None
+        try:
+            from barnabeenet.services.homeassistant.topology import get_topology_service
+
+            topology_service = await get_topology_service(ha_client)
+        except Exception:
+            pass  # Floor resolution won't work but area queries will
+
+        # Execute the query
+        try:
+            response = await execute_entity_query(query, ha_client, topology_service)
+            return {
+                "response": response,
+                "agent": self.name,
+                "query_type": query.query_type.value,
+                "success": True,
+            }
+        except Exception as e:
+            logger.error("Error executing entity query: %s", e, exc_info=True)
+            return {
+                "response": "I had trouble checking your devices. Please try again.",
+                "agent": self.name,
+                "success": False,
+            }
 
     def _action_to_dict(self, action: ActionSpec) -> dict[str, Any]:
         """Convert ActionSpec to dictionary for response."""

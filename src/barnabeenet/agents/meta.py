@@ -199,6 +199,23 @@ ACTION_PATTERNS: list[tuple[str, str]] = [
     (r"^are\s+there\s+(?:any\s+)?timers?.*$", "timer"),  # "are there any timers"
     (r"^how\s+many\s+timers?.*$", "timer"),  # "how many timers do I have"
     (r"^timers?\s+status.*$", "timer"),  # "timer status"
+    # Entity state query patterns - route to action agent for direct HA queries
+    # Single entity state queries
+    (r"^is (?:the |my )?(.+?) (on|off|open|closed|locked|unlocked)\??$", "entity_query"),
+    # Area/domain aggregation queries
+    (r"^(?:are|is) (?:there )?any (.+?) (on|off|open|closed|locked|unlocked).*$", "entity_query"),
+    (r"^how many (.+?) (?:are )?(on|off|open|closed|in |outside|downstairs|upstairs).*$", "entity_query"),
+    (r"^what (.+?) (?:are|is) (on|off|open|closed|locked|unlocked).*$", "entity_query"),
+    (r"^which (.+?) (?:are|is) (on|off|open|closed|locked|unlocked).*$", "entity_query"),
+    # Attribute queries (battery, unavailable)
+    (r"^what (?:batteries|devices?) need (?:changing|replacing|charging).*$", "entity_query"),
+    (r"^(?:which|what) (?:devices?|sensors?|batteries?) (?:are |have )?(?:low|dead|dying).*$", "entity_query"),
+    (r"^(?:which|what) (?:devices?|entities?) (?:are )?unavailable.*$", "entity_query"),
+    # List/show queries
+    (r"^(?:list|show)(?: all)?(?: the)? (.+?) (?:that are )?(on|off|open|closed).*$", "entity_query"),
+    (r"^(?:list|show)(?: all)?(?: the)? (.+?) (?:in |on )?(?:the )?(.+)$", "entity_query"),
+    # Count queries
+    (r"^how many (?:devices?|lights?|switches?|sensors?) (?:do i have |are )?(?:in |on )?(?:the )?(.+)$", "entity_query"),
     # Device control patterns
     (r"^(turn|trun|tunr|switch|swtich|swich) (on|off|of) .*$", "switch"),  # Common typos
     (r"^(on|off) .*(light|lamp|switch|fan).*$", "switch"),  # "off the light"
