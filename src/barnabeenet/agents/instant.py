@@ -11,12 +11,42 @@ import logging
 import random
 import re
 import time
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 from barnabeenet.agents.base import Agent
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SpellingSession:
+    """Tracks an active letter-by-letter spelling session."""
+
+    word: str
+    letters: list[str] = field(default_factory=list)
+    current_index: int = 0
+    awaiting_confirmation: bool = True  # Waiting for user to say "yes"
+
+    def __post_init__(self) -> None:
+        self.letters = [letter.upper() for letter in self.word]
+
+    def get_next_letter(self) -> str | None:
+        """Get the next letter, or None if done."""
+        if self.current_index < len(self.letters):
+            letter = self.letters[self.current_index]
+            self.current_index += 1
+            return letter
+        return None
+
+    def is_complete(self) -> bool:
+        """Check if all letters have been given."""
+        return self.current_index >= len(self.letters)
+
+    def remaining_count(self) -> int:
+        """How many letters are left."""
+        return len(self.letters) - self.current_index
 
 
 class InstantAgent(Agent):
@@ -29,9 +59,23 @@ class InstantAgent(Agent):
     - Status queries ("how are you")
     - Simple math ("what's 5 + 3")
     - Thanks responses
+    - Spelling with optional letter-by-letter mode
     """
 
     name = "instant"
+
+    # Patterns that indicate user wants to continue letter-by-letter spelling
+    SPELLING_CONTINUE_PATTERNS = [
+        "yes", "yeah", "yep", "yup", "sure", "ok", "okay", "go ahead",
+        "next", "continue", "go on", "keep going", "next letter",
+        "and", "then", "what's next", "more", "another",
+    ]
+
+    # Patterns that indicate user wants to stop/cancel
+    SPELLING_STOP_PATTERNS = [
+        "no", "nope", "stop", "cancel", "nevermind", "never mind",
+        "that's enough", "i got it", "thanks", "thank you", "done",
+    ]
 
     # Response templates for variety
     TIME_RESPONSES = [
@@ -98,9 +142,7 @@ class InstantAgent(Agent):
     ]
 
     SPELLING_RESPONSES = [
-        "{word} is spelled {spelling}.",
-        "That's {spelling}.",
-        "{word}: {spelling}.",
+        "{word} is spelled {spelling}. Would you like that one letter at a time?",
     ]
 
     FALLBACK_RESPONSES = [
@@ -113,6 +155,8 @@ class InstantAgent(Agent):
         """Initialize the Instant Agent."""
         self._math_pattern: re.Pattern[str] | None = None
         self._spelling_pattern: re.Pattern[str] | None = None
+        # Track active spelling sessions by speaker (or "default" if no speaker)
+        self._spelling_sessions: dict[str, SpellingSession] = {}
 
     async def init(self) -> None:
         """Initialize patterns and resources."""
@@ -153,13 +197,24 @@ class InstantAgent(Agent):
 
         # Get sub_category hint from MetaAgent if available
         sub_category = context.get("sub_category")
-        speaker = context.get("speaker")
+        speaker = context.get("speaker") or "default"
 
         # Determine response based on category or content
         response: str
         response_type: str
 
-        if sub_category == "time" or self._is_time_query(text_lower):
+        # First, check if this is a continuation of a letter-by-letter spelling session
+        # This handles "yes", "next", etc. when there's an active spelling session
+        spelling_continuation = self._handle_spelling_continuation(text_lower, speaker)
+        if spelling_continuation:
+            response = spelling_continuation
+            response_type = "spelling_letter"
+        elif sub_category == "spelling_continue":
+            # MetaAgent routed this as a potential spelling continuation, but no active session
+            # Give a helpful response instead of a confusing one
+            response = "I'm here! What would you like me to help with?"
+            response_type = "acknowledgment"
+        elif sub_category == "time" or self._is_time_query(text_lower):
             response = self._handle_time()
             response_type = "time"
         elif sub_category == "date" or self._is_date_query(text_lower):
@@ -177,9 +232,9 @@ class InstantAgent(Agent):
         elif sub_category == "mic_check" or self._is_mic_check(text_lower):
             response = self._handle_mic_check()
             response_type = "mic_check"
-        elif sub_category == "spelling" or (spelling_result := self._try_spelling(text)):
+        elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
-                spelling_result = self._try_spelling(text)
+                spelling_result = self._try_spelling(text, speaker)
             if spelling_result:
                 response = spelling_result
                 response_type = "spelling"
@@ -369,11 +424,62 @@ class InstantAgent(Agent):
         except (ValueError, KeyError, ZeroDivisionError):
             return None
 
-    def _try_spelling(self, text: str) -> str | None:
+    def _handle_spelling_continuation(self, text_lower: str, speaker: str) -> str | None:
+        """Handle continuation of a letter-by-letter spelling session.
+
+        Returns response if this is a continuation, None otherwise.
+        """
+        session = self._spelling_sessions.get(speaker)
+        if not session:
+            return None
+
+        # Check if user wants to stop
+        if any(pattern in text_lower for pattern in self.SPELLING_STOP_PATTERNS):
+            del self._spelling_sessions[speaker]
+            return "Okay, no problem!"
+
+        # Check if user wants to continue (or is confirming to start)
+        is_continue = any(pattern in text_lower for pattern in self.SPELLING_CONTINUE_PATTERNS)
+
+        if session.awaiting_confirmation:
+            if is_continue:
+                # User said yes - start giving letters
+                session.awaiting_confirmation = False
+                letter = session.get_next_letter()
+                if letter:
+                    if session.is_complete():
+                        # Only one letter word, we're done
+                        del self._spelling_sessions[speaker]
+                        return f"{letter}. That's the whole word!"
+                    return letter
+            else:
+                # User said something else - assume they don't want letter-by-letter
+                del self._spelling_sessions[speaker]
+                return None
+
+        # User is asking for next letter
+        if is_continue:
+            letter = session.get_next_letter()
+            if letter:
+                if session.is_complete():
+                    # Last letter
+                    del self._spelling_sessions[speaker]
+                    return f"{letter}. That's the last letter!"
+                return letter
+            else:
+                # No more letters
+                del self._spelling_sessions[speaker]
+                return "That's all the letters!"
+
+        # User said something that doesn't match - end the session
+        del self._spelling_sessions[speaker]
+        return None
+
+    def _try_spelling(self, text: str, speaker: str = "default") -> str | None:
         """Try to spell a word from the input.
 
         Supports: "spell dinosaur", "how do you spell beautiful", etc.
-        Returns the word spelled out letter by letter.
+        Returns the word spelled out letter by letter with offer for slow mode.
         """
         if self._spelling_pattern is None:
             return None
@@ -388,6 +494,9 @@ class InstantAgent(Agent):
 
         # Spell out the word with spaces between letters
         spelling = " ".join(letter.upper() for letter in word)
+
+        # Create a spelling session for potential letter-by-letter follow-up
+        self._spelling_sessions[speaker] = SpellingSession(word=word)
 
         template = random.choice(self.SPELLING_RESPONSES)
         return template.format(word=word.lower(), spelling=spelling)

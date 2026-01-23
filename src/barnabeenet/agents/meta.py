@@ -183,6 +183,11 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^how do you spell (\w+)(\?)?$", "spelling"),
     (r"^how do i spell (\w+)(\?)?$", "spelling"),
     (r"^spell out (\w+)(\?)?$", "spelling"),
+    # Spelling continuation - short affirmative responses for letter-by-letter mode
+    (r"^(yes|yeah|yep|yup|sure|ok|okay)(\?)?$", "spelling_continue"),
+    (r"^(next|continue|go on|go ahead)(\?)?$", "spelling_continue"),
+    (r"^(next letter|what'?s next|and|then|more|another)(\?)?$", "spelling_continue"),
+    (r"^(no|nope|stop|cancel|done|nevermind|never mind)$", "spelling_continue"),
 ]
 
 ACTION_PATTERNS: list[tuple[str, str]] = [

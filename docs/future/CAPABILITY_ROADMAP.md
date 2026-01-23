@@ -1,7 +1,7 @@
 # BarnabeeNet Capability Roadmap
 
-**Last Updated:** January 2026  
-**Status:** Planning Reference  
+**Last Updated:** January 2026
+**Status:** Planning Reference
 **Purpose:** Prioritized list of all potential capabilities, ordered by ease of development and usefulness
 
 ---
@@ -52,6 +52,7 @@
 These can be done in 1-2 days and provide high daily value.
 
 ### 1.1 Random Choices / Decisions
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥🔥
 
 Kids love these for games, decisions, and fairness.
@@ -72,6 +73,7 @@ Kids love these for games, decisions, and fairness.
 ---
 
 ### 1.2 Jokes
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥🔥
 
 | Command | Response |
@@ -86,6 +88,7 @@ Kids love these for games, decisions, and fairness.
 ---
 
 ### 1.3 Unit Conversions
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥🔥
 
 Essential for cooking and homework.
@@ -103,6 +106,7 @@ Essential for cooking and homework.
 ---
 
 ### 1.4 Countdown to Events
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥🔥
 
 | Command | Response |
@@ -117,6 +121,7 @@ Essential for cooking and homework.
 ---
 
 ### 1.5 Animal Sounds
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥 (young kids)
 
 | Command | Response |
@@ -129,6 +134,7 @@ Essential for cooking and homework.
 ---
 
 ### 1.6 Counting & Number Help
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥🔥 (young kids)
 
 | Command | Response |
@@ -143,6 +149,7 @@ Essential for cooking and homework.
 ---
 
 ### 1.7 World Clock / Time Zones
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -155,6 +162,7 @@ Essential for cooking and homework.
 ---
 
 ### 1.8 Undo / Cancel Last Action
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥🔥
 
 | Command | Action |
@@ -168,6 +176,7 @@ Essential for cooking and homework.
 ---
 
 ### 1.9 Say That Again / Repeat
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥🔥
 
 | Command | Action |
@@ -182,6 +191,7 @@ Essential for cooking and homework.
 ---
 
 ### 1.10 Simple Definitions
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥🔥
 
 | Command | Response |
@@ -196,6 +206,7 @@ Essential for cooking and homework.
 ## Tier 2: Easy + Medium Value
 
 ### 2.1 Translation
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -208,6 +219,7 @@ Essential for cooking and homework.
 ---
 
 ### 2.2 Fun Facts
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -220,6 +232,7 @@ Essential for cooking and homework.
 ---
 
 ### 2.3 Story Generation
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥 (kids)
 
 | Command | Response |
@@ -232,6 +245,7 @@ Essential for cooking and homework.
 ---
 
 ### 2.4 Math Practice / Problems
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥🔥 (kids)
 
 | Command | Response |
@@ -245,6 +259,7 @@ Essential for cooking and homework.
 ---
 
 ### 2.5 Trivia Questions
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -257,6 +272,7 @@ Essential for cooking and homework.
 ---
 
 ### 2.6 Would You Rather
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥 (kids)
 
 | Command | Response |
@@ -269,6 +285,7 @@ Essential for cooking and homework.
 ---
 
 ### 2.7 Sunrise / Sunset Times
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -281,6 +298,7 @@ Essential for cooking and homework.
 ---
 
 ### 2.8 Moon Phase
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥
 
 | Command | Response |
@@ -292,6 +310,7 @@ Essential for cooking and homework.
 ---
 
 ### 2.9 Compliments / Encouragement
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥 (kids)
 
 | Command | Response |
@@ -305,6 +324,7 @@ Essential for cooking and homework.
 ---
 
 ### 2.10 Sleep Timer
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -319,6 +339,7 @@ Essential for cooking and homework.
 ## Tier 3: Medium Difficulty + High Value
 
 ### 3.1 Weather Integration
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥🔥
 
 | Command | Response |
@@ -334,6 +355,7 @@ Essential for cooking and homework.
 ---
 
 ### 3.2 Phone Finder (Phase 1)
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥🔥
 
 | Command | Response |
@@ -347,6 +369,7 @@ Essential for cooking and homework.
 ---
 
 ### 3.3 Chore Tracking / Star System
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥🔥 (family)
 
 | Command | Response |
@@ -361,6 +384,7 @@ Essential for cooking and homework.
 ---
 
 ### 3.4 Homework Timer / Pomodoro
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥🔥 (kids)
 
 | Command | Response |
@@ -374,6 +398,7 @@ Essential for cooking and homework.
 ---
 
 ### 3.5 Calendar Integration
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥🔥
 
 | Command | Response |
@@ -388,6 +413,7 @@ Essential for cooking and homework.
 ---
 
 ### 3.6 Shopping List
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥🔥
 
 | Command | Response |
@@ -401,6 +427,7 @@ Essential for cooking and homework.
 ---
 
 ### 3.7 Bedtime Countdown
+
 **Ease:** ⭐⭐⭐ | **Usefulness:** 🔥🔥🔥 (kids)
 
 | Command | Response |
@@ -413,6 +440,7 @@ Essential for cooking and homework.
 ---
 
 ### 3.8 Recipe Help
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -426,6 +454,7 @@ Essential for cooking and homework.
 ---
 
 ### 3.9 Air Quality / Pollen
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -439,6 +468,7 @@ Essential for cooking and homework.
 ---
 
 ### 3.10 Sports Scores
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -453,6 +483,7 @@ Essential for cooking and homework.
 ## Tier 4: Medium Difficulty + Medium Value
 
 ### 4.1 Confirmation Read-back
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -465,6 +496,7 @@ Essential for cooking and homework.
 ---
 
 ### 4.2 Follow-up Mode
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Description |
@@ -476,6 +508,7 @@ Essential for cooking and homework.
 ---
 
 ### 4.3 Quick Notes / Voice Memos
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -489,6 +522,7 @@ Essential for cooking and homework.
 ---
 
 ### 4.4 Traffic / Commute
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -501,6 +535,7 @@ Essential for cooking and homework.
 ---
 
 ### 4.5 Package Tracking
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -513,6 +548,7 @@ Essential for cooking and homework.
 ---
 
 ### 4.6 Guest WiFi
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥
 
 | Command | Response |
@@ -525,6 +561,7 @@ Essential for cooking and homework.
 ---
 
 ### 4.7 Appliance Notifications
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -537,6 +574,7 @@ Essential for cooking and homework.
 ---
 
 ### 4.8 Energy Usage
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥
 
 | Command | Response |
@@ -549,6 +587,7 @@ Essential for cooking and homework.
 ---
 
 ### 4.9 Printer Status
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥
 
 | Command | Response |
@@ -561,6 +600,7 @@ Essential for cooking and homework.
 ---
 
 ### 4.10 Pet Reminders
+
 **Ease:** ⭐⭐ | **Usefulness:** 🔥🔥 (if pets)
 
 | Command | Response |
@@ -575,9 +615,11 @@ Essential for cooking and homework.
 ## Tier 5: Hard + High Value
 
 ### 5.1 Find My Phone (Custom App - Phase 3)
+
 **Ease:** ⭐ | **Usefulness:** 🔥🔥🔥
 
 Custom BarnabeeNet mobile app for reliable phone finding with:
+
 - Foreground service for reliability
 - Custom TTS voice
 - Battery monitoring
@@ -588,9 +630,11 @@ Custom BarnabeeNet mobile app for reliable phone finding with:
 ---
 
 ### 5.2 Full Calendar Management
+
 **Ease:** ⭐ | **Usefulness:** 🔥🔥🔥
 
 Complete family calendar with:
+
 - Conflict detection
 - Shared visibility
 - Transportation coordination
@@ -601,6 +645,7 @@ Complete family calendar with:
 ---
 
 ### 5.3 Spatial Awareness / Multi-Room
+
 **Ease:** ⭐ | **Usefulness:** 🔥🔥🔥
 
 | Capability | Description |
@@ -614,6 +659,7 @@ Complete family calendar with:
 ---
 
 ### 5.4 Proactive Intelligence
+
 **Ease:** ⭐ | **Usefulness:** 🔥🔥🔥
 
 | Capability | Description |
@@ -627,6 +673,7 @@ Complete family calendar with:
 ---
 
 ### 5.5 Age-Appropriate Response Adaptation
+
 **Ease:** ⭐ | **Usefulness:** 🔥🔥🔥
 
 Automatically adjust vocabulary, complexity, and content based on who's listening.
@@ -638,6 +685,7 @@ Automatically adjust vocabulary, complexity, and content based on who's listenin
 ## Tier 6: Hard + Medium Value
 
 ### 6.1 Voice Training
+
 **Ease:** ⭐ | **Usefulness:** 🔥🔥
 
 Improve speaker recognition for specific voices.
@@ -645,6 +693,7 @@ Improve speaker recognition for specific voices.
 ---
 
 ### 6.2 Pronunciation Correction
+
 **Ease:** ⭐ | **Usefulness:** 🔥🔥
 
 "That's not how you say my name" → learns correct pronunciation.
@@ -652,6 +701,7 @@ Improve speaker recognition for specific voices.
 ---
 
 ### 6.3 AR Glasses Integration
+
 **Ease:** ⭐ | **Usefulness:** 🔥🔥
 
 Visual notifications, status overlays, navigation.
@@ -659,6 +709,7 @@ Visual notifications, status overlays, navigation.
 ---
 
 ### 6.4 Wearable Gestures
+
 **Ease:** ⭐ | **Usefulness:** 🔥🔥
 
 Watch-based control: double-tap, crown twist, etc.
@@ -666,6 +717,7 @@ Watch-based control: double-tap, crown twist, etc.
 ---
 
 ### 6.5 Meeting Proxy Mode
+
 **Ease:** ⭐ | **Usefulness:** 🔥🔥
 
 Attend meetings on your behalf with voice synthesis.
@@ -673,6 +725,7 @@ Attend meetings on your behalf with voice synthesis.
 ---
 
 ### 6.6 Email Integration
+
 **Ease:** ⭐ | **Usefulness:** 🔥🔥
 
 Read and summarize emails, send quick replies.
@@ -702,6 +755,7 @@ These are unique to BarnabeeNet and not available in commercial assistants.
 ## Implementation Priority Recommendation
 
 ### Sprint 1 (Next 2 weeks)
+
 1. Random choices (flip coin, roll dice, pick number)
 2. Jokes database
 3. Unit conversions
@@ -711,6 +765,7 @@ These are unique to BarnabeeNet and not available in commercial assistants.
 7. Say that again / repeat
 
 ### Sprint 2
+
 1. World clock
 2. Fun facts
 3. Math practice
@@ -719,6 +774,7 @@ These are unique to BarnabeeNet and not available in commercial assistants.
 6. Sleep timer
 
 ### Sprint 3
+
 1. Phone finder (Phase 1 - HA Companion)
 2. Chore tracking basics
 3. Homework timer
@@ -726,6 +782,7 @@ These are unique to BarnabeeNet and not available in commercial assistants.
 5. Shopping list
 
 ### Sprint 4+
+
 1. Calendar integration
 2. Recipe help
 3. Phone finder Phase 2 evaluation
