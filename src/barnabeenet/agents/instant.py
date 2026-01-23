@@ -767,6 +767,10 @@ class InstantAgent(Agent):
         elif sub_category == "calendar" or self._is_calendar_query(text_lower):
             response = await self._handle_calendar_query(text)
             response_type = "calendar"
+        # Energy usage
+        elif sub_category == "energy" or self._is_energy_query(text_lower):
+            response = await self._handle_energy_query(text)
+            response_type = "energy"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -1086,6 +1090,15 @@ class InstantAgent(Agent):
             "calendar", "schedule", "what's on", "appointment", "events",
             "what do i have", "what do we have", "what's happening",
             "any plans", "anything scheduled", "next event"
+        ]
+        return any(kw in text for kw in keywords)
+
+    def _is_energy_query(self, text: str) -> bool:
+        """Check if user is asking about energy usage."""
+        keywords = [
+            "energy", "power", "electricity", "electric bill",
+            "how much energy", "how much power", "solar",
+            "kwh", "kilowatt", "watt"
         ]
         return any(kw in text for kw in keywords)
 
@@ -1814,6 +1827,78 @@ class InstantAgent(Agent):
         except Exception as e:
             logger.warning(f"Failed to get weather: {e}")
             return "I had trouble checking the weather."
+
+    async def _handle_energy_query(self, text: str) -> str:
+        """Get energy usage information from Home Assistant."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't check energy usage right now."
+
+            text_lower = text.lower()
+
+            # Check for specific time periods
+            if "today" in text_lower:
+                period = "today"
+            elif "month" in text_lower:
+                period = "month"
+            else:
+                period = "current"  # Current power draw
+
+            # Get relevant sensors
+            if period == "current":
+                # Get current power balance (negative = generating more than using)
+                state = await ha_client.get_state("sensor.balance_power_minute_average")
+                if state and state.state != "unavailable":
+                    try:
+                        power = float(state.state)
+                        if power < 0:
+                            return f"We're currently generating {abs(power):.0f} watts more than we're using. Solar is doing well!"
+                        else:
+                            return f"We're currently using {power:.0f} watts."
+                    except (ValueError, TypeError):
+                        pass
+
+            elif period == "today":
+                state = await ha_client.get_state("sensor.balance_energy_today")
+                if state and state.state != "unavailable":
+                    try:
+                        energy = float(state.state)
+                        if energy < 0:
+                            return f"Today we've generated {abs(energy):.1f} kWh more than we've used. Nice solar production!"
+                        else:
+                            return f"Today we've used {energy:.1f} kWh of energy."
+                    except (ValueError, TypeError):
+                        pass
+
+                # Try daily_energy as fallback
+                state = await ha_client.get_state("sensor.daily_energy")
+                if state and state.state != "unavailable":
+                    try:
+                        energy = float(state.state)
+                        return f"Today we've used about {energy:.1f} kWh of energy."
+                    except (ValueError, TypeError):
+                        pass
+
+            elif period == "month":
+                state = await ha_client.get_state("sensor.balance_energy_this_month")
+                if state and state.state != "unavailable":
+                    try:
+                        energy = float(state.state)
+                        if energy < 0:
+                            return f"This month we've generated {abs(energy):.0f} kWh more than we've used!"
+                        else:
+                            return f"This month we've used {energy:.0f} kWh of energy."
+                    except (ValueError, TypeError):
+                        pass
+
+            return "I couldn't get the energy information."
+
+        except Exception as e:
+            logger.warning(f"Failed to get energy info: {e}")
+            return "I had trouble checking energy usage."
 
     async def _handle_calendar_query(self, text: str) -> str:
         """Get calendar information from Home Assistant."""

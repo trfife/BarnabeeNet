@@ -327,6 +327,11 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(any|do i have any) (appointments?|events?|plans?) (today|tomorrow|this week)?(\?)?$", "calendar"),
     (r"^what('s| is) (happening|scheduled)( today| tomorrow| this week)?(\?)?$", "calendar"),
     (r"^(when is|what is) (the |my )?next (event|appointment)(\?)?$", "calendar"),
+    # Energy queries
+    (r"^(how much |what('s| is) (the |our )?)(energy|power|electricity)( usage| consumption)?(\?)?$", "energy"),
+    (r"^(how much |what('s| is) )(energy|power) (are we using|did we use)(\?)?$", "energy"),
+    (r"^(what('s| is) |)(our |the )?(energy|power|electricity) (usage|consumption)( today| this month)?(\?)?$", "energy"),
+    (r"^(how('s| is) )(the |our )?solar( doing| production)?(\?)?$", "energy"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
