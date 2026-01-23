@@ -69,9 +69,16 @@ None required.
 
 ## Known Issues / Bugs Found 🐛
 
-1. **Undo not tracking actions** - The undo command always says "nothing to undo" even after device actions. Need to investigate session state persistence.
+1. **Entity Resolution Bug** (HIGH PRIORITY)
+   - When saying "turn on the office light", the action agent resolves to `light.office_light` (a guess)
+   - The actual entity is `light.office_switch`
+   - This causes undo to fail (it tries to undo the wrong entity)
+   - **Impact**: Undo may not work for some devices if entity resolution is wrong
+   - **Fix needed**: Improve entity resolution in ActionAgent to find actual entities
 
 2. **Office light not dimmable** - Expected behavior since it's an on/off switch.
+
+3. **Undo tracking now works** - Fixed the session state preservation issue. Undo system is functional but depends on correct entity resolution.
 
 ---
 

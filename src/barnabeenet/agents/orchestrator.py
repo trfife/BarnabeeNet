@@ -1825,7 +1825,7 @@ class AgentOrchestrator:
             last_response_time=datetime.now(),
         )
         AgentOrchestrator._session_states[ctx.conversation_id] = state
-        
+
         if new_actions:
             logger.info(f"SESSION STATE: Saved {len(new_actions)} action(s) for {ctx.conversation_id}: {new_actions}")
 
