@@ -864,6 +864,10 @@ class InstantAgent(Agent):
 
     def _is_countdown(self, text: str) -> bool:
         """Check if asking about countdown to event."""
+        # Exclude sun-related queries
+        sun_words = ["sunrise", "sunset", "dawn", "dusk", "sun rise", "sun set"]
+        if any(sw in text for sw in sun_words):
+            return False
         countdown_keywords = ["days until", "days till", "how long until", "how many days", "when is"]
         return any(kw in text for kw in countdown_keywords)
 
