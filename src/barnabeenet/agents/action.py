@@ -29,7 +29,6 @@ from barnabeenet.services.entity_queries import (
 )
 from barnabeenet.services.llm.openrouter import OpenRouterClient
 from barnabeenet.services.timers import (
-    TimerManager,
     TimerOperation,
     TimerType,
     format_duration,

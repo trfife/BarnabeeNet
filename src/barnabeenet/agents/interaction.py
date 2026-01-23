@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -753,7 +753,6 @@ class InteractionAgent(Agent):
                     pass
 
         # Add person entity device information
-        ha_person_entity = profile.get("ha_person_entity")
         person_details = profile.get("person_entity_details")
         if person_details:
             parts.append("\n### Person Entity Devices & Entities")
@@ -1756,10 +1755,6 @@ class InteractionAgent(Agent):
             return None
 
         try:
-            from barnabeenet.services.audit.log import get_audit_log
-
-            audit_log = get_audit_log()
-
             # Get full details of the last recall results
             details = []
             for entry in conv_ctx.last_recall_results[:3]:  # Limit to 3 for voice
