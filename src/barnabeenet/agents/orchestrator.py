@@ -119,6 +119,15 @@ class OrchestratorConfig:
     interaction_timeout_ms: int = 5000
 
 
+@dataclass
+class SessionState:
+    """Session state for undo/repeat functionality."""
+
+    last_response: str = ""
+    last_actions: list[dict[str, Any]] = field(default_factory=list)
+    last_response_time: datetime | None = None
+
+
 class AgentOrchestrator:
     """Orchestrates the full agent pipeline.
 
@@ -134,6 +143,9 @@ class AgentOrchestrator:
     5. Execute device actions via Home Assistant
     6. Return response for TTS
     """
+
+    # Session state for undo/repeat (keyed by conversation_id)
+    _session_states: dict[str, SessionState] = {}
 
     def __init__(
         self,
@@ -648,6 +660,9 @@ class AgentOrchestrator:
             conversation_id=ctx.conversation_id or "",
             triggered_alert=triggered_alert,
         )
+
+        # Save session state for undo/repeat functionality
+        self._save_session_state(ctx)
 
         return self._build_response(ctx)
 
@@ -1778,6 +1793,134 @@ class AgentOrchestrator:
         # For domain-specific actions (open_cover, close_cover, lock, unlock, etc.),
         # keep the original service - these only work with their native domain
         return service
+
+    # =========================================================================
+    # Session State for Undo/Repeat
+    # =========================================================================
+
+    def _save_session_state(self, ctx: RequestContext) -> None:
+        """Save session state for undo/repeat functionality."""
+        if not ctx.conversation_id:
+            return
+
+        state = SessionState(
+            last_response=ctx.response_text,
+            last_actions=ctx.actions_taken.copy() if ctx.actions_taken else [],
+            last_response_time=datetime.now(),
+        )
+        AgentOrchestrator._session_states[ctx.conversation_id] = state
+
+    def get_last_response(self, conversation_id: str) -> str | None:
+        """Get the last response for a conversation (for 'say that again')."""
+        state = AgentOrchestrator._session_states.get(conversation_id)
+        return state.last_response if state else None
+
+    def get_last_actions(self, conversation_id: str) -> list[dict[str, Any]]:
+        """Get the last actions for a conversation (for 'undo')."""
+        state = AgentOrchestrator._session_states.get(conversation_id)
+        return state.last_actions if state else []
+
+    async def undo_last_action(self, conversation_id: str) -> dict[str, Any]:
+        """Undo the last action(s) for a conversation.
+
+        Returns:
+            Dict with success status and message
+        """
+        actions = self.get_last_actions(conversation_id)
+        if not actions:
+            return {
+                "success": False,
+                "message": "There's nothing to undo.",
+            }
+
+        # Reverse each action
+        undone = []
+        failed = []
+
+        for action in actions:
+            undo_result = await self._reverse_action(action)
+            if undo_result.get("success"):
+                undone.append(action.get("entity_id", action.get("target", "unknown")))
+            else:
+                failed.append(action.get("entity_id", action.get("target", "unknown")))
+
+        # Clear the actions after undoing (can't undo twice)
+        state = AgentOrchestrator._session_states.get(conversation_id)
+        if state:
+            state.last_actions = []
+
+        if undone and not failed:
+            return {
+                "success": True,
+                "message": f"Done! I've undone the last action.",
+            }
+        elif undone and failed:
+            return {
+                "success": True,
+                "message": f"I undid some actions but had trouble with others.",
+            }
+        else:
+            return {
+                "success": False,
+                "message": "I couldn't undo the last action.",
+            }
+
+    async def _reverse_action(self, action: dict[str, Any]) -> dict[str, Any]:
+        """Reverse a single action.
+
+        Args:
+            action: The action to reverse
+
+        Returns:
+            Dict with success status
+        """
+        if not self._ha_client:
+            return {"success": False, "error": "Home Assistant not available"}
+
+        try:
+            # Get entity and service from action
+            entity_id = action.get("entity_id") or action.get("target")
+            service = action.get("service", "")
+
+            if not entity_id:
+                return {"success": False, "error": "No entity to reverse"}
+
+            # Determine reverse action
+            domain = entity_id.split(".")[0] if "." in entity_id else "light"
+
+            # Map services to their reverse
+            reverse_map = {
+                "turn_on": "turn_off",
+                "turn_off": "turn_on",
+                "open_cover": "close_cover",
+                "close_cover": "open_cover",
+                "lock": "unlock",
+                "unlock": "lock",
+                "start": "cancel",  # timers
+            }
+
+            # Extract just the service name (e.g., "turn_on" from "light.turn_on")
+            service_name = service.split(".")[-1] if "." in service else service
+
+            reverse_service = reverse_map.get(service_name)
+            if not reverse_service:
+                # Try to toggle instead
+                reverse_service = "toggle"
+
+            # Execute reverse action
+            full_service = f"{domain}.{reverse_service}"
+            await self._ha_client.call_service(
+                domain=domain,
+                service=reverse_service,
+                entity_id=entity_id,
+            )
+
+            logger.info(f"Undid action: {entity_id} via {full_service}")
+            return {"success": True}
+
+        except Exception as e:
+            logger.warning(f"Failed to reverse action: {e}")
+            return {"success": False, "error": str(e)}
 
     def _build_response(self, ctx: RequestContext) -> dict[str, Any]:
         """Build the final response dict."""

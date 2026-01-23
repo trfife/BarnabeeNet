@@ -210,6 +210,17 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^convert \d+.* to .*$", "unit_conversion"),
     (r"^how many (cups?|liters?|ounces?|inches?|feet|foot|centimeters?|grams?|tablespoons?|teaspoons?) .*$", "unit_conversion"),
     (r"^\d+ (fahrenheit|celsius|cups?|liters?|pounds?|kilograms?|ounces?|inches?|feet|foot|meters?|miles?) (to|in) .*$", "unit_conversion"),
+    # Undo last action
+    (r"^undo( that)?(\?)?$", "undo"),
+    (r"^(reverse|take back) that(\?)?$", "undo"),
+    (r"^never ?mind$", "undo"),
+    # Repeat / Say that again
+    (r"^(say|repeat) (that|it) again(\?)?$", "repeat"),
+    (r"^what did you say(\?)?$", "repeat"),
+    (r"^come again(\?)?$", "repeat"),
+    (r"^(pardon|sorry)(\?)?$", "repeat"),
+    (r"^i didn'?t (hear|catch) (that|you)(\?)?$", "repeat"),
+    (r"^one more time(\?)?$", "repeat"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),

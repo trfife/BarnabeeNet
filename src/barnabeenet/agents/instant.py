@@ -371,6 +371,30 @@ class InstantAgent(Agent):
         "Done! I've forgotten what we were discussing. What's on your mind?",
     ]
 
+    UNDO_RESPONSES = [
+        "Done! I've undone the last action.",
+        "Okay, I've reversed that.",
+        "No problem, I've undone it.",
+    ]
+
+    NOTHING_TO_UNDO_RESPONSES = [
+        "There's nothing to undo.",
+        "I don't have any recent actions to undo.",
+        "Hmm, I haven't done anything I can undo.",
+    ]
+
+    REPEAT_RESPONSES = [
+        "I said: {last_response}",
+        "Sure, I said: {last_response}",
+        "Here's what I said: {last_response}",
+    ]
+
+    NOTHING_TO_REPEAT_RESPONSES = [
+        "I haven't said anything yet.",
+        "There's nothing to repeat.",
+        "This is the start of our conversation.",
+    ]
+
     # Patterns that indicate user wants to clear/reset conversation
     CLEAR_CONVERSATION_PATTERNS = [
         r"start\s*fresh",
@@ -531,8 +555,15 @@ class InstantAgent(Agent):
         response: str
         response_type: str
 
-        # First, check for clear conversation commands
-        if sub_category == "clear_conversation" or self._is_clear_conversation(text_lower):
+        # First, check for undo/repeat which need special handling
+        if sub_category == "undo" or self._is_undo(text_lower):
+            response = await self._handle_undo(context)
+            response_type = "undo"
+        elif sub_category == "repeat" or self._is_repeat(text_lower):
+            response = self._handle_repeat(context)
+            response_type = "repeat"
+        # Check for clear conversation commands
+        elif sub_category == "clear_conversation" or self._is_clear_conversation(text_lower):
             response = await self._handle_clear_conversation(context)
             response_type = "clear_conversation"
         # Check if this is a continuation of a letter-by-letter spelling session
@@ -737,6 +768,20 @@ class InstantAgent(Agent):
         conversion_keywords = ["convert", "how many", "in a ", "to celsius", "to fahrenheit", "to cups", "to liters"]
         return any(kw in text for kw in conversion_keywords)
 
+    def _is_undo(self, text: str) -> bool:
+        """Check if user wants to undo last action."""
+        undo_keywords = ["undo", "undo that", "reverse that", "take that back", "never mind", "nevermind"]
+        return any(kw in text for kw in undo_keywords) and "conversation" not in text
+
+    def _is_repeat(self, text: str) -> bool:
+        """Check if user wants to hear last response again."""
+        repeat_keywords = [
+            "say that again", "repeat that", "what did you say",
+            "say it again", "come again", "pardon", "repeat",
+            "what was that", "i didn't hear", "one more time"
+        ]
+        return any(kw in text for kw in repeat_keywords)
+
     # =========================================================================
     # Response Handlers
     # =========================================================================
@@ -799,6 +844,45 @@ class InstantAgent(Agent):
     def _handle_mic_check(self) -> str:
         """Generate mic check / hearing confirmation response."""
         return random.choice(self.MIC_CHECK_RESPONSES)
+
+    async def _handle_undo(self, context: dict[str, Any]) -> str:
+        """Handle undo request by calling orchestrator."""
+        conversation_id = context.get("conversation_id")
+
+        if not conversation_id:
+            return random.choice(self.NOTHING_TO_UNDO_RESPONSES)
+
+        try:
+            from barnabeenet.main import app_state
+            if hasattr(app_state, "orchestrator") and app_state.orchestrator:
+                result = await app_state.orchestrator.undo_last_action(conversation_id)
+                if result.get("success"):
+                    return random.choice(self.UNDO_RESPONSES)
+                else:
+                    return result.get("message", random.choice(self.NOTHING_TO_UNDO_RESPONSES))
+        except Exception as e:
+            logger.warning(f"Failed to undo: {e}")
+
+        return random.choice(self.NOTHING_TO_UNDO_RESPONSES)
+
+    def _handle_repeat(self, context: dict[str, Any]) -> str:
+        """Handle repeat/say that again request."""
+        conversation_id = context.get("conversation_id")
+
+        if not conversation_id:
+            return random.choice(self.NOTHING_TO_REPEAT_RESPONSES)
+
+        try:
+            from barnabeenet.main import app_state
+            if hasattr(app_state, "orchestrator") and app_state.orchestrator:
+                last_response = app_state.orchestrator.get_last_response(conversation_id)
+                if last_response:
+                    template = random.choice(self.REPEAT_RESPONSES)
+                    return template.format(last_response=last_response)
+        except Exception as e:
+            logger.warning(f"Failed to get last response: {e}")
+
+        return random.choice(self.NOTHING_TO_REPEAT_RESPONSES)
 
     def _is_clear_conversation(self, text: str) -> bool:
         """Check if user wants to clear/reset the conversation."""
