@@ -1353,6 +1353,10 @@ class InstantAgent(Agent):
         """
         text = text.lower()
 
+        # Family member names - if any are mentioned, it's probably a chore, not a timer
+        family_names = ["thom", "elizabeth", "penelope", "xander", "viola", "zachary"]
+        has_person = any(name in text for name in family_names)
+
         # Start focus/pomodoro session
         if any(kw in text for kw in ["start", "begin"]):
             if any(kw in text for kw in ["pomodoro", "focus", "homework time", "study time", "work session"]):
@@ -1363,10 +1367,15 @@ class InstantAgent(Agent):
             if any(kw in text for kw in ["studying", "focus", "working", "homework"]):
                 return True, "status"
 
-        # Stop/end session
-        if any(kw in text for kw in ["stop", "end", "finish", "done with"]):
-            if any(kw in text for kw in ["pomodoro", "focus", "studying", "homework", "session"]):
-                return True, "stop"
+        # Stop/end session - but NOT if a person is mentioned (that's chore completion)
+        if not has_person:
+            if any(kw in text for kw in ["stop", "end", "done with"]):
+                # Be more specific - only match timer-related words
+                if any(kw in text for kw in ["pomodoro", "focus", "studying", "session"]):
+                    return True, "stop"
+                # "done with homework" without a person name = ending timer
+                if "done with homework" in text or "finish homework" in text:
+                    return True, "stop"
 
         return False, ""
 
