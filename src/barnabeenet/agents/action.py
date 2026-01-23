@@ -150,25 +150,32 @@ ACTION_PATTERNS: list[tuple[str, ActionType, DeviceDomain | None]] = [
     ),
     # Lock patterns
     (r"^(lock|unlock) (?:the )?(.+)$", ActionType.LOCK, DeviceDomain.LOCK),
+    # Media patterns - MUST come before cover patterns because "stop" appears in both
+    # Media "stop" = stop playing music/video; Cover "stop" = stop moving blinds
+    (
+        r"^(play|pause|stop|skip)(?: (?:the )?(.+))?$",
+        ActionType.PLAY,
+        DeviceDomain.MEDIA_PLAYER,
+    ),
     # Batch cover patterns - MUST come before single cover patterns
     # "close all the blinds in living room", "open blinds in the kitchen", "stop the blinds"
     (
-        r"^(open|close|stop) all (?:the |of the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))?$",
+        r"^(open|close) all (?:the |of the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))?$",
         ActionType.OPEN,
         DeviceDomain.COVER,
     ),
     (
-        r"^(open|close|stop) (?:the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))$",
+        r"^(open|close) (?:the )?(.+?)(?:\s+(?:in|on)\s+(?:the )?(.+))$",
         ActionType.OPEN,
         DeviceDomain.COVER,
     ),
-    # Single cover patterns
-    (r"^(open|close|stop) (?:the )?(.+)$", ActionType.OPEN, DeviceDomain.COVER),
-    # Media patterns
+    # Single cover patterns (open/close only, not stop - stop is handled by media)
+    (r"^(open|close) (?:the )?(.+)$", ActionType.OPEN, DeviceDomain.COVER),
+    # Cover stop pattern - only for blinds/curtains/garage keywords
     (
-        r"^(play|pause|stop|skip)(?: (?:the )?(?:music|video|media)?(?:on (?:the )?)?(.*))?$",
-        ActionType.PLAY,
-        DeviceDomain.MEDIA_PLAYER,
+        r"^stop (?:the )?(blind|blinds|curtain|curtains|shade|shades|garage|cover).*$",
+        ActionType.STOP,
+        DeviceDomain.COVER,
     ),
     # Scene patterns
     (r"^activate (?:the )?(.+?)(?: scene)?$", ActionType.ACTIVATE_SCENE, DeviceDomain.SCENE),

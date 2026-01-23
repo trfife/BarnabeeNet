@@ -390,19 +390,24 @@ TIMER_GENERIC_CONTROL_PATTERNS = [
     r"^(stop|cancel|pause|resume)\s+timer$",
 ]
 
-# Timer control patterns with specific labels (MUST be more specific than media patterns)
+# Timer control patterns with specific labels
+# IMPORTANT: These must require "timer" in the text to avoid matching media commands
+# like "pause the tv" or "stop the music"
 TIMER_CONTROL_PATTERNS = [
-    # "pause the lasagna timer" - more specific to avoid matching media pause
-    r"pause\s+(?:the\s+)?(.+?)(?:\s+timer)?$",
+    # "pause the lasagna timer" - requires "timer" in text
+    r"pause\s+(?:the\s+)?(.+?)\s+timer$",
     # "resume the lasagna timer"
-    r"resume\s+(?:the\s+)?(.+?)(?:\s+timer)?$",
+    r"resume\s+(?:the\s+)?(.+?)\s+timer$",
     # "stop the lasagna timer"
-    r"stop\s+(?:the\s+)?(.+?)(?:\s+timer)?$",
+    r"stop\s+(?:the\s+)?(.+?)\s+timer$",
     # "cancel the lasagna timer"
-    r"cancel\s+(?:the\s+)?(.+?)(?:\s+timer)?$",
+    r"cancel\s+(?:the\s+)?(.+?)\s+timer$",
     # "start the lasagna timer"
-    r"start\s+(?:the\s+)?(.+?)(?:\s+timer)?$",
+    r"start\s+(?:the\s+)?(.+?)\s+timer$",
 ]
+
+# Media keywords that should NOT be treated as timer labels
+MEDIA_KEYWORDS = {"tv", "music", "video", "speaker", "playback", "song", "track", "album"}
 
 
 class TimerOperation(str, Enum):
