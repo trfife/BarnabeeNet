@@ -1618,10 +1618,10 @@ class InstantAgent(Agent):
 
             # Parse times and convert to local
             from datetime import datetime
-            import pytz
+            from zoneinfo import ZoneInfo
 
             # Assume Eastern timezone for now (could be made configurable)
-            local_tz = pytz.timezone("America/New_York")
+            local_tz = ZoneInfo("America/New_York")
 
             def format_time(iso_str: str) -> str:
                 if not iso_str:
