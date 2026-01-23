@@ -25,7 +25,7 @@ show_status() {
     echo -e "${BLUE}                    LLM Configuration Status${NC}"
     echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
     echo ""
-    
+
     # Check which config is active by looking for key markers
     if grep -q "deepseek/deepseek-chat" "$CURRENT_CONFIG" 2>/dev/null && grep -q "LOW-COST" "$CURRENT_CONFIG" 2>/dev/null; then
         echo -e "Current mode: ${CYAN}LOW-COST${NC}"
@@ -53,7 +53,7 @@ switch_to_paid() {
         echo "Error: $PAID_CONFIG not found!"
         exit 1
     fi
-    
+
     cp "$PAID_CONFIG" "$CURRENT_CONFIG"
     echo -e "${GREEN}✅ Switched to PAID (Best Quality) configuration${NC}"
     echo ""
@@ -75,7 +75,7 @@ switch_to_cheap() {
         echo "Error: $CHEAP_CONFIG not found!"
         exit 1
     fi
-    
+
     cp "$CHEAP_CONFIG" "$CURRENT_CONFIG"
     echo -e "${GREEN}✅ Switched to LOW-COST configuration${NC}"
     echo ""
