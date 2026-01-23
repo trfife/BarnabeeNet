@@ -1098,12 +1098,13 @@ class InstantAgent(Agent):
 
     def _is_energy_query(self, text: str) -> bool:
         """Check if user is asking about energy usage."""
-        keywords = [
-            "energy", "power", "electricity", "electric bill",
-            "how much energy", "how much power", "solar",
-            "kwh", "kilowatt", "watt"
-        ]
-        return any(kw in text for kw in keywords)
+        # Must have energy-related keyword
+        energy_words = ["energy", "power", "electricity", "solar", "kwh", "kilowatt", "watt"]
+        if not any(kw in text for kw in energy_words):
+            return False
+        # Context words that indicate this is an energy query
+        context_words = ["usage", "consumption", "using", "used", "much", "today", "month", "how"]
+        return any(kw in text for kw in context_words) or "solar" in text
 
     def _is_shopping_list_query(self, text: str) -> tuple[bool, str]:
         """Check if user is asking about shopping list.
