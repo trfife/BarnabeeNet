@@ -1,7 +1,7 @@
 # Morning Notes - Overnight Work Session
 
 **Started:** January 22, 2026 (evening)
-**Last Updated:** January 23, 2026 ~4:30 AM
+**Last Updated:** January 23, 2026 ~4:10 AM
 
 This document tracks all work done overnight and items that need your attention.
 
@@ -57,12 +57,6 @@ This document tracks all work done overnight and items that need your attention.
 
 ## Items Needing Your Attention 🔔
 
-### Optional Future Enhancements
-
-1. **Weather Integration** - Would need API key (OpenWeatherMap)
-2. **Sunrise/Sunset** - Can use HA sun integration or astral library
-3. **Moon Phase** - Astronomy library
-
 ### Voice Testing Recommended
 
 The new features should be tested via voice to ensure they sound natural:
@@ -71,6 +65,13 @@ The new features should be tested via voice to ensure they sound natural:
 - Math practice
 - Trivia questions
 - Encouragement/compliments
+- Location queries ("where is Xander")
+- Who's home queries
+- Weather queries
+- Calendar queries
+- Shopping list (add/read items)
+- Time zones ("what time is it in Tokyo")
+- Counting ("count by 2s to 20")
 
 ---
 
