@@ -120,12 +120,82 @@ class OrchestratorConfig:
 
 
 @dataclass
+class IntentRecord:
+    """Record of a single intent classification."""
+
+    timestamp: datetime
+    text: str
+    intent: str
+    sub_category: str | None = None
+    confidence: float = 0.0
+    agent_used: str = ""
+    response_time_ms: int = 0
+    matched_pattern: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "timestamp": self.timestamp.isoformat(),
+            "text": self.text,
+            "intent": self.intent,
+            "sub_category": self.sub_category,
+            "confidence": self.confidence,
+            "agent_used": self.agent_used,
+            "response_time_ms": self.response_time_ms,
+            "matched_pattern": self.matched_pattern,
+        }
+
+
+@dataclass
 class SessionState:
-    """Session state for undo/repeat functionality."""
+    """Session state for undo/repeat and intent tracking."""
 
     last_response: str = ""
     last_actions: list[dict[str, Any]] = field(default_factory=list)
     last_response_time: datetime | None = None
+
+    # Intent history tracking
+    intent_history: list[IntentRecord] = field(default_factory=list)
+    max_intent_history: int = 50  # Keep last 50 intents per session
+
+    def add_intent(self, record: IntentRecord) -> None:
+        """Add an intent record to history, maintaining max size."""
+        self.intent_history.append(record)
+        if len(self.intent_history) > self.max_intent_history:
+            self.intent_history = self.intent_history[-self.max_intent_history:]
+
+    def get_recent_intents(self, count: int = 5) -> list[IntentRecord]:
+        """Get the most recent N intents."""
+        return self.intent_history[-count:] if self.intent_history else []
+
+    def get_intent_pattern(self, window: int = 3) -> list[str]:
+        """Get pattern of recent intent types for multi-turn analysis."""
+        recent = self.get_recent_intents(window)
+        return [r.intent for r in recent]
+
+    def has_recent_intent(self, intent_type: str, window: int = 3) -> bool:
+        """Check if a specific intent type occurred recently."""
+        pattern = self.get_intent_pattern(window)
+        return intent_type in pattern
+
+    def get_intent_stats(self) -> dict[str, Any]:
+        """Get statistics about intent history."""
+        if not self.intent_history:
+            return {"total": 0, "by_type": {}, "avg_confidence": 0.0}
+
+        by_type: dict[str, int] = {}
+        total_confidence = 0.0
+
+        for record in self.intent_history:
+            by_type[record.intent] = by_type.get(record.intent, 0) + 1
+            total_confidence += record.confidence
+
+        return {
+            "total": len(self.intent_history),
+            "by_type": by_type,
+            "avg_confidence": total_confidence / len(self.intent_history),
+            "most_common": max(by_type, key=by_type.get) if by_type else None,
+        }
 
 
 class AgentOrchestrator:
@@ -1815,10 +1885,11 @@ class AgentOrchestrator:
     # =========================================================================
 
     def _save_session_state(self, ctx: RequestContext) -> None:
-        """Save session state for undo/repeat functionality.
+        """Save session state for undo/repeat and intent tracking.
 
         Only updates last_actions if actions were actually taken in this request.
         This prevents undo/repeat commands from clearing the action history.
+        Also tracks intent history for multi-turn analysis.
         """
         if not ctx.conversation_id:
             return
@@ -1835,11 +1906,31 @@ class AgentOrchestrator:
         else:
             new_actions = []
 
+        # Preserve intent history from existing state
+        intent_history = existing_state.intent_history if existing_state else []
+
         state = SessionState(
             last_response=ctx.response_text,
             last_actions=new_actions,
             last_response_time=datetime.now(),
+            intent_history=intent_history,
         )
+
+        # Add current intent to history
+        if ctx.classification:
+            agent_name = ctx.agent_response.get("_agent_name", "") if ctx.agent_response else ""
+            intent_record = IntentRecord(
+                timestamp=datetime.now(),
+                text=ctx.text,
+                intent=ctx.classification.intent.value,
+                sub_category=ctx.classification.sub_category,
+                confidence=ctx.classification.confidence,
+                agent_used=agent_name,
+                response_time_ms=int(ctx.stage_timings.get("total", 0)),
+                matched_pattern=ctx.classification.matched_pattern,
+            )
+            state.add_intent(intent_record)
+
         AgentOrchestrator._session_states[ctx.conversation_id] = state
 
         if new_actions:
@@ -1856,6 +1947,42 @@ class AgentOrchestrator:
         actions = state.last_actions if state else []
         logger.info(f"GET_LAST_ACTIONS: conversation_id={conversation_id}, found {len(actions)} action(s)")
         return actions
+
+    def get_intent_history(self, conversation_id: str, count: int = 10) -> list[dict[str, Any]]:
+        """Get recent intent history for a conversation."""
+        state = AgentOrchestrator._session_states.get(conversation_id)
+        if not state:
+            return []
+        recent = state.get_recent_intents(count)
+        return [r.to_dict() for r in recent]
+
+    def get_intent_stats(self, conversation_id: str) -> dict[str, Any]:
+        """Get intent statistics for a conversation."""
+        state = AgentOrchestrator._session_states.get(conversation_id)
+        if not state:
+            return {"total": 0, "by_type": {}, "avg_confidence": 0.0}
+        return state.get_intent_stats()
+
+    def get_all_session_stats(self) -> dict[str, Any]:
+        """Get intent statistics across all active sessions."""
+        total_intents = 0
+        by_type: dict[str, int] = {}
+        total_confidence = 0.0
+        session_count = len(AgentOrchestrator._session_states)
+
+        for state in AgentOrchestrator._session_states.values():
+            for record in state.intent_history:
+                total_intents += 1
+                by_type[record.intent] = by_type.get(record.intent, 0) + 1
+                total_confidence += record.confidence
+
+        return {
+            "session_count": session_count,
+            "total_intents": total_intents,
+            "by_type": by_type,
+            "avg_confidence": total_confidence / total_intents if total_intents > 0 else 0.0,
+            "most_common": max(by_type, key=by_type.get) if by_type else None,
+        }
 
     async def undo_last_action(self, conversation_id: str) -> dict[str, Any]:
         """Undo the last action(s) for a conversation.

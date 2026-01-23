@@ -173,7 +173,7 @@ async def analyze_models(
 
             # Score models for this agent
             best_model = None
-            best_score = -1
+            best_score: float = -1.0
             best_reasoning = ""
 
             for model in available_models:
@@ -408,3 +408,64 @@ async def get_last_feature_analysis(request: Request) -> dict[str, Any]:
         return json.loads(last_analysis.decode() if isinstance(last_analysis, bytes) else last_analysis)
 
     return {"success": False, "message": "No analysis available"}
+
+
+# =============================================================================
+# Intent Analytics
+# =============================================================================
+
+
+@router.get("/intents/stats")
+async def get_intent_stats(request: Request) -> dict[str, Any]:
+    """Get intent classification statistics across all sessions."""
+    orchestrator = request.app.state.orchestrator
+    if not orchestrator:
+        return {"success": False, "message": "Orchestrator not initialized"}
+
+    stats = orchestrator.get_all_session_stats()
+    return {"success": True, **stats}
+
+
+@router.get("/intents/history/{conversation_id}")
+async def get_intent_history(
+    request: Request, conversation_id: str, count: int = 10
+) -> dict[str, Any]:
+    """Get intent history for a specific conversation."""
+    orchestrator = request.app.state.orchestrator
+    if not orchestrator:
+        return {"success": False, "message": "Orchestrator not initialized"}
+
+    history = orchestrator.get_intent_history(conversation_id, count)
+    stats = orchestrator.get_intent_stats(conversation_id)
+
+    return {
+        "success": True,
+        "conversation_id": conversation_id,
+        "history": history,
+        "stats": stats,
+    }
+
+
+@router.get("/intents/sessions")
+async def get_active_sessions(request: Request) -> dict[str, Any]:
+    """Get list of active sessions with intent counts."""
+    from barnabeenet.agents.orchestrator import AgentOrchestrator
+
+    sessions = []
+    for conv_id, state in AgentOrchestrator._session_states.items():
+        last_time = state.last_response_time.isoformat() if state.last_response_time else ""
+        sessions.append({
+            "conversation_id": conv_id,
+            "intent_count": len(state.intent_history),
+            "last_response_time": last_time if last_time else None,
+            "recent_intents": [r.intent for r in state.get_recent_intents(3)],
+        })
+
+    # Sort by most recent activity
+    sessions.sort(key=lambda x: str(x.get("last_response_time") or ""), reverse=True)
+
+    return {
+        "success": True,
+        "session_count": len(sessions),
+        "sessions": sessions[:20],  # Return top 20 most recent
+    }

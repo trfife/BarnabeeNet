@@ -164,9 +164,18 @@ class MetaAgentConfig:
 
 # Pattern definitions for fast classification
 INSTANT_PATTERNS: list[tuple[str, str]] = [
+    # Time queries (including variations)
     (r"^(what('s| is) (the )?)?(current )?time(\?)?$", "time"),
     (r"^what time is it(\?)?$", "time"),
+    (r"^what time(\?)?$", "time"),
+    (r"^tell me the time(\?)?$", "time"),
+    (r"^current time(\?)?$", "time"),
+    # Date queries (including variations)
     (r"^(what('s| is) (the )?)?(today'?s? )?date(\?)?$", "date"),
+    (r"^what date is it(\?)?$", "date"),
+    (r"^what date(\?)?$", "date"),
+    (r"^tell me the date(\?)?$", "date"),
+    (r"^current date(\?)?$", "date"),
     (r"^(hello|hey|hi)( barnabee)?(\?)?$", "greeting"),
     (r"^good (morning|afternoon|evening|night)$", "greeting"),
     (r"^(what('s| is) )?(\d+)\s*[\+\-\*\/]\s*(\d+)(\?)?$", "math"),
@@ -489,6 +498,13 @@ MEMORY_PATTERNS: list[tuple[str, str]] = [
     (r"^what('s| is| are) (my|our|\w+'s) (favorite|favourite) .+$", "recall"),
     (r"^what('s| is) the (secret|password|code|pin).*$", "recall"),
     (r"^(do you |can you )?(recall|recollect) .*$", "recall"),
+    # Generic preference recall queries (new patterns)
+    (r"^what do (i|we) (like|prefer|want|need)(\?)?$", "recall"),
+    (r"^what('s| is) (my|our) preference(\?)?$", "recall"),
+    (r"^what .+ do (i|we) prefer(\?)?$", "recall"),
+    # Colon-separated remember statements
+    (r"^remember:\s*.+$", "store"),
+    (r"^note:\s*.+$", "store"),
 ]
 
 GESTURE_PATTERNS: list[tuple[str, str]] = [
