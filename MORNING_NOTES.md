@@ -1,4 +1,5 @@
 # Morning Notes - Overnight Work Session
+
 **Started:** January 22, 2026 (evening)
 **Last Updated:** January 23, 2026 ~4:30 AM
 
@@ -33,11 +34,13 @@ This document tracks all work done overnight and items that need your attention.
 ### Major Enhancements
 
 #### Device Capabilities Database
+
 - `src/barnabeenet/services/device_capabilities.py`
 - Auto-syncs from Home Assistant on startup
 - Tracks supported features per device
 
 #### Smart Undo System
+
 - Saves device state BEFORE making changes
 - Restores exact previous state (not just toggle)
 - Works for: lights, climate, covers, timers, switches
@@ -47,12 +50,15 @@ This document tracks all work done overnight and items that need your attention.
 ## Items Needing Your Attention 🔔
 
 ### Optional Future Enhancements
+
 1. **Weather Integration** - Would need API key (OpenWeatherMap)
 2. **Sunrise/Sunset** - Can use HA sun integration or astral library
 3. **Moon Phase** - Astronomy library
 
 ### Voice Testing Recommended
+
 The new features should be tested via voice to ensure they sound natural:
+
 - Animal sounds (kids will love these!)
 - Math practice
 - Trivia questions
@@ -63,6 +69,7 @@ The new features should be tested via voice to ensure they sound natural:
 ## Files Created This Session
 
 ### Data Files (JSON databases)
+
 - `src/barnabeenet/data/jokes.json` - 70+ jokes
 - `src/barnabeenet/data/fun_facts.json` - 70+ facts
 - `src/barnabeenet/data/animal_sounds.json` - 30+ animals
@@ -71,6 +78,7 @@ The new features should be tested via voice to ensure they sound natural:
 - `src/barnabeenet/data/encouragement.json` - Compliments, motivation
 
 ### Code Files
+
 - `src/barnabeenet/services/device_capabilities.py` - Device capabilities DB
 
 ---
@@ -92,7 +100,8 @@ The new features should be tested via voice to ensure they sound natural:
 ## Deployment Status 🚀
 
 **Current VM State:**
-- API: http://192.168.86.51:8000
+
+- API: <http://192.168.86.51:8000>
 - Last deployed: January 23, 2026 ~4:30 AM
 - **All features verified working**
 
@@ -106,7 +115,7 @@ what does a cow say          # "Moo!"
 what sound does a lion make  # "Roar!"
 what does an elephant say    # "Trumpet!"
 
-# NEW: Math Practice  
+# NEW: Math Practice
 give me a math problem       # Age-appropriate problem
 quiz me on math              # Same as above
 
@@ -145,6 +154,7 @@ say that again
 ## Family-Specific Features
 
 ### Bedtime Defaults
+
 | Person | Bedtime |
 |--------|---------|
 | Viola | 7:30 PM |
@@ -155,6 +165,7 @@ say that again
 | Elizabeth | 10:30 PM |
 
 ### Math/Trivia Difficulty by Person
+
 | Person | Difficulty |
 |--------|------------|
 | Viola, Zachary | Easy |
