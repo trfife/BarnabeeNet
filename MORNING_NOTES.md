@@ -9,6 +9,23 @@ This document tracks all work done overnight and items that need your attention.
 
 ## Work Completed ✅
 
+### Advanced Intent Tracking System (NEW)
+
+- **IntentRecord**: Tracks timestamp, text, intent, confidence, agent, response time
+- **SessionState.intent_history**: Maintains last 50 intents per conversation
+- **Multi-turn analysis**: `get_intent_pattern()`, `has_recent_intent()` for conversation flow
+- **Intent statistics**: Per-session and global stats
+
+**API Endpoints:**
+- `GET /api/v1/agents/intents/stats` - Global intent statistics
+- `GET /api/v1/agents/intents/history/{conv_id}` - Session history
+- `GET /api/v1/agents/intents/sessions` - Active sessions overview
+
+**Intent Classification Fixes:**
+- Time: "tell me the time", "what time?", "current time"
+- Date: "what date is it?", "tell me the date", "current date"
+- Memory: "what do I like?", "what's my preference?", "remember: X"
+
 ### All Instant Response Features (No LLM needed, <400ms)
 
 | Feature | Example Command | Notes |
