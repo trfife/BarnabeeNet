@@ -1229,7 +1229,7 @@ class InstantAgent(Agent):
             return True, "log", pet_name
 
         # Check if fed: "did anyone feed", "has the dog been fed", "was the cat fed"
-        if any(kw in text for kw in ["did anyone", "did someone", "has the", "was the", "been fed", "feed the"]):
+        if any(kw in text for kw in ["did anyone feed", "did someone feed", "has the", "was the", "been fed", "feed the", "did the", "get fed"]):
             return True, "check", pet_name
 
         return False, "", None
@@ -1242,13 +1242,17 @@ class InstantAgent(Agent):
         """
         text_lower = text.lower()
 
-        # Save note patterns
+        # Exclude shopping list related phrases
+        if any(kw in text_lower for kw in ["shopping list", "groceries", "grocery"]):
+            return False, "", None
+
+        # Save note patterns (require colon to distinguish from other commands)
         save_patterns = [
-            r"^note[:\s]+(.+)",  # "note: call dentist"
-            r"^remember[:\s]+(.+)",  # "remember: pick up milk"
-            r"^remind me[:\s]+(.+)",  # "remind me: call mom"
-            r"^make a note[:\s]+(.+)",  # "make a note: meeting at 3"
-            r"^save note[:\s]+(.+)",  # "save note: important stuff"
+            r"^note:\s*(.+)",  # "note: call dentist"
+            r"^remember:\s*(.+)",  # "remember: pick up milk"
+            r"^remind me:\s*(.+)",  # "remind me: call mom"
+            r"^make a note:\s*(.+)",  # "make a note: meeting at 3"
+            r"^save note:\s*(.+)",  # "save note: important stuff"
         ]
 
         for pattern in save_patterns:
