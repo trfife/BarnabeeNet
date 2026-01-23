@@ -179,6 +179,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await app_state.orchestrator.init()
         # Set as global orchestrator so get_orchestrator() returns this instance
         orchestrator_module._global_orchestrator = app_state.orchestrator
+        # Make orchestrator available on app.state for dependency injection
+        app.state.orchestrator = app_state.orchestrator
         logger.info("Agent Orchestrator initialized (set as global)")
     except Exception as e:
         logger.error("Orchestrator initialization failed", error=str(e))
