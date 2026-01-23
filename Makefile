@@ -1,4 +1,4 @@
-.PHONY: help install test lint format validate deploy logs ssh llm-paid llm-cheap llm-status
+.PHONY: help install test lint format validate deploy logs ssh llm-paid llm-free llm-status
 
 help:
 	@echo "BarnabeeNet Development Commands"
@@ -15,7 +15,7 @@ help:
 	@echo "LLM Configuration:"
 	@echo "make llm-status - Show current LLM config"
 	@echo "make llm-paid   - Switch to paid models (best quality)"
-	@echo "make llm-cheap  - Switch to low-cost models (10x cheaper)"
+	@echo "make llm-free   - Switch to free models (Llama 3.3 70B)"
 
 install:
 	python -m venv .venv
@@ -54,5 +54,5 @@ llm-status:
 llm-paid:
 	@bash scripts/switch-llm-config.sh paid
 
-llm-cheap:
-	@bash scripts/switch-llm-config.sh cheap
+llm-free:
+	@bash scripts/switch-llm-config.sh free

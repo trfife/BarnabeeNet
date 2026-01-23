@@ -1,223 +1,219 @@
-# BarnabeeNet LLM Configuration - FREE/LOW-COST TIER
-# Uses the cheapest available models on OpenRouter
+# BarnabeeNet LLM Configuration - FREE TIER
+# Uses OpenRouter free models (append :free to model IDs)
 #
-# These models provide good quality at minimal cost:
-# - google/gemini-2.0-flash-001 - $0.10/$0.40 per 1M tokens (very cheap)
-# - deepseek/deepseek-chat - $0.14/$0.28 per 1M tokens (cheapest quality model)
-# - meta-llama/llama-3.3-70b-instruct - $0.30/$0.30 per 1M tokens
+# Free models have:
+# - No cost per token
+# - Lower rate limits
+# - May have availability constraints during peak times
 #
-# Note: True free models (:free suffix) may have availability issues.
-# This config uses ultra-low-cost models for reliable operation.
+# Working free model as of 2026:
+# - meta-llama/llama-3.3-70b-instruct:free - GPT-4 level quality, WORKS!
+#
+# Note: Gemini free models have availability issues, using Llama for all agents
 
 # OpenRouter API settings
 openrouter:
   site_url: "https://barnabeenet.local"
   site_name: "BarnabeeNet"
 
-# Agent model configurations - LOW-COST TIER
+# Agent model configurations - FREE TIER (All Llama 3.3 70B)
 agents:
   # Meta Agent: Routes requests to appropriate agent
-  # LOW-COST: Gemini Flash is fastest and cheapest ($0.10/$0.40 per 1M)
+  # FREE: Llama 3.3 70B (Gemini free has availability issues)
   meta:
-    model: "google/gemini-2.0-flash-001"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.2
     max_tokens: 200
-    description: "Fast routing decisions for every request (LOW-COST)"
+    description: "Fast routing decisions for every request (FREE)"
 
   # Instant Agent: Quick pattern-matched responses
-  # LOW-COST: Gemini Flash for fast responses
+  # FREE: Llama 3.3 70B
   instant:
-    model: "google/gemini-2.0-flash-001"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 300
-    description: "Fast responses for simple queries (LOW-COST)"
+    description: "Fast responses for simple queries (FREE)"
 
   # Action Agent: Device control decisions
-  # LOW-COST: DeepSeek Chat - very cheap and reliable
+  # FREE: Llama 3.3 70B for reliable device control
   action:
-    model: "deepseek/deepseek-chat"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.2
     max_tokens: 500
-    description: "Device control and home automation (LOW-COST)"
+    description: "Device control and home automation (FREE)"
 
   # Interaction Agent: Complex conversations
-  # LOW-COST: DeepSeek Chat - good quality at lowest cost
+  # FREE: Llama 3.3 70B - closest to GPT-4 quality
   interaction:
-    model: "deepseek/deepseek-chat"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.7
     max_tokens: 1500
-    description: "Complex conversations, advice, personality (LOW-COST)"
+    description: "Complex conversations, advice, personality (FREE)"
 
   # Memory Agent: Summarization for memory storage
-  # LOW-COST: DeepSeek Chat for efficient summarization
+  # FREE: Llama 3.3 70B for summarization
   memory:
-    model: "deepseek/deepseek-chat"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 800
-    description: "Memory generation and summarization (LOW-COST)"
+    description: "Memory generation and summarization (FREE)"
 
 # =============================================================================
-# Activity-Level Configuration - LOW-COST TIER
+# Activity-Level Configuration - FREE TIER (All Llama 3.3 70B)
 # =============================================================================
 
 activities:
   # ---------------------------------------------------------------------------
-  # MetaAgent Activities - LOW-COST
+  # MetaAgent Activities - FREE
   # ---------------------------------------------------------------------------
   meta.classify_intent:
-    model: "google/gemini-2.0-flash-001"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.2
     max_tokens: 150
     priority: speed
-    description: "Intent classification (LOW-COST)"
+    description: "Intent classification (FREE)"
 
   meta.evaluate_context:
-    model: "google/gemini-2.0-flash-001"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 100
     priority: speed
-    description: "Context and mood evaluation (LOW-COST)"
+    description: "Context and mood evaluation (FREE)"
 
   meta.generate_queries:
-    model: "google/gemini-2.0-flash-001"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.4
     max_tokens: 200
     priority: speed
-    description: "Generate memory search queries (LOW-COST)"
+    description: "Generate memory search queries (FREE)"
 
   # ---------------------------------------------------------------------------
-  # ActionAgent Activities - LOW-COST
+  # ActionAgent Activities - FREE
   # ---------------------------------------------------------------------------
   action.parse_intent:
-    model: "deepseek/deepseek-chat"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.2
     max_tokens: 300
     priority: accuracy
-    description: "Parse device control intent (LOW-COST)"
+    description: "Parse device control intent (FREE)"
 
   action.resolve_entities:
-    model: "deepseek/deepseek-chat"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.1
     max_tokens: 200
     priority: accuracy
-    description: "Resolve entity names to HA IDs (LOW-COST)"
+    description: "Resolve entity names to HA IDs (FREE)"
 
   action.generate_confirm:
-    model: "google/gemini-2.0-flash-001"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.5
     max_tokens: 100
     priority: speed
-    description: "Generate action confirmations (LOW-COST)"
+    description: "Generate action confirmations (FREE)"
 
   action.generate_error:
-    model: "google/gemini-2.0-flash-001"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.5
     max_tokens: 150
     priority: speed
-    description: "Generate helpful error messages (LOW-COST)"
+    description: "Generate helpful error messages (FREE)"
 
   # ---------------------------------------------------------------------------
-  # InteractionAgent Activities - LOW-COST
+  # InteractionAgent Activities - FREE
   # ---------------------------------------------------------------------------
   interaction.respond:
-    model: "deepseek/deepseek-chat"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.7
     max_tokens: 1500
     priority: quality
-    description: "Main conversational responses (LOW-COST)"
+    description: "Main conversational responses (FREE)"
 
   interaction.followup:
-    model: "deepseek/deepseek-chat"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.7
     max_tokens: 1000
     priority: quality
-    description: "Follow-up in conversation (LOW-COST)"
+    description: "Follow-up in conversation (FREE)"
 
   interaction.empathy:
-    model: "deepseek/deepseek-chat"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.8
     max_tokens: 800
     priority: quality
-    description: "Empathetic/emotional responses (LOW-COST)"
+    description: "Empathetic/emotional responses (FREE)"
 
   interaction.factual:
-    model: "deepseek/deepseek-chat"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 1000
     priority: accuracy
-    description: "Factual question answering (LOW-COST)"
+    description: "Factual question answering (FREE)"
 
   # ---------------------------------------------------------------------------
-  # MemoryAgent Activities - LOW-COST
+  # MemoryAgent Activities - FREE
   # ---------------------------------------------------------------------------
   memory.generate:
-    model: "deepseek/deepseek-chat"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 500
     priority: quality
-    description: "Generate memories from events (LOW-COST)"
+    description: "Generate memories from events (FREE)"
 
   memory.extract_facts:
-    model: "deepseek/deepseek-chat"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.2
     max_tokens: 400
     priority: accuracy
-    description: "Extract facts from conversation (LOW-COST)"
+    description: "Extract facts from conversation (FREE)"
 
   memory.summarize:
-    model: "deepseek/deepseek-chat"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 300
     priority: quality
-    description: "Summarize for memory storage (LOW-COST)"
+    description: "Summarize for memory storage (FREE)"
 
   memory.rank:
-    model: "google/gemini-2.0-flash-001"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.2
     max_tokens: 100
     priority: speed
-    description: "Rank memory relevance (LOW-COST)"
+    description: "Rank memory relevance (FREE)"
 
   # ---------------------------------------------------------------------------
-  # InstantAgent Activities - LOW-COST
+  # InstantAgent Activities - FREE
   # ---------------------------------------------------------------------------
   instant.fallback:
-    model: "google/gemini-2.0-flash-001"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.5
     max_tokens: 200
     priority: speed
-    description: "Fallback for instant patterns (LOW-COST)"
+    description: "Fallback for instant patterns (FREE)"
 
   # ---------------------------------------------------------------------------
-  # ProfileAgent Activities - LOW-COST
+  # ProfileAgent Activities - FREE
   # ---------------------------------------------------------------------------
   profile.generate:
-    model: "deepseek/deepseek-chat"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 2000
     priority: quality
-    description: "Generate/update family member profiles (LOW-COST)"
+    description: "Generate/update family member profiles (FREE)"
 
   profile.summarize_diff:
-    model: "google/gemini-2.0-flash-001"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 300
     priority: speed
-    description: "Summarize profile changes (LOW-COST)"
+    description: "Summarize profile changes (FREE)"
 
 # =============================================================================
-# Model Pricing Reference - LOW-COST TIER
+# Model Pricing Reference - FREE TIER
 # =============================================================================
 pricing:
-  "google/gemini-2.0-flash-001":
-    input: 0.10
-    output: 0.40
-  "deepseek/deepseek-chat":
-    input: 0.14
-    output: 0.28
-  "meta-llama/llama-3.3-70b-instruct":
-    input: 0.30
-    output: 0.30
+  "meta-llama/llama-3.3-70b-instruct:free":
+    input: 0.0
+    output: 0.0
 
 # Signal logging settings
 signals:

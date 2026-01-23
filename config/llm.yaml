@@ -6,30 +6,30 @@
 # - Lower rate limits
 # - May have availability constraints during peak times
 #
-# Best free models as of 2026:
-# - google/gemini-2.0-flash-exp:free - Fast, 1M context, multimodal
-# - meta-llama/llama-3.3-70b-instruct:free - GPT-4 level quality
-# - deepseek/deepseek-chat:free - Good quality, fast
+# Working free model as of 2026:
+# - meta-llama/llama-3.3-70b-instruct:free - GPT-4 level quality, WORKS!
+#
+# Note: Gemini free models have availability issues, using Llama for all agents
 
 # OpenRouter API settings
 openrouter:
   site_url: "https://barnabeenet.local"
   site_name: "BarnabeeNet"
 
-# Agent model configurations - FREE TIER
+# Agent model configurations - FREE TIER (All Llama 3.3 70B)
 agents:
   # Meta Agent: Routes requests to appropriate agent
-  # FREE: Gemini Flash is free and fastest
+  # FREE: Llama 3.3 70B (Gemini free has availability issues)
   meta:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.2
     max_tokens: 200
     description: "Fast routing decisions for every request (FREE)"
 
   # Instant Agent: Quick pattern-matched responses
-  # FREE: Gemini Flash for sub-100ms responses
+  # FREE: Llama 3.3 70B
   instant:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 300
     description: "Fast responses for simple queries (FREE)"
@@ -51,15 +51,15 @@ agents:
     description: "Complex conversations, advice, personality (FREE)"
 
   # Memory Agent: Summarization for memory storage
-  # FREE: Gemini Flash for efficient summarization
+  # FREE: Llama 3.3 70B for summarization
   memory:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 800
     description: "Memory generation and summarization (FREE)"
 
 # =============================================================================
-# Activity-Level Configuration - FREE TIER
+# Activity-Level Configuration - FREE TIER (All Llama 3.3 70B)
 # =============================================================================
 
 activities:
@@ -67,21 +67,21 @@ activities:
   # MetaAgent Activities - FREE
   # ---------------------------------------------------------------------------
   meta.classify_intent:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.2
     max_tokens: 150
     priority: speed
     description: "Intent classification (FREE)"
 
   meta.evaluate_context:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 100
     priority: speed
     description: "Context and mood evaluation (FREE)"
 
   meta.generate_queries:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.4
     max_tokens: 200
     priority: speed
@@ -105,14 +105,14 @@ activities:
     description: "Resolve entity names to HA IDs (FREE)"
 
   action.generate_confirm:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.5
     max_tokens: 100
     priority: speed
     description: "Generate action confirmations (FREE)"
 
   action.generate_error:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.5
     max_tokens: 150
     priority: speed
@@ -153,28 +153,28 @@ activities:
   # MemoryAgent Activities - FREE
   # ---------------------------------------------------------------------------
   memory.generate:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 500
     priority: quality
     description: "Generate memories from events (FREE)"
 
   memory.extract_facts:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.2
     max_tokens: 400
     priority: accuracy
     description: "Extract facts from conversation (FREE)"
 
   memory.summarize:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 300
     priority: quality
     description: "Summarize for memory storage (FREE)"
 
   memory.rank:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.2
     max_tokens: 100
     priority: speed
@@ -184,7 +184,7 @@ activities:
   # InstantAgent Activities - FREE
   # ---------------------------------------------------------------------------
   instant.fallback:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.5
     max_tokens: 200
     priority: speed
@@ -201,7 +201,7 @@ activities:
     description: "Generate/update family member profiles (FREE)"
 
   profile.summarize_diff:
-    model: "google/gemini-2.0-flash-exp:free"
+    model: "meta-llama/llama-3.3-70b-instruct:free"
     temperature: 0.3
     max_tokens: 300
     priority: speed
@@ -211,16 +211,7 @@ activities:
 # Model Pricing Reference - FREE TIER
 # =============================================================================
 pricing:
-  "google/gemini-2.0-flash-exp:free":
-    input: 0.0
-    output: 0.0
   "meta-llama/llama-3.3-70b-instruct:free":
-    input: 0.0
-    output: 0.0
-  "deepseek/deepseek-chat:free":
-    input: 0.0
-    output: 0.0
-  "mistralai/mistral-7b-instruct:free":
     input: 0.0
     output: 0.0
 

@@ -27,14 +27,15 @@ show_status() {
     echo ""
 
     # Check which config is active by looking for key markers
-    if grep -q "deepseek/deepseek-chat" "$CURRENT_CONFIG" 2>/dev/null && grep -q "LOW-COST" "$CURRENT_CONFIG" 2>/dev/null; then
-        echo -e "Current mode: ${CYAN}LOW-COST${NC}"
+    if grep -q "llama-3.3-70b-instruct:free" "$CURRENT_CONFIG" 2>/dev/null; then
+        echo -e "Current mode: ${GREEN}FREE${NC}"
         echo ""
-        echo "Low-cost models in use:"
-        echo "  - google/gemini-2.0-flash-001 (routing, instant)"
-        echo "  - deepseek/deepseek-chat (interaction, action, memory)"
+        echo "Free model in use:"
+        echo "  - meta-llama/llama-3.3-70b-instruct:free (all agents)"
         echo ""
-        echo -e "Cost: ${CYAN}~\$0.0001-0.0005${NC} per query (10x cheaper than paid)"
+        echo -e "Cost: ${GREEN}\$0.00${NC} per query"
+        echo ""
+        echo "Note: Free tier may have rate limits during peak times"
     else
         echo -e "Current mode: ${YELLOW}PAID (Best Quality)${NC}"
         echo ""
@@ -70,47 +71,41 @@ switch_to_paid() {
     echo "  bash scripts/restart.sh"
 }
 
-switch_to_cheap() {
+switch_to_free() {
     if [ ! -f "$CHEAP_CONFIG" ]; then
         echo "Error: $CHEAP_CONFIG not found!"
         exit 1
     fi
 
     cp "$CHEAP_CONFIG" "$CURRENT_CONFIG"
-    echo -e "${GREEN}✅ Switched to LOW-COST configuration${NC}"
+    echo -e "${GREEN}✅ Switched to FREE configuration${NC}"
     echo ""
-    echo "Models now active:"
-    echo "  - MetaAgent: google/gemini-2.0-flash-001"
-    echo "  - InstantAgent: google/gemini-2.0-flash-001"
-    echo "  - ActionAgent: deepseek/deepseek-chat"
-    echo "  - InteractionAgent: deepseek/deepseek-chat"
-    echo "  - MemoryAgent: deepseek/deepseek-chat"
+    echo "Model now active (all agents):"
+    echo "  - meta-llama/llama-3.3-70b-instruct:free"
     echo ""
-    echo -e "Cost: ${CYAN}~\$0.0001-0.0005${NC} per query (10x cheaper)"
+    echo -e "Cost: ${GREEN}\$0.00${NC} per query"
     echo ""
-    echo "Pricing per 1M tokens:"
-    echo "  - Gemini Flash: \$0.10 input / \$0.40 output"
-    echo "  - DeepSeek Chat: \$0.14 input / \$0.28 output"
+    echo "Note: Free tier may have rate limits during peak usage"
     echo ""
     echo -e "${YELLOW}Restart BarnabeeNet to apply changes:${NC}"
     echo "  bash scripts/restart.sh"
 }
 
 show_help() {
-    echo "Usage: $0 [paid|cheap|status]"
+    echo "Usage: $0 [paid|free|status]"
     echo ""
     echo "Commands:"
     echo "  paid    Switch to paid models (best quality - Claude, GPT-4o)"
-    echo "  cheap   Switch to low-cost models (DeepSeek, Gemini Flash)"
+    echo "  free    Switch to free models (Llama 3.3 70B)"
     echo "  status  Show current configuration"
     echo ""
     echo "Cost Comparison:"
-    echo "  PAID:     ~\$0.001-0.002 per query (best quality)"
-    echo "  LOW-COST: ~\$0.0001-0.0005 per query (10x cheaper)"
+    echo "  PAID: ~\$0.001-0.002 per query (best quality)"
+    echo "  FREE: \$0.00 per query (may have rate limits)"
     echo ""
     echo "Examples:"
     echo "  $0 paid     # Use premium models for best quality"
-    echo "  $0 cheap    # Use low-cost models to save money"
+    echo "  $0 free     # Use free models (Llama 3.3 70B)"
     echo "  $0 status   # Check which mode is active"
 }
 
@@ -118,8 +113,8 @@ case "${1:-status}" in
     paid)
         switch_to_paid
         ;;
-    cheap|free|lowcost|low-cost)
-        switch_to_cheap
+    free|cheap)
+        switch_to_free
         ;;
     status)
         show_status
