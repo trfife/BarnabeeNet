@@ -334,7 +334,7 @@ class TestConversationManagement:
         await initialized_agent.handle_input("Hello", ctx)
 
         assert initialized_agent.get_conversation("clear_test") is not None
-        result = initialized_agent.clear_conversation("clear_test")
+        result = await initialized_agent.clear_conversation("clear_test")
         assert result is True
         assert initialized_agent.get_conversation("clear_test") is None
 
@@ -343,7 +343,7 @@ class TestConversationManagement:
         self, initialized_agent: InteractionAgent
     ) -> None:
         """clear_conversation returns False for nonexistent conversation."""
-        result = initialized_agent.clear_conversation("nonexistent")
+        result = await initialized_agent.clear_conversation("nonexistent")
         assert result is False
 
     @pytest.mark.asyncio

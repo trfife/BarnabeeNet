@@ -141,6 +141,26 @@ class InstantAgent(Agent):
         "I hear you perfectly!",
     ]
 
+    # Clear conversation / Start fresh responses
+    CLEAR_CONVERSATION_RESPONSES = [
+        "Sure, starting fresh! How can I help you?",
+        "Okay, I've cleared our conversation. What would you like to talk about?",
+        "Fresh start! What can I do for you?",
+        "Done! I've forgotten what we were discussing. What's on your mind?",
+    ]
+
+    # Patterns that indicate user wants to clear/reset conversation
+    CLEAR_CONVERSATION_PATTERNS = [
+        r"start\s*fresh",
+        r"forget\s*this\s*conversation",
+        r"clear\s*(?:the\s*)?conversation",
+        r"new\s*conversation",
+        r"reset\s*(?:our\s*)?(?:conversation|chat)",
+        r"let'?s?\s*start\s*over",
+        r"forget\s*what\s*(?:we(?:'ve)?\s*)?(?:talked|discussed|said)",
+        r"wipe\s*(?:the\s*)?slate\s*clean",
+    ]
+
     SPELLING_RESPONSES = [
         "{word} is spelled {spelling}. Would you like that one letter at a time?",
     ]
@@ -203,10 +223,13 @@ class InstantAgent(Agent):
         response: str
         response_type: str
 
-        # First, check if this is a continuation of a letter-by-letter spelling session
+        # First, check for clear conversation commands
+        if self._is_clear_conversation(text_lower):
+            response = await self._handle_clear_conversation(context)
+            response_type = "clear_conversation"
+        # Check if this is a continuation of a letter-by-letter spelling session
         # This handles "yes", "next", etc. when there's an active spelling session
-        spelling_continuation = self._handle_spelling_continuation(text_lower, speaker)
-        if spelling_continuation:
+        elif (spelling_continuation := self._handle_spelling_continuation(text_lower, speaker)):
             response = spelling_continuation
             response_type = "spelling_letter"
         elif sub_category == "spelling_continue":
@@ -382,6 +405,34 @@ class InstantAgent(Agent):
     def _handle_mic_check(self) -> str:
         """Generate mic check / hearing confirmation response."""
         return random.choice(self.MIC_CHECK_RESPONSES)
+
+    def _is_clear_conversation(self, text: str) -> bool:
+        """Check if user wants to clear/reset the conversation."""
+        for pattern in self.CLEAR_CONVERSATION_PATTERNS:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+        return False
+
+    async def _handle_clear_conversation(self, context: dict[str, Any]) -> str:
+        """Handle clear conversation request.
+
+        Clears the conversation context for the current device/room.
+        """
+        conversation_id = context.get("conversation_id")
+
+        if conversation_id:
+            try:
+                # Try to get the interaction agent and clear the conversation
+                from barnabeenet.main import app_state
+                if hasattr(app_state, "orchestrator") and app_state.orchestrator:
+                    orchestrator = app_state.orchestrator
+                    if hasattr(orchestrator, "_interaction_agent") and orchestrator._interaction_agent:
+                        await orchestrator._interaction_agent.clear_conversation(conversation_id)
+                        logger.info(f"Cleared conversation: {conversation_id}")
+            except Exception as e:
+                logger.warning(f"Failed to clear conversation {conversation_id}: {e}")
+
+        return random.choice(self.CLEAR_CONVERSATION_RESPONSES)
 
     def _try_math(self, text: str) -> str | None:
         """Try to evaluate simple math expressions.

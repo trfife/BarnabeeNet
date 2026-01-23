@@ -144,15 +144,23 @@ class ConversationContextManager:
             conv_ctx.room,
         )
 
-        # Store summary in memory
+        # Store summary in memory (with content filtering)
         if summary and self._memory_storage:
-            await self._store_conversation_summary(
-                conv_ctx.conversation_id,
-                summary,
-                conv_ctx.speaker,
-                conv_ctx.room,
-                len(turns_to_summarize),
-            )
+            # Check if this conversation should be stored
+            should_store, reason = await self._should_store_memory(turns_to_summarize)
+
+            if should_store:
+                await self._store_conversation_summary(
+                    conv_ctx.conversation_id,
+                    summary,
+                    conv_ctx.speaker,
+                    conv_ctx.room,
+                    len(turns_to_summarize),
+                )
+            else:
+                logger.info(
+                    f"Skipping memory storage for {conv_ctx.conversation_id}: {reason}"
+                )
 
         # Build optimized message list
         optimized_messages = [current_messages[0]]  # System prompt
@@ -219,6 +227,89 @@ Summary:"""
             logger.error(f"Failed to generate conversation summary: {e}")
             return None
 
+    async def _should_store_memory(
+        self,
+        conversation: list[Any],  # list[ConversationTurn]
+    ) -> tuple[bool, str]:
+        """Determine if a conversation should be stored in long-term memory.
+
+        Uses LLM to filter out content that shouldn't be remembered:
+        - Arguments or conflicts
+        - Embarrassing moments
+        - Private health information
+        - Financial details
+        - Passwords or secrets
+
+        Args:
+            conversation: List of conversation turns to analyze
+
+        Returns:
+            Tuple of (should_store, reason)
+        """
+        if not self._llm_client:
+            # If no LLM, default to storing
+            return True, "No LLM available for filtering"
+
+        if not conversation or len(conversation) < 2:
+            return False, "Conversation too short to store"
+
+        try:
+            # Build conversation text for analysis
+            conversation_text = "\n".join(
+                f"{turn.role}: {turn.content}" for turn in conversation[-10:]  # Analyze last 10 turns
+            )
+
+            prompt = """Analyze this conversation and decide if it should be stored in long-term memory.
+
+DO NOT STORE conversations that contain:
+- Arguments, conflicts, or heated disagreements
+- Embarrassing moments or uncomfortable situations
+- Private health information or medical details
+- Financial information (account numbers, passwords, etc.)
+- Passwords, PINs, or security codes
+- Relationship problems or personal drama
+- Complaints about family members
+- Content a person might later regret sharing
+
+DO STORE conversations that contain:
+- Preferences and facts about people
+- Helpful information for future reference
+- Positive memories and experiences
+- Practical information (recipes, recommendations, etc.)
+- Plans and schedules
+- Questions that might be asked again
+
+Conversation:
+{conversation_text}
+
+Respond with ONLY one of these:
+STORE - if the conversation should be remembered
+SKIP - if the conversation should NOT be remembered
+
+Then briefly explain why (max 10 words).
+
+Example response:
+STORE - Contains user's food preferences for future meals"""
+
+            response = await self._llm_client.simple_chat(
+                user_message=prompt.format(conversation_text=conversation_text),
+                agent_type="memory",  # Use memory agent model
+            )
+
+            response_upper = response.strip().upper()
+
+            if response_upper.startswith("STORE"):
+                reason = response.split("-", 1)[1].strip() if "-" in response else "Approved for storage"
+                return True, reason
+            else:
+                reason = response.split("-", 1)[1].strip() if "-" in response else "Filtered out"
+                return False, reason
+
+        except Exception as e:
+            logger.error(f"Content filtering failed: {e}")
+            # On error, err on the side of privacy - don't store
+            return False, f"Filtering error: {e}"
+
     async def _store_conversation_summary(
         self,
         conversation_id: str,
@@ -257,14 +348,21 @@ Summary:"""
         speaker: str | None = None,
         room: str | None = None,
         limit: int = 5,
+        global_search: bool = True,
     ) -> list[ConversationSummary]:
         """Recall past conversations matching a query.
 
+        By default, searches *all* conversations globally. Names mentioned
+        in the query (like "Elizabeth") are treated as search terms, not filters.
+        This allows users to ask about conversations other family members had.
+
         Args:
-            query: Search query (e.g., "yesterday", "about the thermostat").
-            speaker: Optional speaker filter.
-            room: Optional room filter.
+            query: Search query (e.g., "what did Elizabeth say about dinner?").
+            speaker: Optional - the current speaker (used for context, not filtering)
+            room: Optional - the current room (used for context, not filtering)
             limit: Maximum results to return.
+            global_search: If True (default), search all conversations.
+                          If False, filter by speaker.
 
         Returns:
             List of conversation summaries matching the query.
@@ -273,8 +371,10 @@ Summary:"""
             return []
 
         try:
-            # Search memories for conversation summaries
-            participants = [speaker] if speaker else None
+            # Global search: Don't filter by participant, include names as search terms
+            # Names in the query (like "Elizabeth") become part of the semantic search
+            participants = None if global_search else ([speaker] if speaker else None)
+
             results = await self._memory_storage.search_memories(
                 query=query,
                 memory_type="episodic",

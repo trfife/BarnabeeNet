@@ -305,7 +305,16 @@ IMPORTANT RECENT CHANGES:
 • Prompts page REMOVED - edit prompt files directly in prompts/*.txt
 • Model selection SIMPLIFIED - one model per agent in config/llm.yaml
 • Config sections REMOVED - general, voice, memory, advanced (non-functional)
-• Dashboard pages: Dashboard, Chat, Memory, Logic, Self-Improve, Logs, Family, Entities, Config
+• Logic Browser page REMOVED - edit patterns via code only
+• Dashboard pages: Dashboard, Chat, Memory, Self-Improve, Logs, Family, Entities, Agents, Config
+
+DASHBOARD CONTRACT (MUST NOT BREAK):
+───────────────────────────────────────────────────────────────────────────────
+• Dashboard pages depend on specific API endpoints
+• See src/barnabeenet/dashboard_contract.yaml for required endpoints
+• If modifying an API endpoint, ensure response schema is preserved
+• Run `pytest tests/test_dashboard_contract.py` after API changes
+• DO NOT remove or rename required response fields
 
 ═══════════════════════════════════════════════════════════════════════════════
 

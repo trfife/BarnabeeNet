@@ -1,0 +1,164 @@
+# Dashboard Contract - DO NOT BREAK THESE APIs
+# =============================================
+# The self-improvement agent MUST preserve these endpoints and their response schemas.
+# This file documents the API contract between the dashboard frontend and backend.
+#
+# If you need to modify an API endpoint:
+# 1. Ensure backward compatibility (don't remove required fields)
+# 2. Run `pytest tests/test_dashboard_contract.py` to verify
+# 3. Update this file if adding new required endpoints
+#
+# Format: Each page lists its required endpoints and expected response fields.
+
+version: "1.0"
+updated: "2026-01-23"
+
+pages:
+  dashboard:
+    description: "Main dashboard overview"
+    required_endpoints:
+      - method: GET
+        path: /api/v1/dashboard/status
+        response_fields:
+          - status
+          - uptime_seconds
+          - version
+          - components
+      - method: GET
+        path: /api/v1/dashboard/stats
+        response_fields:
+          - total_requests_24h
+          - total_cost_24h
+          - avg_latency_ms
+          - error_rate_percent
+      - method: GET
+        path: /api/v1/dashboard/activity
+        response_fields:
+          - items
+          - total_count
+          - has_more
+      - method: GET
+        path: /api/v1/timers
+        response_fields:
+          - timers
+    required_websocket: /api/v1/ws/activity
+
+  chat:
+    description: "Chat interface"
+    required_endpoints:
+      - method: POST
+        path: /api/v1/chat
+        request_fields:
+          - text
+        response_fields:
+          - text
+          - conversation_id
+
+  memory:
+    description: "Memory management"
+    required_endpoints:
+      - method: GET
+        path: /api/v1/memory/stats
+        response_fields:
+          - total_memories
+          - by_type
+          - recent_24h
+          - recent_7d
+          - storage_backend
+      - method: GET
+        path: /api/v1/memory/
+        response_fields:
+          - memories
+          - total
+          - page
+          - page_size
+      - method: DELETE
+        path: /api/v1/memory/{memory_id}
+        response_fields:
+          - status
+          - memory_id
+
+  family:
+    description: "Family profiles"
+    required_endpoints:
+      - method: GET
+        path: /api/v1/profiles
+        response_fields:
+          - profiles
+          - total
+      - method: POST
+        path: /api/v1/profiles
+        request_fields:
+          - member_id
+          - name
+        response_fields:
+          - profile
+      - method: GET
+        path: /api/v1/profiles/{member_id}
+        response_fields:
+          - profile
+
+  entities:
+    description: "Home Assistant entities"
+    required_endpoints:
+      - method: GET
+        path: /api/v1/homeassistant/status
+        response_fields:
+          - connected
+      - method: GET
+        path: /api/v1/homeassistant/entities
+        response_fields:
+          - entities
+      - method: GET
+        path: /api/v1/homeassistant/areas
+        response_fields:
+          - areas
+
+  agents:
+    description: "Agent management"
+    required_endpoints:
+      - method: GET
+        path: /api/v1/agents/self-improvement
+        response_fields:
+          - enabled
+          - model
+
+  config:
+    description: "Configuration"
+    required_endpoints:
+      - method: GET
+        path: /api/v1/config/providers
+        response_fields:
+          - providers
+          - total
+
+  logs:
+    description: "System logs"
+    required_endpoints:
+      - method: GET
+        path: /api/v1/dashboard/activity
+        response_fields:
+          - items
+          - total_count
+
+  self_improve:
+    description: "Self-improvement page"
+    required_endpoints:
+      - method: GET
+        path: /api/v1/self-improve/sessions
+        response_fields:
+          - sessions
+      - method: GET
+        path: /api/v1/self-improve/status
+        response_fields:
+          - status
+
+# Testing configuration
+testing:
+  # Endpoints to skip during contract testing (require special auth/setup)
+  skip_endpoints:
+    - /api/v1/homeassistant/entities  # Requires HA connection
+    - /api/v1/homeassistant/areas     # Requires HA connection
+    - /api/v1/homeassistant/status    # Requires HA connection
+    - /api/v1/profiles                # Requires Redis
+    - /api/v1/profiles/stats          # Requires Redis

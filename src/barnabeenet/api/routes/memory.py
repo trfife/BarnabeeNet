@@ -11,7 +11,7 @@ Provides endpoints for:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -208,7 +208,7 @@ async def get_memory_stats() -> MemoryStatsResponse:
     # Count by type
     by_type: dict[str, int] = {}
     by_participant: dict[str, int] = {}
-    now = datetime.now()
+    now = datetime.now(UTC)
     recent_24h = 0
     recent_7d = 0
 
@@ -220,8 +220,13 @@ async def get_memory_stats() -> MemoryStatsResponse:
         for p in mem.participants:
             by_participant[p] = by_participant.get(p, 0) + 1
 
-        # Recent counts
-        age = now - mem.created_at
+        # Recent counts - ensure timezone-aware comparison
+        created_at = mem.created_at
+        if created_at.tzinfo is None:
+            # If naive datetime, assume UTC
+            created_at = created_at.replace(tzinfo=UTC)
+
+        age = now - created_at
         if age < timedelta(hours=24):
             recent_24h += 1
         if age < timedelta(days=7):
@@ -369,10 +374,15 @@ async def get_diary_entries(
 
     # Group memories by date
     memories_by_date: dict[str, list[StoredMemory]] = {}
-    now = datetime.now()
+    now = datetime.now(UTC)
 
     for mem in all_memories:
-        age = now - mem.created_at
+        # Ensure timezone-aware comparison
+        created_at = mem.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+
+        age = now - created_at
         if age > timedelta(days=days):
             continue
 

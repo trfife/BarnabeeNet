@@ -222,15 +222,6 @@ function showPage(pageId) {
         page.classList.toggle('active', page.id === `page-${pageId}`);
     });
 
-    // Initialize Logic page when navigating to it
-    if (pageId === 'logic') {
-        const logicPage = document.getElementById('page-logic');
-        if (logicPage && !logicPage.dataset.initialized) {
-            initLogicPage();
-            logicPage.dataset.initialized = 'true';
-        }
-    }
-
     // Initialize Self-Improve page when navigating to it
     if (pageId === 'self-improve') {
         const siPage = document.getElementById('page-self-improve');
@@ -2134,12 +2125,208 @@ document.addEventListener('DOMContentLoaded', () => {
     initProviderConfig();
     initModelSelection();
     initHomeAssistant();
+    initTestingSection();
 
     // Load agent models if on config page
     if (document.getElementById('agent-models-list')) {
         loadAgentModels();
     }
 });
+
+// =============================================================================
+// Testing & Development Section
+// =============================================================================
+
+function initTestingSection() {
+    // Config page Testing section
+    document.querySelectorAll('.config-nav li').forEach(item => {
+        item.addEventListener('click', () => {
+            if (item.dataset.config === 'testing') {
+                loadTestingStatus();
+            }
+        });
+    });
+
+    // Generate mock data button
+    document.getElementById('generate-mock-data-btn')?.addEventListener('click', generateMockData);
+
+    // Clear all data button
+    document.getElementById('clear-all-data-btn')?.addEventListener('click', clearAllData);
+
+    // Delete mock data only button
+    document.getElementById('delete-mock-data-btn')?.addEventListener('click', deleteMockDataOnly);
+}
+
+async function loadTestingStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/testing/status`);
+        if (!response.ok) throw new Error('Failed to load status');
+        const data = await response.json();
+
+        // Update status display
+        document.getElementById('testing-memory-status').textContent =
+            data.memory_storage ? '✓ Connected' : '✗ Unavailable';
+        document.getElementById('testing-memory-status').className =
+            'status-value ' + (data.memory_storage ? 'success' : 'error');
+
+        document.getElementById('testing-profile-status').textContent =
+            data.profile_service ? '✓ Connected' : '✗ Unavailable';
+        document.getElementById('testing-profile-status').className =
+            'status-value ' + (data.profile_service ? 'success' : 'error');
+
+        document.getElementById('testing-memory-count').textContent = data.counts?.memories || 0;
+        document.getElementById('testing-profile-count').textContent = data.counts?.family_profiles || 0;
+
+    } catch (e) {
+        console.error('Failed to load testing status:', e);
+    }
+}
+
+async function generateMockData() {
+    const resultDiv = document.getElementById('mock-data-result');
+    const btn = document.getElementById('generate-mock-data-btn');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Generating...';
+    resultDiv.style.display = 'block';
+    resultDiv.className = 'test-result';
+    resultDiv.textContent = 'Generating mock data...';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/testing/generate-mock-data`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                include_family: document.getElementById('mock-include-family')?.checked ?? true,
+                include_memories: document.getElementById('mock-include-memories')?.checked ?? true,
+                include_conversations: document.getElementById('mock-include-conversations')?.checked ?? true,
+                days_of_history: parseInt(document.getElementById('mock-days')?.value || '7'),
+            }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            resultDiv.className = 'test-result success';
+            resultDiv.innerHTML = `
+                <strong>✓ Mock Data Generated</strong><br>
+                ${data.message}
+            `;
+            showToast('Mock data generated successfully', 'success');
+            // Refresh status
+            loadTestingStatus();
+        } else {
+            throw new Error(data.detail || 'Failed to generate mock data');
+        }
+    } catch (e) {
+        resultDiv.className = 'test-result error';
+        resultDiv.textContent = `✗ Error: ${e.message}`;
+        showToast('Failed to generate mock data', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📝 Generate Mock Data';
+    }
+}
+
+async function clearAllData() {
+    const resultDiv = document.getElementById('clear-data-result');
+    const btn = document.getElementById('clear-all-data-btn');
+
+    // Confirm with user
+    if (!confirm('⚠️ WARNING: This will permanently delete all data including memories, conversations, and family profiles. This cannot be undone!\n\nAre you sure you want to continue?')) {
+        return;
+    }
+
+    // Double confirm
+    if (!confirm('This is your FINAL warning. All data will be permanently deleted.\n\nType OK if you understand and want to proceed.')) {
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Clearing...';
+    resultDiv.style.display = 'block';
+    resultDiv.className = 'test-result';
+    resultDiv.textContent = 'Clearing all data...';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/testing/clear-all-data`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                confirm: true,
+                clear_memories: document.getElementById('clear-memories')?.checked ?? true,
+                clear_conversations: document.getElementById('clear-conversations')?.checked ?? true,
+                clear_family_profiles: document.getElementById('clear-family-profiles')?.checked ?? true,
+                clear_audit_log: document.getElementById('clear-audit-log')?.checked ?? false,
+            }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            resultDiv.className = 'test-result success';
+            resultDiv.innerHTML = `
+                <strong>✓ Data Cleared</strong><br>
+                ${data.message}
+            `;
+            showToast('All data cleared successfully', 'success');
+            // Refresh status
+            loadTestingStatus();
+        } else {
+            throw new Error(data.detail || 'Failed to clear data');
+        }
+    } catch (e) {
+        resultDiv.className = 'test-result error';
+        resultDiv.textContent = `✗ Error: ${e.message}`;
+        showToast('Failed to clear data', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🗑️ Clear All Data';
+    }
+}
+
+async function deleteMockDataOnly() {
+    const resultDiv = document.getElementById('delete-mock-result');
+    const btn = document.getElementById('delete-mock-data-btn');
+
+    if (!confirm('Delete only mock data (data tagged as test data)?\n\nReal user data will be preserved.')) {
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Deleting...';
+    resultDiv.style.display = 'block';
+    resultDiv.className = 'test-result';
+    resultDiv.textContent = 'Deleting mock data...';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/testing/mock-data`, {
+            method: 'DELETE',
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            resultDiv.className = 'test-result success';
+            resultDiv.innerHTML = `
+                <strong>✓ Mock Data Deleted</strong><br>
+                ${data.message}
+            `;
+            showToast('Mock data deleted successfully', 'success');
+            // Refresh status
+            loadTestingStatus();
+        } else {
+            throw new Error(data.detail || 'Failed to delete mock data');
+        }
+    } catch (e) {
+        resultDiv.className = 'test-result error';
+        resultDiv.textContent = `✗ Error: ${e.message}`;
+        showToast('Failed to delete mock data', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🧹 Delete Mock Data Only';
+    }
+}
 
 // =============================================================================
 // Home Assistant
@@ -6430,1414 +6617,6 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
-// =============================================================================
-// Logic Browser Page
-// =============================================================================
-
-let logicData = {
-    patterns: {},
-    routing: {},
-    overrides: {},
-    aliases: []
-};
-let currentEditPattern = null;
-
-function initLogicPage() {
-    // Tab switching
-    document.querySelectorAll('.logic-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            const tabName = tab.dataset.tab;
-
-            // Update active tab
-            document.querySelectorAll('.logic-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-
-            // Show corresponding content
-            document.querySelectorAll('.logic-tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById(`logic-tab-${tabName}`).classList.add('active');
-        });
-    });
-
-    // Pattern group filter
-    const groupFilter = document.getElementById('pattern-group-filter');
-    if (groupFilter) {
-        groupFilter.addEventListener('change', () => renderPatternGroups());
-    }
-
-    // Show disabled toggle
-    const showDisabled = document.getElementById('show-disabled-patterns');
-    if (showDisabled) {
-        showDisabled.addEventListener('change', () => renderPatternGroups());
-    }
-
-    // Refresh button
-    const refreshBtn = document.getElementById('patterns-refresh-btn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', loadLogicData);
-    }
-
-    // Pattern test button
-    const testBtn = document.getElementById('run-pattern-test');
-    if (testBtn) {
-        testBtn.addEventListener('click', runPatternTest);
-    }
-
-    // Pattern test on enter key
-    const testInput = document.getElementById('pattern-test-input');
-    if (testInput) {
-        testInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') runPatternTest();
-        });
-    }
-
-    // Save pattern button
-    const saveBtn = document.getElementById('save-pattern-btn');
-    if (saveBtn) {
-        saveBtn.addEventListener('click', savePatternEdit);
-    }
-
-    // Modal close buttons
-    document.querySelectorAll('#pattern-modal .modal-close-btn').forEach(btn => {
-        btn.addEventListener('click', closePatternModal);
-    });
-
-    // Close modal on outside click
-    const modal = document.getElementById('pattern-modal');
-    if (modal) {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) closePatternModal();
-        });
-    }
-
-    // History refresh button
-    const historyRefreshBtn = document.getElementById('history-refresh-btn');
-    if (historyRefreshBtn) {
-        historyRefreshBtn.addEventListener('click', loadDecisionHistory);
-    }
-
-    // History filter change handlers
-    const agentFilter = document.getElementById('history-agent-filter');
-    const statusFilter = document.getElementById('history-status-filter');
-    const searchInput = document.getElementById('history-search');
-
-    if (agentFilter) {
-        agentFilter.addEventListener('change', renderDecisionHistory);
-    }
-    if (statusFilter) {
-        statusFilter.addEventListener('change', renderDecisionHistory);
-    }
-    if (searchInput) {
-        // Debounce search input
-        let searchTimeout;
-        searchInput.addEventListener('input', () => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(renderDecisionHistory, 300);
-        });
-    }
-
-    // Load initial data
-    loadLogicData();
-}
-
-async function loadLogicData() {
-    try {
-        // Use the main logic endpoint which returns everything in one call
-        const response = await fetch('/api/v1/logic/');
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        // Store the data - structure is: patterns, routing, overrides, entity_aliases, stats, metadata
-        logicData.patterns = data.patterns || {};
-        logicData.routing = data.routing || {};
-        logicData.overrides = data.overrides || {};
-        logicData.aliases = data.entity_aliases || {};
-        logicData.stats = data.stats || {};
-
-        updateLogicStats();
-        renderPatternGroups();
-        renderRoutingRules();
-        renderOverrides();
-        renderAliases();
-
-        // Also load decision history
-        loadDecisionHistory();
-    } catch (error) {
-        console.error('Failed to load logic data:', error);
-        showToast('Failed to load logic data', 'error');
-    }
-}
-
-// Decision history for Logic Browser - uses dashboard traces which have the actual request data
-let decisionHistory = [];
-
-async function loadDecisionHistory() {
-    try {
-        // Use dashboard traces endpoint which captures all requests
-        const [tracesResponse, statsResponse] = await Promise.all([
-            fetch('/api/v1/dashboard/traces?limit=50'),
-            fetch('/api/v1/dashboard/stats')
-        ]);
-
-        if (!tracesResponse.ok || !statsResponse.ok) {
-            throw new Error(`HTTP error`);
-        }
-
-        const tracesData = await tracesResponse.json();
-        const statsData = await statsResponse.json();
-
-        decisionHistory = tracesData.traces || [];
-
-        renderDecisionStats(statsData);
-        renderDecisionHistory();
-    } catch (error) {
-        console.error('Failed to load decision history:', error);
-        const container = document.getElementById('history-list');
-        if (container) {
-            container.innerHTML = '<div class="text-muted">Failed to load decision history. Try sending some requests to BarnabeeNet first.</div>';
-        }
-    }
-}
-
-function renderDecisionStats(stats) {
-    const container = document.getElementById('history-stats');
-    if (!container) return;
-
-    container.innerHTML = `
-        <div class="history-stats-grid">
-            <div class="stat-mini">
-                <span class="stat-value-small">${stats.total_requests_24h || 0}</span>
-                <span class="stat-label-small">Requests (24h)</span>
-            </div>
-            <div class="stat-mini">
-                <span class="stat-value-small">${stats.avg_latency_ms ? stats.avg_latency_ms.toFixed(0) : 0}ms</span>
-                <span class="stat-label-small">Avg Latency</span>
-            </div>
-            <div class="stat-mini">
-                <span class="stat-value-small">${(stats.error_rate_percent || 0).toFixed(1)}%</span>
-                <span class="stat-label-small">Error Rate</span>
-            </div>
-            <div class="stat-mini">
-                <span class="stat-value-small">$${(stats.total_cost_24h || 0).toFixed(4)}</span>
-                <span class="stat-label-small">LLM Cost (24h)</span>
-            </div>
-        </div>
-    `;
-}
-
-function renderDecisionHistory() {
-    const container = document.getElementById('history-list');
-    if (!container) return;
-
-    if (!decisionHistory || decisionHistory.length === 0) {
-        container.innerHTML = '<div class="text-muted">No request history yet. Try sending some requests to BarnabeeNet!</div>';
-        return;
-    }
-
-    // Get filter values
-    const agentFilter = document.getElementById('history-agent-filter')?.value || '';
-    const statusFilter = document.getElementById('history-status-filter')?.value || '';
-    const searchTerm = document.getElementById('history-search')?.value?.toLowerCase() || '';
-
-    // Apply filters
-    let filteredHistory = decisionHistory.filter(trace => {
-        // Agent filter
-        if (agentFilter && trace.agent_used !== agentFilter) return false;
-
-        // Status filter
-        if (statusFilter === 'success' && !trace.success) return false;
-        if (statusFilter === 'error' && trace.success) return false;
-
-        // Search filter
-        if (searchTerm) {
-            const inputText = (trace.input_preview || '').toLowerCase();
-            const responseText = (trace.response_preview || '').toLowerCase();
-            if (!inputText.includes(searchTerm) && !responseText.includes(searchTerm)) return false;
-        }
-
-        return true;
-    });
-
-    const agentIcons = {
-        instant: '⚡',
-        action: '🎯',
-        memory: '📝',
-        interaction: '💬',
-        emergency: '🚨'
-    };
-
-    if (filteredHistory.length === 0) {
-        container.innerHTML = `<div class="text-muted">No matching requests found. ${decisionHistory.length} total requests available.</div>`;
-        return;
-    }
-
-    let html = `<div class="filter-results-count">${filteredHistory.length} of ${decisionHistory.length} requests</div>`;
-    filteredHistory.forEach(trace => {
-        const icon = agentIcons[trace.agent_used] || '❓';
-        const time = trace.timestamp ? new Date(trace.timestamp).toLocaleTimeString() : '';
-        const duration = trace.total_latency_ms ? `${trace.total_latency_ms.toFixed(1)}ms` : '';
-        const successClass = trace.success ? 'success' : 'error';
-        const successColor = trace.success ? 'var(--success)' : 'var(--danger)';
-
-        // Determine which pattern was matched based on agent and intent
-        let logicInfo = '';
-        if (trace.intent) {
-            logicInfo = `Intent: ${trace.intent}`;
-        } else if (trace.agent_used) {
-            logicInfo = `Routed to: ${trace.agent_used} agent`;
-        }
-
-        html += `
-            <div class="decision-card clickable" onclick="openTraceDetail('${trace.trace_id}')">
-                <div class="decision-header">
-                    <span class="decision-icon">${icon}</span>
-                    <span class="decision-name">${trace.agent_used || 'unknown'} agent</span>
-                    <span class="decision-component">${escapeHtml(trace.intent || '')}</span>
-                    <span class="decision-time">${time}</span>
-                </div>
-                <div class="decision-body">
-                    <div class="decision-input"><strong>Input:</strong> "${escapeHtml(trace.input_preview || '')}"</div>
-                    <div class="decision-result">
-                        <span class="decision-outcome" style="color: ${successColor}">
-                            ${trace.success ? 'SUCCESS' : 'ERROR'}
-                        </span>
-                    </div>
-                    <div class="decision-response"><strong>Response:</strong> "${escapeHtml(trace.response_preview || '')}"</div>
-                    ${logicInfo ? `<div class="decision-logic">${escapeHtml(logicInfo)}</div>` : ''}
-                </div>
-                <div class="decision-footer">
-                    ${duration ? `<span class="decision-duration">${duration}</span>` : ''}
-                    <span class="decision-id" title="${trace.trace_id}">${trace.trace_id?.substring(0, 12) || ''}...</span>
-                    <span class="click-hint">Click for details →</span>
-                </div>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html;
-}
-
-// Open trace detail modal - exposed globally for onclick handlers
-window.openTraceDetail = async function (traceId) {
-    const modal = document.getElementById('trace-modal');
-    const body = document.getElementById('trace-modal-body');
-
-    modal.style.display = 'flex';
-    body.innerHTML = '<div class="loading-skeleton"><div class="skeleton-card"></div></div>';
-
-    try {
-        const response = await fetch(`/api/v1/dashboard/traces/${traceId}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const trace = await response.json();
-        body.innerHTML = renderTraceDetail(trace);
-    } catch (error) {
-        console.error('Failed to load trace details:', error);
-        body.innerHTML = `<div class="error-message">Failed to load trace details: ${error.message}</div>`;
-    }
-}
-
-function renderTraceDetail(trace) {
-    const agentIcons = {
-        instant: '⚡',
-        action: '🎯',
-        memory: '📝',
-        interaction: '💬',
-        emergency: '🚨'
-    };
-
-    const icon = agentIcons[trace.agent_used] || '❓';
-    const startTime = trace.started_at ? new Date(trace.started_at).toLocaleString() : 'N/A';
-    const endTime = trace.completed_at ? new Date(trace.completed_at).toLocaleString() : 'N/A';
-    const successColor = trace.success ? 'var(--success)' : 'var(--danger)';
-
-    // Build waterfall timeline from signals
-    const waterfallHtml = renderWaterfallTimeline(trace);
-
-    let html = `
-        <div class="trace-detail">
-            <!-- Header Summary -->
-            <div class="trace-detail-header">
-                <div class="trace-status-badge" style="background: ${successColor}20; color: ${successColor}; border: 1px solid ${successColor}">
-                    ${trace.success ? '✓ SUCCESS' : '✗ ERROR'}
-                </div>
-                <div class="trace-agent-badge">
-                    <span>${icon}</span> ${trace.agent_used || 'unknown'} agent
-                </div>
-                <div class="trace-timing">
-                    <strong>${trace.total_latency_ms?.toFixed(2) || 0}ms</strong> total
-                </div>
-                <button class="btn btn-danger btn-sm mark-wrong-btn" onclick="window.openCorrectionModal('${trace.trace_id}')">
-                    🔴 Mark as Wrong
-                </button>
-            </div>
-
-            <!-- Waterfall Timeline -->
-            ${waterfallHtml}
-
-            <!-- Input/Output Section -->
-            <div class="trace-section">
-                <h4>📥 Input</h4>
-                <div class="trace-code-block">
-                    <div class="trace-field"><span class="label">Text:</span> "${escapeHtml(trace.input_text || '')}"</div>
-                    <div class="trace-field"><span class="label">Type:</span> ${trace.input_type || 'text'}</div>
-                    ${trace.speaker ? `<div class="trace-field"><span class="label">Speaker:</span> ${escapeHtml(trace.speaker)}</div>` : ''}
-                    ${trace.room ? `<div class="trace-field"><span class="label">Room:</span> ${escapeHtml(trace.room)}</div>` : ''}
-                </div>
-            </div>
-
-            <div class="trace-section">
-                <h4>📤 Output</h4>
-                <div class="trace-code-block">
-                    <div class="trace-field"><span class="label">Response:</span> "${escapeHtml(trace.response_text || '')}"</div>
-                    <div class="trace-field"><span class="label">Type:</span> ${trace.response_type || 'spoken'}</div>
-                    ${trace.error ? `<div class="trace-field error"><span class="label">Error:</span> ${escapeHtml(trace.error)}</div>` : ''}
-                </div>
-            </div>
-
-            <!-- Classification & Routing -->
-            <div class="trace-section">
-                <h4>🧠 Classification & Routing</h4>
-                <div class="trace-code-block">
-                    <div class="trace-field"><span class="label">Intent:</span> <strong>${trace.intent || 'unknown'}</strong></div>
-                    ${trace.intent_confidence ? `<div class="trace-field"><span class="label">Confidence:</span> ${(trace.intent_confidence * 100).toFixed(0)}%</div>` : ''}
-                    <div class="trace-field"><span class="label">Agent:</span> <strong>${trace.agent_used || 'unknown'}</strong></div>
-                    ${trace.route_reason ? `<div class="trace-field"><span class="label">Routing Reason:</span> ${escapeHtml(trace.route_reason)}</div>` : ''}
-                    ${trace.context_type ? `<div class="trace-field"><span class="label">Context:</span> ${trace.context_type}</div>` : ''}
-                    ${trace.mood ? `<div class="trace-field"><span class="label">Mood:</span> ${trace.mood}</div>` : ''}
-                </div>
-            </div>
-
-            <!-- Memory Operations -->
-            ${trace.memories_retrieved?.length > 0 ? `
-            <div class="trace-section">
-                <h4>🧠 Memories Retrieved</h4>
-                <div class="trace-code-block">
-                    ${trace.memories_retrieved.map(m => `<div class="trace-memory-item">${escapeHtml(typeof m === 'string' ? m : JSON.stringify(m))}</div>`).join('')}
-                </div>
-            </div>
-            ` : ''}
-
-            <!-- Home Assistant Actions -->
-            ${trace.ha_actions?.length > 0 ? `
-            <div class="trace-section">
-                <h4>🏠 Home Assistant Actions</h4>
-                <div class="trace-code-block">
-                    ${trace.ha_actions.map(a => `
-                        <div class="trace-action-item">
-                            <strong>${a.service || a.action_type || 'action'}</strong>
-                            ${a.entity_id ? ` → ${a.entity_id}` : ''}
-                            ${a.executed !== undefined ? `<span class="${a.executed ? 'success' : 'error'}">[${a.executed ? 'executed' : 'failed'}]</span>` : ''}
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-            ` : ''}
-
-            <!-- LLM Details -->
-            ${trace.total_tokens > 0 || trace.total_cost_usd > 0 ? `
-            <div class="trace-section">
-                <h4>🤖 LLM Usage</h4>
-                <div class="trace-code-block">
-                    <div class="trace-field"><span class="label">Total Tokens:</span> ${trace.total_tokens}</div>
-                    <div class="trace-field"><span class="label">Total Cost:</span> $${trace.total_cost_usd?.toFixed(6) || '0'}</div>
-                </div>
-            </div>
-            ` : ''}
-
-            <!-- Timing -->
-            <div class="trace-section">
-                <h4>⏱️ Timing</h4>
-                <div class="trace-code-block">
-                    <div class="trace-field"><span class="label">Started:</span> ${startTime}</div>
-                    <div class="trace-field"><span class="label">Completed:</span> ${endTime}</div>
-                    <div class="trace-field"><span class="label">Total Latency:</span> <strong>${trace.total_latency_ms?.toFixed(2) || 0}ms</strong></div>
-                </div>
-            </div>
-
-            <!-- Pipeline Signals -->
-            ${trace.signals?.length > 0 ? `
-            <div class="trace-section">
-                <h4>📊 Pipeline Signals (${trace.signals.length})</h4>
-                <div class="trace-signals-list">
-                    ${trace.signals.map((sig, idx) => renderSignalItem(sig, idx)).join('')}
-                </div>
-            </div>
-            ` : ''}
-
-            <!-- Raw Data (collapsible) -->
-            <div class="trace-section">
-                <h4 class="collapsible" onclick="toggleTraceRaw(this)">📋 Raw JSON Data <span class="toggle-icon">▶</span></h4>
-                <div class="trace-raw-json" style="display: none;">
-                    <pre>${escapeHtml(JSON.stringify(trace, null, 2))}</pre>
-                </div>
-            </div>
-
-            <!-- Trace ID -->
-            <div class="trace-section trace-id-section">
-                <span class="label">Trace ID:</span>
-                <code>${trace.trace_id}</code>
-            </div>
-        </div>
-    `;
-
-    return html;
-}
-
-function renderSignalItem(signal, index) {
-    const typeIcons = {
-        request_start: '▶️',
-        request_complete: '✅',
-        meta_classify: '🧠',
-        agent_route: '🚦',
-        llm_request: '📤',
-        llm_response: '📥',
-        ha_service_call: '🏠',
-        ha_action: '🏠',
-        memory_query: '🔍',
-        memory_store: '💾',
-        memory_retrieve: '📖',
-        error: '❌',
-        agent_instant: '⚡',
-        agent_action: '🎯',
-        agent_interaction: '💬',
-        agent_memory: '📝'
-    };
-
-    const icon = typeIcons[signal.signal_type] || '📌';
-    const time = signal.timestamp ? new Date(signal.timestamp).toLocaleTimeString() : '';
-    const latency = signal.latency_ms ? `${signal.latency_ms.toFixed(2)}ms` : '';
-    const successClass = signal.success ? '' : 'error';
-
-    let details = [];
-    if (signal.model_used) details.push(`Model: ${signal.model_used}`);
-    if (signal.tokens_in) details.push(`In: ${signal.tokens_in} tokens`);
-    if (signal.tokens_out) details.push(`Out: ${signal.tokens_out} tokens`);
-    if (signal.cost_usd) details.push(`Cost: $${signal.cost_usd.toFixed(6)}`);
-    if (signal.error) details.push(`Error: ${signal.error}`);
-
-    return `
-        <div class="trace-signal-item ${successClass}">
-            <div class="signal-header">
-                <span class="signal-index">#${index + 1}</span>
-                <span class="signal-icon">${icon}</span>
-                <span class="signal-type">${signal.signal_type}</span>
-                <span class="signal-component">${signal.component}</span>
-                <span class="signal-time">${time}</span>
-                ${latency ? `<span class="signal-latency">${latency}</span>` : ''}
-            </div>
-            ${signal.summary ? `<div class="signal-summary">${escapeHtml(signal.summary)}</div>` : ''}
-            ${details.length > 0 ? `<div class="signal-details">${details.join(' • ')}</div>` : ''}
-            ${Object.keys(signal.input_data || {}).length > 0 ? `
-                <div class="signal-data">
-                    <strong>Input:</strong> <code>${escapeHtml(JSON.stringify(signal.input_data).substring(0, 200))}${JSON.stringify(signal.input_data).length > 200 ? '...' : ''}</code>
-                </div>
-            ` : ''}
-            ${Object.keys(signal.output_data || {}).length > 0 ? `
-                <div class="signal-data">
-                    <strong>Output:</strong> <code>${escapeHtml(JSON.stringify(signal.output_data).substring(0, 200))}${JSON.stringify(signal.output_data).length > 200 ? '...' : ''}</code>
-                </div>
-            ` : ''}
-        </div>
-    `;
-}
-
-/**
- * Render a waterfall timeline visualization showing the timing of each pipeline step.
- * Each signal is shown as a horizontal bar with its start offset and duration.
- */
-function renderWaterfallTimeline(trace) {
-    if (!trace.signals || trace.signals.length === 0) {
-        return '';
-    }
-
-    // Parse timestamps and calculate relative positions
-    const traceStart = trace.started_at ? new Date(trace.started_at).getTime() : null;
-    const totalDuration = trace.total_latency_ms || 1;
-
-    if (!traceStart) return '';
-
-    // Process signals to get timing information
-    const timelineItems = [];
-
-    trace.signals.forEach(signal => {
-        const signalTime = signal.timestamp ? new Date(signal.timestamp).getTime() : null;
-        if (signalTime === null) return;
-
-        // Calculate start offset from trace start
-        const startOffset = signalTime - traceStart;
-        const duration = signal.latency_ms || 0;
-
-        // Determine bar type for coloring based on component
-        let barType = 'default';
-        if (signal.component?.includes('meta')) barType = 'meta';
-        else if (signal.component?.includes('instant')) barType = 'instant';
-        else if (signal.component?.includes('action')) barType = 'action';
-        else if (signal.component?.includes('interaction')) barType = 'interaction';
-        else if (signal.component?.includes('memory')) barType = 'memory';
-        else if (signal.signal_type?.includes('llm')) barType = 'llm';
-        else if (signal.signal_type?.includes('tts')) barType = 'tts';
-        else if (signal.signal_type?.includes('stt')) barType = 'stt';
-        else if (signal.signal_type?.includes('ha')) barType = 'action';
-
-        const typeIcons = {
-            request_start: '▶️',
-            request_complete: '✅',
-            meta_classify: '🧠',
-            agent_route: '🚦',
-            llm_request: '📤',
-            llm_response: '📥',
-            ha_service_call: '🏠',
-            ha_action: '🏠',
-            memory_query: '🔍',
-            memory_store: '💾',
-            memory_retrieve: '📖',
-            error: '❌',
-            agent_instant: '⚡',
-            agent_action: '🎯',
-            agent_interaction: '💬',
-            agent_memory: '📝'
-        };
-        const icon = typeIcons[signal.signal_type] || '📌';
-
-        // Create a concise label
-        let label = signal.signal_type || 'unknown';
-        if (signal.model_used) {
-            // Shorten model name for display
-            const shortModel = signal.model_used.split('/').pop().split(':')[0];
-            label = `${icon} ${shortModel}`;
-        } else if (signal.component) {
-            label = `${icon} ${signal.component}`;
-        } else {
-            label = `${icon} ${label}`;
-        }
-
-        timelineItems.push({
-            label,
-            startOffset,
-            duration,
-            barType,
-            signal
-        });
-    });
-
-    // Sort by start time
-    timelineItems.sort((a, b) => a.startOffset - b.startOffset);
-
-    // Build HTML
-    let html = `
-        <div class="trace-section waterfall-timeline">
-            <h4>📊 Waterfall Timeline</h4>
-            <div class="timeline-scale">
-                <span>0ms</span>
-                <span>${(totalDuration / 4).toFixed(0)}ms</span>
-                <span>${(totalDuration / 2).toFixed(0)}ms</span>
-                <span>${(totalDuration * 3 / 4).toFixed(0)}ms</span>
-                <span>${totalDuration.toFixed(0)}ms</span>
-            </div>
-    `;
-
-    timelineItems.forEach(item => {
-        // Calculate percentage positions
-        const leftPct = Math.max(0, (item.startOffset / totalDuration) * 100);
-        const widthPct = Math.max(1, (item.duration / totalDuration) * 100);
-
-        // Format duration for display
-        const durationStr = item.duration > 0 ? `${item.duration.toFixed(1)}ms` : '';
-
-        html += `
-            <div class="timeline-row">
-                <div class="step-label" title="${escapeHtml(item.signal?.summary || '')}">${item.label}</div>
-                <div class="timeline-bar-container">
-                    <div class="timeline-bar ${item.barType}" style="left: ${leftPct}%; width: ${widthPct}%;">
-                        ${durationStr && widthPct > 15 ? `<span class="bar-duration">${durationStr}</span>` : ''}
-                    </div>
-                    ${durationStr && widthPct <= 15 ? `<span class="step-duration" style="left: ${leftPct + widthPct + 1}%">${durationStr}</span>` : ''}
-                </div>
-            </div>
-        `;
-    });
-
-    html += '</div>';
-    return html;
-}
-
-// Toggle raw JSON display - exposed globally for onclick handlers
-window.toggleTraceRaw = function (element) {
-    const rawDiv = element.nextElementSibling;
-    const icon = element.querySelector('.toggle-icon');
-    if (rawDiv.style.display === 'none') {
-        rawDiv.style.display = 'block';
-        icon.textContent = '▼';
-    } else {
-        rawDiv.style.display = 'none';
-        icon.textContent = '▶';
-    }
-}
-
-// Close trace modal - exposed globally
-window.closeTraceModal = function () {
-    const modal = document.getElementById('trace-modal');
-    if (modal) modal.style.display = 'none';
-}
-
-// Initialize trace modal close handlers
-document.addEventListener('DOMContentLoaded', () => {
-    const traceModal = document.getElementById('trace-modal');
-    if (traceModal) {
-        traceModal.addEventListener('click', (e) => {
-            if (e.target === traceModal) window.closeTraceModal();
-        });
-        traceModal.querySelectorAll('.modal-close-btn').forEach(btn => {
-            btn.addEventListener('click', window.closeTraceModal);
-        });
-    }
-
-    // Initialize correction modal close handlers
-    const correctionModal = document.getElementById('correction-modal');
-    if (correctionModal) {
-        correctionModal.addEventListener('click', (e) => {
-            if (e.target === correctionModal) window.closeCorrectionModal();
-        });
-    }
-});
-
-// =============================================================================
-// AI Correction System
-// =============================================================================
-
-let currentCorrectionTrace = null;
-
-// Open correction modal for a trace
-window.openCorrectionModal = async function (traceId) {
-    const modal = document.getElementById('correction-modal');
-    const preview = document.getElementById('correction-request-preview');
-    const step1 = document.getElementById('correction-step-1');
-    const step2 = document.getElementById('correction-step-2');
-
-    // Reset to step 1
-    step1.style.display = 'block';
-    step2.style.display = 'none';
-    document.getElementById('correction-expected').value = '';
-    document.querySelectorAll('input[name="issue-type"]').forEach(r => r.checked = false);
-
-    // Load trace data
-    try {
-        const response = await fetch(`/api/v1/dashboard/traces/${traceId}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        currentCorrectionTrace = await response.json();
-
-        // Show request preview
-        preview.innerHTML = `
-            <div class="correction-preview-item">
-                <span class="label">Input:</span>
-                <span class="value">"${escapeHtml(currentCorrectionTrace.input_text || '')}"</span>
-            </div>
-            <div class="correction-preview-item">
-                <span class="label">Agent:</span>
-                <span class="value">${currentCorrectionTrace.agent_used || 'unknown'}</span>
-            </div>
-            <div class="correction-preview-item">
-                <span class="label">Response:</span>
-                <span class="value">"${escapeHtml(currentCorrectionTrace.response_text || '')}"</span>
-            </div>
-            ${currentCorrectionTrace.ha_actions?.length > 0 ? `
-            <div class="correction-preview-item">
-                <span class="label">Actions:</span>
-                <span class="value">${currentCorrectionTrace.ha_actions.map(a => `${a.service || a.action_type} → ${a.entity_id || ''}`).join(', ')}</span>
-            </div>
-            ` : ''}
-        `;
-
-        modal.style.display = 'flex';
-    } catch (error) {
-        console.error('Failed to load trace for correction:', error);
-        showToast('Failed to load request details', 'error');
-    }
-}
-
-// Close correction modal
-window.closeCorrectionModal = function () {
-    const modal = document.getElementById('correction-modal');
-    if (modal) modal.style.display = 'none';
-    currentCorrectionTrace = null;
-}
-
-// Analyze correction with AI
-window.analyzeCorrection = async function () {
-    if (!currentCorrectionTrace) {
-        showToast('No trace selected', 'error');
-        return;
-    }
-
-    const expectedResult = document.getElementById('correction-expected').value.trim();
-    const issueTypeEl = document.querySelector('input[name="issue-type"]:checked');
-
-    if (!expectedResult) {
-        showToast('Please describe what should have happened', 'warning');
-        return;
-    }
-
-    if (!issueTypeEl) {
-        showToast('Please select an issue type', 'warning');
-        return;
-    }
-
-    const issueType = issueTypeEl.value;
-    const analyzeBtn = document.getElementById('analyze-correction-btn');
-    const step1 = document.getElementById('correction-step-1');
-    const step2 = document.getElementById('correction-step-2');
-    const analysisDiv = document.getElementById('correction-analysis');
-
-    // Show loading state
-    analyzeBtn.disabled = true;
-    analyzeBtn.innerHTML = '🔄 Analyzing...';
-
-    try {
-        const response = await fetch('/api/v1/logic/corrections/analyze', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                trace_id: currentCorrectionTrace.trace_id,
-                expected_result: expectedResult,
-                issue_type: issueType
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || `HTTP ${response.status}`);
-        }
-
-        const analysis = await response.json();
-
-        // Store for use by fixWithSelfImprove
-        window.currentCorrectionAnalysis = analysis;
-        window.currentCorrectionExpected = expectedResult;
-
-        // Show analysis results
-        step1.style.display = 'none';
-        step2.style.display = 'block';
-        analysisDiv.innerHTML = renderCorrectionAnalysis(analysis);
-
-    } catch (error) {
-        console.error('Failed to analyze correction:', error);
-        showToast(`Analysis failed: ${error.message}`, 'error');
-    } finally {
-        analyzeBtn.disabled = false;
-        analyzeBtn.innerHTML = '🤖 Analyze with AI';
-    }
-}
-
-// Render AI analysis results
-function renderCorrectionAnalysis(analysis) {
-    const issueTypeLabels = {
-        wrong_entity: '🏠 Wrong device/entity',
-        wrong_action: '⚡ Wrong action',
-        wrong_routing: '🚦 Wrong routing',
-        clarification_needed: '❓ Missing clarification',
-        tone_content: '💬 Tone/content issue',
-        other: '📝 Other'
-    };
-
-    let suggestionsHtml = '';
-    if (analysis.suggestions && analysis.suggestions.length > 0) {
-        suggestionsHtml = analysis.suggestions.map((sugg, idx) => `
-            <div class="suggestion-card ${idx === 0 ? 'recommended' : ''}">
-                <div class="suggestion-header">
-                    <span class="suggestion-rank">${idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</span>
-                    <span class="suggestion-title">${escapeHtml(sugg.title)}</span>
-                    <span class="suggestion-confidence">${(sugg.confidence * 100).toFixed(0)}% confidence</span>
-                    <span class="suggestion-impact impact-${sugg.impact_level}">${sugg.impact_level} impact</span>
-                </div>
-                <div class="suggestion-body">
-                    <p>${escapeHtml(sugg.description)}</p>
-                    ${sugg.reasoning ? `<p class="suggestion-reasoning"><strong>Why:</strong> ${escapeHtml(sugg.reasoning)}</p>` : ''}
-                </div>
-                <div class="suggestion-diff">
-                    <div class="diff-section diff-before">
-                        <span class="diff-label">Before:</span>
-                        <pre>${escapeHtml(sugg.diff_before || 'N/A')}</pre>
-                    </div>
-                    <div class="diff-section diff-after">
-                        <span class="diff-label">After:</span>
-                        <pre>${escapeHtml(sugg.diff_after || sugg.proposed_value || 'N/A')}</pre>
-                    </div>
-                </div>
-                <div class="suggestion-actions">
-                    <button class="btn btn-secondary btn-sm" onclick="window.testSuggestion('${analysis.analysis_id}', '${sugg.suggestion_id}')">
-                        🧪 Test
-                    </button>
-                    <button class="btn btn-primary btn-sm" onclick="window.applySuggestion('${analysis.analysis_id}', '${sugg.suggestion_id}')">
-                        ✓ Apply Fix
-                    </button>
-                </div>
-            </div>
-        `).join('');
-    } else {
-        suggestionsHtml = '<div class="no-suggestions">No automatic fixes suggested. Manual adjustment may be required.</div>';
-    }
-
-    return `
-        <div class="analysis-header">
-            <h4>🤖 AI Analysis Complete</h4>
-            <button class="btn btn-secondary btn-sm" onclick="window.backToCorrectionStep1()">← Back</button>
-        </div>
-
-        <div class="analysis-section root-cause">
-            <h5>📍 Root Cause</h5>
-            <p>${escapeHtml(analysis.root_cause)}</p>
-            ${analysis.root_cause_logic_id ? `
-            <div class="root-cause-details">
-                <span class="label">Problem Area:</span>
-                <code>${escapeHtml(analysis.root_cause_logic_id)}</code>
-            </div>
-            ` : ''}
-        </div>
-
-        <div class="analysis-section suggestions">
-            <h5>💡 Suggested Fixes</h5>
-            ${suggestionsHtml}
-        </div>
-
-        <div class="analysis-actions">
-            <button class="btn btn-secondary" onclick="window.closeCorrectionModal()">Close</button>
-            <button class="btn btn-warning" onclick="window.markAsWrongOnly('${analysis.trace_id}')">
-                Mark as Wrong (No Fix)
-            </button>
-            <button class="btn btn-primary" onclick="window.fixWithSelfImprove('${analysis.trace_id}')">
-                🔧 Fix with Self-Improve
-            </button>
-        </div>
-    `;
-}
-
-// Fix with Self-Improve - launch self-improvement agent with correction context
-window.fixWithSelfImprove = async function (traceId) {
-    // Get the current correction analysis data
-    const analysis = window.currentCorrectionAnalysis;
-    if (!analysis) {
-        showToast('No analysis data available', 'error');
-        return;
-    }
-
-    // Build the improvement request from the correction context
-    const request = `Fix incorrect response behavior:
-
-**Trace ID:** ${traceId}
-**Root Cause:** ${analysis.root_cause || 'Unknown'}
-${analysis.root_cause_logic_id ? `**Problem Area:** ${analysis.root_cause_logic_id}` : ''}
-
-**User's Expected Behavior:**
-${window.currentCorrectionExpected || 'Not specified'}
-
-**Suggested Fixes from Analysis:**
-${analysis.suggestions?.map((s, i) => `${i + 1}. ${s.description}`).join('\n') || 'None'}
-
-Please investigate this issue and propose a fix that ensures the system responds correctly in similar situations.`;
-
-    // Close the correction modal
-    window.closeCorrectionModal();
-
-    // Navigate to self-improvement page
-    showPage('self-improve');
-
-    // Wait for page to load
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Submit the improvement request
-    try {
-        const response = await fetch(`${API_BASE}/api/v1/self-improve/improve`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                request: request,
-                model: 'opusplan',
-                auto_approve: false,
-                source: 'correction_modal',
-                trace_id: traceId
-            }),
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const result = await response.json();
-        showToast('Self-improvement session started', 'success');
-
-        if (result.session_id && SelfImprovement) {
-            SelfImprovement.activeSessionId = result.session_id;
-            SelfImprovement.startStreaming(result.session_id);
-            await SelfImprovement.loadActiveSession();
-        }
-    } catch (error) {
-        console.error('Failed to start self-improvement:', error);
-        showToast('Failed to start self-improvement: ' + error.message, 'error');
-    }
-};
-
-// Go back to step 1
-window.backToCorrectionStep1 = function () {
-    document.getElementById('correction-step-1').style.display = 'block';
-    document.getElementById('correction-step-2').style.display = 'none';
-}
-
-// Test a suggestion before applying
-window.testSuggestion = async function (analysisId, suggestionId) {
-    showToast('Testing suggestion against historical data...', 'info');
-
-    try {
-        const response = await fetch(`/api/v1/logic/corrections/${analysisId}/suggestions/${suggestionId}/test`, {
-            method: 'POST'
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const results = await response.json();
-
-        // Show test results
-        let message = `Test complete: ${results.improvement_count} improvements`;
-        if (results.regression_count > 0) {
-            message += `, ⚠️ ${results.regression_count} regressions`;
-            showToast(message, 'warning');
-        } else {
-            showToast(message, 'success');
-        }
-    } catch (error) {
-        console.error('Failed to test suggestion:', error);
-        showToast('Test failed: ' + error.message, 'error');
-    }
-}
-
-// Apply a suggestion
-window.applySuggestion = async function (analysisId, suggestionId) {
-    if (!confirm('Apply this fix? This will modify the system configuration.')) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`/api/v1/logic/corrections/${analysisId}/suggestions/${suggestionId}/apply`, {
-            method: 'POST'
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        showToast('Fix applied successfully!', 'success');
-        window.closeCorrectionModal();
-
-        // Refresh logic data
-        if (typeof loadLogicData === 'function') {
-            loadLogicData();
-        }
-    } catch (error) {
-        console.error('Failed to apply suggestion:', error);
-        showToast('Failed to apply fix: ' + error.message, 'error');
-    }
-}
-
-// Mark trace as wrong without applying a fix
-window.markAsWrongOnly = async function (traceId) {
-    try {
-        const response = await fetch(`/api/v1/dashboard/traces/${traceId}/mark-wrong`, {
-            method: 'POST'
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        showToast('Marked as incorrect. This helps improve future analysis.', 'success');
-        window.closeCorrectionModal();
-    } catch (error) {
-        console.error('Failed to mark as wrong:', error);
-        showToast('Failed to mark as wrong: ' + error.message, 'error');
-    }
-}
-
-function updateLogicStats() {
-    // Count patterns from the nested structure
-    let patternCount = 0;
-    if (logicData.patterns) {
-        Object.values(logicData.patterns).forEach(group => {
-            if (group.patterns) {
-                patternCount += Object.keys(group.patterns).length;
-            }
-        });
-    }
-    document.getElementById('logic-patterns-count').textContent = patternCount;
-
-    // Count routing rules
-    let routingCount = 0;
-    if (logicData.routing) {
-        routingCount = Object.keys(logicData.routing).length;
-    }
-    document.getElementById('logic-routing-count').textContent = routingCount;
-
-    // Count overrides
-    let overridesCount = 0;
-    if (logicData.overrides) {
-        overridesCount = Object.keys(logicData.overrides).length;
-    }
-    document.getElementById('logic-overrides-count').textContent = overridesCount;
-
-    // Count aliases
-    const aliasCount = logicData.aliases ? Object.keys(logicData.aliases).length : 0;
-    document.getElementById('logic-aliases-count').textContent = aliasCount;
-}
-
-function renderPatternGroups() {
-    const container = document.getElementById('pattern-groups');
-    const filterValue = document.getElementById('pattern-group-filter')?.value || '';
-    const showDisabled = document.getElementById('show-disabled-patterns')?.checked || false;
-
-    if (!logicData.patterns || Object.keys(logicData.patterns).length === 0) {
-        container.innerHTML = '<div class="text-muted">No patterns loaded</div>';
-        return;
-    }
-
-    const groupIcons = {
-        emergency: '🚨',
-        instant: '⚡',
-        action: '🎯',
-        memory: '📝',
-        query: '❓',
-        gesture: '👋'
-    };
-
-    let html = '';
-
-    // logicData.patterns is { groupName: { name, patterns: { patternName: {...} }, pattern_count } }
-    Object.entries(logicData.patterns).forEach(([groupName, group]) => {
-        // Filter by group if selected
-        if (filterValue && groupName !== filterValue) return;
-
-        // patterns is an object { patternName: patternData }
-        const patternsObj = group.patterns || {};
-        const patternsArray = Object.values(patternsObj);
-        const visiblePatterns = showDisabled ? patternsArray : patternsArray.filter(p => p.enabled !== false);
-
-        if (visiblePatterns.length === 0) return;
-
-        const icon = groupIcons[groupName] || '📋';
-
-        html += `
-            <div class="pattern-group" data-group="${groupName}">
-                <div class="pattern-group-header" onclick="togglePatternGroup('${groupName}')">
-                    <div class="pattern-group-title">
-                        <span>${icon}</span>
-                        <h3>${capitalizeFirst(groupName)} Patterns</h3>
-                        <span class="pattern-group-count">${visiblePatterns.length} patterns</span>
-                    </div>
-                    <span class="pattern-group-toggle">▼</span>
-                </div>
-                <div class="pattern-group-content">
-                    <div class="pattern-list">
-                        ${visiblePatterns.map(p => renderPatternCard(groupName, p)).join('')}
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html || '<div class="text-muted">No patterns match the filter</div>';
-}
-
-function renderPatternCard(group, pattern) {
-    const confidenceClass = pattern.confidence >= 0.9 ? 'confidence-high' :
-        pattern.confidence >= 0.7 ? 'confidence-medium' : 'confidence-low';
-    const disabledClass = pattern.enabled === false ? 'disabled' : '';
-
-    const examples = pattern.examples || [];
-    const examplesHtml = examples.slice(0, 3).map(ex =>
-        `<span class="pattern-example">"${escapeHtml(ex)}"</span>`
-    ).join('');
-
-    return `
-        <div class="pattern-card ${disabledClass}" data-pattern="${escapeHtml(pattern.name)}">
-            <div class="pattern-card-header">
-                <span class="pattern-name">${escapeHtml(pattern.name)}</span>
-                <span class="pattern-badge ${confidenceClass}">${(pattern.confidence * 100).toFixed(0)}% confidence</span>
-            </div>
-            <div class="pattern-regex">${escapeHtml(pattern.pattern)}</div>
-            ${pattern.description ? `<div class="pattern-description">${escapeHtml(pattern.description)}</div>` : ''}
-            ${examples.length > 0 ? `<div class="pattern-examples">${examplesHtml}</div>` : ''}
-            <div class="pattern-actions">
-                <button class="btn btn-small btn-secondary" onclick="openPatternEditor('${group}', '${escapeHtml(pattern.name)}')">
-                    ✏️ Edit
-                </button>
-                <button class="btn btn-small ${pattern.enabled === false ? 'btn-primary' : 'btn-secondary'}"
-                        onclick="togglePattern('${group}', '${escapeHtml(pattern.name)}', ${pattern.enabled === false})">
-                    ${pattern.enabled === false ? '✓ Enable' : '✕ Disable'}
-                </button>
-            </div>
-        </div>
-    `;
-}
-
-function togglePatternGroup(groupName) {
-    const group = document.querySelector(`.pattern-group[data-group="${groupName}"]`);
-    if (group) {
-        group.classList.toggle('expanded');
-    }
-}
-
-function capitalizeFirst(str) {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-function openPatternEditor(group, patternName) {
-    const groupData = logicData.patterns?.[group];
-    if (!groupData) return;
-
-    // patterns is an object { patternName: patternData }
-    const pattern = groupData.patterns?.[patternName];
-    if (!pattern) return;
-
-    currentEditPattern = { group, name: patternName };
-
-    document.getElementById('edit-pattern-name').value = pattern.name;
-    document.getElementById('edit-pattern-regex').value = pattern.pattern;
-    document.getElementById('edit-pattern-subcategory').value = pattern.sub_category || '';
-    document.getElementById('edit-pattern-confidence').value = pattern.confidence || 0.9;
-    document.getElementById('edit-pattern-description').value = pattern.description || '';
-    document.getElementById('edit-pattern-enabled').checked = pattern.enabled !== false;
-    document.getElementById('edit-pattern-reason').value = '';
-
-    document.getElementById('pattern-modal').style.display = 'flex';
-}
-
-function closePatternModal() {
-    document.getElementById('pattern-modal').style.display = 'none';
-    currentEditPattern = null;
-}
-
-async function savePatternEdit() {
-    if (!currentEditPattern) return;
-
-    const updates = {
-        pattern: document.getElementById('edit-pattern-regex').value,
-        sub_category: document.getElementById('edit-pattern-subcategory').value,
-        confidence: parseFloat(document.getElementById('edit-pattern-confidence').value),
-        description: document.getElementById('edit-pattern-description').value,
-        enabled: document.getElementById('edit-pattern-enabled').checked,
-        reason: document.getElementById('edit-pattern-reason').value || 'Dashboard edit'
-    };
-
-    try {
-        const response = await fetch(`/api/v1/logic/patterns/${currentEditPattern.group}/${currentEditPattern.name}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updates)
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to save pattern');
-        }
-
-        showToast('Pattern updated successfully', 'success');
-        closePatternModal();
-        await loadLogicData();
-    } catch (error) {
-        console.error('Failed to save pattern:', error);
-        showToast(error.message, 'error');
-    }
-}
-
-async function togglePattern(group, patternName, currentlyDisabled) {
-    try {
-        const response = await fetch(`/api/v1/logic/patterns/${group}/${patternName}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                enabled: currentlyDisabled,
-                reason: currentlyDisabled ? 'Enabled from dashboard' : 'Disabled from dashboard'
-            })
-        });
-
-        if (!response.ok) throw new Error('Failed to toggle pattern');
-
-        showToast(`Pattern ${currentlyDisabled ? 'enabled' : 'disabled'}`, 'success');
-        await loadLogicData();
-    } catch (error) {
-        console.error('Failed to toggle pattern:', error);
-        showToast('Failed to toggle pattern', 'error');
-    }
-}
-
-function renderRoutingRules() {
-    const container = document.getElementById('routing-rules');
-
-    if (!logicData.routing || Object.keys(logicData.routing).length === 0) {
-        container.innerHTML = '<div class="text-muted">No routing rules loaded</div>';
-        return;
-    }
-
-    let html = '';
-    // logicData.routing is { intent: { intent, agent, description, priority, ... } }
-    Object.entries(logicData.routing).forEach(([intent, config]) => {
-        const agent = config.agent || 'unknown';
-        const priority = config.priority || 'normal';
-        const description = config.description || '';
-
-        html += `
-            <div class="routing-rule-card">
-                <div class="routing-rule-header">
-                    <div>
-                        <span class="routing-intent">${intent}</span>
-                        <span class="routing-arrow">→</span>
-                        <span class="routing-agent">${agent}</span>
-                    </div>
-                    <span class="routing-priority">Priority: ${priority}</span>
-                </div>
-                ${description ? `<div class="text-muted">${escapeHtml(description)}</div>` : ''}
-            </div>
-        `;
-    });
-
-    container.innerHTML = html || '<div class="text-muted">No routing rules configured</div>';
-}
-
-function renderOverrides() {
-    const container = document.getElementById('overrides-list');
-    let html = '';
-
-    if (!logicData.overrides || Object.keys(logicData.overrides).length === 0) {
-        container.innerHTML = '<div class="text-muted">No overrides configured</div>';
-        return;
-    }
-
-    // logicData.overrides is { name: { name, description, enabled, condition_type, conditions, rules } }
-    Object.entries(logicData.overrides).forEach(([name, config]) => {
-        const typeIcon = {
-            'user': '👤',
-            'room': '🏠',
-            'time': '🕐',
-            'phrase': '💬'
-        }[config.condition_type] || '⚙️';
-
-        const typeClass = config.condition_type || 'default';
-        const enabledBadge = config.enabled ? '✓ Enabled' : '✗ Disabled';
-
-        html += `
-            <div class="override-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span class="override-type ${typeClass}">${typeIcon} ${capitalizeFirst(config.condition_type || 'unknown')}</span>
-                    <span class="text-muted" style="font-size: 12px;">${enabledBadge}</span>
-                </div>
-                <h4 style="margin: 0 0 8px 0; font-size: 14px;">${escapeHtml(config.name)}</h4>
-                <div class="override-condition">${escapeHtml(config.description || '')}</div>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html || '<div class="text-muted">No overrides configured</div>';
-}
-
-function formatOverrideConfig(config) {
-    const parts = [];
-    if (config.voice_profile) parts.push(`Voice: ${config.voice_profile}`);
-    if (config.response_style) parts.push(`Style: ${config.response_style}`);
-    if (config.default_agent) parts.push(`Agent: ${config.default_agent}`);
-    if (config.tts_volume) parts.push(`Volume: ${config.tts_volume}`);
-    if (config.quiet_mode) parts.push('🔇 Quiet Mode');
-    if (config.whisper_mode) parts.push('🤫 Whisper Mode');
-    return parts.length > 0 ? parts.join(' • ') : 'No specific overrides';
-}
-
-function renderAliases() {
-    const container = document.getElementById('aliases-list');
-
-    if (!logicData.aliases || Object.keys(logicData.aliases).length === 0) {
-        container.innerHTML = '<div class="text-muted">No entity aliases configured</div>';
-        return;
-    }
-
-    let html = '';
-    // logicData.aliases is { aliasName: { alias, entity_id, resolve_by, domain, priority } }
-    Object.entries(logicData.aliases).forEach(([name, config]) => {
-        const target = config.entity_id || (config.resolve_by ? `Resolve by: ${config.resolve_by}` : 'N/A');
-        html += `
-            <div class="alias-card">
-                <div class="alias-names">
-                    <span class="alias-name">${escapeHtml(config.alias || name)}</span>
-                </div>
-                <div class="alias-target">${escapeHtml(target)}</div>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html;
-}
-
-async function runPatternTest() {
-    const input = document.getElementById('pattern-test-input').value.trim();
-    if (!input) {
-        showToast('Please enter text to test', 'warning');
-        return;
-    }
-
-    const resultsDiv = document.getElementById('pattern-test-results');
-    const summaryDiv = document.getElementById('test-summary');
-    const matchesDiv = document.getElementById('test-matches');
-
-    resultsDiv.style.display = 'block';
-    summaryDiv.innerHTML = '<div class="loading">Testing patterns...</div>';
-    matchesDiv.innerHTML = '';
-
-    try {
-        const response = await fetch('/api/v1/logic/patterns/test', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: input })
-        });
-
-        if (!response.ok) throw new Error('Pattern test failed');
-
-        const result = await response.json();
-
-        if (result.matches && result.matches.length > 0) {
-            const bestMatch = result.matches[0];
-            summaryDiv.className = 'test-summary matched';
-            summaryDiv.innerHTML = `
-                <h4>✓ Best Match: ${escapeHtml(bestMatch.pattern_name)}</h4>
-                <p>Group: <strong>${bestMatch.group}</strong> • Confidence: <strong>${(bestMatch.confidence * 100).toFixed(0)}%</strong></p>
-            `;
-
-            if (result.matches.length > 1) {
-                matchesDiv.innerHTML = `
-                    <div class="test-matches-title">All Matches (${result.matches.length})</div>
-                    <div class="test-match-list">
-                        ${result.matches.map(m => `
-                            <div class="test-match-item">
-                                <div>
-                                    <span class="test-match-name">${escapeHtml(m.pattern_name)}</span>
-                                    <span class="test-match-group">${m.group}</span>
-                                </div>
-                                <span class="test-match-confidence pattern-badge ${m.confidence >= 0.9 ? 'confidence-high' : m.confidence >= 0.7 ? 'confidence-medium' : 'confidence-low'}">
-                                    ${(m.confidence * 100).toFixed(0)}%
-                                </span>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            }
-        } else {
-            summaryDiv.className = 'test-summary no-match';
-            summaryDiv.innerHTML = `
-                <h4>✗ No patterns matched</h4>
-                <p>The input did not match any configured patterns. It would be routed to the Interaction agent for LLM processing.</p>
-            `;
-        }
-    } catch (error) {
-        console.error('Pattern test failed:', error);
-        summaryDiv.className = 'test-summary no-match';
-        summaryDiv.innerHTML = `<h4>Error</h4><p>${error.message}</p>`;
-    }
-}
-
-// Logic page initialization is now handled in showPage() function
 
 // =============================================================================
 // Self-Improvement Page (Simplified)
@@ -8729,6 +7508,9 @@ document.addEventListener('DOMContentLoaded', () => {
 const FloatingChat = {
     isOpen: false,
     isLoading: false,
+    conversationId: null,  // Track conversation ID for context
+    room: 'dashboard',     // Identify this as dashboard chat
+    speaker: 'dashboard_user',  // Default speaker for dashboard
 
     init() {
         const btn = document.getElementById('floating-chat-btn');
@@ -8758,12 +7540,25 @@ const FloatingChat = {
 
         // Close on click outside
         document.addEventListener('click', (e) => {
-            if (this.isOpen && 
-                !popup.contains(e.target) && 
+            if (this.isOpen &&
+                !popup.contains(e.target) &&
                 !btn.contains(e.target)) {
                 this.close();
             }
         });
+    },
+
+    // Clear current conversation (start fresh)
+    clearConversation() {
+        this.conversationId = null;
+        const messagesContainer = document.getElementById('floating-chat-messages');
+        if (messagesContainer) {
+            messagesContainer.innerHTML = `
+                <div class="floating-chat-welcome">
+                    <p>Hi! I'm Barnabee. How can I help?</p>
+                </div>
+            `;
+        }
     },
 
     toggle() {
@@ -8806,6 +7601,15 @@ const FloatingChat = {
         const text = input.value.trim();
         if (!text) return;
 
+        // Check for clear conversation commands
+        const clearCommands = ['start fresh', 'forget this conversation', 'new conversation', 'clear chat'];
+        if (clearCommands.some(cmd => text.toLowerCase().includes(cmd))) {
+            this.clearConversation();
+            this.addMessage('Sure! Starting fresh. How can I help?', 'assistant');
+            input.value = '';
+            return;
+        }
+
         // Clear input and disable
         input.value = '';
         this.isLoading = true;
@@ -8822,19 +7626,39 @@ const FloatingChat = {
         const typingId = this.addTypingIndicator();
 
         try {
+            // Build request body with conversation context
+            const requestBody = {
+                text,
+                room: this.room,
+                speaker: this.speaker,
+            };
+
+            // Include conversation_id if we have one from a previous message
+            if (this.conversationId) {
+                requestBody.conversation_id = this.conversationId;
+            }
+
             const response = await fetch(`${API_BASE}/api/v1/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text })
+                body: JSON.stringify(requestBody)
             });
 
             const data = await response.json();
+
+            // Store conversation_id for subsequent messages to maintain context
+            if (data.conversation_id) {
+                this.conversationId = data.conversation_id;
+            }
 
             // Remove typing indicator
             this.removeTypingIndicator(typingId);
 
             if (data.response) {
                 this.addMessage(data.response, 'assistant', data.agent);
+            } else if (data.text) {
+                // Some endpoints return 'text' instead of 'response'
+                this.addMessage(data.text, 'assistant', data.agent);
             } else {
                 this.addMessage('Sorry, I encountered an error.', 'assistant');
             }
@@ -8855,7 +7679,7 @@ const FloatingChat = {
 
         const messageDiv = document.createElement('div');
         messageDiv.className = `floating-chat-message ${role}`;
-        
+
         let html = text;
         if (agent && role === 'assistant') {
             html += `<span class="agent-tag">${agent} agent</span>`;

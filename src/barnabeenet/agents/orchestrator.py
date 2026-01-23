@@ -31,12 +31,48 @@ from barnabeenet.agents.meta import (
     IntentCategory,
     MetaAgent,
 )
+import re
+
 from barnabeenet.services.activity_log import get_activity_logger
 from barnabeenet.services.llm.openrouter import OpenRouterClient
 from barnabeenet.services.metrics_store import get_metrics_store
 from barnabeenet.services.pipeline_signals import PipelineLogger, SignalType
 
 logger = logging.getLogger(__name__)
+
+# Child family members who should be monitored for concerning content
+CHILD_NAMES = frozenset({"penelope", "xander", "zachary", "viola"})
+
+# Patterns that indicate concerning statements from children
+# These trigger immediate parental alerts
+CONCERNING_PATTERNS = [
+    # Self-harm or suicidal ideation
+    r"\b(?:want(?:s?| to)?|going to|gonna)\s+(?:hurt|kill|harm|cut)\s+(?:myself|me)\b",
+    r"\bwish\s+(?:i|I)\s+(?:was|were)\s+dead\b",
+    r"\bdon'?t\s+want\s+to\s+(?:live|be alive|be here)\b",
+    r"\bwant(?:s?| to)?\s+(?:die|disappear)\b",
+    # Feelings of isolation/depression
+    r"\bno\s*one\s+(?:likes|loves|cares about)\s+me\b",
+    r"\beveryone\s+hates\s+me\b",
+    r"\bi'?m\s+(?:worthless|useless|a\s+burden)\b",
+    # Bullying
+    r"\b(?:being|getting|got)\s+bullied\b",
+    r"\bkids?\s+(?:are|were)\s+(?:mean|cruel)\s+to\s+me\b",
+    r"\bthey\s+(?:hurt|hit|pushed|kicked)\s+me\b",
+    # Dangerous activities
+    r"\btried\s+to\s+(?:run away|sneak out)\b",
+    r"\bhiding\s+(?:it|this)\s+from\s+(?:mom|dad|parents)\b",
+    # Substance mentions for kids
+    r"\b(?:tried|did|want to try)\s+(?:alcohol|drugs|vape|smoking)\b",
+    # Abuse indicators
+    r"\b(?:someone|they|he|she)\s+touched\s+me\b",
+    r"\bscared\s+of\s+(?:going home|being home)\b",
+]
+
+# Compile patterns for efficiency
+CONCERNING_PATTERNS_COMPILED = [
+    re.compile(pattern, re.IGNORECASE) for pattern in CONCERNING_PATTERNS
+]
 
 
 @dataclass
@@ -244,6 +280,180 @@ class AgentOrchestrator:
         self._initialized = False
         logger.info("AgentOrchestrator shutdown")
 
+    def _derive_conversation_id(
+        self,
+        room: str | None,
+        provided_id: str | None
+    ) -> str:
+        """Derive conversation ID from device/room for context isolation.
+
+        Each device/room gets its own conversation context. This means:
+        - Elizabeth asking from kitchen has different context than Thom in office
+        - The same device maintains context across multiple speakers
+        - If conversation_id is explicitly provided, it's used as-is
+
+        Args:
+            room: Room/device identifier (e.g., "kitchen", "office", "dashboard")
+            provided_id: Explicitly provided conversation ID (takes precedence)
+
+        Returns:
+            Conversation ID for context tracking
+        """
+        if provided_id:
+            return provided_id
+
+        # Derive from room/device
+        room_part = room or "unknown_device"
+        # Normalize the room name for consistency
+        room_part = room_part.lower().replace(" ", "_").replace("-", "_")
+        return f"conv_{room_part}"
+
+    async def _check_for_parental_alert(
+        self,
+        speaker: str | None,
+        text: str,
+        room: str | None,
+        conversation_id: str | None,
+    ) -> bool:
+        """Check if a child said something concerning and alert parents.
+
+        This runs on every request from known child family members.
+        If concerning content is detected, an immediate notification
+        is sent to parents via Home Assistant.
+
+        Args:
+            speaker: The speaker ID (must be in CHILD_NAMES to trigger)
+            text: The text content to check
+            room: Room where the request originated
+            conversation_id: For logging purposes
+
+        Returns:
+            True if an alert was triggered, False otherwise
+        """
+        # Only check for children
+        if not speaker or speaker.lower() not in CHILD_NAMES:
+            return False
+
+        # Check against concerning patterns
+        for pattern in CONCERNING_PATTERNS_COMPILED:
+            match = pattern.search(text)
+            if match:
+                matched_text = match.group(0)
+                logger.warning(
+                    f"PARENTAL ALERT: Concerning content detected from {speaker} "
+                    f"in {room}: '{matched_text}'"
+                )
+
+                # Send alert to parents
+                await self._send_parental_alert(
+                    speaker=speaker,
+                    text=text,
+                    matched_pattern=matched_text,
+                    room=room,
+                    conversation_id=conversation_id,
+                )
+
+                # Log to audit log with alert flag
+                await self._log_to_audit(
+                    speaker=speaker,
+                    room=room or "unknown",
+                    user_text=text,
+                    assistant_response="",  # Will be updated after response
+                    intent="unknown",
+                    agent="parental_alert",
+                    conversation_id=conversation_id or "",
+                    triggered_alert=True,
+                    alert_reason=f"Pattern matched: {matched_text}",
+                )
+
+                return True
+
+        return False
+
+    async def _send_parental_alert(
+        self,
+        speaker: str,
+        text: str,
+        matched_pattern: str,
+        room: str | None,
+        conversation_id: str | None,
+    ) -> None:
+        """Send an alert notification to parents via Home Assistant.
+
+        Uses the HA notify service to send a critical notification
+        to parent devices.
+        """
+        if not self._ha_client:
+            logger.error("Cannot send parental alert: No HA client configured")
+            return
+
+        try:
+            # Build the notification message
+            message = (
+                f"⚠️ BARNABEE ALERT ⚠️\n\n"
+                f"{speaker.title()} said something that may need your attention:\n\n"
+                f"\"{text}\"\n\n"
+                f"Location: {room or 'Unknown'}\n"
+                f"Detected: {matched_pattern}"
+            )
+
+            # Send via Home Assistant notify service
+            # This sends to the 'notify' group which should include parent devices
+            await self._ha_client.call_service(
+                domain="notify",
+                service="mobile_app_thom_phone",  # Parent's phone
+                service_data={
+                    "title": f"Barnabee Alert: {speaker.title()}",
+                    "message": message,
+                    "data": {
+                        "priority": "high",
+                        "channel": "parental_alert",
+                        "tag": f"barnabee_alert_{conversation_id}",
+                    },
+                },
+            )
+
+            logger.info(f"Parental alert sent for {speaker}")
+
+        except Exception as e:
+            logger.error(f"Failed to send parental alert: {e}")
+
+    async def _log_to_audit(
+        self,
+        speaker: str | None,
+        room: str,
+        user_text: str,
+        assistant_response: str,
+        intent: str,
+        agent: str,
+        conversation_id: str,
+        triggered_alert: bool = False,
+        alert_reason: str | None = None,
+    ) -> None:
+        """Log a conversation turn to the audit log.
+
+        This creates an immutable record of all conversations.
+        """
+        try:
+            from barnabeenet.services.audit.log import AuditLogEntry, get_audit_log
+
+            audit_log = get_audit_log()
+            entry = AuditLogEntry(
+                conversation_id=conversation_id,
+                speaker=speaker,
+                room=room,
+                user_text=user_text,
+                assistant_response=assistant_response,
+                intent=intent,
+                agent=agent,
+                triggered_alert=triggered_alert,
+                alert_reason=alert_reason,
+            )
+            await audit_log.log_conversation(entry)
+
+        except Exception as e:
+            logger.warning(f"Failed to log to audit: {e}")
+
     async def process(
         self,
         text: str,
@@ -271,12 +481,15 @@ class AgentOrchestrator:
         if not self._initialized:
             await self.init()
 
+        # Derive conversation_id based on device/room for context isolation
+        derived_conversation_id = self._derive_conversation_id(room, conversation_id)
+
         # Create request context
         ctx = RequestContext(
             text=text,
             speaker=speaker,
             room=room,
-            conversation_id=conversation_id or f"conv_{uuid.uuid4().hex[:8]}",
+            conversation_id=derived_conversation_id,
             trace_id=f"trace_{uuid.uuid4().hex[:8]}",
         )
 
@@ -303,6 +516,15 @@ class AgentOrchestrator:
                 speaker=speaker,
                 room=room,
             )
+
+        # Check for parental alerts (runs on every request from children)
+        # This doesn't stop processing - just sends an alert if needed
+        triggered_alert = await self._check_for_parental_alert(
+            speaker=speaker,
+            text=text,
+            room=room,
+            conversation_id=derived_conversation_id,
+        )
 
         try:
             # Stage 1: Classification
@@ -412,6 +634,20 @@ class AgentOrchestrator:
                 )
         except Exception as e:
             logger.debug(f"Failed to record pipeline metrics: {e}")
+
+        # Log to immutable audit log (all conversations, not just alerts)
+        agent_name = ctx.agent_response.get("_agent_name") if ctx.agent_response else "unknown"
+        intent_str = ctx.classification.intent.value if ctx.classification else "unknown"
+        await self._log_to_audit(
+            speaker=ctx.speaker,
+            room=ctx.room or "unknown",
+            user_text=ctx.text,
+            assistant_response=ctx.response_text,
+            intent=intent_str,
+            agent=agent_name,
+            conversation_id=ctx.conversation_id or "",
+            triggered_alert=triggered_alert,
+        )
 
         return self._build_response(ctx)
 

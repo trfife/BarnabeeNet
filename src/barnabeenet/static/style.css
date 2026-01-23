@@ -456,6 +456,75 @@ body {
     color: var(--accent-info);
 }
 
+/* Testing & Development Section */
+.testing-status-card {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.testing-status-card .status-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.testing-status-card .status-item {
+    text-align: center;
+}
+
+.testing-status-card .status-label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.testing-status-card .status-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.testing-status-card .status-value.success {
+    color: var(--accent-primary);
+}
+
+.testing-status-card .status-value.error {
+    color: var(--accent-error);
+}
+
+.testing-section {
+    margin-bottom: 24px;
+}
+
+.testing-section h4 {
+    margin-bottom: 12px;
+    color: var(--text-primary);
+}
+
+.warning-text {
+    color: var(--accent-warning) !important;
+}
+
+.btn-danger {
+    background: var(--accent-error);
+    color: white;
+    border: none;
+}
+
+.btn-danger:hover {
+    background: #ff3344;
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .testing-status-card .status-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
 /* Setup Grid */
 .setup-grid {
     display: grid;

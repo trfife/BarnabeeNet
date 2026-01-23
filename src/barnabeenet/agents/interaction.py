@@ -12,16 +12,23 @@ for engaging, helpful, and contextually appropriate responses.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from barnabeenet.agents.base import Agent
 from barnabeenet.services.llm.openrouter import ChatMessage, OpenRouterClient
 
+if TYPE_CHECKING:
+    import redis.asyncio as redis
+
 logger = logging.getLogger(__name__)
+
+# Redis key prefix for conversation contexts
+REDIS_CONVERSATION_PREFIX = "barnabeenet:conversation:"
 
 
 @dataclass
@@ -32,6 +39,25 @@ class ConversationTurn:
     content: str
     timestamp: datetime = field(default_factory=datetime.now)
     speaker: str | None = None  # Family member ID if known
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to JSON-serializable dict."""
+        return {
+            "role": self.role,
+            "content": self.content,
+            "timestamp": self.timestamp.isoformat(),
+            "speaker": self.speaker,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ConversationTurn":
+        """Create from dict."""
+        return cls(
+            role=data["role"],
+            content=data["content"],
+            timestamp=datetime.fromisoformat(data["timestamp"]) if data.get("timestamp") else datetime.now(),
+            speaker=data.get("speaker"),
+        )
 
 
 @dataclass
@@ -48,6 +74,45 @@ class ConversationContext:
     children_present: bool = False  # For child-appropriate responses
     loaded_conversations: list[dict[str, Any]] = field(default_factory=list)  # Past conversations loaded
     recall_candidates: list[Any] = field(default_factory=list)  # Conversation summaries for user selection
+    last_activity: datetime = field(default_factory=datetime.now)  # For session timeout
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to JSON-serializable dict for Redis persistence."""
+        return {
+            "conversation_id": self.conversation_id,
+            "speaker": self.speaker,
+            "room": self.room,
+            "history": [turn.to_dict() for turn in self.history],
+            "retrieved_memories": self.retrieved_memories,
+            "meta_context": self.meta_context,
+            "time_of_day": self.time_of_day,
+            "children_present": self.children_present,
+            "loaded_conversations": self.loaded_conversations,
+            "last_activity": self.last_activity.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ConversationContext":
+        """Create from dict (for Redis deserialization)."""
+        history = [ConversationTurn.from_dict(t) for t in data.get("history", [])]
+        last_activity = data.get("last_activity")
+        if isinstance(last_activity, str):
+            last_activity = datetime.fromisoformat(last_activity)
+        else:
+            last_activity = datetime.now()
+
+        return cls(
+            conversation_id=data.get("conversation_id"),
+            speaker=data.get("speaker"),
+            room=data.get("room"),
+            history=history,
+            retrieved_memories=data.get("retrieved_memories", []),
+            meta_context=data.get("meta_context"),
+            time_of_day=data.get("time_of_day", "day"),
+            children_present=data.get("children_present", False),
+            loaded_conversations=data.get("loaded_conversations", []),
+            last_activity=last_activity,
+        )
 
 
 @dataclass
@@ -68,6 +133,25 @@ class InteractionConfig:
 
     # Child family members (for age-appropriate filtering)
     child_members: frozenset[str] = frozenset({"penelope", "xander", "zachary", "viola"})
+
+    # Parent family members (have super user access to audit log)
+    parent_members: frozenset[str] = frozenset({"thom", "elizabeth"})
+
+
+# Patterns that indicate super user audit log access
+SUPER_USER_PATTERNS = [
+    r"show\s+(?:me\s+)?(?:all|the)\s+(?:audit\s+)?(?:logs?|conversations?|history)",
+    r"what\s+(?:did\s+)?(?:everyone|the kids?|they)\s+(?:say|talk about|discuss)",
+    r"show\s+(?:me\s+)?deleted\s+(?:conversations?|messages?)",
+    r"parent(?:al)?\s+access",
+    r"audit\s+(?:log|mode|access)",
+    r"full\s+(?:history|log|access)",
+]
+
+import re
+SUPER_USER_PATTERNS_COMPILED = [
+    re.compile(pattern, re.IGNORECASE) for pattern in SUPER_USER_PATTERNS
+]
 
 
 # Barnabee's core persona - injected into system prompt
@@ -136,6 +220,93 @@ class InteractionAgent(Agent):
         self._conversations: dict[str, ConversationContext] = {}
         self._initialized = False
         self._context_manager = None
+        self._redis_client: "redis.Redis | None" = None
+
+    async def _get_redis_client(self) -> "redis.Redis | None":
+        """Get Redis client for context persistence."""
+        if self._redis_client is not None:
+            return self._redis_client
+
+        try:
+            from barnabeenet.main import app_state
+            if hasattr(app_state, "redis_client") and app_state.redis_client:
+                self._redis_client = app_state.redis_client
+                return self._redis_client
+        except Exception:
+            pass
+        return None
+
+    async def _save_context_to_redis(self, conv_ctx: ConversationContext) -> bool:
+        """Save conversation context to Redis for persistence across restarts.
+
+        Args:
+            conv_ctx: The conversation context to save
+
+        Returns:
+            True if saved successfully, False otherwise
+        """
+        redis_client = await self._get_redis_client()
+        if not redis_client or not conv_ctx.conversation_id:
+            return False
+
+        try:
+            key = f"{REDIS_CONVERSATION_PREFIX}{conv_ctx.conversation_id}"
+            data = json.dumps(conv_ctx.to_dict())
+            # Set with 24 hour expiration (conversations expire after 24h of inactivity)
+            await redis_client.setex(key, 86400, data)
+            logger.debug(f"Saved conversation context to Redis: {conv_ctx.conversation_id}")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to save conversation to Redis: {e}")
+            return False
+
+    async def _load_context_from_redis(self, conversation_id: str) -> ConversationContext | None:
+        """Load conversation context from Redis.
+
+        Args:
+            conversation_id: The conversation ID to load
+
+        Returns:
+            ConversationContext if found, None otherwise
+        """
+        redis_client = await self._get_redis_client()
+        if not redis_client:
+            return None
+
+        try:
+            key = f"{REDIS_CONVERSATION_PREFIX}{conversation_id}"
+            data = await redis_client.get(key)
+            if data:
+                ctx_dict = json.loads(data)
+                ctx = ConversationContext.from_dict(ctx_dict)
+                logger.debug(f"Loaded conversation context from Redis: {conversation_id}")
+                return ctx
+        except Exception as e:
+            logger.warning(f"Failed to load conversation from Redis: {e}")
+
+        return None
+
+    async def _delete_context_from_redis(self, conversation_id: str) -> bool:
+        """Delete conversation context from Redis.
+
+        Args:
+            conversation_id: The conversation ID to delete
+
+        Returns:
+            True if deleted successfully, False otherwise
+        """
+        redis_client = await self._get_redis_client()
+        if not redis_client:
+            return False
+
+        try:
+            key = f"{REDIS_CONVERSATION_PREFIX}{conversation_id}"
+            await redis_client.delete(key)
+            logger.debug(f"Deleted conversation context from Redis: {conversation_id}")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to delete conversation from Redis: {e}")
+            return False
 
     async def init(self) -> None:
         """Initialize the agent."""
@@ -212,8 +383,8 @@ class InteractionAgent(Agent):
         start_time = time.perf_counter()
         ctx = context or {}
 
-        # Build conversation context
-        conv_ctx = self._get_or_create_context(ctx)
+        # Build conversation context (loads from Redis if server restarted)
+        conv_ctx = await self._get_or_create_context(ctx)
 
         # Track conversation start time and source
         if self._context_manager:
@@ -221,6 +392,13 @@ class InteractionAgent(Agent):
                 conv_ctx.conversation_id or "unknown",
                 conv_ctx.room,
             )
+
+        # Check for super user (parent) audit log access
+        # This must be checked BEFORE regular recall to handle "show all conversations" etc.
+        if self._is_super_user_request(text):
+            super_result = await self._handle_super_user_recall(text, conv_ctx)
+            if super_result:
+                return super_result
 
         # Check for conversation recall requests or selection
         if self._context_manager:
@@ -276,6 +454,9 @@ class InteractionAgent(Agent):
         if len(conv_ctx.history) > max_len:
             conv_ctx.history = conv_ctx.history[-max_len:]
 
+        # Persist context to Redis for server restart survival
+        await self._persist_context(conv_ctx)
+
         latency_ms = (time.perf_counter() - start_time) * 1000
 
         return {
@@ -291,10 +472,15 @@ class InteractionAgent(Agent):
             "error": error_info,
         }
 
-    def _get_or_create_context(self, ctx: dict[str, Any]) -> ConversationContext:
-        """Get existing conversation or create new one."""
+    async def _get_or_create_context(self, ctx: dict[str, Any]) -> ConversationContext:
+        """Get existing conversation or create new one.
+
+        Checks memory first, then Redis, then creates new.
+        Persists to Redis for survival across restarts.
+        """
         conv_id = ctx.get("conversation_id") or f"conv_{id(ctx)}"
 
+        # Check in-memory cache first
         if conv_id in self._conversations:
             conv_ctx = self._conversations[conv_id]
             # Update with any new context
@@ -302,18 +488,41 @@ class InteractionAgent(Agent):
                 conv_ctx.retrieved_memories = ctx["retrieved_memories"]
             if ctx.get("meta_context"):
                 conv_ctx.meta_context = ctx["meta_context"]
-        else:
-            conv_ctx = ConversationContext(
-                conversation_id=conv_id,
-                speaker=ctx.get("speaker"),
-                room=ctx.get("room"),
-                retrieved_memories=ctx.get("retrieved_memories", []),
-                meta_context=ctx.get("meta_context"),
-                time_of_day=ctx.get("time_of_day", "day"),
-            )
+            # Update last activity time
+            conv_ctx.last_activity = datetime.now()
+            return conv_ctx
+
+        # Try to load from Redis (for server restart recovery)
+        conv_ctx = await self._load_context_from_redis(conv_id)
+        if conv_ctx:
+            # Update with new context from this request
+            if ctx.get("retrieved_memories"):
+                conv_ctx.retrieved_memories = ctx["retrieved_memories"]
+            if ctx.get("meta_context"):
+                conv_ctx.meta_context = ctx["meta_context"]
+            conv_ctx.last_activity = datetime.now()
+            # Cache in memory
             self._conversations[conv_id] = conv_ctx
+            logger.debug(f"Restored conversation from Redis: {conv_id} with {len(conv_ctx.history)} turns")
+            return conv_ctx
+
+        # Create new context
+        conv_ctx = ConversationContext(
+            conversation_id=conv_id,
+            speaker=ctx.get("speaker"),
+            room=ctx.get("room"),
+            retrieved_memories=ctx.get("retrieved_memories", []),
+            meta_context=ctx.get("meta_context"),
+            time_of_day=ctx.get("time_of_day", "day"),
+            last_activity=datetime.now(),
+        )
+        self._conversations[conv_id] = conv_ctx
 
         return conv_ctx
+
+    async def _persist_context(self, conv_ctx: ConversationContext) -> None:
+        """Persist conversation context to Redis after each turn."""
+        await self._save_context_to_redis(conv_ctx)
 
     def _build_system_prompt(self, conv_ctx: ConversationContext, user_ctx: dict[str, Any]) -> str:
         """Build the system prompt with context."""
@@ -884,12 +1093,17 @@ class InteractionAgent(Agent):
         """Get a conversation by ID."""
         return self._conversations.get(conversation_id)
 
-    def clear_conversation(self, conversation_id: str) -> bool:
-        """Clear a conversation's history."""
+    async def clear_conversation(self, conversation_id: str) -> bool:
+        """Clear a conversation's history from memory and Redis."""
+        cleared = False
         if conversation_id in self._conversations:
             del self._conversations[conversation_id]
-            return True
-        return False
+            cleared = True
+
+        # Also delete from Redis
+        await self._delete_context_from_redis(conversation_id)
+
+        return cleared
 
     def get_active_conversations(self) -> list[str]:
         """Get list of active conversation IDs."""
@@ -922,12 +1136,15 @@ class InteractionAgent(Agent):
             return None
 
         try:
-            # Search for past conversations
+            # Search for past conversations GLOBALLY
+            # Names in the query are treated as search terms, not filters
+            # E.g., "what did Elizabeth say about dinner" searches all conversations
             summaries = await self._context_manager.recall_conversations(
                 query=text,
-                speaker=conv_ctx.speaker,
+                speaker=conv_ctx.speaker,  # For context, not filtering
                 room=conv_ctx.room,
                 limit=5,
+                global_search=True,  # Search all conversations, not just this speaker's
             )
 
             if not summaries:
@@ -1036,6 +1253,186 @@ class InteractionAgent(Agent):
                 }
 
         return None
+
+    def _is_super_user_request(self, text: str) -> bool:
+        """Check if this is a super user audit log request.
+
+        Only available to parents (thom, elizabeth).
+        """
+        for pattern in SUPER_USER_PATTERNS_COMPILED:
+            if pattern.search(text):
+                return True
+        return False
+
+    async def _handle_super_user_recall(
+        self,
+        text: str,
+        conv_ctx: ConversationContext,
+    ) -> dict[str, Any] | None:
+        """Handle super user (parent) audit log access.
+
+        This allows parents to:
+        - View all conversations including "deleted" ones
+        - See alert history
+        - Search the full audit log
+
+        Only available to parent family members (thom, elizabeth).
+        """
+        # Verify speaker is a parent
+        if not conv_ctx.speaker or conv_ctx.speaker.lower() not in self.config.parent_members:
+            return {
+                "response": "I'm sorry, but that feature is only available to parents.",
+                "agent": self.name,
+                "conversation_id": conv_ctx.conversation_id,
+                "speaker": conv_ctx.speaker,
+                "turn_count": len(conv_ctx.history),
+                "used_llm": False,
+                "latency_ms": 0,
+            }
+
+        try:
+            from barnabeenet.services.audit.log import get_audit_log
+
+            audit_log = get_audit_log()
+
+            # Determine what type of query this is
+            text_lower = text.lower()
+
+            # Check for alerts request
+            if "alert" in text_lower or "concern" in text_lower:
+                alerts = await audit_log.get_alerts(limit=10)
+
+                if not alerts:
+                    return {
+                        "response": "Good news! There are no parental alerts in the system.",
+                        "agent": self.name,
+                        "conversation_id": conv_ctx.conversation_id,
+                        "speaker": conv_ctx.speaker,
+                        "turn_count": len(conv_ctx.history),
+                        "used_llm": False,
+                        "latency_ms": 0,
+                    }
+
+                # Format alerts
+                alert_summaries = []
+                for alert in alerts[:5]:
+                    time_str = alert.timestamp.strftime("%b %d, %I:%M %p")
+                    alert_summaries.append(
+                        f"- {alert.speaker or 'Unknown'} ({time_str}): \"{alert.user_text[:50]}...\""
+                    )
+
+                response = f"Found {len(alerts)} alerts. Most recent:\n" + "\n".join(alert_summaries)
+
+                return {
+                    "response": response,
+                    "agent": self.name,
+                    "conversation_id": conv_ctx.conversation_id,
+                    "speaker": conv_ctx.speaker,
+                    "turn_count": len(conv_ctx.history),
+                    "used_llm": False,
+                    "latency_ms": 0,
+                    "audit_results": alerts,
+                }
+
+            # Check for deleted conversations
+            if "delete" in text_lower:
+                results = await audit_log.search(
+                    query=None,
+                    include_deleted=True,  # Super user mode
+                    limit=20,
+                )
+
+                # Filter to just deleted entries
+                deleted = [e for e in results if e.was_deleted]
+
+                if not deleted:
+                    return {
+                        "response": "There are no deleted conversations in the audit log.",
+                        "agent": self.name,
+                        "conversation_id": conv_ctx.conversation_id,
+                        "speaker": conv_ctx.speaker,
+                        "turn_count": len(conv_ctx.history),
+                        "used_llm": False,
+                        "latency_ms": 0,
+                    }
+
+                summaries = []
+                for entry in deleted[:5]:
+                    time_str = entry.timestamp.strftime("%b %d, %I:%M %p")
+                    summaries.append(
+                        f"- {entry.speaker or 'Unknown'} ({time_str}): \"{entry.user_text[:40]}...\""
+                    )
+
+                response = f"Found {len(deleted)} deleted conversations:\n" + "\n".join(summaries)
+
+                return {
+                    "response": response,
+                    "agent": self.name,
+                    "conversation_id": conv_ctx.conversation_id,
+                    "speaker": conv_ctx.speaker,
+                    "turn_count": len(conv_ctx.history),
+                    "used_llm": False,
+                    "latency_ms": 0,
+                    "audit_results": deleted,
+                }
+
+            # General audit log search
+            # Extract search terms (remove common words)
+            search_query = text_lower
+            for remove in ["show", "me", "all", "the", "audit", "log", "history", "conversations"]:
+                search_query = search_query.replace(remove, "")
+            search_query = search_query.strip()
+
+            results = await audit_log.search(
+                query=search_query if search_query else None,
+                include_deleted=True,  # Super user sees everything
+                limit=20,
+            )
+
+            if not results:
+                return {
+                    "response": "No conversations found matching your search.",
+                    "agent": self.name,
+                    "conversation_id": conv_ctx.conversation_id,
+                    "speaker": conv_ctx.speaker,
+                    "turn_count": len(conv_ctx.history),
+                    "used_llm": False,
+                    "latency_ms": 0,
+                }
+
+            summaries = []
+            for entry in results[:5]:
+                time_str = entry.timestamp.strftime("%b %d, %I:%M %p")
+                deleted_marker = " [DELETED]" if entry.was_deleted else ""
+                alert_marker = " ⚠️" if entry.triggered_alert else ""
+                summaries.append(
+                    f"- {entry.speaker or 'Unknown'} ({time_str}){deleted_marker}{alert_marker}: \"{entry.user_text[:40]}...\""
+                )
+
+            response = f"Found {len(results)} conversations:\n" + "\n".join(summaries)
+
+            return {
+                "response": response,
+                "agent": self.name,
+                "conversation_id": conv_ctx.conversation_id,
+                "speaker": conv_ctx.speaker,
+                "turn_count": len(conv_ctx.history),
+                "used_llm": False,
+                "latency_ms": 0,
+                "audit_results": results,
+            }
+
+        except Exception as e:
+            logger.error(f"Super user recall failed: {e}")
+            return {
+                "response": f"I encountered an error accessing the audit log: {e}",
+                "agent": self.name,
+                "conversation_id": conv_ctx.conversation_id,
+                "speaker": conv_ctx.speaker,
+                "turn_count": len(conv_ctx.history),
+                "used_llm": False,
+                "latency_ms": 0,
+            }
 
 
 __all__ = [

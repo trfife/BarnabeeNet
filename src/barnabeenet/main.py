@@ -438,6 +438,7 @@ def _register_routes(app: FastAPI) -> None:
         metrics,
         profiles,
         self_improvement,
+        testing,
         voice,
         websocket,
     )
@@ -488,6 +489,9 @@ def _register_routes(app: FastAPI) -> None:
     # Timers management
     from barnabeenet.api.routes import timers
     app.include_router(timers.router, prefix="/api/v1", tags=["Timers"])
+
+    # Testing routes (for development/QA)
+    app.include_router(testing.router, prefix="/api/v1", tags=["Testing"])
 
     # Mount static files (must be after routes to not override them)
     if STATIC_DIR.exists():

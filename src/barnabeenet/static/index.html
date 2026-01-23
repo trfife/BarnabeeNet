@@ -33,7 +33,6 @@
             <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
             <a href="#" class="nav-link" data-page="chat">Chat</a>
             <a href="#" class="nav-link" data-page="memory">Memory</a>
-            <a href="#" class="nav-link" data-page="logic">Logic</a>
             <a href="#" class="nav-link" data-page="self-improve">Self-Improve</a>
             <a href="#" class="nav-link" data-page="logs">Logs</a>
             <a href="#" class="nav-link" data-page="family">Family</a>
@@ -891,312 +890,6 @@
             </div>
         </div>
 
-        <!-- Logic Browser Page - View/Edit BarnabeeNet's Decision Logic -->
-        <div id="page-logic" class="page">
-            <div class="page-header">
-                <h1>🧩 Logic Browser</h1>
-                <p>View and edit how BarnabeeNet makes decisions - patterns, routing, and overrides</p>
-            </div>
-
-            <!-- Logic Stats Cards -->
-            <div class="logic-stats-row">
-                <div class="stat-card">
-                    <div class="stat-icon">📝</div>
-                    <div class="stat-value" id="logic-patterns-count">0</div>
-                    <div class="stat-label">Total Patterns</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">🚦</div>
-                    <div class="stat-value" id="logic-routing-count">0</div>
-                    <div class="stat-label">Routing Rules</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">⚙️</div>
-                    <div class="stat-value" id="logic-overrides-count">0</div>
-                    <div class="stat-label">Overrides</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">🔗</div>
-                    <div class="stat-value" id="logic-aliases-count">0</div>
-                    <div class="stat-label">Entity Aliases</div>
-                </div>
-            </div>
-
-            <!-- Logic Tabs -->
-            <div class="logic-tabs">
-                <button class="logic-tab active" data-tab="patterns">📝 Patterns</button>
-                <button class="logic-tab" data-tab="routing">🚦 Routing</button>
-                <button class="logic-tab" data-tab="overrides">⚙️ Overrides</button>
-                <button class="logic-tab" data-tab="aliases">🔗 Aliases</button>
-                <button class="logic-tab" data-tab="history">📜 History</button>
-                <button class="logic-tab" data-tab="test">🧪 Test Patterns</button>
-            </div>
-
-            <!-- Tab Content: Patterns -->
-            <div class="logic-tab-content active" id="logic-tab-patterns">
-                <div class="patterns-filters">
-                    <select id="pattern-group-filter" class="form-control">
-                        <option value="">All Groups</option>
-                        <option value="emergency">🚨 Emergency</option>
-                        <option value="instant">⚡ Instant</option>
-                        <option value="action">🎯 Action</option>
-                        <option value="memory">📝 Memory</option>
-                        <option value="query">❓ Query</option>
-                        <option value="gesture">👋 Gesture</option>
-                    </select>
-                    <label class="toggle-label">
-                        <input type="checkbox" id="show-disabled-patterns">
-                        Show disabled
-                    </label>
-                    <button id="patterns-refresh-btn" class="btn btn-secondary">🔄 Refresh</button>
-                </div>
-
-                <!-- Pattern Groups -->
-                <div class="pattern-groups" id="pattern-groups">
-                    <div class="loading-skeleton">
-                        <div class="skeleton-card"></div>
-                        <div class="skeleton-card"></div>
-                        <div class="skeleton-card"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tab Content: Routing Rules -->
-            <div class="logic-tab-content" id="logic-tab-routing">
-                <div class="routing-header">
-                    <h3>Intent → Agent Routing</h3>
-                    <p class="text-muted">These rules determine which agent handles each intent type</p>
-                </div>
-                <div class="routing-rules" id="routing-rules">
-                    <div class="loading-skeleton">
-                        <div class="skeleton-card"></div>
-                        <div class="skeleton-card"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tab Content: Overrides -->
-            <div class="logic-tab-content" id="logic-tab-overrides">
-                <div class="overrides-header">
-                    <h3>Behavior Overrides</h3>
-                    <p class="text-muted">Override normal behavior based on user, room, or time</p>
-                </div>
-                <div class="overrides-list" id="overrides-list">
-                    <div class="loading-skeleton">
-                        <div class="skeleton-card"></div>
-                        <div class="skeleton-card"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tab Content: Entity Aliases -->
-            <div class="logic-tab-content" id="logic-tab-aliases">
-                <div class="aliases-header">
-                    <h3>Entity Aliases</h3>
-                    <p class="text-muted">Map natural language names to Home Assistant entities</p>
-                </div>
-                <div class="aliases-list" id="aliases-list">
-                    <div class="loading-skeleton">
-                        <div class="skeleton-card"></div>
-                        <div class="skeleton-card"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tab Content: Decision History -->
-            <div class="logic-tab-content" id="logic-tab-history">
-                <div class="history-header">
-                    <h3>📜 Recent Decisions</h3>
-                    <p class="text-muted">See how BarnabeeNet's logic was applied to recent requests</p>
-                    <div class="history-controls">
-                        <div class="filter-group">
-                            <select id="history-agent-filter" class="form-select">
-                                <option value="">All Agents</option>
-                                <option value="instant">⚡ Instant</option>
-                                <option value="action">🎯 Action</option>
-                                <option value="interaction">💬 Interaction</option>
-                                <option value="memory">📝 Memory</option>
-                            </select>
-                            <select id="history-status-filter" class="form-select">
-                                <option value="">All Status</option>
-                                <option value="success">✓ Success</option>
-                                <option value="error">✗ Errors</option>
-                            </select>
-                            <input type="text" id="history-search" class="form-control"
-                                placeholder="🔍 Search input text...">
-                        </div>
-                        <button id="history-refresh-btn" class="btn btn-secondary">🔄 Refresh</button>
-                    </div>
-                </div>
-                <div class="history-stats" id="history-stats">
-                    <!-- Decision stats will go here -->
-                </div>
-                <div class="history-list" id="history-list">
-                    <div class="loading-skeleton">
-                        <div class="skeleton-card"></div>
-                        <div class="skeleton-card"></div>
-                        <div class="skeleton-card"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tab Content: Pattern Tester -->
-            <div class="logic-tab-content" id="logic-tab-test">
-                <div class="pattern-tester">
-                    <h3>🧪 Pattern Tester</h3>
-                    <p class="text-muted">Test how BarnabeeNet would classify your input</p>
-
-                    <div class="test-input-group">
-                        <input type="text" id="pattern-test-input" class="form-control"
-                            placeholder="Type a command to test, e.g. 'turn on the office light'">
-                        <button id="run-pattern-test" class="btn btn-primary">Test Patterns</button>
-                    </div>
-
-                    <div class="test-results" id="pattern-test-results" style="display: none;">
-                        <div class="test-summary" id="test-summary"></div>
-                        <div class="test-matches" id="test-matches"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Pattern Edit Modal -->
-            <div id="pattern-modal" class="modal" style="display: none;">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>✏️ Edit Pattern</h3>
-                        <button class="btn btn-small modal-close-btn">✕</button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="form-group">
-                            <label>Pattern Name</label>
-                            <input type="text" id="edit-pattern-name" class="form-control" readonly>
-                        </div>
-                        <div class="form-group">
-                            <label>Regex Pattern</label>
-                            <input type="text" id="edit-pattern-regex" class="form-control font-mono">
-                            <small class="form-text">Python regex syntax. Changes will take effect immediately.</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Sub-Category</label>
-                            <input type="text" id="edit-pattern-subcategory" class="form-control">
-                        </div>
-                        <div class="form-group">
-                            <label>Confidence (0.0 - 1.0)</label>
-                            <input type="number" id="edit-pattern-confidence" class="form-control" min="0" max="1"
-                                step="0.05">
-                        </div>
-                        <div class="form-group">
-                            <label>Description</label>
-                            <textarea id="edit-pattern-description" class="form-control" rows="2"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="toggle-label">
-                                <input type="checkbox" id="edit-pattern-enabled">
-                                Enabled
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label>Reason for Change</label>
-                            <input type="text" id="edit-pattern-reason" class="form-control"
-                                placeholder="Why are you making this change?">
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="btn btn-secondary modal-close-btn">Cancel</button>
-                        <button class="btn btn-primary" id="save-pattern-btn">💾 Save Changes</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Trace Detail Modal -->
-            <div id="trace-modal" class="modal" style="display: none;">
-                <div class="modal-content modal-large">
-                    <div class="modal-header">
-                        <h3>📋 Request Details</h3>
-                        <button class="btn btn-small modal-close-btn">✕</button>
-                    </div>
-                    <div class="modal-body" id="trace-modal-body">
-                        <div class="loading-skeleton">
-                            <div class="skeleton-card"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- AI Correction Modal -->
-            <div id="correction-modal" class="modal" style="display: none;">
-                <div class="modal-content modal-large">
-                    <div class="modal-header">
-                        <h3>🔴 Report Incorrect Response</h3>
-                        <button class="btn btn-small modal-close-btn" onclick="window.closeCorrectionModal()">✕</button>
-                    </div>
-                    <div class="modal-body" id="correction-modal-body">
-                        <!-- Step 1: What went wrong -->
-                        <div id="correction-step-1">
-                            <div class="correction-section">
-                                <h4>What was the request?</h4>
-                                <div class="correction-request-preview" id="correction-request-preview">
-                                    <!-- Populated by JS -->
-                                </div>
-                            </div>
-
-                            <div class="correction-section">
-                                <h4>What should have happened?</h4>
-                                <textarea id="correction-expected" class="form-control" rows="3"
-                                    placeholder="Describe the correct response or action..."></textarea>
-                            </div>
-
-                            <div class="correction-section">
-                                <h4>What type of issue is this?</h4>
-                                <div class="correction-issue-types">
-                                    <label class="radio-option">
-                                        <input type="radio" name="issue-type" value="wrong_entity">
-                                        <span>🏠 Wrong device/entity selected</span>
-                                    </label>
-                                    <label class="radio-option">
-                                        <input type="radio" name="issue-type" value="wrong_action">
-                                        <span>⚡ Wrong action performed</span>
-                                    </label>
-                                    <label class="radio-option">
-                                        <input type="radio" name="issue-type" value="wrong_routing">
-                                        <span>🚦 Routed to wrong agent</span>
-                                    </label>
-                                    <label class="radio-option">
-                                        <input type="radio" name="issue-type" value="clarification_needed">
-                                        <span>❓ Should have asked for clarification</span>
-                                    </label>
-                                    <label class="radio-option">
-                                        <input type="radio" name="issue-type" value="tone_content">
-                                        <span>💬 Response tone/content issue</span>
-                                    </label>
-                                    <label class="radio-option">
-                                        <input type="radio" name="issue-type" value="other">
-                                        <span>📝 Other</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div class="correction-actions">
-                                <button class="btn btn-secondary"
-                                    onclick="window.closeCorrectionModal()">Cancel</button>
-                                <button class="btn btn-primary" id="analyze-correction-btn"
-                                    onclick="window.analyzeCorrection()">
-                                    🤖 Analyze with AI
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Step 2: AI Analysis Results -->
-                        <div id="correction-step-2" style="display: none;">
-                            <div class="correction-analysis" id="correction-analysis">
-                                <!-- Populated by JS after AI analysis -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Self-Improve Page -->
         <div id="page-self-improve" class="page">
             <!-- Action Required Banner (sticky at top) -->
@@ -1434,7 +1127,8 @@
                             </div>
                             <div class="agent-actions">
                                 <button class="btn btn-primary" id="analyze-models-btn">🔍 Analyze Models</button>
-                                <button class="btn btn-secondary" id="apply-recommendations-btn" style="display: none;">Apply Recommendations</button>
+                                <button class="btn btn-secondary" id="apply-recommendations-btn"
+                                    style="display: none;">Apply Recommendations</button>
                             </div>
                         </div>
                         <div id="model-finder-results" class="agent-results" style="display: none;">
@@ -1452,7 +1146,8 @@
                     </div>
                     <div class="agent-card-body">
                         <div class="agent-setting">
-                            <p class="agent-note">Runs automatically once per day. You can also trigger manual analysis.</p>
+                            <p class="agent-note">Runs automatically once per day. You can also trigger manual analysis.
+                            </p>
                             <div class="agent-actions">
                                 <button class="btn btn-primary" id="analyze-features-btn">💡 Analyze Features</button>
                             </div>
@@ -1480,6 +1175,7 @@
                         <li class="active" data-config="providers">🤖 LLM Providers</li>
                         <li data-config="models">🧠 Model Selection</li>
                         <li data-config="homeassistant">🏠 Home Assistant</li>
+                        <li data-config="testing">🧪 Testing & Dev</li>
                     </ul>
                 </div>
                 <div class="config-content">
@@ -1553,7 +1249,8 @@
                     <!-- Model Selection Section -->
                     <div id="config-models" class="config-section">
                         <h3>🧠 Model Selection</h3>
-                        <p class="section-desc">Each agent uses one model configured in <code>config/llm.yaml</code>. Edit the config file to change models.</p>
+                        <p class="section-desc">Each agent uses one model configured in <code>config/llm.yaml</code>.
+                            Edit the config file to change models.</p>
 
                         <div class="agent-models-list" id="agent-models-list">
                             <div class="loading-spinner">Loading agent models...</div>
@@ -1605,6 +1302,110 @@
                             <li>Click <strong>Save</strong> to store the configuration</li>
                         </ol>
                     </div>
+
+                    <!-- Testing & Development Section -->
+                    <div id="config-testing" class="config-section">
+                        <h3>🧪 Testing & Development</h3>
+                        <p class="section-desc">Tools for testing during development. Use these to populate the system with mock data or reset for production.</p>
+
+                        <!-- Testing Status -->
+                        <div class="testing-status-card" id="testing-status">
+                            <div class="status-grid">
+                                <div class="status-item">
+                                    <span class="status-label">Memory Storage</span>
+                                    <span class="status-value" id="testing-memory-status">--</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Profile Service</span>
+                                    <span class="status-value" id="testing-profile-status">--</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Total Memories</span>
+                                    <span class="status-value" id="testing-memory-count">--</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Family Profiles</span>
+                                    <span class="status-value" id="testing-profile-count">--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Mock Data Generation -->
+                        <div class="testing-section">
+                            <h4>📝 Generate Mock Data</h4>
+                            <p class="text-muted">Create sample family profiles, memories, and conversations for testing.</p>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="mock-include-family" checked>
+                                    <span>Include family profiles (6 members)</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="mock-include-memories" checked>
+                                    <span>Include memories (facts about family)</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="mock-include-conversations" checked>
+                                    <span>Include conversation history</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label>Days of history to generate:</label>
+                                <input type="number" id="mock-days" class="form-control" value="7" min="1" max="30" style="width: 100px;">
+                            </div>
+                            <button class="btn btn-primary" id="generate-mock-data-btn">📝 Generate Mock Data</button>
+                            <div id="mock-data-result" class="test-result" style="display: none;"></div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Clear Data -->
+                        <div class="testing-section">
+                            <h4>🗑️ Clear All Data</h4>
+                            <p class="text-muted warning-text">⚠️ This will permanently delete data. Use when preparing for production.</p>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="clear-memories" checked>
+                                    <span>Clear all memories</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="clear-conversations" checked>
+                                    <span>Clear conversation contexts</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="clear-family-profiles" checked>
+                                    <span>Clear family profiles</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="clear-audit-log">
+                                    <span>Clear audit log (production reset only)</span>
+                                </label>
+                            </div>
+                            <button class="btn btn-danger" id="clear-all-data-btn">🗑️ Clear All Data</button>
+                            <div id="clear-data-result" class="test-result" style="display: none;"></div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Delete Mock Data Only -->
+                        <div class="testing-section">
+                            <h4>🧹 Delete Mock Data Only</h4>
+                            <p class="text-muted">Remove only data tagged as mock data, preserving real user data.</p>
+                            <button class="btn btn-secondary" id="delete-mock-data-btn">🧹 Delete Mock Data Only</button>
+                            <div id="delete-mock-result" class="test-result" style="display: none;"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1630,8 +1431,8 @@
             </div>
         </div>
         <div class="floating-chat-input-container">
-            <input type="text" id="floating-chat-input" class="floating-chat-input" 
-                   placeholder="Type a message..." autocomplete="off">
+            <input type="text" id="floating-chat-input" class="floating-chat-input" placeholder="Type a message..."
+                autocomplete="off">
             <button id="floating-chat-send" class="floating-chat-send">➤</button>
         </div>
     </div>
