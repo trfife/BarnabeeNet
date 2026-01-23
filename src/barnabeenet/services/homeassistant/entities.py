@@ -273,36 +273,24 @@ class EntityRegistry:
         """
         # First try exact entity_id match
         if name in self._entities:
-            logger.debug("[FIND] Exact entity_id match for '%s'", name)
             return self._entities[name]
 
         # Search for best match
         candidates = self.get_by_domain(domain) if domain else list(self._entities.values())
-        logger.info("[FIND] Searching for '%s' in domain '%s': %d candidates", name, domain, len(candidates))
 
         best_match: Entity | None = None
         best_score = 0.0
-        top_matches: list[tuple[float, str, str]] = []  # (score, entity_id, friendly_name)
 
         for entity in candidates:
             score = entity.match_score(name)
-            if score > 0.3:  # Log potential matches
-                top_matches.append((score, entity.entity_id, entity.friendly_name))
             if score > best_score:
                 best_score = score
                 best_match = entity
 
-        # Log top matches for debugging
-        if top_matches:
-            top_matches.sort(key=lambda x: x[0], reverse=True)
-            logger.info("[FIND] Top matches for '%s': %s", name, top_matches[:5])
-
         # Require minimum score to avoid false positives
         if best_score >= 0.5:
-            logger.info("[FIND] Best match for '%s': %s (score: %.2f)", name, best_match.entity_id if best_match else None, best_score)
             return best_match
 
-        logger.info("[FIND] No match found for '%s' (best_score: %.2f < 0.5)", name, best_score)
         return None
 
     def search(

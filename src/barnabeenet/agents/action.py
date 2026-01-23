@@ -1004,45 +1004,33 @@ If you cannot parse the request, respond with:
         # For delayed actions, parse the action
         on_complete = None
         if timer_result.timer_type == TimerType.DELAYED_ACTION and timer_result.action_text:
-            logger.info("[TIMER] Processing DELAYED_ACTION with action_text: '%s'", timer_result.action_text)
             # Parse the action text to get service call
             action_spec = await self.parse_action(timer_result.action_text, context)
-            logger.info("[TIMER] Parsed action: type=%s, entity_name='%s', entity_id=%s, domain=%s",
-                       action_spec.action_type, action_spec.entity_name, action_spec.entity_id, action_spec.domain)
             if action_spec.action_type != ActionType.UNKNOWN:
                 # Resolve entity using orchestrator's sophisticated resolution
                 resolved_entity_id = action_spec.entity_id
                 service = action_spec.service or f"{action_spec.domain.value}.turn_on"
                 orchestrator = get_orchestrator()
-                logger.info("[TIMER] Orchestrator available: %s, HA client available: %s",
-                           orchestrator is not None, orchestrator._ha_client is not None if orchestrator else False)
                 if orchestrator and orchestrator._ha_client and action_spec.entity_name:
                     entity_name = action_spec.entity_name
                     domain = action_spec.domain.value
                     candidates: list[tuple[float, Any]] = []
 
                     # Search specified domain - use async version to ensure metadata is fresh
-                    logger.info("[TIMER] Searching for '%s' in domain '%s'", entity_name, domain)
                     entity = await orchestrator._ha_client.resolve_entity_async(entity_name, domain)
                     if entity:
                         score = entity.match_score(entity_name)
-                        logger.info("[TIMER] Found entity in primary domain: %s (score: %.2f)", entity.entity_id, score)
                         candidates.append((score, entity))
-                    else:
-                        logger.info("[TIMER] No entity found in primary domain '%s'", domain)
 
                     # Search alternative domains - use async version
                     alternative_domains = orchestrator._get_alternative_domains(domain, entity_name)
-                    logger.info("[TIMER] Searching alternative domains: %s", alternative_domains)
                     for alt_domain in alternative_domains:
                         alt_entity = await orchestrator._ha_client.resolve_entity_async(entity_name, alt_domain)
                         if alt_entity:
                             score = alt_entity.match_score(entity_name)
-                            logger.info("[TIMER] Found entity in alt domain '%s': %s (score: %.2f)", alt_domain, alt_entity.entity_id, score)
                             candidates.append((score, alt_entity))
 
                     # Pick best match
-                    logger.info("[TIMER] Total candidates found: %d", len(candidates))
                     if candidates:
                         candidates.sort(key=lambda x: x[0], reverse=True)
                         entity = candidates[0][1]
@@ -1050,19 +1038,16 @@ If you cannot parse the request, respond with:
                         actual_domain = entity.entity_id.split(".")[0] if "." in entity.entity_id else domain
                         if actual_domain != domain:
                             service = orchestrator._adapt_service_to_domain(service, actual_domain)
-                        logger.info("[TIMER] RESOLVED '%s' to entity_id: %s for delayed action", entity_name, resolved_entity_id)
+                        logger.info("Resolved '%s' to entity_id: %s for delayed action", entity_name, resolved_entity_id)
                     else:
                         # Try without domain restriction - use async version
-                        logger.warning("[TIMER] No candidates found for '%s' in domain '%s' or alternatives, trying without domain restriction", entity_name, domain)
+                        logger.warning("No candidates found for '%s' in domain '%s' or alternatives, trying without domain restriction", entity_name, domain)
                         entity = await orchestrator._ha_client.resolve_entity_async(entity_name, None)
                         if entity:
                             resolved_entity_id = entity.entity_id
-                            logger.info("[TIMER] Resolved '%s' to entity_id: %s (no domain restriction) for delayed action", entity_name, resolved_entity_id)
+                            logger.info("Resolved '%s' to entity_id: %s (no domain restriction) for delayed action", entity_name, resolved_entity_id)
                         else:
-                            logger.warning("[TIMER] Entity resolution FAILED for '%s', using placeholder: %s", entity_name, resolved_entity_id)
-                else:
-                    logger.warning("[TIMER] Skipping entity resolution: orchestrator=%s, ha_client=%s, entity_name='%s'",
-                                  orchestrator is not None, orchestrator._ha_client is not None if orchestrator else False, action_spec.entity_name)
+                            logger.warning("Entity resolution failed for '%s', using placeholder: %s", entity_name, resolved_entity_id)
 
                 on_complete = {
                     "service": service,
