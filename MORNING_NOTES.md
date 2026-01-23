@@ -1,7 +1,7 @@
 # Morning Notes - Overnight Work Session
 
 **Started:** January 22, 2026 (evening)
-**Last Updated:** January 23, 2026 ~5:30 AM
+**Last Updated:** January 23, 2026 ~5:40 AM
 
 This document tracks all work done overnight and items that need your attention.
 
@@ -68,6 +68,8 @@ This document tracks all work done overnight and items that need your attention.
 | **Family Digest** | "what happened today", "catch me up" | **NEW** - Daily activity summary |
 | **Activity Ideas** | "I'm bored", "what should I do" | **NEW** - 70+ activity suggestions |
 | **Conversation** | "conversation starter", "dinner question" | **NEW** - Family discussion prompts |
+| **Birthday** | "when is Penelope's birthday" | **NEW** - Family birthday countdown |
+| **Daily Briefing** | "morning briefing", "brief me" | **NEW** - Weather + calendar + birthdays |
 | **Stories** | "tell me a bedtime story" | LLM-generated stories |
 | **Definitions** | "what does ephemeral mean" | LLM-powered definitions |
 
@@ -292,6 +294,17 @@ any ideas for a rainy day       # Rainy day activities
 give me a conversation starter  # Family discussion question
 dinner question                 # Same as above
 what should we talk about       # Same as above
+
+# NEW: Birthday Countdown
+when is penelope's birthday     # "Penelope's birthday is May 10. That's 107 days away!"
+when is xander's birthday       # Any family member works
+next birthday                   # "The next birthday is Zachary's on February 14"
+how many days until viola's birthday  # Countdown format
+
+# NEW: Daily Briefing
+morning briefing                # Weather + calendar + upcoming birthdays
+brief me                        # Same as above
+what do I need to know today    # Same as above
 
 # LLM-Powered Features (via InteractionAgent)
 tell me a bedtime story         # Short story generation
