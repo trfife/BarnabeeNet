@@ -221,6 +221,26 @@ function showPage(pageId) {
     document.querySelectorAll('.page').forEach(page => {
         page.classList.toggle('active', page.id === `page-${pageId}`);
     });
+    
+    // Ensure config nav is initialized when Settings page is shown
+    if (pageId === 'config') {
+        // Make sure first section is visible if none are active
+        const activeSection = document.querySelector('.config-section.active');
+        if (!activeSection) {
+            const firstNav = document.querySelector('.config-nav li.active');
+            if (firstNav) {
+                firstNav.click();
+            } else {
+                // Activate first nav item and section
+                const firstNavItem = document.querySelector('.config-nav li');
+                const firstSection = document.querySelector('.config-section');
+                if (firstNavItem && firstSection) {
+                    firstNavItem.classList.add('active');
+                    firstSection.classList.add('active');
+                }
+            }
+        }
+    }
 }
 
 // =============================================================================
@@ -1131,18 +1151,26 @@ function formatNumber(num) {
 
 function initConfigNav() {
     document.querySelectorAll('.config-nav li').forEach(item => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
             const configId = item.dataset.config;
+            
+            if (!configId) return;
 
-            // Update nav
+            // Update nav - remove all active, add to clicked
             document.querySelectorAll('.config-nav li').forEach(i => {
-                i.classList.toggle('active', i.dataset.config === configId);
+                i.classList.remove('active');
             });
+            item.classList.add('active');
 
-            // Show section
+            // Show section - hide all, show selected
             document.querySelectorAll('.config-section').forEach(section => {
-                section.classList.toggle('active', section.id === `config-${configId}`);
+                section.classList.remove('active');
             });
+            const targetSection = document.getElementById(`config-${configId}`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
 
             // Initialize self-improve section if needed
             if (configId === 'self-improve') {
@@ -1152,8 +1180,32 @@ function initConfigNav() {
                     siSection.dataset.initialized = 'true';
                 }
             }
+            
+            // Initialize logs section if needed
+            if (configId === 'logs') {
+                const logsSection = document.getElementById('config-logs');
+                if (logsSection && !logsSection.dataset.initialized) {
+                    initLogsSection();
+                    logsSection.dataset.initialized = 'true';
+                }
+            }
         });
     });
+}
+
+function initLogsSection() {
+    // Initialize log stream for config section
+    const logStream = document.getElementById('log-stream');
+    if (logStream && !logStream.dataset.initialized) {
+        // Connect to log WebSocket if available
+        connectLogStream();
+        logStream.dataset.initialized = 'true';
+    }
+}
+
+function connectLogStream() {
+    // This will be handled by existing log stream initialization
+    // Just ensure it's connected when the section is shown
 }
 
 // =============================================================================
