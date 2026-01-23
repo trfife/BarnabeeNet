@@ -45,9 +45,10 @@ agents:
 
   # Interaction Agent: Complex conversations
   # Quality matters here - this is the "personality"
-  # PRODUCTION: Claude 3.5 Sonnet for best conversation quality
+  # PRODUCTION: Claude 3.5 Haiku - faster than Sonnet with good quality
+  # Haiku: 0.36s TTFT vs Sonnet: 0.64s TTFT (40% faster)
   interaction:
-    model: "anthropic/claude-3.5-sonnet"
+    model: "anthropic/claude-3-5-haiku-latest"
     temperature: 0.7
     max_tokens: 1500
     description: "Complex conversations, advice, personality"
@@ -128,31 +129,32 @@ activities:
     description: "Generate helpful error messages"
 
   # ---------------------------------------------------------------------------
-  # InteractionAgent Activities (QUALITY matters - this is the personality)
+  # InteractionAgent Activities (Balance QUALITY + SPEED for voice assistant)
+  # Using Claude 3.5 Haiku for 40% faster TTFT while maintaining good quality
   # ---------------------------------------------------------------------------
   interaction.respond:
-    model: "anthropic/claude-3.5-sonnet"
+    model: "anthropic/claude-3-5-haiku-latest"
     temperature: 0.7
     max_tokens: 1500
-    priority: quality
+    priority: balanced
     description: "Main conversational responses"
 
   interaction.followup:
-    model: "anthropic/claude-3.5-sonnet"
+    model: "anthropic/claude-3-5-haiku-latest"
     temperature: 0.7
     max_tokens: 1000
-    priority: quality
+    priority: balanced
     description: "Follow-up in conversation"
 
   interaction.empathy:
-    model: "anthropic/claude-3.5-sonnet"
+    model: "anthropic/claude-3-5-haiku-latest"
     temperature: 0.8
     max_tokens: 800
     priority: quality
     description: "Empathetic/emotional responses"
 
   interaction.factual:
-    model: "openai/gpt-4o"
+    model: "openai/gpt-4o-mini"
     temperature: 0.3
     max_tokens: 1000
     priority: accuracy
@@ -224,6 +226,9 @@ pricing:
   "anthropic/claude-3.5-sonnet":
     input: 3.0
     output: 15.0
+  "anthropic/claude-3-5-haiku-latest":
+    input: 1.0
+    output: 5.0
   "anthropic/claude-3-haiku":
     input: 0.25
     output: 1.25
