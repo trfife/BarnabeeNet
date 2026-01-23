@@ -1,4 +1,5 @@
 # Morning Notes - Overnight Work Session
+
 **Started:** January 22, 2026 (evening)
 **Last Updated:** January 22, 2026
 
@@ -9,6 +10,7 @@ This document tracks all work done overnight and items that need your attention.
 ## Work Completed ✅
 
 ### Sprint 1 Features (Before This Session)
+
 - ✅ Random choices (flip coin, roll dice, pick number, magic 8-ball, yes/no)
 - ✅ Unit conversions (F↔C, cups↔liters, lbs↔kg, inches↔cm, etc.)
 - ✅ World clock (time in Tokyo, London, Paris, etc.)
@@ -59,8 +61,9 @@ This document tracks all work done overnight and items that need your attention.
 
 ## Deployment Status 🚀
 
-**Current VM State:** 
-- API: http://192.168.86.51:8000
+**Current VM State:**
+
+- API: <http://192.168.86.51:8000>
 - Last deployed: (will update)
 
 ---
@@ -68,4 +71,3 @@ This document tracks all work done overnight and items that need your attention.
 ## Next Steps / Recommendations 💡
 
 <!-- What I recommend working on next -->
-

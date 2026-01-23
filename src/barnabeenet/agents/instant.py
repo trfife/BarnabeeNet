@@ -485,9 +485,12 @@ class InstantAgent(Agent):
 
     async def init(self) -> None:
         """Initialize patterns and resources."""
-        # Compile math pattern
+        # Compile math pattern - supports both symbols and words
+        # Matches: "5 + 3", "what's 7 times 8", "10 divided by 2", "5 plus 3"
         self._math_pattern = re.compile(
-            r"(?:what(?:'s| is) )?(\d+(?:\.\d+)?)\s*([\+\-\*\/])\s*(\d+(?:\.\d+)?)",
+            r"(?:what(?:'s| is) )?(\d+(?:\.\d+)?)\s*"
+            r"([\+\-\*\/]|plus|minus|times|multiplied by|divided by|x)\s*"
+            r"(\d+(?:\.\d+)?)",
             re.IGNORECASE,
         )
         # Compile spelling pattern - matches "spell X", "how do you spell X", "what's the spelling of X"
@@ -728,7 +731,10 @@ class InstantAgent(Agent):
 
     def _is_time_query(self, text: str) -> bool:
         """Check if query is about time."""
-        time_keywords = ["time", "what time", "clock", "o'clock"]
+        # Avoid matching "times" (as in multiplication)
+        if "times" in text and any(c.isdigit() for c in text):
+            return False
+        time_keywords = ["what time", "the time", "clock", "o'clock"]
         return any(kw in text for kw in time_keywords)
 
     def _is_date_query(self, text: str) -> bool:
@@ -1049,8 +1055,19 @@ class InstantAgent(Agent):
 
         try:
             a = float(match.group(1))
-            op = match.group(2)
+            op = match.group(2).lower()
             b = float(match.group(3))
+
+            # Map word operators to symbols
+            op_map = {
+                "plus": "+",
+                "minus": "-",
+                "times": "*",
+                "multiplied by": "*",
+                "x": "*",
+                "divided by": "/",
+            }
+            op = op_map.get(op, op)
 
             operations = {
                 "+": lambda x, y: x + y,
