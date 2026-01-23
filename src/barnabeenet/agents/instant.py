@@ -726,8 +726,11 @@ class InstantAgent(Agent):
         elif sub_category == "joke" or self._is_joke(text_lower):
             response = self._handle_joke(text)
             response_type = "joke"
+        elif sub_category == "riddle_answer" or self._is_riddle_answer_request(text_lower):
+            response = self._handle_riddle_answer(context)
+            response_type = "riddle_answer"
         elif sub_category == "riddle" or self._is_riddle(text_lower):
-            response = self._handle_riddle()
+            response = self._handle_riddle(context)
             response_type = "riddle"
         # Fun facts
         elif sub_category == "fun_fact" or self._is_fun_fact(text_lower):
@@ -1014,6 +1017,15 @@ class InstantAgent(Agent):
         """Check if user wants a riddle."""
         riddle_keywords = ["tell me a riddle", "riddle", "give me a riddle"]
         return any(kw in text for kw in riddle_keywords)
+
+    def _is_riddle_answer_request(self, text: str) -> bool:
+        """Check if user is asking for the riddle answer."""
+        answer_keywords = [
+            "what's the answer", "what is the answer", "give up",
+            "i give up", "tell me the answer", "answer to the riddle",
+            "what's the riddle answer", "i don't know"
+        ]
+        return any(kw in text for kw in answer_keywords)
 
     def _is_fun_fact(self, text: str) -> bool:
         """Check if user wants a fun fact."""
@@ -1657,8 +1669,11 @@ class InstantAgent(Agent):
 
         return f"{setup} {punchline}"
 
-    def _handle_riddle(self) -> str:
-        """Tell a riddle."""
+    # Cache for pending riddles (conversation_id -> riddle)
+    _pending_riddles: dict[str, dict[str, str]] = {}
+
+    def _handle_riddle(self, context: dict[str, Any]) -> str:
+        """Tell a riddle and store for later answer reveal."""
         riddles = JOKES_DATA.get("riddles", [])
         if not riddles:
             return "I don't have any riddles right now!"
@@ -1667,8 +1682,35 @@ class InstantAgent(Agent):
         setup = riddle.get("setup", "")
         punchline = riddle.get("punchline", "")
 
-        # For riddles, give time to think
-        return f"Here's a riddle: {setup} Think about it... The answer is: {punchline}"
+        # Store the riddle for "what's the answer" follow-up
+        conversation_id = context.get("conversation_id", "default")
+        self._pending_riddles[conversation_id] = {"setup": setup, "answer": punchline}
+
+        responses = [
+            f"Here's a riddle for you: {setup}",
+            f"Try this riddle: {setup}",
+            f"Riddle time! {setup}",
+        ]
+        return random.choice(responses) + " Say 'what's the answer' when you give up!"
+
+    def _handle_riddle_answer(self, context: dict[str, Any]) -> str:
+        """Reveal the answer to the pending riddle."""
+        conversation_id = context.get("conversation_id", "default")
+        riddle = self._pending_riddles.get(conversation_id)
+
+        if not riddle:
+            return "I haven't told you a riddle yet! Ask me for a riddle first."
+
+        answer = riddle.get("answer", "I forgot the answer!")
+        # Clear the pending riddle
+        del self._pending_riddles[conversation_id]
+
+        responses = [
+            f"The answer is: {answer}",
+            f"It's: {answer}!",
+            f"Ready? The answer is... {answer}!",
+        ]
+        return random.choice(responses)
 
     def _handle_fun_fact(self, text: str) -> str:
         """Tell a fun fact based on the topic requested."""
@@ -2174,14 +2216,55 @@ class InstantAgent(Agent):
 
             text_lower = text.lower()
 
+            # Get forecast for rain/precipitation questions
+            forecast = attrs.get("forecast", [])
+
+            # Condition mapping
+            condition_map = {
+                "sunny": "sunny",
+                "clear-night": "clear",
+                "partlycloudy": "partly cloudy",
+                "cloudy": "cloudy",
+                "rainy": "rainy",
+                "pouring": "pouring rain",
+                "snowy": "snowing",
+                "fog": "foggy",
+                "windy": "windy",
+                "lightning": "stormy with lightning",
+            }
+
             # Specific questions
-            if "rain" in text_lower or "umbrella" in text_lower:
+            if "rain" in text_lower or "umbrella" in text_lower or "precipitation" in text_lower:
+                # Check current condition
                 if condition in ["rainy", "pouring", "lightning-rainy"]:
-                    return "Yes, it's raining! You'll definitely want an umbrella."
-                elif condition in ["partlycloudy", "cloudy"]:
-                    return "It's cloudy but not raining right now."
+                    return "Yes, it's raining right now! Definitely bring an umbrella."
+
+                # Check forecast for rain
+                rain_expected = False
+                rain_time = None
+                for f in forecast[:8]:  # Check next 8 hours/periods
+                    fc_condition = f.get("condition", "").lower()
+                    precipitation = f.get("precipitation", 0) or 0
+                    precipitation_prob = f.get("precipitation_probability", 0) or 0
+
+                    if fc_condition in ["rainy", "pouring", "lightning-rainy"] or precipitation > 0 or precipitation_prob > 50:
+                        rain_expected = True
+                        rain_time = f.get("datetime", "")
+                        break
+
+                if rain_expected:
+                    if rain_time:
+                        # Parse time if available
+                        try:
+                            from datetime import datetime
+                            dt = datetime.fromisoformat(rain_time.replace("Z", "+00:00"))
+                            time_str = dt.strftime("%-I %p").lower()
+                            return f"Rain is expected around {time_str}. I'd bring an umbrella just in case!"
+                        except Exception:
+                            pass
+                    return "Rain is in the forecast. You might want to bring an umbrella!"
                 else:
-                    return "No rain expected right now."
+                    return f"No rain expected today. It's currently {condition_map.get(condition, condition)}."
 
             if "snow" in text_lower:
                 if condition in ["snowy", "snowy-rainy"]:
@@ -2199,22 +2282,33 @@ class InstantAgent(Agent):
                     return f"The humidity is {humidity}%."
                 return "I couldn't get the humidity."
 
+            # Tomorrow's weather
+            if "tomorrow" in text_lower and forecast:
+                # Find tomorrow's forecast (usually 24h out or next day entry)
+                for f in forecast:
+                    fc_datetime = f.get("datetime", "")
+                    if fc_datetime:
+                        try:
+                            from datetime import datetime, timedelta
+                            dt = datetime.fromisoformat(fc_datetime.replace("Z", "+00:00"))
+                            if dt.date() > datetime.now().date():
+                                fc_temp_high = f.get("temperature")
+                                fc_temp_low = f.get("templow")
+                                fc_condition = f.get("condition", "unknown")
+                                fc_condition_text = condition_map.get(fc_condition, fc_condition)
+
+                                if fc_temp_high and fc_temp_low:
+                                    return f"Tomorrow will be {fc_condition_text} with a high of {fc_temp_high}°F and a low of {fc_temp_low}°F."
+                                elif fc_temp_high:
+                                    return f"Tomorrow will be {fc_condition_text} with a high of {fc_temp_high}°F."
+                                else:
+                                    return f"Tomorrow will be {fc_condition_text}."
+                        except Exception:
+                            continue
+                return "I don't have tomorrow's forecast available."
+
             # General weather query
             response_parts = []
-
-            # Condition description
-            condition_map = {
-                "sunny": "sunny",
-                "clear-night": "clear",
-                "partlycloudy": "partly cloudy",
-                "cloudy": "cloudy",
-                "rainy": "rainy",
-                "pouring": "pouring rain",
-                "snowy": "snowing",
-                "fog": "foggy",
-                "windy": "windy",
-                "lightning": "stormy with lightning",
-            }
             condition_text = condition_map.get(condition, condition)
 
             if temp:
@@ -3285,35 +3379,79 @@ class InstantAgent(Agent):
 
         parts = []
         speaker_name = speaker.title() if speaker else "there"
+        now = datetime.now()
 
-        # Time-appropriate greeting
-        hour = datetime.now().hour
+        # Time-appropriate greeting with day of week
+        hour = now.hour
+        day_name = now.strftime("%A")
         if hour < 12:
-            greeting = f"Good morning, {speaker_name}!"
+            greeting = f"Good morning, {speaker_name}! It's {day_name}."
         elif hour < 17:
-            greeting = f"Good afternoon, {speaker_name}!"
+            greeting = f"Good afternoon, {speaker_name}! It's {day_name}."
         else:
-            greeting = f"Good evening, {speaker_name}!"
+            greeting = f"Good evening, {speaker_name}! It's {day_name}."
         parts.append(greeting)
 
         try:
             ha_client = await get_ha_client()
 
-            # Weather
+            # Weather with high/low
             weather_state = await ha_client.get_state("weather.forecast_home")
             if not weather_state:
                 weather_state = await ha_client.get_state("weather.outside")
 
             if weather_state:
-                temp = weather_state.get("attributes", {}).get("temperature", "?")
+                attrs = weather_state.get("attributes", {})
+                temp = attrs.get("temperature", "?")
                 condition = weather_state.get("state", "unknown")
-                parts.append(f"It's {temp}°F and {condition} outside.")
+
+                # Friendly condition names
+                condition_map = {
+                    "sunny": "sunny",
+                    "clear-night": "clear",
+                    "partlycloudy": "partly cloudy",
+                    "cloudy": "cloudy",
+                    "rainy": "rainy",
+                    "pouring": "rainy",
+                    "snowy": "snowy",
+                    "fog": "foggy",
+                    "windy": "windy",
+                }
+                condition_text = condition_map.get(condition, condition)
+
+                # Try to get high/low from forecast
+                forecast = attrs.get("forecast", [])
+                high_temp = None
+                low_temp = None
+                for f in forecast[:2]:
+                    if f.get("temperature"):
+                        high_temp = f.get("temperature")
+                    if f.get("templow"):
+                        low_temp = f.get("templow")
+                    if high_temp and low_temp:
+                        break
+
+                weather_str = f"It's {temp}°F and {condition_text}"
+                if high_temp and low_temp:
+                    weather_str += f", with a high of {high_temp}°F and low of {low_temp}°F"
+                elif high_temp:
+                    weather_str += f", high of {high_temp}°F"
+                parts.append(weather_str + ".")
+
+                # Rain warning
+                if condition in ["rainy", "pouring", "lightning-rainy"]:
+                    parts.append("Grab an umbrella!")
+                elif forecast:
+                    for f in forecast[:8]:
+                        if f.get("condition") in ["rainy", "pouring"] or (f.get("precipitation_probability", 0) or 0) > 50:
+                            parts.append("Rain is in the forecast - you might want an umbrella.")
+                            break
 
             # Calendar - today's events
-            calendar_entities = ["calendar.family", "calendar.fife_family"]
+            calendar_entities = ["calendar.family", "calendar.fife_family", "calendar.thefifelife217_gmail_com"]
+            events_found = []
             for cal_entity in calendar_entities:
                 try:
-                    now = datetime.now()
                     start = now.strftime("%Y-%m-%dT00:00:00")
                     end = now.strftime("%Y-%m-%dT23:59:59")
 
@@ -3330,12 +3468,18 @@ class InstantAgent(Agent):
 
                     if events and cal_entity in events:
                         event_list = events[cal_entity].get("events", [])
-                        if event_list:
-                            event_names = [e.get("summary", "Event") for e in event_list[:3]]
-                            parts.append(f"Today: {', '.join(event_names)}.")
-                            break
+                        for e in event_list:
+                            summary = e.get("summary", "Event")
+                            if summary not in events_found:
+                                events_found.append(summary)
                 except Exception:
                     continue
+
+            if events_found:
+                if len(events_found) == 1:
+                    parts.append(f"On the calendar today: {events_found[0]}.")
+                else:
+                    parts.append(f"Today's schedule: {', '.join(events_found[:4])}.")
 
         except Exception as e:
             logger.warning(f"Daily briefing HA error: {e}")
@@ -3344,6 +3488,7 @@ class InstantAgent(Agent):
         if FAMILY_DATA:
             members = FAMILY_DATA.get("members", {})
             today = date.today()
+            birthday_mentions = []
             for member_id, member in members.items():
                 birthday_str = member.get("birthday")
                 if birthday_str:
@@ -3353,9 +3498,12 @@ class InstantAgent(Agent):
                         next_bday = next_bday.replace(year=today.year + 1)
                     days_until = (next_bday - today).days
                     if days_until == 0:
-                        parts.append(f"It's {member['name']}'s birthday today! 🎂")
+                        birthday_mentions.append(f"It's {member['name']}'s birthday today! 🎂")
                     elif days_until <= 7:
-                        parts.append(f"{member['name']}'s birthday is in {days_until} days.")
+                        birthday_mentions.append(f"{member['name']}'s birthday is in {days_until} days")
+
+            if birthday_mentions:
+                parts.extend(birthday_mentions[:2])  # Limit to 2 birthday mentions
 
         if len(parts) == 1:
             parts.append("Have a great day!")
