@@ -33,6 +33,8 @@ This document tracks all work done overnight and items that need your attention.
 | **Location** | "where is thom" | **NEW** - Instant HA person lookup |
 | **Who's Home** | "who's home" | **NEW** - Lists everyone at home |
 | **Device Status** | "is the light on" | **NEW** - Check any device state |
+| **Sun Times** | "when is sunrise" | **NEW** - Uses HA sun entity |
+| **Moon Phase** | "moon phase" | **NEW** - Calculated algorithmically |
 
 ### Major Enhancements
 
@@ -152,6 +154,11 @@ is everyone home          # "Yes, everyone is home!"
 # NEW: Device Status
 is the office light on    # "The Office Switch Light is on."
 status of the thermostat  # Shows temperature and mode
+
+# NEW: Sun & Moon
+when is sunrise           # "Sunrise is at 7:27 AM."
+when is sunset            # "Sunset is at 5:41 PM."
+moon phase                # "It's a Waxing Crescent tonight."
 
 # Previous Features
 flip a coin
