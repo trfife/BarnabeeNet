@@ -1687,7 +1687,7 @@ class AgentOrchestrator:
                 entity_id = entity.entity_id
                 # Always update the action_spec with resolved entity_id (for undo)
                 action_spec["entity_id"] = entity_id
-                
+
                 # Update service to match the actual entity domain
                 actual_domain = entity.entity_id.split(".")[0] if "." in entity.entity_id else None
                 if actual_domain and actual_domain != domain:
@@ -1980,9 +1980,9 @@ class AgentOrchestrator:
     ) -> dict[str, Any]:
         """Restore a light to its previous state including brightness and color."""
         if prev_state == "off":
-            await self._ha_client.call_service(domain="light", service="turn_off", entity_id=entity_id)
-            logger.info(f"Restored {entity_id} to OFF")
-            return {"success": True}
+            result = await self._ha_client.call_service("light.turn_off", entity_id=entity_id)
+            logger.info(f"Restored {entity_id} to OFF, result: {result}")
+            return {"success": result.success}
 
         # Light was on - restore with all attributes
         service_data: dict[str, Any] = {}
@@ -2007,11 +2007,9 @@ class AgentOrchestrator:
         if prev_attrs.get("effect") is not None and prev_attrs["effect"] != "none":
             service_data["effect"] = prev_attrs["effect"]
 
-        await self._ha_client.call_service(
-            domain="light", service="turn_on", entity_id=entity_id, **service_data
-        )
-        logger.info(f"Restored {entity_id} to ON with attrs: {service_data}")
-        return {"success": True}
+        result = await self._ha_client.call_service("light.turn_on", entity_id=entity_id, **service_data)
+        logger.info(f"Restored {entity_id} to ON with attrs: {service_data}, result: {result}")
+        return {"success": result.success}
 
     async def _restore_climate_state(
         self, entity_id: str, prev_state: str, prev_attrs: dict[str, Any]
@@ -2020,20 +2018,20 @@ class AgentOrchestrator:
         # Restore HVAC mode
         if prev_state in ["off", "heat", "cool", "auto", "heat_cool", "dry", "fan_only"]:
             await self._ha_client.call_service(
-                domain="climate", service="set_hvac_mode", entity_id=entity_id, hvac_mode=prev_state
+                "climate.set_hvac_mode", entity_id=entity_id, hvac_mode=prev_state
             )
 
         # Restore temperature
         if prev_attrs.get("temperature") is not None:
             await self._ha_client.call_service(
-                domain="climate", service="set_temperature", entity_id=entity_id,
+                "climate.set_temperature", entity_id=entity_id,
                 temperature=prev_attrs["temperature"]
             )
 
         # Restore fan mode if set
         if prev_attrs.get("fan_mode") is not None:
             await self._ha_client.call_service(
-                domain="climate", service="set_fan_mode", entity_id=entity_id,
+                "climate.set_fan_mode", entity_id=entity_id,
                 fan_mode=prev_attrs["fan_mode"]
             )
 
@@ -2047,15 +2045,15 @@ class AgentOrchestrator:
         # Restore position if available
         if prev_attrs.get("current_position") is not None:
             await self._ha_client.call_service(
-                domain="cover", service="set_cover_position", entity_id=entity_id,
+                "cover.set_cover_position", entity_id=entity_id,
                 position=prev_attrs["current_position"]
             )
             logger.info(f"Restored {entity_id} to position {prev_attrs['current_position']}")
         elif prev_state == "closed":
-            await self._ha_client.call_service(domain="cover", service="close_cover", entity_id=entity_id)
+            await self._ha_client.call_service("cover.close_cover", entity_id=entity_id)
             logger.info(f"Restored {entity_id} to CLOSED")
         else:
-            await self._ha_client.call_service(domain="cover", service="open_cover", entity_id=entity_id)
+            await self._ha_client.call_service("cover.open_cover", entity_id=entity_id)
             logger.info(f"Restored {entity_id} to OPEN")
 
         return {"success": True}
@@ -2069,7 +2067,7 @@ class AgentOrchestrator:
             remaining = prev_attrs.get("remaining")
             if remaining:
                 await self._ha_client.call_service(
-                    domain="timer", service="start", entity_id=entity_id, duration=remaining
+                    "timer.start", entity_id=entity_id, duration=remaining
                 )
                 logger.info(f"Restarted {entity_id} with remaining time {remaining}")
             else:
@@ -2077,16 +2075,16 @@ class AgentOrchestrator:
                 duration = prev_attrs.get("duration")
                 if duration:
                     await self._ha_client.call_service(
-                        domain="timer", service="start", entity_id=entity_id, duration=duration
+                        "timer.start", entity_id=entity_id, duration=duration
                     )
                     logger.info(f"Restarted {entity_id} with duration {duration}")
         elif prev_state == "paused":
             # Timer was paused, pause it again
-            await self._ha_client.call_service(domain="timer", service="pause", entity_id=entity_id)
+            await self._ha_client.call_service("timer.pause", entity_id=entity_id)
             logger.info(f"Paused {entity_id}")
         else:
             # Timer was idle, cancel it
-            await self._ha_client.call_service(domain="timer", service="cancel", entity_id=entity_id)
+            await self._ha_client.call_service("timer.cancel", entity_id=entity_id)
             logger.info(f"Cancelled {entity_id}")
 
         return {"success": True}
@@ -2096,13 +2094,13 @@ class AgentOrchestrator:
     ) -> dict[str, Any]:
         """Restore a simple on/off device to its previous state."""
         if domain == "lock":
-            service = "lock" if prev_state == "locked" else "unlock"
+            service = f"{domain}.lock" if prev_state == "locked" else f"{domain}.unlock"
         else:
-            service = "turn_on" if prev_state == "on" else "turn_off"
+            service = f"{domain}.turn_on" if prev_state == "on" else f"{domain}.turn_off"
 
-        await self._ha_client.call_service(domain=domain, service=service, entity_id=entity_id)
-        logger.info(f"Restored {entity_id} to {prev_state}")
-        return {"success": True}
+        result = await self._ha_client.call_service(service, entity_id=entity_id)
+        logger.info(f"Restored {entity_id} to {prev_state}, result: {result}")
+        return {"success": result.success}
 
     async def _simple_reverse_action(
         self, entity_id: str, domain: str, service: str, action_type: str
@@ -2136,10 +2134,10 @@ class AgentOrchestrator:
         full_service = f"{domain}.{reverse_service}"
         logger.info(f"Executing simple undo: {full_service} on {entity_id}")
 
-        await self._ha_client.call_service(domain=domain, service=reverse_service, entity_id=entity_id)
+        result = await self._ha_client.call_service(full_service, entity_id=entity_id)
 
-        logger.info(f"Undo successful: {entity_id} via {full_service}")
-        return {"success": True}
+        logger.info(f"Undo successful: {entity_id} via {full_service}, result: {result}")
+        return {"success": result.success}
 
     def _build_response(self, ctx: RequestContext) -> dict[str, Any]:
         """Build the final response dict."""
