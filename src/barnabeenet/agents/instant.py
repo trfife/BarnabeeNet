@@ -674,17 +674,17 @@ class InstantAgent(Agent):
             else:
                 response = random.choice(self.FALLBACK_RESPONSES)
                 response_type = "fallback"
+        # Focus/Pomodoro timer (before chore to catch "done with homework" as ending focus)
+        elif sub_category == "focus_timer" or self._is_focus_timer_query(text_lower)[0]:
+            _, action = self._is_focus_timer_query(text_lower)
+            response = await self._handle_focus_timer(action, speaker)
+            response_type = "focus_timer"
         # Chore/Star tracking (before unit conversion to avoid "how many stars" matching)
         elif sub_category == "chore" or self._is_chore_query(text_lower)[0]:
             result = self._is_chore_query(text_lower)
             _, action, person, chore = result
             response = await self._handle_chore_query(action, person, chore, speaker)
             response_type = "chore"
-        # Focus/Pomodoro timer
-        elif sub_category == "focus_timer" or self._is_focus_timer_query(text_lower)[0]:
-            _, action = self._is_focus_timer_query(text_lower)
-            response = await self._handle_focus_timer(action, speaker)
-            response_type = "focus_timer"
         # Unit conversions
         elif sub_category == "unit_conversion" or self._is_unit_conversion(text_lower):
             result = self._handle_unit_conversion(text)
@@ -895,15 +895,21 @@ class InstantAgent(Agent):
 
     def _is_mic_check(self, text: str) -> bool:
         """Check if this is a mic test or hearing check."""
+        # Don't match if it's a note/reminder
+        if ":" in text:
+            return False
+
         mic_keywords = [
             "can you hear me",
             "do you hear me",
             "are you there",
             "testing",
-            "test",
             "is this working",
             "am i working",
         ]
+        # "test" alone should match, but not as part of another word
+        if text.strip() in ["test", "test test", "testing testing"]:
+            return True
         return any(kw in text for kw in mic_keywords)
 
     def _is_coin_flip(self, text: str) -> bool:
