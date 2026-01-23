@@ -143,9 +143,11 @@ class OpenRouterClient:
 
     Every request is logged with complete context for dashboard visibility.
     Supports streaming and non-streaming completions.
+    Also supports routing to local Ollama for models prefixed with "ollama/".
     """
 
     BASE_URL = "https://openrouter.ai/api/v1"
+    OLLAMA_URL = "http://localhost:11434"
 
     def __init__(
         self,
@@ -153,17 +155,20 @@ class OpenRouterClient:
         model_config: AgentModelConfig | None = None,
         site_url: str = "https://barnabeenet.local",
         site_name: str = "BarnabeeNet",
+        ollama_url: str | None = None,
     ) -> None:
         self.api_key = api_key
         self.model_config = model_config or AgentModelConfig()
         self.site_url = site_url
         self.site_name = site_name
         self._client: httpx.AsyncClient | None = None
+        self._ollama_client: httpx.AsyncClient | None = None
+        self._ollama_url = ollama_url or self.OLLAMA_URL
         self._signal_logger = get_signal_logger()
         self._cache = get_llm_cache()
 
     async def init(self) -> None:
-        """Initialize the HTTP client with connection pooling."""
+        """Initialize the HTTP clients with connection pooling."""
         # Reuse client with connection pooling for better performance
         # Limits: max 100 connections, keep-alive for 30 seconds
         limits = httpx.Limits(max_keepalive_connections=20, max_connections=100, keepalive_expiry=30.0)
@@ -179,13 +184,77 @@ class OpenRouterClient:
             limits=limits,
         )
         logger.info("OpenRouter client initialized with connection pooling")
+        
+        # Initialize Ollama client for local models
+        self._ollama_client = httpx.AsyncClient(
+            base_url=self._ollama_url,
+            headers={"Content-Type": "application/json"},
+            timeout=30.0,  # Shorter timeout for local inference
+        )
+        logger.info(f"Ollama client initialized at {self._ollama_url}")
 
     async def shutdown(self) -> None:
-        """Close the HTTP client."""
+        """Close the HTTP clients."""
         if self._client:
             await self._client.aclose()
             self._client = None
-        logger.info("OpenRouter client shutdown")
+        if self._ollama_client:
+            await self._ollama_client.aclose()
+            self._ollama_client = None
+        logger.info("OpenRouter and Ollama clients shutdown")
+    
+    async def _chat_ollama(
+        self,
+        messages: list[dict[str, str]],
+        model: str,
+        temperature: float,
+        max_tokens: int,
+    ) -> ChatResponse:
+        """Execute chat via local Ollama."""
+        if self._ollama_client is None:
+            await self.init()
+        
+        # Strip "ollama/" prefix
+        clean_model = model.replace("ollama/", "")
+        
+        payload = {
+            "model": clean_model,
+            "messages": messages,
+            "stream": False,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens,
+            },
+        }
+        
+        start_time = time.perf_counter()
+        
+        try:
+            response = await self._ollama_client.post("/api/chat", json=payload)
+            response.raise_for_status()
+        except httpx.ConnectError:
+            logger.error("Failed to connect to Ollama at %s", self._ollama_url)
+            raise RuntimeError(f"Ollama not available at {self._ollama_url}")
+        
+        latency_ms = (time.perf_counter() - start_time) * 1000
+        data = response.json()
+        
+        # Extract response
+        message = data.get("message", {})
+        text = message.get("content", "")
+        prompt_eval_count = data.get("prompt_eval_count", 0)
+        eval_count = data.get("eval_count", 0)
+        
+        return ChatResponse(
+            text=text,
+            model=f"ollama/{clean_model}",
+            input_tokens=prompt_eval_count,
+            output_tokens=eval_count,
+            total_tokens=prompt_eval_count + eval_count,
+            finish_reason=data.get("done_reason", "stop"),
+            cost_usd=0.0,  # Local inference has no API cost
+            latency_ms=latency_ms,
+        )
 
     def _get_model_config(self, agent_type: str) -> ModelConfig:
         """Get model configuration for an agent type."""
@@ -380,6 +449,45 @@ class OpenRouterClient:
                 return cached_response
 
         try:
+            # Route to Ollama for local models
+            if actual_model.startswith("ollama/"):
+                ollama_response = await self._chat_ollama(
+                    messages=msg_dicts,
+                    model=actual_model,
+                    temperature=actual_temp,
+                    max_tokens=actual_max_tokens,
+                )
+                
+                # Update signal with response
+                signal.completed_at = datetime.now(UTC)
+                signal.response_text = ollama_response.text
+                signal.response_tokens = ollama_response.output_tokens
+                signal.finish_reason = ollama_response.finish_reason
+                signal.input_tokens = ollama_response.input_tokens
+                signal.output_tokens = ollama_response.output_tokens
+                signal.total_tokens = ollama_response.total_tokens
+                signal.cost_usd = 0.0
+                signal.latency_ms = ollama_response.latency_ms
+                signal.success = True
+                
+                await self._signal_logger.log_signal(signal)
+                
+                # Cache the response
+                if self._cache and cache_key_text:
+                    await self._cache.set(
+                        query_text=cache_key_text,
+                        response_text=ollama_response.text,
+                        agent_type=activity or agent_type,
+                        model=actual_model,
+                        temperature=actual_temp,
+                        input_tokens=ollama_response.input_tokens,
+                        output_tokens=ollama_response.output_tokens,
+                        cost_usd=0.0,
+                    )
+                
+                return ollama_response
+            
+            # Standard OpenRouter API call
             response = await self._client.post("/chat/completions", json=payload)
             response.raise_for_status()
             data = response.json()

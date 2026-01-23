@@ -34,6 +34,7 @@ def _ensure_providers_registered() -> None:
     from .google_provider import GoogleProvider
     from .grok_provider import GrokProvider
     from .huggingface_provider import HuggingFaceProvider
+    from .ollama_provider import OllamaProvider
     from .openai_provider import OpenAIProvider
     from .openrouter_provider import OpenRouterProvider
 
@@ -45,6 +46,7 @@ def _ensure_providers_registered() -> None:
         ProviderType.GOOGLE: GoogleProvider,
         ProviderType.GROK: GrokProvider,
         ProviderType.HUGGINGFACE: HuggingFaceProvider,
+        ProviderType.LOCAL: OllamaProvider,  # Ollama for local inference
     }
 
 

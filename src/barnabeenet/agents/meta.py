@@ -880,11 +880,13 @@ class MetaAgent(Agent):
         # Step 2: Intent Classification (with HA context for better device detection)
         intent_result = await self._classify_intent(text, context, context_eval, ha_context)
 
-        # Step 3: Memory Query Generation (for non-instant intents)
+        # Step 3: Memory Query Generation (for non-instant intents that need personal context)
         memory_queries = None
         if self._config.memory_query_generation_enabled:
             if intent_result.intent not in (IntentCategory.INSTANT, IntentCategory.GESTURE):
-                memory_queries = self._generate_memory_queries(text, intent_result.intent, context)
+                # Skip memory for simple factual queries that don't need personal context
+                if not self._is_simple_factual_query(text):
+                    memory_queries = self._generate_memory_queries(text, intent_result.intent, context)
 
         # Determine target agent and priority
         target_agent = INTENT_TO_AGENT.get(intent_result.intent, "interaction")
@@ -1273,6 +1275,43 @@ Respond with JSON: {"intent": "<category>", "confidence": 0.0-1.0, "sub_category
                 intent=IntentCategory.CONVERSATION,
                 confidence=0.5,
             )
+
+    def _is_simple_factual_query(self, text: str) -> bool:
+        """Check if query is a simple factual question that doesn't need personal memory.
+        
+        These are general knowledge questions where personal context isn't helpful:
+        - "Why is the sky blue?"
+        - "What is the capital of France?"
+        - "How does photosynthesis work?"
+        
+        We skip memory retrieval for these to improve response time.
+        """
+        text_lower = text.lower()
+        
+        # Patterns that indicate general knowledge questions (not personal)
+        factual_starters = [
+            "why is ", "why are ", "why do ", "why does ", "why did ",
+            "how does ", "how do ", "how is ", "how are ", "how did ",
+            "what is a ", "what is an ", "what is the ", "what are ",
+            "what causes ", "what makes ", "what happens ",
+            "when was ", "when did ", "when is ",
+            "where is ", "where are ", "where do ", "where did ",
+            "who invented ", "who discovered ", "who was ", "who is ",
+            "explain ", "describe ", "define ", "tell me about ",
+        ]
+        
+        # Check for factual question starters
+        if any(text_lower.startswith(starter) for starter in factual_starters):
+            # But exclude questions that might need personal context
+            personal_indicators = [
+                "my ", "our ", "i ", "we ", "me ", "us ",
+                "family", "kids", "children", "husband", "wife",
+                "remember", "last time", "before", "usually",
+            ]
+            if not any(indicator in text_lower for indicator in personal_indicators):
+                return True
+        
+        return False
 
     def _generate_memory_queries(
         self, text: str, intent: IntentCategory, context: dict
