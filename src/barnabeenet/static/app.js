@@ -284,9 +284,10 @@ function connectWebSocket() {
 
         ws.onopen = () => {
             statusEl.className = 'status-indicator connected';
+            const wasReconnect = wsReconnectAttempts > 0;
             wsReconnectAttempts = 0;
 
-            if (wsReconnectAttempts > 0) {
+            if (wasReconnect) {
                 showToast({
                     title: 'Connected',
                     message: 'Real-time updates restored',
@@ -294,6 +295,9 @@ function connectWebSocket() {
                     duration: 3000
                 });
             }
+
+            // Load recent activity history on connect/reconnect
+            loadActivityHistory();
 
             addActivityItem({
                 type: 'system',
@@ -436,11 +440,104 @@ function initActivityControls() {
 
     document.getElementById('clear-activity').addEventListener('click', () => {
         document.getElementById('activity-feed').innerHTML = '';
+        // Also clear localStorage cache
+        localStorage.removeItem('barnabeenet_activity_cache');
     });
 
     document.getElementById('auto-scroll').addEventListener('change', (e) => {
         autoScroll = e.target.checked;
     });
+
+    // Load cached activity from localStorage on init
+    loadCachedActivity();
+}
+
+// Load recent activity history from the backend on connect
+async function loadActivityHistory() {
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/activity/feed?limit=100`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (!data.activities || data.activities.length === 0) return;
+
+        const feed = document.getElementById('activity-feed');
+        const existingCount = feed.children.length;
+
+        // Only load history if feed is mostly empty (just system messages)
+        if (existingCount > 5) return;
+
+        // Add historical items (oldest first so newest end up at bottom)
+        const sortedActivities = [...data.activities].sort((a, b) => 
+            new Date(a.timestamp) - new Date(b.timestamp)
+        );
+
+        for (const activity of sortedActivities) {
+            addActivityItem({
+                type: activity.type || 'system',
+                message: activity.title || activity.message || '',
+                timestamp: activity.timestamp,
+                agent: activity.source,
+                latency: activity.duration_ms,
+                signal_id: activity.id
+            });
+        }
+
+        // Cache to localStorage
+        cacheActivityToStorage();
+
+    } catch (e) {
+        console.warn('Failed to load activity history:', e);
+    }
+}
+
+// Cache current activity feed to localStorage
+function cacheActivityToStorage() {
+    try {
+        const feed = document.getElementById('activity-feed');
+        const items = Array.from(feed.querySelectorAll('.activity-item')).slice(-100);
+        const cache = items.map(item => ({
+            type: item.dataset.type,
+            html: item.innerHTML,
+            timestamp: item.querySelector('.activity-time')?.textContent
+        }));
+        localStorage.setItem('barnabeenet_activity_cache', JSON.stringify(cache));
+    } catch (e) {
+        console.warn('Failed to cache activity:', e);
+    }
+}
+
+// Load cached activity from localStorage on page load
+function loadCachedActivity() {
+    try {
+        const cached = localStorage.getItem('barnabeenet_activity_cache');
+        if (!cached) return;
+
+        const items = JSON.parse(cached);
+        const feed = document.getElementById('activity-feed');
+
+        // Only restore if feed is empty
+        if (feed.children.length > 0) return;
+
+        for (const item of items) {
+            const el = document.createElement('div');
+            el.className = 'activity-item';
+            el.dataset.type = item.type || 'system';
+            el.innerHTML = item.html;
+            feed.appendChild(el);
+        }
+
+        // Add separator to show where history ends
+        if (items.length > 0) {
+            const separator = document.createElement('div');
+            separator.className = 'activity-separator';
+            separator.innerHTML = '— Previous session —';
+            feed.appendChild(separator);
+        }
+    } catch (e) {
+        console.warn('Failed to load cached activity:', e);
+        localStorage.removeItem('barnabeenet_activity_cache');
+    }
 }
 
 function addActivityItem(data) {
@@ -515,6 +612,19 @@ function addActivityItem(data) {
     if (autoScroll) {
         feed.scrollTop = feed.scrollHeight;
     }
+
+    // Throttled cache to localStorage (every 5 seconds max)
+    throttledCacheActivity();
+}
+
+// Throttle cache writes to every 5 seconds
+let cacheTimeout = null;
+function throttledCacheActivity() {
+    if (cacheTimeout) return;
+    cacheTimeout = setTimeout(() => {
+        cacheActivityToStorage();
+        cacheTimeout = null;
+    }, 5000);
 }
 
 function formatActivityType(type) {
