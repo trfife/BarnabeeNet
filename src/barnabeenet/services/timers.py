@@ -314,18 +314,23 @@ DEVICE_DURATION_PATTERNS = [
     r"(.+?)\s+on\s+for\s+(.+)",
 ]
 
-# Delayed action patterns
+# Delayed action patterns - ORDER MATTERS! More specific patterns first.
+# All patterns capture the FULL action text (e.g., "turn off the office light")
 DELAYED_ACTION_PATTERNS = [
-    # "in 3 minutes, turn off the fan"
-    r"in\s+(.+?)[,\s]+(?:then\s+)?(.+)",
+    # "in 60 seconds turn off the office light" - captures full action "turn off the office light"
+    r"in\s+(\d+\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?))\s+(turn\s+(?:off|on)\s+(?:the\s+)?.+)",
+    # "in 3 minutes, turn off the fan" - with comma separator
+    r"in\s+(\d+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))\s*,\s*(?:then\s+)?(.+)",
+    # "in 3 minutes turn off the fan" - without comma, action must start with turn/switch
+    r"in\s+(\d+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))\s+(?:then\s+)?((?:turn|switch).+)",
+    # "in five minutes turn off the fan" - word numbers
+    r"in\s+(\w+\s+(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))\s*,?\s*(?:then\s+)?(.+)",
     # "after 5 minutes turn off the lights"
-    r"after\s+(.+?)[,\s]+(?:then\s+)?(.+)",
+    r"after\s+(\d+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))\s*,?\s*(?:then\s+)?(.+)",
     # "wait 2 minutes and turn off the TV"
-    r"wait\s+(.+?)\s+(?:and|then)\s+(.+)",
-    # "turn off the fan in 3 minutes"
-    r"(.+?)\s+in\s+(\d+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))$",
-    # "in 60 seconds turn off the office light"
-    r"in\s+(\d+\s*(?:seconds?|secs?|minutes?|mins?))\s+turn\s+(?:off|on)\s+(?:the\s+)?(.+)",
+    r"wait\s+(\d+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))\s+(?:and|then)\s+(.+)",
+    # "turn off the fan in 3 minutes" - action comes first
+    r"((?:turn|switch)\s+(?:off|on)\s+(?:the\s+)?.+?)\s+in\s+(\d+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))$",
 ]
 
 # Timer query patterns
