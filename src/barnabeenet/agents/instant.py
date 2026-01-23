@@ -727,6 +727,11 @@ class InstantAgent(Agent):
         elif sub_category == "whos_home" or self._is_whos_home_query(text_lower):
             response = await self._handle_whos_home_query(text)
             response_type = "whos_home"
+        # Security status (locks, blinds) - check BEFORE device status
+        elif sub_category == "security" or self._is_security_query(text_lower)[0]:
+            _, query_type = self._is_security_query(text_lower)
+            response = await self._handle_security_query(query_type)
+            response_type = "security"
         # Device status queries
         elif (device_result := self._is_device_status_query(text_lower))[0]:
             _, device_name, _ = device_result
@@ -776,11 +781,6 @@ class InstantAgent(Agent):
             _, person_name = phone_battery_result
             response = await self._handle_phone_battery_query(person_name, speaker)
             response_type = "phone_battery"
-        # Security status (locks, blinds)
-        elif (security_result := self._is_security_query(text_lower))[0]:
-            _, query_type = security_result
-            response = await self._handle_security_query(query_type)
-            response_type = "security"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -1118,26 +1118,26 @@ class InstantAgent(Agent):
 
     def _is_security_query(self, text: str) -> tuple[bool, str]:
         """Check if user is asking about security status.
-        
+
         Returns (is_query, query_type).
         Query types: 'locks', 'blinds', 'doors', 'all'
         """
         text_lower = text.lower()
-        
+
         # Lock queries
         if any(kw in text_lower for kw in ["lock", "locked", "unlock"]):
             if "door" in text_lower or "front" in text_lower:
                 return True, "locks"
             return True, "locks"
-        
+
         # Blind/shade queries
         if any(kw in text_lower for kw in ["blind", "blinds", "shade", "shades", "curtain"]):
             return True, "blinds"
-        
+
         # General security query
         if "secure" in text_lower or "security" in text_lower:
             return True, "all"
-        
+
         return False, ""
 
     def _is_phone_battery_query(self, text: str) -> tuple[bool, str | None]:
@@ -1921,10 +1921,10 @@ class InstantAgent(Agent):
                     "cover.blind_parents_room_left", "cover.blind_parents_room_right",
                     "cover.blind_playroom_left",
                 ]
-                
+
                 open_blinds = []
                 closed_count = 0
-                
+
                 for entity_id in blind_entities:
                     state = await ha_client.get_state(entity_id)
                     if state:
@@ -1939,7 +1939,7 @@ class InstantAgent(Agent):
                     if len(open_blinds) == 1:
                         results.append(f"One blind is open: {open_blinds[0]}.")
                     else:
-                        results.append(f"{len(open_blinds)} blinds are open: {', '.join(open_blinds[:3])}" + 
+                        results.append(f"{len(open_blinds)} blinds are open: {', '.join(open_blinds[:3])}" +
                                      ("..." if len(open_blinds) > 3 else "."))
                 else:
                     results.append("All blinds are closed.")
