@@ -31,6 +31,8 @@ This document tracks all work done overnight and items that need your attention.
 | Encouragement | "give me a compliment" | Compliments, motivation, support |
 | Spelling | "spell dinosaur" | Letter by letter |
 | **Location** | "where is thom" | **NEW** - Instant HA person lookup |
+| **Who's Home** | "who's home" | **NEW** - Lists everyone at home |
+| **Device Status** | "is the light on" | **NEW** - Check any device state |
 
 ### Major Enhancements
 
@@ -141,7 +143,15 @@ i'm feeling down             # Supportive response
 where is thom             # "Thom Fife is at home."
 where's elizabeth         # "Elizabeth Fife is home."
 is xander home            # "Yes, Xander Fife is at home right now."
-where is penelope         # Uses HA person entities
+
+# NEW: Who's Home
+who's home                # "Everyone is home!" or lists names
+is anyone home            # "Yes, Thom, Elizabeth..." 
+is everyone home          # "Yes, everyone is home!"
+
+# NEW: Device Status
+is the office light on    # "The Office Switch Light is on."
+status of the thermostat  # Shows temperature and mode
 
 # Previous Features
 flip a coin
