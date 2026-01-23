@@ -134,19 +134,21 @@ class ProfileService:
         return profile
 
     async def get_profile(self, member_id: str) -> FamilyMemberProfile | None:
-        """Get a profile by member ID.
+        """Get a profile by member ID or first name.
 
         Args:
-            member_id: The member's unique identifier
+            member_id: The member's unique identifier OR first name (e.g., "thom")
 
         Returns:
             The profile or None if not found
         """
-        # Check in-memory cache first
+        member_id_lower = member_id.lower()
+
+        # Check in-memory cache first (exact match)
         if member_id in self._profiles:
             return self._profiles[member_id]
 
-        # Try Redis
+        # Try Redis (exact match)
         if self._redis:
             try:
                 data = await self._redis.get(f"{self.PROFILE_PREFIX}{member_id}")
@@ -158,6 +160,32 @@ class ProfileService:
                     return profile
             except Exception as e:
                 logger.warning(f"Could not get profile from Redis: {e}")
+
+        # Try fuzzy match by first name (e.g., "thom" -> "thom_fife")
+        # First check in-memory profiles
+        for profile_id, profile in self._profiles.items():
+            name_parts = profile.name.lower().split()
+            if name_parts and name_parts[0] == member_id_lower:
+                return profile
+
+        # Then check Redis for all profiles
+        if self._redis:
+            try:
+                keys = await self._redis.keys(f"{self.PROFILE_PREFIX}*")
+                for key in keys:
+                    if isinstance(key, bytes):
+                        key = key.decode()
+                    data = await self._redis.get(key)
+                    if data:
+                        if isinstance(data, bytes):
+                            data = data.decode()
+                        profile = FamilyMemberProfile.model_validate_json(data)
+                        name_parts = profile.name.lower().split()
+                        if name_parts and name_parts[0] == member_id_lower:
+                            self._profiles[profile.member_id] = profile
+                            return profile
+            except Exception as e:
+                logger.warning(f"Could not search profiles by first name: {e}")
 
         return None
 
