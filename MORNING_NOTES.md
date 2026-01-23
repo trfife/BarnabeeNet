@@ -30,6 +30,7 @@ This document tracks all work done overnight and items that need your attention.
 | Would you rather | "would you rather" | 30 kid-friendly scenarios |
 | Encouragement | "give me a compliment" | Compliments, motivation, support |
 | Spelling | "spell dinosaur" | Letter by letter |
+| **Location** | "where is thom" | **NEW** - Instant HA person lookup |
 
 ### Major Enhancements
 
@@ -135,6 +136,12 @@ give me a would you rather
 give me a compliment         # "You're doing amazing!"
 motivate me                  # Motivational quote
 i'm feeling down             # Supportive response
+
+# NEW: Location Queries
+where is thom             # "Thom Fife is at home."
+where's elizabeth         # "Elizabeth Fife is home."
+is xander home            # "Yes, Xander Fife is at home right now."
+where is penelope         # Uses HA person entities
 
 # Previous Features
 flip a coin
