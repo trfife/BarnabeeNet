@@ -288,6 +288,14 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^is \w+( \w+)? (on|off|open|closed|locked|unlocked)(\?)?$", "device_status"),
     (r"^(status of|check) the \w+( \w+)?(\?)?$", "device_status"),
     (r"^what('s| is) the \w+( \w+)? (set to|at|temperature)(\?)?$", "device_status"),
+    # Sun queries
+    (r"^when (is|does) (sunrise|sunset|dawn|dusk)(\?)?$", "sun"),
+    (r"^when does the sun (rise|set)(\?)?$", "sun"),
+    (r"^what time is (sunrise|sunset|dawn|dusk)(\?)?$", "sun"),
+    # Moon queries
+    (r"^(what('s| is) the |)moon phase(\?)?$", "moon"),
+    (r"^what phase is the moon( in)?(\?)?$", "moon"),
+    (r"^(moon|lunar) phase tonight(\?)?$", "moon"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),

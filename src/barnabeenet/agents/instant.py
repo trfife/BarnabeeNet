@@ -729,6 +729,15 @@ class InstantAgent(Agent):
             _, device_name, _ = device_result
             response = await self._handle_device_status_query(device_name)
             response_type = "device_status"
+        # Sun queries (sunrise/sunset)
+        elif (sun_result := self._is_sun_query(text_lower))[0]:
+            _, query_type = sun_result
+            response = await self._handle_sun_query(query_type)
+            response_type = "sun"
+        # Moon phase
+        elif sub_category == "moon" or self._is_moon_query(text_lower):
+            response = self._handle_moon_query()
+            response_type = "moon"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -998,6 +1007,26 @@ class InstantAgent(Agent):
                     return True, device_name.lower(), domain
 
         return False, None, None
+
+    def _is_sun_query(self, text: str) -> tuple[bool, str]:
+        """Check if user is asking about sunrise/sunset.
+
+        Returns (is_sun_query, query_type).
+        """
+        if any(kw in text for kw in ["sunrise", "sun rise", "when does the sun rise"]):
+            return True, "sunrise"
+        if any(kw in text for kw in ["sunset", "sun set", "when does the sun set"]):
+            return True, "sunset"
+        if "dawn" in text:
+            return True, "dawn"
+        if "dusk" in text:
+            return True, "dusk"
+        return False, ""
+
+    def _is_moon_query(self, text: str) -> bool:
+        """Check if user is asking about moon phase."""
+        keywords = ["moon phase", "phase of the moon", "what phase is the moon", "moon tonight"]
+        return any(kw in text for kw in keywords)
 
     # =========================================================================
     # Response Handlers
@@ -1572,6 +1601,108 @@ class InstantAgent(Agent):
         except Exception as e:
             logger.warning(f"Failed to get device status for {device_name}: {e}")
             return f"I had trouble checking the {device_name}."
+
+    async def _handle_sun_query(self, query_type: str) -> str:
+        """Get sunrise/sunset times from Home Assistant."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't check the sun times right now."
+
+            state = await ha_client.get_state("sun.sun")
+            if not state:
+                return "I couldn't get the sun information."
+
+            attrs = state.attributes
+
+            # Parse times and convert to local
+            from datetime import datetime
+            import pytz
+
+            # Assume Eastern timezone for now (could be made configurable)
+            local_tz = pytz.timezone("America/New_York")
+
+            def format_time(iso_str: str) -> str:
+                if not iso_str:
+                    return "unknown"
+                dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+                local_dt = dt.astimezone(local_tz)
+                return local_dt.strftime("%-I:%M %p")
+
+            if query_type == "sunrise":
+                time_str = format_time(attrs.get("next_rising", ""))
+                return f"Sunrise is at {time_str}."
+            elif query_type == "sunset":
+                time_str = format_time(attrs.get("next_setting", ""))
+                return f"Sunset is at {time_str}."
+            elif query_type == "dawn":
+                time_str = format_time(attrs.get("next_dawn", ""))
+                return f"Dawn is at {time_str}."
+            elif query_type == "dusk":
+                time_str = format_time(attrs.get("next_dusk", ""))
+                return f"Dusk is at {time_str}."
+            else:
+                return "I'm not sure what sun time you're asking about."
+
+        except Exception as e:
+            logger.warning(f"Failed to get sun info: {e}")
+            return "I had trouble checking the sun times."
+
+    def _handle_moon_query(self) -> str:
+        """Calculate current moon phase."""
+        from datetime import datetime
+        import math
+
+        # Simple moon phase calculation
+        # Based on a known new moon date
+        known_new_moon = datetime(2000, 1, 6, 18, 14)  # Known new moon
+        now = datetime.now()
+
+        # Synodic month (average days between new moons)
+        synodic_month = 29.530588853
+
+        # Days since known new moon
+        days_since = (now - known_new_moon).total_seconds() / 86400
+
+        # Current phase (0-1, where 0 = new moon, 0.5 = full moon)
+        phase = (days_since % synodic_month) / synodic_month
+
+        # Determine phase name
+        if phase < 0.0625:
+            phase_name = "New Moon"
+            emoji = "🌑"
+        elif phase < 0.1875:
+            phase_name = "Waxing Crescent"
+            emoji = "🌒"
+        elif phase < 0.3125:
+            phase_name = "First Quarter"
+            emoji = "🌓"
+        elif phase < 0.4375:
+            phase_name = "Waxing Gibbous"
+            emoji = "🌔"
+        elif phase < 0.5625:
+            phase_name = "Full Moon"
+            emoji = "🌕"
+        elif phase < 0.6875:
+            phase_name = "Waning Gibbous"
+            emoji = "🌖"
+        elif phase < 0.8125:
+            phase_name = "Last Quarter"
+            emoji = "🌗"
+        elif phase < 0.9375:
+            phase_name = "Waning Crescent"
+            emoji = "🌘"
+        else:
+            phase_name = "New Moon"
+            emoji = "🌑"
+
+        responses = [
+            f"The moon is currently a {phase_name}.",
+            f"Tonight's moon phase is {phase_name}.",
+            f"It's a {phase_name} tonight.",
+        ]
+        return random.choice(responses)
 
     def _is_clear_conversation(self, text: str) -> bool:
         """Check if user wants to clear/reset the conversation."""

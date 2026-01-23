@@ -146,7 +146,7 @@ is xander home            # "Yes, Xander Fife is at home right now."
 
 # NEW: Who's Home
 who's home                # "Everyone is home!" or lists names
-is anyone home            # "Yes, Thom, Elizabeth..." 
+is anyone home            # "Yes, Thom, Elizabeth..."
 is everyone home          # "Yes, everyone is home!"
 
 # NEW: Device Status
