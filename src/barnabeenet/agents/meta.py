@@ -327,6 +327,12 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(any|do i have any) (appointments?|events?|plans?) (today|tomorrow|this week)?(\?)?$", "calendar"),
     (r"^what('s| is) (happening|scheduled)( today| tomorrow| this week)?(\?)?$", "calendar"),
     (r"^(when is|what is) (the |my )?next (event|appointment)(\?)?$", "calendar"),
+    # Security queries (locks, blinds)
+    (r"^(is |are )(the )?(front )?(door|doors) (locked|unlocked)(\?)?$", "security"),
+    (r"^(is |are )(the |any )?(blind|blinds|shade|shades) (open|closed)(\?)?$", "security"),
+    (r"^(are all|check) (the )?(doors|locks|blinds)(\?)?$", "security"),
+    (r"^(lock|unlock) (status|check)(\?)?$", "security"),
+    (r"^(security|secure) (status|check)(\?)?$", "security"),
     # Phone battery queries
     (r"^(is |what('s| is) )(\w+('s)? )?phone (battery|charged|charge)(\?)?$", "phone_battery"),
     (r"^(how much |what('s| is) (the |my |))(battery|charge) (on |in )?(my |\w+'s )?phone(\?)?$", "phone_battery"),

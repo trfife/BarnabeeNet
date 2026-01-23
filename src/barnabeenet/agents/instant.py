@@ -776,6 +776,11 @@ class InstantAgent(Agent):
             _, person_name = phone_battery_result
             response = await self._handle_phone_battery_query(person_name, speaker)
             response_type = "phone_battery"
+        # Security status (locks, blinds)
+        elif (security_result := self._is_security_query(text_lower))[0]:
+            _, query_type = security_result
+            response = await self._handle_security_query(query_type)
+            response_type = "security"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -1110,6 +1115,30 @@ class InstantAgent(Agent):
         # Context words that indicate this is an energy query
         context_words = ["usage", "consumption", "using", "used", "much", "today", "month", "how"]
         return any(kw in text for kw in context_words) or "solar" in text
+
+    def _is_security_query(self, text: str) -> tuple[bool, str]:
+        """Check if user is asking about security status.
+        
+        Returns (is_query, query_type).
+        Query types: 'locks', 'blinds', 'doors', 'all'
+        """
+        text_lower = text.lower()
+        
+        # Lock queries
+        if any(kw in text_lower for kw in ["lock", "locked", "unlock"]):
+            if "door" in text_lower or "front" in text_lower:
+                return True, "locks"
+            return True, "locks"
+        
+        # Blind/shade queries
+        if any(kw in text_lower for kw in ["blind", "blinds", "shade", "shades", "curtain"]):
+            return True, "blinds"
+        
+        # General security query
+        if "secure" in text_lower or "security" in text_lower:
+            return True, "all"
+        
+        return False, ""
 
     def _is_phone_battery_query(self, text: str) -> tuple[bool, str | None]:
         """Check if user is asking about phone battery.
@@ -1860,6 +1889,69 @@ class InstantAgent(Agent):
         except Exception as e:
             logger.warning(f"Failed to get weather: {e}")
             return "I had trouble checking the weather."
+
+    async def _handle_security_query(self, query_type: str) -> str:
+        """Get security status from Home Assistant."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't check security status right now."
+
+            results = []
+
+            if query_type in ["locks", "all"]:
+                # Check lock status
+                lock_state = await ha_client.get_state("lock.home_connect_620_connected_smart_lock")
+                if lock_state:
+                    if lock_state.state == "locked":
+                        results.append("The front door is locked.")
+                    else:
+                        results.append("The front door is UNLOCKED!")
+
+            if query_type in ["blinds", "all"]:
+                # Check blind status
+                blind_entities = [
+                    "cover.blind_boys_room_left", "cover.blind_boys_room_right",
+                    "cover.blind_dining_room_left", "cover.blind_dining_room_right",
+                    "cover.blind_girls_room_left", "cover.blind_girls_room_right",
+                    "cover.blind_living_room_left", "cover.blind_living_room_right",
+                    "cover.blind_office",
+                    "cover.blind_parents_room_left", "cover.blind_parents_room_right",
+                    "cover.blind_playroom_left",
+                ]
+                
+                open_blinds = []
+                closed_count = 0
+                
+                for entity_id in blind_entities:
+                    state = await ha_client.get_state(entity_id)
+                    if state:
+                        # Extract room name from entity_id
+                        name = entity_id.replace("cover.blind_", "").replace("_", " ").title()
+                        if state.state == "open":
+                            open_blinds.append(name)
+                        else:
+                            closed_count += 1
+
+                if open_blinds:
+                    if len(open_blinds) == 1:
+                        results.append(f"One blind is open: {open_blinds[0]}.")
+                    else:
+                        results.append(f"{len(open_blinds)} blinds are open: {', '.join(open_blinds[:3])}" + 
+                                     ("..." if len(open_blinds) > 3 else "."))
+                else:
+                    results.append("All blinds are closed.")
+
+            if not results:
+                return "I couldn't check the security status."
+
+            return " ".join(results)
+
+        except Exception as e:
+            logger.warning(f"Failed to get security status: {e}")
+            return "I had trouble checking security status."
 
     async def _handle_phone_battery_query(self, person_name: str | None, speaker: str | None) -> str:
         """Get phone battery information from Home Assistant."""
