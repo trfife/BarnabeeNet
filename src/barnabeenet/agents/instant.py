@@ -791,6 +791,11 @@ class InstantAgent(Agent):
             _, action, content = note_result
             response = await self._handle_quick_note(action, content, speaker)
             response_type = "quick_note"
+        # Chore/Star tracking
+        elif (chore_result := self._is_chore_query(text_lower))[0]:
+            _, action, person, chore = chore_result
+            response = await self._handle_chore_query(action, person, chore, speaker)
+            response_type = "chore"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -1280,6 +1285,53 @@ class InstantAgent(Agent):
                 return True, "search", match.group(1).strip()
 
         return False, "", None
+
+    def _is_chore_query(self, text: str) -> tuple[bool, str, str | None, str | None]:
+        """Check if user is asking about chores or stars.
+
+        Returns (is_chore_query, action_type, person_name, chore_name).
+        Action types: 'complete', 'star', 'check_stars', 'check_chores', 'whose_turn'
+        """
+        text = text.lower()
+
+        # Family member names to detect
+        family_names = ["thom", "elizabeth", "penelope", "xander", "viola", "zachary"]
+
+        # Find which person is mentioned
+        person = None
+        for name in family_names:
+            if name in text:
+                person = name
+                break
+
+        # Award star: "give Xander a star", "star for Penelope"
+        if any(kw in text for kw in ["give", "award", "add"]) and "star" in text:
+            return True, "star", person, None
+
+        # Check stars: "how many stars does Xander have", "Penelope's stars"
+        if "star" in text and any(kw in text for kw in ["how many", "check", "'s star", "has", "have", "count"]):
+            return True, "check_stars", person, None
+
+        # Complete chore: "Xander finished homework", "Penelope did the dishes"
+        chore_keywords = ["homework", "dishes", "room", "bed", "trash", "laundry", "chore", "clean"]
+        chore_name = None
+        for chore in chore_keywords:
+            if chore in text:
+                chore_name = chore
+                break
+
+        if chore_name and any(kw in text for kw in ["finished", "did", "completed", "done with"]):
+            return True, "complete", person, chore_name
+
+        # Whose turn: "whose turn to do dishes", "who should do the trash"
+        if any(kw in text for kw in ["whose turn", "who should", "who's turn", "who has to"]):
+            return True, "whose_turn", None, chore_name
+
+        # Check chores: "what chores are left", "chores today"
+        if "chore" in text and any(kw in text for kw in ["left", "today", "what", "list", "remaining"]):
+            return True, "check_chores", person, None
+
+        return False, "", None, None
 
     # =========================================================================
     # Response Handlers
@@ -2579,6 +2631,128 @@ class InstantAgent(Agent):
             return f"Found a note: {notes[0].content}"
 
         return "I'm not sure what you want to do with your notes."
+
+    async def _handle_chore_query(
+        self, action: str, person: str | None, chore: str | None, speaker: str | None
+    ) -> str:
+        """Handle chore and star tracking queries."""
+        from barnabeenet.main import app_state
+
+        memory_storage = getattr(app_state, "memory_storage", None)
+        if not memory_storage:
+            return "Sorry, I can't access the memory system right now."
+
+        now = datetime.now()
+        today = now.strftime("%A, %B %d")
+        week_start = (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
+
+        if action == "star":
+            # Award a star to someone
+            if not person:
+                person = speaker  # Default to speaker if no person specified
+
+            if not person:
+                return "Who should I give a star to?"
+
+            person_title = person.title()
+            content = f"Star awarded to {person_title} on {today}."
+
+            await memory_storage.store_memory(
+                content=content,
+                memory_type="episodic",
+                importance=0.7,
+                participants=[person],
+                tags=["star", "reward", "chore_system", f"week_{week_start}"],
+            )
+
+            # Count their stars this week
+            results = await memory_storage.search_memories(
+                query=f"star awarded to {person}",
+                memory_type="episodic",
+                max_results=50,
+                min_score=0.3,
+            )
+            stars_this_week = sum(
+                1 for mem, _ in results
+                if "star" in mem.tags and f"week_{week_start}" in mem.tags and person.lower() in mem.content.lower()
+            )
+
+            responses = [
+                f"Star awarded to {person_title}! That's {stars_this_week} star{'s' if stars_this_week != 1 else ''} this week!",
+                f"Great job {person_title}! You now have {stars_this_week} star{'s' if stars_this_week != 1 else ''} this week.",
+                f"One star for {person_title}! Total this week: {stars_this_week}.",
+            ]
+            return random.choice(responses)
+
+        elif action == "check_stars":
+            # Check how many stars someone has
+            if not person:
+                person = speaker
+
+            if not person:
+                return "Whose stars should I check?"
+
+            person_title = person.title()
+
+            results = await memory_storage.search_memories(
+                query=f"star awarded to {person}",
+                memory_type="episodic",
+                max_results=50,
+                min_score=0.3,
+            )
+            stars_this_week = sum(
+                1 for mem, _ in results
+                if "star" in mem.tags and f"week_{week_start}" in mem.tags and person.lower() in mem.content.lower()
+            )
+
+            if stars_this_week == 0:
+                return f"{person_title} doesn't have any stars this week yet. Time to earn some!"
+            else:
+                return f"{person_title} has {stars_this_week} star{'s' if stars_this_week != 1 else ''} this week!"
+
+        elif action == "complete":
+            # Log a completed chore
+            if not person:
+                person = speaker
+
+            if not person:
+                return "Who completed the chore?"
+
+            person_title = person.title()
+            chore_name = chore.title() if chore else "a chore"
+            content = f"{person_title} completed {chore_name} on {today}."
+
+            await memory_storage.store_memory(
+                content=content,
+                memory_type="episodic",
+                importance=0.6,
+                participants=[person],
+                tags=["chore_completed", chore or "chore", "chore_system"],
+            )
+
+            responses = [
+                f"Nice job {person_title}! I've logged that you finished {chore_name}.",
+                f"Great work! {person_title} completed {chore_name}.",
+                f"Awesome! {chore_name.title()} done by {person_title}.",
+            ]
+            return random.choice(responses)
+
+        elif action == "whose_turn":
+            # Randomly pick someone for a chore (fair rotation)
+            kids = ["Penelope", "Xander", "Viola", "Zachary"]
+            chosen = random.choice(kids)
+
+            if chore:
+                return f"It's {chosen}'s turn to do the {chore}!"
+            else:
+                return f"Let's have {chosen} do it!"
+
+        elif action == "check_chores":
+            # List common household chores
+            chores = ["homework", "dishes", "clean room", "take out trash", "laundry"]
+            return f"Common chores to track: {', '.join(chores)}. Ask who should do one, or log when someone finishes!"
+
+        return "I'm not sure what you want to do with chores."
 
     def _is_clear_conversation(self, text: str) -> bool:
         """Check if user wants to clear/reset the conversation."""

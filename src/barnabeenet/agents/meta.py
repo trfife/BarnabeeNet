@@ -361,6 +361,15 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(make a|save (a |))note[:\s]+.+$", "quick_note"),
     (r"^(what are|show|list|read) (my )?notes(\?)?$", "quick_note"),
     (r"^(my |)notes( about .+)?(\?)?$", "quick_note"),
+    # Chore/Star tracking
+    (r"^(give|award|add) (\w+ )?(a )?star( to \w+)?(\?)?$", "chore"),
+    (r"^how many stars (does |do )?\w+ have(\?)?$", "chore"),
+    (r"^(\w+('s|s) )?stars?(\?)?$", "chore"),
+    (r"^check (\w+('s|s) )?stars?(\?)?$", "chore"),
+    (r"^\w+ (finished|did|completed|done with) (the |)(homework|dishes|chore|room|trash|laundry)(\?)?$", "chore"),
+    (r"^(whose|who'?s) turn (to |for )(do |)(the )?(dishes|trash|chores?|laundry)(\?)?$", "chore"),
+    (r"^who should (do|take out) (the )?(dishes|trash|chores?|laundry)(\?)?$", "chore"),
+    (r"^(what |)chores? (are |)(left|today|remaining)(\?)?$", "chore"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
