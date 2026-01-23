@@ -1028,11 +1028,15 @@ class MetaAgent(Agent):
         - Which patterns almost matched (near misses)
         - Why patterns failed to match
         """
+        # Normalize text: strip trailing punctuation that STT often adds
+        # This fixes issues where "tell me a joke." doesn't match "tell me a joke"
+        normalized_text = text.rstrip(".!,;:")
+        
         # Run diagnostics if available
         diag = None
         if self._diagnostics_service:
             diag = self._diagnostics_service.diagnose_pattern_match(
-                text=text,
+                text=normalized_text,
                 compiled_patterns=self._compiled_patterns,
                 pattern_priority=self.PATTERN_PRIORITY,
             )
@@ -1044,7 +1048,7 @@ class MetaAgent(Agent):
         for pattern_group, intent, confidence in self.PATTERN_PRIORITY:
             patterns = self._compiled_patterns.get(pattern_group, [])
             for pattern, sub_category in patterns:
-                if pattern.match(text):
+                if pattern.match(normalized_text):
                     result = ClassificationResult(
                         intent=intent,
                         confidence=confidence,

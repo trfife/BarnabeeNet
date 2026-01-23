@@ -584,6 +584,8 @@ class InstantAgent(Agent):
         start_time = time.perf_counter()
         context = context or {}
         text = text.strip()
+        # Strip trailing punctuation that STT often adds (e.g., "tell me a joke." -> "tell me a joke")
+        text = text.rstrip(".!,;:")
         text_lower = text.lower()
 
         # Get sub_category hint from MetaAgent if available
