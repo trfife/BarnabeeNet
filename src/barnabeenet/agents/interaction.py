@@ -148,9 +148,38 @@ SUPER_USER_PATTERNS = [
     r"full\s+(?:history|log|access)",
 ]
 
+# Patterns for cross-device conversation handoff
+CROSS_DEVICE_PATTERNS = [
+    r"continue\s+(?:the\s+)?conversation\s+(?:I\s+was\s+having\s+)?(?:on|from)\s+(?:my\s+)?(\w+)",
+    r"pick\s+up\s+(?:where\s+I\s+left\s+off\s+)?(?:on|from)\s+(?:my\s+)?(\w+)",
+    r"what\s+(?:was\s+I|were\s+we)\s+(?:talking|discussing)\s+about\s+(?:on|in)\s+(?:the\s+)?(\w+)",
+    r"resume\s+(?:my\s+)?(?:conversation\s+)?(?:from\s+)?(?:the\s+)?(\w+)",
+]
+
+# Patterns for forgetting memories
+FORGET_PATTERNS = [
+    r"forget\s+that",
+    r"forget\s+(?:about\s+)?(?:the\s+)?(?:last\s+)?(?:conversation|memory)",
+    r"delete\s+(?:that|this)\s+(?:conversation|memory)",
+    r"don'?t\s+remember\s+that",
+    r"erase\s+(?:that|this)",
+]
+
+# Pattern for forgetting specific topics
+FORGET_TOPIC_PATTERN = re.compile(
+    r"forget\s+(?:about\s+)?(?:the\s+)?(.+?)\s+conversation",
+    re.IGNORECASE
+)
+
 import re
 SUPER_USER_PATTERNS_COMPILED = [
     re.compile(pattern, re.IGNORECASE) for pattern in SUPER_USER_PATTERNS
+]
+CROSS_DEVICE_PATTERNS_COMPILED = [
+    re.compile(pattern, re.IGNORECASE) for pattern in CROSS_DEVICE_PATTERNS
+]
+FORGET_PATTERNS_COMPILED = [
+    re.compile(pattern, re.IGNORECASE) for pattern in FORGET_PATTERNS
 ]
 
 
@@ -399,6 +428,21 @@ class InteractionAgent(Agent):
             super_result = await self._handle_super_user_recall(text, conv_ctx)
             if super_result:
                 return super_result
+
+        # Check for cross-device conversation handoff
+        cross_device_result = await self._handle_cross_device_handoff(text, conv_ctx)
+        if cross_device_result:
+            return cross_device_result
+
+        # Check for forget/delete memory commands
+        forget_result = await self._handle_forget_command(text, conv_ctx)
+        if forget_result:
+            return forget_result
+
+        # Check for "tell me more" to expand recall results
+        expand_result = await self._handle_expand_recall(text, conv_ctx)
+        if expand_result:
+            return expand_result
 
         # Check for conversation recall requests or selection
         if self._context_manager:
@@ -1322,6 +1366,11 @@ class InteractionAgent(Agent):
                     )
 
                 response = f"Found {len(alerts)} alerts. Most recent:\n" + "\n".join(alert_summaries)
+                response += "\n\nSay 'tell me more' for full details."
+
+                # Store for expansion
+                conv_ctx.last_recall_results = alerts
+                conv_ctx.last_recall_ids = [a.entry_id for a in alerts]
 
                 return {
                     "response": response,
@@ -1433,6 +1482,296 @@ class InteractionAgent(Agent):
                 "used_llm": False,
                 "latency_ms": 0,
             }
+
+    async def _handle_cross_device_handoff(
+        self,
+        text: str,
+        conv_ctx: ConversationContext,
+    ) -> dict[str, Any] | None:
+        """Handle cross-device conversation handoff.
+
+        Allows users to say "continue the conversation from my phone" to
+        load a conversation from another device into the current context.
+        """
+        # Check if this is a cross-device request
+        device_name = None
+        for pattern in CROSS_DEVICE_PATTERNS_COMPILED:
+            match = pattern.search(text)
+            if match:
+                device_name = match.group(1).lower()
+                break
+
+        if not device_name:
+            return None
+
+        try:
+            from barnabeenet.services.audit.log import get_audit_log
+
+            audit_log = get_audit_log()
+
+            # Map common device names to room identifiers
+            device_mappings = {
+                "phone": ["phone", "mobile"],
+                "kitchen": ["kitchen", "lenovo"],
+                "office": ["office"],
+                "bedroom": ["bedroom"],
+                "living": ["living", "livingroom", "living_room"],
+                "dashboard": ["dashboard", "web"],
+            }
+
+            # Find matching rooms
+            search_rooms = device_mappings.get(device_name, [device_name])
+
+            # Search for recent conversations from that device
+            results = []
+            for room in search_rooms:
+                room_results = await audit_log.search(
+                    room=room,
+                    include_deleted=False,
+                    limit=10,
+                )
+                results.extend(room_results)
+
+            if not results:
+                return {
+                    "response": f"I couldn't find any recent conversations from {device_name}. "
+                               "Try being more specific about which device.",
+                    "agent": self.name,
+                    "conversation_id": conv_ctx.conversation_id,
+                    "speaker": conv_ctx.speaker,
+                    "turn_count": len(conv_ctx.history),
+                    "used_llm": False,
+                    "latency_ms": 0,
+                }
+
+            # Sort by timestamp and get the most recent conversation
+            results.sort(key=lambda e: e.timestamp, reverse=True)
+
+            # Group by conversation_id to find distinct conversations
+            conversations: dict[str, list] = {}
+            for entry in results:
+                if entry.conversation_id not in conversations:
+                    conversations[entry.conversation_id] = []
+                conversations[entry.conversation_id].append(entry)
+
+            if len(conversations) == 1:
+                # Only one conversation, load it directly
+                conv_id = list(conversations.keys())[0]
+                entries = conversations[conv_id]
+
+                # Load conversation into current context
+                for entry in sorted(entries, key=lambda e: e.timestamp):
+                    conv_ctx.history.append(ConversationTurn(
+                        role="user",
+                        content=entry.user_text,
+                        speaker=entry.speaker,
+                    ))
+                    if entry.assistant_response:
+                        conv_ctx.history.append(ConversationTurn(
+                            role="assistant",
+                            content=entry.assistant_response,
+                        ))
+
+                return {
+                    "response": f"I've loaded your conversation from {device_name}. "
+                               f"We were discussing: {entries[0].user_text[:50]}... "
+                               "Go ahead and continue!",
+                    "agent": self.name,
+                    "conversation_id": conv_ctx.conversation_id,
+                    "speaker": conv_ctx.speaker,
+                    "turn_count": len(conv_ctx.history),
+                    "used_llm": False,
+                    "latency_ms": 0,
+                    "handoff_from": device_name,
+                }
+
+            # Multiple conversations - present options
+            options = []
+            conv_list = list(conversations.items())[:3]  # Max 3 for voice
+            for i, (conv_id, entries) in enumerate(conv_list, 1):
+                first_entry = min(entries, key=lambda e: e.timestamp)
+                options.append(f"{i}. \"{first_entry.user_text[:40]}...\"")
+
+            # Store candidates for selection
+            conv_ctx.handoff_candidates = conv_list
+
+            return {
+                "response": f"I found {len(conversations)} conversations from {device_name}. "
+                           f"Which one?\n" + "\n".join(options),
+                "agent": self.name,
+                "conversation_id": conv_ctx.conversation_id,
+                "speaker": conv_ctx.speaker,
+                "turn_count": len(conv_ctx.history),
+                "used_llm": False,
+                "latency_ms": 0,
+            }
+
+        except Exception as e:
+            logger.error(f"Cross-device handoff failed: {e}")
+            return None
+
+    async def _handle_forget_command(
+        self,
+        text: str,
+        conv_ctx: ConversationContext,
+    ) -> dict[str, Any] | None:
+        """Handle forget/delete memory commands.
+
+        Supports:
+        - "forget that" - marks the last recalled memory as deleted
+        - "forget about the [topic] conversation" - searches and deletes matching
+        """
+        text_lower = text.lower()
+
+        # Check for simple forget patterns
+        is_forget = any(p.search(text_lower) for p in FORGET_PATTERNS_COMPILED)
+
+        # Check for topic-specific forget
+        topic_match = FORGET_TOPIC_PATTERN.search(text)
+
+        if not is_forget and not topic_match:
+            return None
+
+        try:
+            from barnabeenet.services.audit.log import get_audit_log
+
+            audit_log = get_audit_log()
+
+            if topic_match:
+                # Forget specific topic
+                topic = topic_match.group(1).strip()
+
+                # Search for conversations about this topic
+                results = await audit_log.search(
+                    query=topic,
+                    include_deleted=False,
+                    limit=5,
+                )
+
+                if not results:
+                    return {
+                        "response": f"I couldn't find any conversations about '{topic}' to forget.",
+                        "agent": self.name,
+                        "conversation_id": conv_ctx.conversation_id,
+                        "speaker": conv_ctx.speaker,
+                        "turn_count": len(conv_ctx.history),
+                        "used_llm": False,
+                        "latency_ms": 0,
+                    }
+
+                # Mark all matching as deleted
+                deleted_count = 0
+                for entry in results:
+                    if await audit_log.mark_as_deleted(entry.entry_id):
+                        deleted_count += 1
+
+                return {
+                    "response": f"Done! I've forgotten {deleted_count} conversation(s) about '{topic}'.",
+                    "agent": self.name,
+                    "conversation_id": conv_ctx.conversation_id,
+                    "speaker": conv_ctx.speaker,
+                    "turn_count": len(conv_ctx.history),
+                    "used_llm": False,
+                    "latency_ms": 0,
+                    "deleted_count": deleted_count,
+                }
+
+            # Simple "forget that" - forget the last recalled or mentioned memory
+            if hasattr(conv_ctx, "last_recall_ids") and conv_ctx.last_recall_ids:
+                deleted_count = 0
+                for entry_id in conv_ctx.last_recall_ids:
+                    if await audit_log.mark_as_deleted(entry_id):
+                        deleted_count += 1
+
+                conv_ctx.last_recall_ids = []
+
+                return {
+                    "response": "Done! I've forgotten that conversation.",
+                    "agent": self.name,
+                    "conversation_id": conv_ctx.conversation_id,
+                    "speaker": conv_ctx.speaker,
+                    "turn_count": len(conv_ctx.history),
+                    "used_llm": False,
+                    "latency_ms": 0,
+                }
+
+            # No specific target - forget the last few turns of current conversation
+            return {
+                "response": "What would you like me to forget? You can say 'forget about the [topic] conversation' "
+                           "to forget specific conversations.",
+                "agent": self.name,
+                "conversation_id": conv_ctx.conversation_id,
+                "speaker": conv_ctx.speaker,
+                "turn_count": len(conv_ctx.history),
+                "used_llm": False,
+                "latency_ms": 0,
+            }
+
+        except Exception as e:
+            logger.error(f"Forget command failed: {e}")
+            return None
+
+    async def _handle_expand_recall(
+        self,
+        text: str,
+        conv_ctx: ConversationContext,
+    ) -> dict[str, Any] | None:
+        """Handle 'tell me more' to expand recall results.
+
+        When recall returns brief summaries, users can say 'tell me more'
+        or 'more details' to get the full conversation.
+        """
+        text_lower = text.lower().strip()
+
+        expand_phrases = [
+            "tell me more",
+            "more details",
+            "expand",
+            "full conversation",
+            "what else",
+            "go on",
+        ]
+
+        if not any(phrase in text_lower for phrase in expand_phrases):
+            return None
+
+        # Check if we have expandable results
+        if not hasattr(conv_ctx, "last_recall_results") or not conv_ctx.last_recall_results:
+            return None
+
+        try:
+            from barnabeenet.services.audit.log import get_audit_log
+
+            audit_log = get_audit_log()
+
+            # Get full details of the last recall results
+            details = []
+            for entry in conv_ctx.last_recall_results[:3]:  # Limit to 3 for voice
+                time_str = entry.timestamp.strftime("%B %d at %I:%M %p")
+                details.append(
+                    f"**{entry.speaker or 'Someone'}** ({time_str}):\n"
+                    f"  Asked: \"{entry.user_text}\"\n"
+                    f"  Response: \"{entry.assistant_response[:150]}...\""
+                )
+
+            response = "Here are the full details:\n\n" + "\n\n".join(details)
+
+            # Clear the expandable results
+            conv_ctx.last_recall_results = []
+
+            return {
+                "response": response,
+                "agent": self.name,
+                "conversation_id": conv_ctx.conversation_id,
+                "speaker": conv_ctx.speaker,
+                "turn_count": len(conv_ctx.history),
+                "used_llm": False,
+                "latency_ms": 0,
+            }
+
+        except Exception as e:
+            logger.error(f"Expand recall failed: {e}")
+            return None
 
 
 __all__ = [
