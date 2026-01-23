@@ -1,0 +1,263 @@
+# BarnabeeNet LLM Configuration
+# Based on SkyrimNet's multi-model agent pattern
+#
+# Each agent type uses a different model optimized for its task:
+# - meta: High-frequency routing decisions (fast, cheap)
+# - instant: Simple pattern-matched responses (fast, cheap)
+# - action: Device control decisions (medium quality)
+# - interaction: Complex conversations (high quality)
+# - memory: Summarization for memory generation (good quality)
+
+# OpenRouter API settings
+openrouter:
+  # API key is loaded from environment: LLM_OPENROUTER_API_KEY
+  site_url: "https://barnabeenet.local"
+  site_name: "BarnabeeNet"
+
+# Agent model configurations
+agents:
+  # Meta Agent: Routes requests to appropriate agent
+  # Runs on EVERY request, so use fast/cheap model
+  # PRODUCTION: Using Gemini Flash for fastest response time
+  meta:
+    model: "google/gemini-2.0-flash-001"
+    temperature: 0.2
+    max_tokens: 200
+    description: "Fast routing decisions for every request"
+
+  # Instant Agent: Quick pattern-matched responses
+  # Weather, time, simple status queries
+  # PRODUCTION: Gemini Flash for sub-100ms responses
+  instant:
+    model: "google/gemini-2.0-flash-001"
+    temperature: 0.3
+    max_tokens: 300
+    description: "Fast responses for simple queries"
+
+  # Action Agent: Device control decisions
+  # Needs good judgment but not creative writing
+  # PRODUCTION: GPT-4o-mini for reliable device control
+  action:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.2
+    max_tokens: 500
+    description: "Device control and home automation"
+
+  # Interaction Agent: Complex conversations
+  # Quality matters here - this is the "personality"
+  # PRODUCTION: Claude 3.5 Haiku - faster than Sonnet with good quality
+  # Haiku: 0.36s TTFT vs Sonnet: 0.64s TTFT (40% faster)
+  interaction:
+    model: "anthropic/claude-3.5-haiku"
+    temperature: 0.7
+    max_tokens: 1500
+    description: "Complex conversations, advice, personality"
+
+  # Memory Agent: Summarization for memory storage
+  # Good at compression and extraction
+  # PRODUCTION: GPT-4o-mini for reliable summarization
+  memory:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.3
+    max_tokens: 800
+    description: "Memory generation and summarization"
+
+# =============================================================================
+# Activity-Level Configuration (NEW - granular control)
+# =============================================================================
+# Each agent performs multiple LLM activities. You can configure each
+# activity independently for optimal speed/cost/quality tradeoffs.
+#
+# Priority values: speed, cost, quality, accuracy, balanced
+# Provider override: Force a specific provider (openrouter, openai, anthropic, etc.)
+
+activities:
+  # ---------------------------------------------------------------------------
+  # MetaAgent Activities (run on EVERY request - optimize for speed)
+  # PRODUCTION: Using Gemini Flash for lowest latency
+  # ---------------------------------------------------------------------------
+  meta.classify_intent:
+    model: "google/gemini-2.0-flash-001"
+    temperature: 0.2
+    max_tokens: 150
+    priority: speed
+    description: "Intent classification (every request)"
+
+  meta.evaluate_context:
+    model: "google/gemini-2.0-flash-001"
+    temperature: 0.3
+    max_tokens: 100
+    priority: speed
+    description: "Context and mood evaluation"
+
+  meta.generate_queries:
+    model: "google/gemini-2.0-flash-001"
+    temperature: 0.4
+    max_tokens: 200
+    priority: speed
+    description: "Generate memory search queries"
+
+  # ---------------------------------------------------------------------------
+  # ActionAgent Activities (accuracy matters for device control)
+  # ---------------------------------------------------------------------------
+  action.parse_intent:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.2
+    max_tokens: 300
+    priority: accuracy
+    description: "Parse device control intent"
+
+  action.resolve_entities:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.1
+    max_tokens: 200
+    priority: accuracy
+    description: "Resolve entity names to HA IDs"
+
+  action.generate_confirm:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.5
+    max_tokens: 100
+    priority: speed
+    description: "Generate action confirmations"
+
+  action.generate_error:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.5
+    max_tokens: 150
+    priority: speed
+    description: "Generate helpful error messages"
+
+  # ---------------------------------------------------------------------------
+  # InteractionAgent Activities (Balance QUALITY + SPEED for voice assistant)
+  # Using Claude 3.5 Haiku for 40% faster TTFT while maintaining good quality
+  # ---------------------------------------------------------------------------
+  interaction.respond:
+    model: "anthropic/claude-3.5-haiku"
+    temperature: 0.7
+    max_tokens: 1500
+    priority: balanced
+    description: "Main conversational responses"
+
+  interaction.followup:
+    model: "anthropic/claude-3.5-haiku"
+    temperature: 0.7
+    max_tokens: 1000
+    priority: balanced
+    description: "Follow-up in conversation"
+
+  interaction.empathy:
+    model: "anthropic/claude-3.5-haiku"
+    temperature: 0.8
+    max_tokens: 800
+    priority: quality
+    description: "Empathetic/emotional responses"
+
+  interaction.factual:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.3
+    max_tokens: 1000
+    priority: accuracy
+    description: "Factual question answering"
+
+  # ---------------------------------------------------------------------------
+  # MemoryAgent Activities (good summarization needed)
+  # ---------------------------------------------------------------------------
+  memory.generate:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.3
+    max_tokens: 500
+    priority: quality
+    description: "Generate memories from events"
+
+  memory.extract_facts:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.2
+    max_tokens: 400
+    priority: accuracy
+    description: "Extract facts from conversation"
+
+  memory.summarize:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.3
+    max_tokens: 300
+    priority: quality
+    description: "Summarize for memory storage"
+
+  memory.rank:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.2
+    max_tokens: 100
+    priority: speed
+    description: "Rank memory relevance"
+
+  # ---------------------------------------------------------------------------
+  # InstantAgent Activities (usually no LLM, this is fallback)
+  # PRODUCTION: Gemini Flash for fastest fallback
+  # ---------------------------------------------------------------------------
+  instant.fallback:
+    model: "google/gemini-2.0-flash-001"
+    temperature: 0.5
+    max_tokens: 200
+    priority: speed
+    description: "Fallback for instant patterns"
+
+  # ---------------------------------------------------------------------------
+  # ProfileAgent Activities (infrequent but quality matters)
+  # ---------------------------------------------------------------------------
+  profile.generate:
+    model: "openai/gpt-4o-mini"
+    temperature: 0.3
+    max_tokens: 2000
+    priority: quality
+    description: "Generate/update family member profiles"
+
+  profile.summarize_diff:
+    model: "deepseek/deepseek-chat"
+    temperature: 0.3
+    max_tokens: 300
+    priority: speed
+    description: "Summarize profile changes"
+
+# =============================================================================
+# Model Pricing Reference (per 1M tokens)
+# =============================================================================
+pricing:
+  "anthropic/claude-3.5-sonnet":
+    input: 3.0
+    output: 15.0
+  "anthropic/claude-3.5-haiku":
+    input: 0.8
+    output: 4.0
+  "anthropic/claude-3-haiku":
+    input: 0.25
+    output: 1.25
+  "openai/gpt-4o":
+    input: 2.5
+    output: 10.0
+  "openai/gpt-4o-mini":
+    input: 0.15
+    output: 0.6
+  "deepseek/deepseek-chat":
+    input: 0.14
+    output: 0.28
+  "deepseek/deepseek-reasoner":
+    input: 0.55
+    output: 2.19
+  "google/gemini-2.0-flash-001":
+    input: 0.1
+    output: 0.4
+  "meta-llama/llama-3.3-70b-instruct":
+    input: 0.3
+    output: 0.3
+
+# Signal logging settings
+signals:
+  # How long to keep LLM signals in Redis
+  retention_days: 30
+  # Max signals in real-time stream
+  stream_max_length: 10000
+  # Log full prompts (can be disabled for privacy)
+  log_full_prompts: true
+  # Log injected context (home state, memories, etc.)
+  log_injected_context: true
