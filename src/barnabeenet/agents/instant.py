@@ -1069,13 +1069,13 @@ class InstantAgent(Agent):
 
     def _is_shopping_list_query(self, text: str) -> tuple[bool, str]:
         """Check if user is asking about shopping list.
-        
+
         Returns (is_shopping_query, action_type).
         Action types: 'add', 'read', 'clear', 'remove'
         """
         if "shopping list" not in text and "groceries" not in text:
             return False, ""
-        
+
         if any(kw in text for kw in ["add", "put", "need"]):
             return True, "add"
         if any(kw in text for kw in ["what's on", "read", "show", "list"]):
@@ -1084,7 +1084,7 @@ class InstantAgent(Agent):
             return True, "clear"
         if any(kw in text for kw in ["remove", "take off", "cross off"]):
             return True, "remove"
-        
+
         return True, "read"  # Default to read
 
     # =========================================================================
@@ -1760,7 +1760,7 @@ class InstantAgent(Agent):
 
             # General weather query
             response_parts = []
-            
+
             # Condition description
             condition_map = {
                 "sunny": "sunny",
@@ -1775,7 +1775,7 @@ class InstantAgent(Agent):
                 "lightning": "stormy with lightning",
             }
             condition_text = condition_map.get(condition, condition)
-            
+
             if temp:
                 response_parts.append(f"It's {temp}{temp_unit} and {condition_text}")
             else:
@@ -1806,7 +1806,7 @@ class InstantAgent(Agent):
                 state = await ha_client.get_state("todo.shopping_list")
                 if not state:
                     return "I couldn't find the shopping list."
-                
+
                 # Get items via HA API
                 try:
                     items_response = await ha_client.call_service(
@@ -1836,7 +1836,7 @@ class InstantAgent(Agent):
                 for phrase in ["add", "put", "need", "to the shopping list", "to shopping list", "to my shopping list", "to groceries"]:
                     item = item.replace(phrase, "")
                 item = item.strip()
-                
+
                 if not item:
                     return "What would you like me to add to the shopping list?"
 
@@ -1857,7 +1857,7 @@ class InstantAgent(Agent):
                 for phrase in ["remove", "take off", "cross off", "from the shopping list", "from shopping list"]:
                     item = item.replace(phrase, "")
                 item = item.strip()
-                
+
                 if not item:
                     return "What would you like me to remove from the shopping list?"
 

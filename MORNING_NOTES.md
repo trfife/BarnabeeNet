@@ -35,6 +35,8 @@ This document tracks all work done overnight and items that need your attention.
 | **Device Status** | "is the light on" | **NEW** - Check any device state |
 | **Sun Times** | "when is sunrise" | **NEW** - Uses HA sun entity |
 | **Moon Phase** | "moon phase" | **NEW** - Calculated algorithmically |
+| **Weather** | "what's the weather" | **NEW** - Uses HA weather entity |
+| **Shopping List** | "add X to shopping list" | **NEW** - Uses HA todo entity |
 
 ### Major Enhancements
 
@@ -159,6 +161,17 @@ status of the thermostat  # Shows temperature and mode
 when is sunrise           # "Sunrise is at 7:27 AM."
 when is sunset            # "Sunset is at 5:41 PM."
 moon phase                # "It's a Waxing Crescent tonight."
+
+# NEW: Weather
+what's the weather        # "It's 43°F and rainy."
+will it rain              # "Yes, it's raining!"
+do i need an umbrella     # "You'll definitely want an umbrella."
+how cold is it            # "It's currently 43°F outside."
+
+# NEW: Shopping List
+add milk to shopping list       # "Added milk to the shopping list."
+what's on my shopping list      # "There are 44 items..."
+remove coffee from shopping list  # Removes item
 
 # Previous Features
 flip a coin
