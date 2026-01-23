@@ -366,10 +366,15 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^how many stars (does |do )?\w+ have(\?)?$", "chore"),
     (r"^(\w+('s|s) )?stars?(\?)?$", "chore"),
     (r"^check (\w+('s|s) )?stars?(\?)?$", "chore"),
-    (r"^\w+ (finished|did|completed|done with) (the |)(homework|dishes|chore|room|trash|laundry)(\?)?$", "chore"),
+    (r"^\w+ (finished|did|completed|done with) (the |her |his |their )?(homework|dishes|chore|room|trash|laundry)(\?)?$", "chore"),
     (r"^(whose|who'?s) turn (to |for )(do |)(the )?(dishes|trash|chores?|laundry)(\?)?$", "chore"),
     (r"^who should (do|take out) (the )?(dishes|trash|chores?|laundry)(\?)?$", "chore"),
     (r"^(what |)chores? (are |)(left|today|remaining)(\?)?$", "chore"),
+    # Focus/Pomodoro timer
+    (r"^start (a )?(pomodoro|focus( time| session)?|homework time|study time|work session)(\?)?$", "focus_timer"),
+    (r"^(begin|let'?s (start|do)) (a )?(pomodoro|focus|homework|study)( time| session)?(\?)?$", "focus_timer"),
+    (r"^(how long|how much time) (have i been|left) (studying|focusing|working)(\?)?$", "focus_timer"),
+    (r"^(stop|end|finish|done with) (the )?(pomodoro|focus|study|homework)( session| time)?(\?)?$", "focus_timer"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),

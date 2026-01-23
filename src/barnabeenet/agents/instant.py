@@ -680,6 +680,11 @@ class InstantAgent(Agent):
             _, action, person, chore = result
             response = await self._handle_chore_query(action, person, chore, speaker)
             response_type = "chore"
+        # Focus/Pomodoro timer
+        elif sub_category == "focus_timer" or self._is_focus_timer_query(text_lower)[0]:
+            _, action = self._is_focus_timer_query(text_lower)
+            response = await self._handle_focus_timer(action, speaker)
+            response_type = "focus_timer"
         # Unit conversions
         elif sub_category == "unit_conversion" or self._is_unit_conversion(text_lower):
             result = self._handle_unit_conversion(text)
@@ -1321,7 +1326,7 @@ class InstantAgent(Agent):
                 chore_name = chore
                 break
 
-        if chore_name and any(kw in text for kw in ["finished", "did", "completed", "done with"]):
+        if chore_name and any(kw in text for kw in ["finished", "did", "completed", "done with", "done"]):
             return True, "complete", person, chore_name
 
         # Whose turn: "whose turn to do dishes", "who should do the trash"
@@ -1333,6 +1338,31 @@ class InstantAgent(Agent):
             return True, "check_chores", person, None
 
         return False, "", None, None
+
+    def _is_focus_timer_query(self, text: str) -> tuple[bool, str]:
+        """Check if user wants to start a focus/pomodoro timer.
+
+        Returns (is_focus_query, action_type).
+        Action types: 'start', 'status', 'stop'
+        """
+        text = text.lower()
+
+        # Start focus/pomodoro session
+        if any(kw in text for kw in ["start", "begin"]):
+            if any(kw in text for kw in ["pomodoro", "focus", "homework time", "study time", "work session"]):
+                return True, "start"
+
+        # Check status
+        if any(kw in text for kw in ["how long", "how much time", "time left"]):
+            if any(kw in text for kw in ["studying", "focus", "working", "homework"]):
+                return True, "status"
+
+        # Stop/end session
+        if any(kw in text for kw in ["stop", "end", "finish", "done with"]):
+            if any(kw in text for kw in ["pomodoro", "focus", "studying", "homework", "session"]):
+                return True, "stop"
+
+        return False, ""
 
     # =========================================================================
     # Response Handlers
@@ -2754,6 +2784,74 @@ class InstantAgent(Agent):
             return f"Common chores to track: {', '.join(chores)}. Ask who should do one, or log when someone finishes!"
 
         return "I'm not sure what you want to do with chores."
+
+    async def _handle_focus_timer(self, action: str, speaker: str | None) -> str:
+        """Handle focus/pomodoro timer requests.
+
+        Standard Pomodoro: 25 min work, 5 min break
+        Kids version: 15 min work, 5 min break
+        """
+        from barnabeenet.api.routes.homeassistant import get_ha_client
+
+        speaker_name = speaker.title() if speaker else "someone"
+
+        # Determine if speaker is a kid (shorter focus time)
+        kids = ["penelope", "xander", "viola", "zachary"]
+        is_kid = speaker and speaker.lower() in kids
+
+        if action == "start":
+            try:
+                ha_client = await get_ha_client()
+
+                # Set up the focus timer
+                work_duration = 15 if is_kid else 25  # minutes
+                timer_name = f"{speaker_name}'s focus timer" if speaker else "Focus timer"
+
+                # Create a timer via Home Assistant
+                await ha_client.call_service(
+                    "timer",
+                    "start",
+                    {"entity_id": "timer.focus_session", "duration": f"00:{work_duration}:00"},
+                )
+
+                responses = [
+                    f"Focus time started! You have {work_duration} minutes. Stay focused, {speaker_name}!",
+                    f"Starting {work_duration} minute focus session. No distractions! You've got this, {speaker_name}!",
+                    f"Pomodoro started! {work_duration} minutes of focus time. Good luck, {speaker_name}!",
+                ]
+                return random.choice(responses)
+            except Exception as e:
+                logger.warning(f"Focus timer start failed: {e}")
+                # Fallback response without actual timer
+                work_duration = 15 if is_kid else 25
+                return f"Time to focus! Set a {work_duration} minute timer and get to work, {speaker_name}! I'll be cheering you on."
+
+        elif action == "status":
+            try:
+                ha_client = await get_ha_client()
+                state = await ha_client.get_state("timer.focus_session")
+
+                if state and state.get("state") == "active":
+                    remaining = state.get("attributes", {}).get("remaining", "unknown")
+                    return f"Focus session in progress! Time remaining: {remaining}. Keep going!"
+                else:
+                    return "No focus session is currently running. Want to start one?"
+            except Exception:
+                return "No focus session is currently running. Want to start one?"
+
+        elif action == "stop":
+            try:
+                ha_client = await get_ha_client()
+                await ha_client.call_service(
+                    "timer",
+                    "cancel",
+                    {"entity_id": "timer.focus_session"},
+                )
+                return f"Focus session ended. Great work, {speaker_name}! Time for a break."
+            except Exception:
+                return f"Okay, focus time is over. Nice work, {speaker_name}!"
+
+        return "I can start, check, or stop a focus timer for you."
 
     def _is_clear_conversation(self, text: str) -> bool:
         """Check if user wants to clear/reset the conversation."""
