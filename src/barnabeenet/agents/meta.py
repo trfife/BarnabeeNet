@@ -252,8 +252,10 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^one more time(\?)?$", "repeat"),
     # Jokes
     (r"^tell me a( \w+)? joke(\?)?$", "joke"),
+    (r"^tell me a joke about .+$", "joke"),  # "tell me a joke about mermaids"
     (r"^(got a|another|one more) joke(\?)?$", "joke"),
     (r"^joke please(\?)?$", "joke"),
+    (r"^(make|tell) .+ joke.*$", "joke"),  # "make a mermaid joke", "tell a funny joke"
     (r"^make me laugh(\?)?$", "joke"),
     # Riddles
     (r"^tell me a riddle(\?)?$", "riddle"),
