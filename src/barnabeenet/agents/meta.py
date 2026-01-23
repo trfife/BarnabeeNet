@@ -170,6 +170,8 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(hello|hey|hi)( barnabee)?(\?)?$", "greeting"),
     (r"^good (morning|afternoon|evening|night)$", "greeting"),
     (r"^(what('s| is) )?(\d+)\s*[\+\-\*\/]\s*(\d+)(\?)?$", "math"),
+    (r"^(what('s| is) )?(\d+)\s+(times|plus|minus|x)\s+(\d+)(\?)?$", "math"),
+    (r"^(what('s| is) )?(\d+)\s+(divided by|multiplied by)\s+(\d+)(\?)?$", "math"),
     (r"^(how are you|you okay)(\?)?$", "status"),
     (r"^thank(s| you).*$", "thanks"),
     # Mic check / test queries
@@ -233,9 +235,11 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^riddle me this(\?)?$", "riddle"),
     # Fun facts
     (r"^tell me a( \w+)? (fun )?fact(\?)?$", "fun_fact"),
+    (r"^tell me a fact about \w+(\?)?$", "fun_fact"),
     (r"^(fun|interesting|cool) fact(\?)?$", "fun_fact"),
     (r"^did you know(\?)?$", "fun_fact"),
     (r"^tell me something (interesting|cool|fun)(\?)?$", "fun_fact"),
+    (r"^fact about \w+(\?)?$", "fun_fact"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),

@@ -1,4 +1,5 @@
 # Morning Notes - Overnight Work Session
+
 **Started:** January 22, 2026 (evening)
 **Last Updated:** January 23, 2026 ~3:10 AM
 
@@ -9,6 +10,7 @@ This document tracks all work done overnight and items that need your attention.
 ## Work Completed ✅
 
 ### Sprint 1 Features (Before This Session)
+
 - ✅ Random choices (flip coin, roll dice, pick number, magic 8-ball, yes/no)
 - ✅ Unit conversions (F↔C, cups↔liters, lbs↔kg, inches↔cm, etc.)
 - ✅ World clock (time in Tokyo, London, Paris, etc.)
@@ -20,6 +22,7 @@ This document tracks all work done overnight and items that need your attention.
 ### This Session
 
 #### New Features
+
 - ✅ **Jokes Database** - Added 70+ jokes in categories: general, dad jokes, knock-knock, riddles, animal, school
   - Commands: "tell me a joke", "tell me a dad joke", "tell me a riddle"
   - File: `src/barnabeenet/data/jokes.json`
@@ -30,12 +33,14 @@ This document tracks all work done overnight and items that need your attention.
   - Now works: "what's 7 times 8", "5 plus 3", "10 divided by 2", "6 x 7"
 
 #### Bug Fixes
+
 - ✅ Fixed AttributeError in InstantAgent when used without init()
 - ✅ Fixed undo session state not preserving action history
 - ✅ Fixed time query detection matching "7 times 8" as time query
 - ✅ Fixed "repeat that" pattern matching
 
 #### Code Cleanup
+
 - ✅ Removed unused `TimerManager` import in `action.py`
 - ✅ Removed unused `asdict` import in `interaction.py`
 - ✅ Removed unused `ha_person_entity` variable
@@ -46,19 +51,23 @@ This document tracks all work done overnight and items that need your attention.
 ## Items Needing Your Attention 🔔
 
 ### Must Test (Voice)
+
 - [ ] Test jokes via actual voice input - ensure TTS sounds natural
 - [ ] Test "say that again" / repeat in real conversation flow
 - [ ] Test math with words via voice: "what's seven times eight"
 
 ### High Priority Bug to Fix
+
 **Entity Resolution Bug** - The action agent is guessing entity IDs instead of finding actual entities.
 
 Example:
+
 - User says: "turn on the office light"
 - Action agent resolves to: `light.office_light` (a guess)
 - Actual entity is: `light.office_switch`
 
 This causes:
+
 - Undo to fail (tries to undo wrong entity)
 - Potentially other device control issues
 
@@ -69,6 +78,7 @@ This causes:
 ## Test Results Summary 📊
 
 ### Instant Response Features (All Working)
+
 | Feature | Status | Response Time |
 |---------|--------|---------------|
 | Time/Date | ✅ | ~350ms |
@@ -87,6 +97,7 @@ This causes:
 | Repeat | ✅ | ~350ms |
 
 ### Unit Tests
+
 - `test_instant_agent.py` - 46 passed ✅
 - `test_meta_agent.py` - 52 passed ✅
 
@@ -95,7 +106,7 @@ This causes:
 ## Commits Made This Session
 
 1. `7bbf3dd` - Add jokes and fun facts database
-2. `a8883d0` - Fix math detection for word-based operators  
+2. `a8883d0` - Fix math detection for word-based operators
 3. `6b1c20c` - Code cleanup: remove unused imports and variables
 4. `b9570a4` - Fix undo not tracking actions - preserve action history
 5. `2441301` - Add debug logging to undo functionality
@@ -106,8 +117,9 @@ This causes:
 
 ## Deployment Status 🚀
 
-**Current VM State:** 
-- API: http://192.168.86.51:8000
+**Current VM State:**
+
+- API: <http://192.168.86.51:8000>
 - Last deployed: January 23, 2026 ~3:00 AM
 - All features working on live system
 
@@ -116,16 +128,20 @@ This causes:
 ## Next Steps / Recommendations 💡
 
 ### Immediate (Today)
+
 1. **Fix entity resolution bug** - This is blocking undo from working correctly
 2. **Voice test new features** - Jokes, facts, math with words
 
 ### Sprint 2 Features (When Ready)
+
 From the capability roadmap:
+
 1. Weather integration (needs API key setup)
 2. Bedtime countdown (uses family profiles)
 3. Shopping list (needs HA todo list integration)
 
 ### Long-term
+
 1. Mobile app / remote access
 2. Proactive Agent for time-based notifications
 
