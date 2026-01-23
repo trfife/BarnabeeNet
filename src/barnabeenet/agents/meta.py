@@ -272,6 +272,12 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^cheer me up(\?)?$", "encouragement"),
     (r"^motivate me(\?)?$", "encouragement"),
     (r"^(i need |)encouragement(\?)?$", "encouragement"),
+    # Location queries
+    (r"^where('s| is) \w+(\?)?$", "location"),
+    (r"^is \w+ (home|at home)(\?)?$", "location"),
+    (r"^where are \w+(\?)?$", "location"),
+    (r"^(find|locate) \w+(\?)?$", "location"),
+    (r"^\w+'s location(\?)?$", "location"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),

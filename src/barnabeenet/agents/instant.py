@@ -715,6 +715,11 @@ class InstantAgent(Agent):
         elif sub_category == "encouragement" or self._is_encouragement(text_lower):
             response = self._handle_encouragement(text)
             response_type = "encouragement"
+        # Location queries
+        elif (location_result := self._is_location_query(text_lower))[0]:
+            _, person_name = location_result
+            response = await self._handle_location_query(person_name)
+            response_type = "location"
         elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
             if sub_category == "spelling":
                 spelling_result = self._try_spelling(text, speaker)
@@ -914,6 +919,40 @@ class InstantAgent(Agent):
             "encourage me", "i need encouragement"
         ]
         return any(kw in text for kw in keywords)
+
+    def _is_location_query(self, text: str) -> tuple[bool, str | None]:
+        """Check if user is asking about someone's location.
+
+        Returns (is_location_query, person_name or None).
+        """
+        # Family member names
+        family_names = ["thom", "elizabeth", "penelope", "xander", "viola", "zachary"]
+
+        # Patterns to match
+        patterns = [
+            r"where is (\w+)",
+            r"where's (\w+)",
+            r"is (\w+) home",
+            r"is (\w+) at home",
+            r"where are (\w+)",
+            r"(\w+)'s location",
+            r"find (\w+)",
+            r"locate (\w+)",
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                name = match.group(1).lower()
+                # Check if it's a family member
+                if name in family_names:
+                    return True, name
+                # Also check partial matches (e.g., "liz" for "elizabeth")
+                for family_name in family_names:
+                    if name in family_name or family_name.startswith(name):
+                        return True, family_name
+
+        return False, None
 
     # =========================================================================
     # Response Handlers
@@ -1299,6 +1338,60 @@ class InstantAgent(Agent):
             return "You're doing great! Keep it up!"
 
         return random.choice(responses)
+
+    async def _handle_location_query(self, person_name: str) -> str:
+        """Get location for a family member from Home Assistant."""
+        # Map family names to HA person entities
+        person_entity_map = {
+            "thom": "person.thom_fife",
+            "elizabeth": "person.elizabeth_fife",
+            "penelope": "person.penelope_fife",
+            "xander": "person.xander_fife",
+            "viola": "person.viola_fife",
+            "zachary": "person.zachary_fife",
+        }
+
+        entity_id = person_entity_map.get(person_name.lower())
+        if not entity_id:
+            return f"I don't know who {person_name} is."
+
+        try:
+            from barnabeenet.main import app_state
+            if not hasattr(app_state, "ha_client") or not app_state.ha_client:
+                return f"I can't check {person_name.capitalize()}'s location right now."
+
+            state = await app_state.ha_client.get_state(entity_id)
+            if not state:
+                return f"I couldn't find location info for {person_name.capitalize()}."
+
+            location = state.state  # "home", "not_home", or zone name
+            friendly_name = state.attributes.get("friendly_name", person_name.capitalize())
+
+            # Format nice response
+            if location == "home":
+                responses = [
+                    f"{friendly_name} is at home.",
+                    f"{friendly_name} is home.",
+                    f"Yes, {friendly_name} is at home right now.",
+                ]
+            elif location == "not_home":
+                responses = [
+                    f"{friendly_name} is not home right now.",
+                    f"{friendly_name} is away.",
+                    f"It looks like {friendly_name} is out.",
+                ]
+            else:
+                # It's a zone name like "work", "school", etc.
+                responses = [
+                    f"{friendly_name} is at {location}.",
+                    f"{friendly_name} is currently at {location}.",
+                ]
+
+            return random.choice(responses)
+
+        except Exception as e:
+            logger.warning(f"Failed to get location for {person_name}: {e}")
+            return f"I had trouble checking {person_name.capitalize()}'s location."
 
     def _is_clear_conversation(self, text: str) -> bool:
         """Check if user wants to clear/reset the conversation."""
