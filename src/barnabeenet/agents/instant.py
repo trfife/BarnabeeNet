@@ -1840,10 +1840,12 @@ class InstantAgent(Agent):
             text_lower = text.lower()
 
             # Check for specific time periods
-            if "today" in text_lower:
+            if "today" in text_lower or "daily" in text_lower:
                 period = "today"
-            elif "month" in text_lower:
+            elif "month" in text_lower or "monthly" in text_lower:
                 period = "month"
+            elif "solar" in text_lower:
+                period = "current"  # Solar status is real-time
             else:
                 period = "current"  # Current power draw
 

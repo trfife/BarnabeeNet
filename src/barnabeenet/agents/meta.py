@@ -332,6 +332,8 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(how much |what('s| is) )(energy|power) (are we using|did we use)(\?)?$", "energy"),
     (r"^(what('s| is) |)(our |the )?(energy|power|electricity) (usage|consumption)( today| this month)?(\?)?$", "energy"),
     (r"^(how('s| is) )(the |our )?solar( doing| production)?(\?)?$", "energy"),
+    (r"^how much (energy|power)( did we use)? today(\?)?$", "energy"),
+    (r"^(energy|power) today(\?)?$", "energy"),
     # Spelling queries
     (r"^(?:how (?:do (?:you |i )?)?)?spell (\w+)(\?)?$", "spelling"),
     (r"^(?:can you |please )?spell(?: me)? (\w+)(\?)?$", "spelling"),
