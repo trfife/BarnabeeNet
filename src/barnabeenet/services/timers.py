@@ -296,6 +296,8 @@ def format_duration(td: timedelta) -> str:
 
 # Alarm timer patterns
 ALARM_PATTERNS = [
+    # "set a 30 second timer" / "set a 5 minute timer" (duration before "timer")
+    r"set\s+(?:a\s+)?(\d+\s*(?:minutes?|mins?|seconds?|secs?|hours?|hrs?))\s+timer",
     # "set a timer for 5 minutes"
     r"set\s+(?:a\s+)?timer\s+(?:for\s+)?(.+)",
     # "5 minute timer"
@@ -363,9 +365,19 @@ TIMER_LIST_PATTERNS = [
     r"do\s+I\s+have\s+(?:any\s+)?timers?(?:\s+(?:set|running|active))?",
     # "timer status" / "timers status"
     r"timers?\s+status",
+    # "how many timers do I have"
+    r"how\s+many\s+timers?\s+(?:do\s+I\s+have|are\s+(?:set|running|active))",
 ]
 
-# Timer control patterns (MUST be more specific than media patterns)
+# Generic timer control patterns (no specific label - affects all/most recent timer)
+TIMER_GENERIC_CONTROL_PATTERNS = [
+    # "stop my timer" / "cancel my timer" / "stop the timer" / "cancel the timers"
+    r"^(stop|cancel|pause|resume)\s+(?:my|the|all)\s+timers?$",
+    # "stop timer" / "cancel timer"
+    r"^(stop|cancel|pause|resume)\s+timer$",
+]
+
+# Timer control patterns with specific labels (MUST be more specific than media patterns)
 TIMER_CONTROL_PATTERNS = [
     # "pause the lasagna timer" - more specific to avoid matching media pause
     r"pause\s+(?:the\s+)?(.+?)(?:\s+timer)?$",
@@ -389,6 +401,7 @@ class TimerOperation(str, Enum):
     PAUSE = "pause"
     RESUME = "resume"
     CANCEL = "cancel"
+    CANCEL_ALL = "cancel_all"  # Cancel all/most recent timer (generic "stop my timer")
     START = "start"
     STOP = "stop"
 
@@ -436,13 +449,37 @@ def parse_timer_command(text: str) -> TimerParseResult:
             result.label = match.group(1).strip()
             return result
 
-    # Check timer control patterns (check BEFORE alarm patterns to catch pause/resume/cancel)
+    # Check GENERIC timer control patterns first (e.g., "stop my timer", "cancel the timer")
+    # These don't have a specific label and should cancel most recent or all timers
+    for pattern in TIMER_GENERIC_CONTROL_PATTERNS:
+        match = re.match(pattern, text, re.IGNORECASE)
+        if match:
+            result.is_timer_command = True
+            action = match.group(1).lower()
+
+            if action in ("stop", "cancel"):
+                result.operation = TimerOperation.CANCEL_ALL
+            elif action == "pause":
+                result.operation = TimerOperation.PAUSE
+                result.label = None  # Will pause most recent
+            elif action == "resume":
+                result.operation = TimerOperation.RESUME
+                result.label = None  # Will resume most recent
+
+            return result
+
+    # Check timer control patterns with specific labels (check BEFORE alarm patterns)
     # These must be checked before other patterns that might match (like media pause)
     for pattern in TIMER_CONTROL_PATTERNS:
         match = re.match(pattern, text, re.IGNORECASE)
         if match:
             result.is_timer_command = True
             label = match.group(1).strip()
+
+            # Skip if label is generic (my, the, all, timer) - should have matched generic patterns
+            if label.lower() in ("my", "the", "all", "timer", "timers"):
+                continue
+
             result.label = label
 
             # Determine operation from pattern

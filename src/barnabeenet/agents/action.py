@@ -1000,7 +1000,7 @@ If you cannot parse the request, respond with:
             }
 
         elif timer_result.operation == TimerOperation.CANCEL:
-            # Cancel timer
+            # Cancel timer by label
             if not timer_result.label:
                 return {
                     "response": "Which timer would you like to cancel?",
@@ -1016,6 +1016,40 @@ If you cannot parse the request, respond with:
                 }
             return {
                 "response": f"I don't have an active timer for '{timer_result.label}'.",
+                "agent": self.name,
+                "success": False,
+            }
+
+        elif timer_result.operation == TimerOperation.CANCEL_ALL:
+            # Cancel all timers or most recent if only one (generic "stop my timer")
+            active_timers = timer_manager.get_active_timers()
+            if not active_timers:
+                return {
+                    "response": "You don't have any active timers to cancel.",
+                    "agent": self.name,
+                    "success": True,
+                }
+
+            # Cancel the most recent timer (last created)
+            # Sort by started_at to get most recent
+            active_timers.sort(key=lambda t: t.started_at, reverse=True)
+            most_recent = active_timers[0]
+
+            if await timer_manager.cancel_timer(most_recent.id):
+                if len(active_timers) == 1:
+                    return {
+                        "response": f"Cancelled the {most_recent.label} timer.",
+                        "agent": self.name,
+                        "success": True,
+                    }
+                else:
+                    return {
+                        "response": f"Cancelled the {most_recent.label} timer. You still have {len(active_timers) - 1} other timer(s) running.",
+                        "agent": self.name,
+                        "success": True,
+                    }
+            return {
+                "response": "Could not cancel the timer.",
                 "agent": self.name,
                 "success": False,
             }
