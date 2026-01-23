@@ -738,6 +738,10 @@ class InstantAgent(Agent):
         elif sub_category == "fun_fact" or self._is_fun_fact(text_lower):
             response = self._handle_fun_fact(text)
             response_type = "fun_fact"
+        # Simple facts (fast answers for common questions)
+        elif sub_category == "simple_fact":
+            response = self._handle_simple_fact(text)
+            response_type = "simple_fact"
         # Animal sounds
         elif sub_category == "animal_sound" or self._is_animal_sound(text_lower):
             response = self._handle_animal_sound(text)
@@ -1759,6 +1763,77 @@ class InstantAgent(Agent):
         fact = random.choice(facts)
         prefixes = ["Did you know? ", "Here's a fun fact: ", "Fun fact: ", ""]
         return random.choice(prefixes) + fact
+
+    def _handle_simple_fact(self, text: str) -> str:
+        """Quick answers for common simple factual questions."""
+        text_lower = text.lower()
+        
+        # Color facts
+        if "color" in text_lower or "colour" in text_lower:
+            if "sky" in text_lower:
+                return "The sky is blue because molecules in the air scatter blue light from the sun more than other colors."
+            elif "grass" in text_lower:
+                return "Grass is green because it contains chlorophyll, which absorbs red and blue light and reflects green."
+            elif "sun" in text_lower:
+                return "The sun appears yellow or white. It's actually white, but our atmosphere scatters the blue light, making it look yellow."
+            elif "ocean" in text_lower or "sea" in text_lower:
+                return "The ocean is blue because water absorbs red light and reflects blue light back to our eyes."
+            elif "blood" in text_lower:
+                return "Blood is red because of hemoglobin, a protein that carries oxygen and contains iron."
+            elif "snow" in text_lower:
+                return "Snow is white because ice crystals scatter all wavelengths of light equally."
+        
+        # Days/months in year
+        if "days" in text_lower and "year" in text_lower:
+            return "There are 365 days in a regular year, and 366 days in a leap year."
+        if "months" in text_lower and "year" in text_lower:
+            return "There are 12 months in a year."
+        if "weeks" in text_lower and "year" in text_lower:
+            return "There are 52 weeks in a year."
+        if "days" in text_lower and "week" in text_lower:
+            return "There are 7 days in a week."
+        
+        # Legs/body parts
+        if "legs" in text_lower:
+            if "spider" in text_lower:
+                return "A spider has 8 legs."
+            elif "dog" in text_lower or "cat" in text_lower:
+                return "Dogs and cats have 4 legs."
+            elif "human" in text_lower or "person" in text_lower:
+                return "Humans have 2 legs."
+            elif "octopus" in text_lower:
+                return "An octopus has 8 arms (technically not legs, but tentacles)."
+            elif "insect" in text_lower:
+                return "Insects have 6 legs."
+        
+        # Capital cities (common ones)
+        if "capital" in text_lower:
+            capitals = {
+                "france": "The capital of France is Paris.",
+                "germany": "The capital of Germany is Berlin.",
+                "japan": "The capital of Japan is Tokyo.",
+                "australia": "The capital of Australia is Canberra.",
+                "canada": "The capital of Canada is Ottawa.",
+                "brazil": "The capital of Brazil is Brasília.",
+                "china": "The capital of China is Beijing.",
+                "india": "The capital of India is New Delhi.",
+                "russia": "The capital of Russia is Moscow.",
+                "italy": "The capital of Italy is Rome.",
+                "spain": "The capital of Spain is Madrid.",
+                "uk": "The capital of the UK is London.",
+                "united kingdom": "The capital of the United Kingdom is London.",
+                "england": "The capital of England is London.",
+                "mexico": "The capital of Mexico is Mexico City.",
+                "usa": "The capital of the USA is Washington, D.C.",
+                "united states": "The capital of the United States is Washington, D.C.",
+                "america": "The capital of the United States is Washington, D.C.",
+            }
+            for country, answer in capitals.items():
+                if country in text_lower:
+                    return answer
+        
+        # Default: give a helpful response
+        return "That's a great question! Let me think... I don't have that specific fact memorized, but it's something worth looking up!"
 
     def _handle_animal_sound(self, text: str) -> str:
         """Tell what sound an animal makes."""

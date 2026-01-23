@@ -273,6 +273,14 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(fun|interesting|cool) fact(\?)?$", "fun_fact"),
     (r"^did you know(\?)?$", "fun_fact"),
     (r"^tell me something (interesting|cool|fun)(\?)?$", "fun_fact"),
+    # Simple factual questions (fast answers, no memory needed)
+    (r"^what colo(u)?r is (the )?(sky|grass|sun|ocean|blood|snow)(\?)?$", "simple_fact"),
+    (r"^what is the capital of \w+(\?)?$", "simple_fact"),
+    (r"^who (is|was) the (president|king|queen|prime minister) of \w+(\?)?$", "simple_fact"),
+    (r"^how many (days|months|weeks) (are )?(in|are there in) a (year|month|week)(\?)?$", "simple_fact"),
+    (r"^what is the (biggest|largest|smallest|tallest|longest) \w+(\?)?$", "simple_fact"),
+    (r"^how many (legs|eyes|arms|wheels) does a \w+ have(\?)?$", "simple_fact"),
+    (r"^what (planet|animal|country|city) is (the )?\w+(\?)?$", "simple_fact"),
     (r"^fact about \w+(\?)?$", "fun_fact"),
     # Animal sounds
     (r"^what does a \w+ say(\?)?$", "animal_sound"),
