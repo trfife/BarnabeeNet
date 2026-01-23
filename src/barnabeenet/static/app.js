@@ -485,12 +485,16 @@ async function loadActivityHistory() {
         // Only load history if feed is mostly empty (just system messages)
         if (existingCount > 5) return;
 
-        // Add historical items (oldest first so newest end up at bottom)
+        // Sort activities newest first
         const sortedActivities = [...data.activities].sort((a, b) =>
-            new Date(a.timestamp) - new Date(b.timestamp)
+            new Date(b.timestamp) - new Date(a.timestamp)
         );
 
-        for (const activity of sortedActivities) {
+        // Clear feed first, then add items (addActivityItem prepends, so we need to add oldest first)
+        feed.innerHTML = '';
+        
+        // Add in reverse order so newest ends up at top after all prepends
+        for (const activity of sortedActivities.reverse()) {
             addActivityItem({
                 type: activity.type || 'system',
                 message: activity.title || activity.message || '',
@@ -513,7 +517,8 @@ async function loadActivityHistory() {
 function cacheActivityToStorage() {
     try {
         const feed = document.getElementById('activity-feed');
-        const items = Array.from(feed.querySelectorAll('.activity-item')).slice(-100);
+        // Take first 100 items (newest first, since newest is at top)
+        const items = Array.from(feed.querySelectorAll('.activity-item')).slice(0, 100);
         const cache = items.map(item => ({
             type: item.dataset.type,
             html: item.innerHTML,
@@ -537,20 +542,21 @@ function loadCachedActivity() {
         // Only restore if feed is empty
         if (feed.children.length > 0) return;
 
-        for (const item of items) {
-            const el = document.createElement('div');
-            el.className = 'activity-item';
-            el.dataset.type = item.type || 'system';
-            el.innerHTML = item.html;
-            feed.appendChild(el);
-        }
-
-        // Add separator to show where history ends
+        // Add separator first (will end up at bottom after items are prepended)
         if (items.length > 0) {
             const separator = document.createElement('div');
             separator.className = 'activity-separator';
             separator.innerHTML = '— Previous session —';
             feed.appendChild(separator);
+        }
+
+        // Items are cached newest-first, so add in reverse to prepend correctly
+        for (const item of [...items].reverse()) {
+            const el = document.createElement('div');
+            el.className = 'activity-item';
+            el.dataset.type = item.type || 'system';
+            el.innerHTML = item.html;
+            feed.insertBefore(el, feed.firstChild);
         }
     } catch (e) {
         console.warn('Failed to load cached activity:', e);
@@ -629,16 +635,17 @@ function addActivityItem(data) {
         }
     }
 
-    feed.appendChild(item);
+    // Insert new items at the TOP (newest first)
+    feed.insertBefore(item, feed.firstChild);
 
-    // Limit items
+    // Limit items (remove oldest from bottom)
     while (feed.children.length > 200) {
-        feed.removeChild(feed.firstChild);
+        feed.removeChild(feed.lastChild);
     }
 
-    // Auto scroll
+    // Keep scroll at top to see newest items
     if (autoScroll) {
-        feed.scrollTop = feed.scrollHeight;
+        feed.scrollTop = 0;
     }
 
     // Throttled cache to localStorage (every 5 seconds max)
