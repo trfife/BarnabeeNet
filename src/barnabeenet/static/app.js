@@ -101,7 +101,7 @@ function showCardSkeleton(containerId, rows = 3) {
 }
 
 function showStatsSkeleton() {
-    const statsIds = ['stat-requests', 'stat-signals', 'stat-memories', 'stat-actions'];
+    const statsIds = ['stat-requests', 'stat-memories', 'stat-actions'];
     statsIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -179,18 +179,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load initial data
     loadSystemStatus();
     loadStats();
-    loadTraces();
-    loadActiveSISessions();
     loadTimers();
 
-    // Connect WebSocket
+    // Connect WebSocket for activity feed
     connectWebSocket();
 
     // Refresh data periodically
     setInterval(loadSystemStatus, 30000);
     setInterval(loadStats, 60000);
-    setInterval(loadTraces, 10000);
-    setInterval(loadActiveSISessions, 10000);
     setInterval(loadTimers, 3000);  // Refresh timers every 3 seconds
 
     // Timer refresh button
@@ -222,8 +218,18 @@ function showPage(pageId) {
         page.classList.toggle('active', page.id === `page-${pageId}`);
     });
     
-    // Ensure config nav is initialized when Settings page is shown
-    if (pageId === 'config') {
+    // Initialize page-specific features when shown
+    if (pageId === 'dashboard') {
+        // Ensure WebSocket is connected for activity feed
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            connectWebSocket();
+        }
+        // Load activity history if feed is empty
+        const feed = document.getElementById('activity-feed');
+        if (feed && feed.children.length <= 1) { // Only system message
+            loadActivityHistory();
+        }
+    } else if (pageId === 'config') {
         // Make sure first section is visible if none are active
         const activeSection = document.querySelector('.config-section.active');
         if (!activeSection) {
@@ -389,12 +395,15 @@ function handleActivityMessage(data) {
     } else if (messageType === 'activity') {
         // Activity log message from /ws/dashboard (including HA state changes)
         addActivityItem({
-            type: payload.type || 'system',
-            message: payload.title || payload.detail || '',
+            type: payload.type || payload.event_type || 'system',
+            message: payload.title || payload.detail || payload.message || '',
             timestamp: payload.timestamp,
-            source: payload.source,
-            trace_id: payload.trace_id,
-            duration_ms: payload.duration_ms
+            agent: payload.source || payload.agent,
+            latency: payload.duration_ms || payload.latency_ms,
+            signal_id: payload.id || payload.signal_id,
+            tokens_in: payload.tokens_in,
+            tokens_out: payload.tokens_out,
+            cost: payload.cost_usd
         });
 
         // Update live stats
@@ -547,9 +556,16 @@ function loadCachedActivity() {
 
 function addActivityItem(data) {
     const feed = document.getElementById('activity-feed');
+    if (!feed) return;
+    
+    // Clear initial "Connecting..." message on first real activity
+    if (feed.children.length === 1 && feed.children[0].querySelector('.activity-message')?.textContent?.includes('Connecting')) {
+        feed.innerHTML = '';
+    }
+    
     const item = document.createElement('div');
     item.className = 'activity-item';
-    item.dataset.type = data.type;
+    item.dataset.type = data.type || data.event_type || 'system';
 
     const time = new Date(data.timestamp).toLocaleTimeString('en-US', {
         hour: '2-digit',
@@ -581,13 +597,16 @@ function addActivityItem(data) {
         agentBadge = `<span class="activity-agent">${data.agent}</span>`;
     }
 
+    // Handle API format: title/detail vs message
+    const message = data.message || data.title || data.detail || '';
+    
     item.innerHTML = `
         <span class="activity-time">${time}</span>
-        <span class="activity-badge ${data.type}">${formatActivityType(data.type)}</span>
+        <span class="activity-badge ${data.type || data.event_type || 'system'}">${formatActivityType(data.type || data.event_type || 'system')}</span>
         ${agentBadge}
-        <span class="activity-message">${escapeHtml(data.message)}</span>
+        <span class="activity-message">${escapeHtml(message)}</span>
         ${tokenBadge}
-        ${data.latency ? `<span class="activity-latency">${data.latency.toFixed(0)}ms</span>` : ''}
+        ${(data.latency || data.latency_ms) ? `<span class="activity-latency">${(data.latency || data.latency_ms).toFixed(0)}ms</span>` : ''}
         ${expandButton}
     `;
 
@@ -1124,14 +1143,30 @@ async function loadStats() {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
-        document.getElementById('stat-requests').textContent = formatNumber(data.total_requests || 0);
-        document.getElementById('stat-signals').textContent = formatNumber(data.total_signals || 0);
-        document.getElementById('stat-memories').textContent = formatNumber(data.total_memories || 0);
-        document.getElementById('stat-actions').textContent = formatNumber(data.total_actions || 0);
+        // Use 24h stats from API
+        document.getElementById('stat-requests').textContent = formatNumber(data.total_requests_24h || 0);
+        
+        // Get memories count from memory API
+        try {
+            const memResponse = await fetch(`${API_BASE}/api/v1/memory/?limit=1`);
+            if (memResponse.ok) {
+                const memData = await memResponse.json();
+                document.getElementById('stat-memories').textContent = formatNumber(memData.total || 0);
+            } else {
+                document.getElementById('stat-memories').textContent = '-';
+            }
+        } catch (e) {
+            document.getElementById('stat-memories').textContent = '-';
+        }
+        
+        // Actions count from requests_by_agent
+        const totalActions = Object.values(data.requests_by_agent || {}).reduce((sum, count) => sum + (count || 0), 0);
+        document.getElementById('stat-actions').textContent = formatNumber(totalActions || 0);
     } catch (e) {
         console.error('Failed to load stats:', e);
-        ['stat-requests', 'stat-signals', 'stat-memories', 'stat-actions'].forEach(id => {
-            document.getElementById(id).textContent = '-';
+        ['stat-requests', 'stat-memories', 'stat-actions'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = '-';
         });
     }
 }
