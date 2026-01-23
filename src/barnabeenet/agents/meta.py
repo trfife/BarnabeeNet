@@ -258,7 +258,8 @@ INSTANT_PATTERNS: list[tuple[str, str]] = [
     (r"^(give me|got) a riddle(\?)?$", "riddle"),
     (r"^riddle me this(\?)?$", "riddle"),
     # Riddle answer reveal
-    (r"^(what('s| is) the |)(riddle )?answer(\?)?$", "riddle_answer"),
+    (r"^what('?s| is) the answer(\?)?$", "riddle_answer"),
+    (r"^(the |)answer(\?)?$", "riddle_answer"),
     (r"^i give up(\?)?$", "riddle_answer"),
     (r"^tell me the answer(\?)?$", "riddle_answer"),
     (r"^i don'?t know( the answer)?(\?)?$", "riddle_answer"),

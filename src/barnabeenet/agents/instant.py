@@ -904,6 +904,9 @@ class InstantAgent(Agent):
         # Exclude daily briefing queries
         if "need to know" in text or "briefing" in text or "brief me" in text:
             return False
+        # Exclude weather queries
+        if "rain" in text or "snow" in text or "weather" in text or "umbrella" in text or "forecast" in text:
+            return False
         date_keywords = ["date", "what day", "today", "what's today"]
         return any(kw in text for kw in date_keywords)
 
@@ -1021,9 +1024,10 @@ class InstantAgent(Agent):
     def _is_riddle_answer_request(self, text: str) -> bool:
         """Check if user is asking for the riddle answer."""
         answer_keywords = [
-            "what's the answer", "what is the answer", "give up",
-            "i give up", "tell me the answer", "answer to the riddle",
-            "what's the riddle answer", "i don't know"
+            "what's the answer", "whats the answer", "what is the answer",
+            "give up", "i give up", "tell me the answer", "answer to the riddle",
+            "what's the riddle answer", "whats the riddle answer",
+            "i don't know", "i dont know", "the answer"
         ]
         return any(kw in text for kw in answer_keywords)
 
