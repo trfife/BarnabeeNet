@@ -143,6 +143,7 @@ SUPER_USER_PATTERNS = [
     r"show\s+(?:me\s+)?(?:all|the)\s+(?:audit\s+)?(?:logs?|conversations?|history)",
     r"what\s+(?:did\s+)?(?:everyone|the kids?|they)\s+(?:say|talk about|discuss)",
     r"show\s+(?:me\s+)?deleted\s+(?:conversations?|messages?)",
+    r"show\s+(?:me\s+)?alerts?",
     r"parent(?:al)?\s+access",
     r"audit\s+(?:log|mode|access)",
     r"full\s+(?:history|log|access)",
