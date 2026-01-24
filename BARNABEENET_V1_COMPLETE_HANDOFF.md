@@ -934,6 +934,376 @@ Good luck with v2.0! 🐝
 
 ---
 
+## Additional Reference: Family Members
+
+### The Fife Family
+
+| Name | Role | HA Person Entity | Notes |
+|------|------|------------------|-------|
+| **Thom** | Primary (Dad) | `person.thom` | Main developer |
+| **Elizabeth** | Spouse (Mom) | `person.elizabeth` | - |
+| **Penelope** | Child | `person.penelope` | Older daughter |
+| **Viola** | Child | `person.viola` | Pronunciation: "Vyola" |
+| **Xander** | Child | `person.xander` | Pronunciation: "Zander" |
+| **Zachary** | Child | `person.zachary` | Youngest |
+
+### Pets
+- **Bagheera** - Cat
+- **Shere Khan** - Cat
+
+---
+
+## Additional Reference: All Prompts
+
+### src/barnabeenet/prompts/
+
+| File | Purpose |
+|------|---------|
+| `meta_agent.txt` | Intent classification prompt |
+| `instant_agent.txt` | Quick response generation (fallback) |
+| `action_agent.txt` | Device control parsing |
+| `interaction_agent.txt` | Barnabee persona for conversations |
+| `memory_agent.txt` | Memory generation, extraction, and querying |
+
+### Meta Agent Prompt
+```
+You are an intent classifier for a smart home assistant.
+Classify the user's request into one of these categories:
+- instant: Simple queries (time, date, greetings, basic math)
+- action: Device control (turn on/off, set temperature, lock doors)
+- query: Information requests (weather, sensor states, complex questions)
+- conversation: General chat, advice, complex dialogue
+- memory: Remember or recall information
+- emergency: Safety concerns (fire, medical, security)
+
+Respond with JSON: {"intent": "<category>", "confidence": 0.0-1.0, "sub_category": "optional detail"}
+```
+
+### Interaction Agent Prompt
+```
+You are Barnabee, the AI assistant for the Fife family household.
+
+Personality:
+- Helpful and straightforward
+- Patient, especially with children
+- No gimmicks, puns, or theatrical personality
+- Just a capable, reliable assistant
+
+Communication Style:
+- Keep responses brief (1-2 sentences when possible)
+- Talk naturally, like a normal person
+- Don't use fancy language or act like a butler
+- For children, use simpler language
+```
+
+---
+
+## Additional Reference: All Config Files
+
+### config/
+
+| File | Purpose | Hot-Reload |
+|------|---------|------------|
+| `llm.yaml` | LLM model configuration per agent/activity | No (restart required) |
+| `llm-free.yaml` | Free tier model configuration | No |
+| `llm-paid.yaml` | Paid tier model configuration | No |
+| `patterns.yaml` | Intent classification regex patterns | Yes |
+| `routing.yaml` | Intent → Agent mapping and priorities | Yes |
+| `overrides.yaml` | User/room/time behavior overrides | Yes |
+
+### patterns.yaml Structure
+```yaml
+version: "1.0"
+emergency:
+  fire:
+    pattern: ".*(fire|smoke|burning|flames).*"
+    sub_category: "fire"
+    confidence: 0.99
+    enabled: true
+    examples:
+      - "there's a fire in the kitchen"
+      - "I smell smoke"
+
+instant:
+  time_query:
+    pattern: "^(what('s| is) (the )?)?(current )?time(\\?)?$"
+    sub_category: "time"
+    confidence: 0.95
+    examples:
+      - "what time is it"
+```
+
+### routing.yaml Structure
+```yaml
+version: "1.0"
+defaults:
+  unknown_intent: "interaction"
+  pattern_match_timeout_ms: 50
+
+intent_routing:
+  instant:
+    agent: "instant"
+    priority: 10
+    requires_llm: false
+    timeout_ms: 100
+  action:
+    agent: "action"
+    priority: 9
+    requires_llm: false
+    timeout_ms: 2000
+  # ... etc
+
+confidence_thresholds:
+  pattern_match: 0.85
+  heuristic: 0.70
+  llm_fallback: 0.60
+
+memory_retrieval:
+  enabled_for: ["conversation", "query", "memory"]
+  disabled_for: ["instant", "gesture", "emergency"]
+  max_memories: 5
+```
+
+---
+
+## Additional Reference: All Scripts
+
+### scripts/
+
+| Script | Purpose | Run On |
+|--------|---------|--------|
+| `start-gpu-worker.sh` | Start Parakeet STT worker | Man-of-war (WSL) |
+| `stop-gpu-worker.sh` | Stop GPU worker | Man-of-war (WSL) |
+| `deploy-vm.sh` | Deploy code to VM and restart | Man-of-war (WSL) |
+| `restart.sh` | Restart BarnabeeNet service | VM |
+| `status.sh` | Check service status | VM |
+| `ollama-tunnel.sh` | SSH tunnel for Ollama access | Man-of-war (WSL) |
+| `debug-logs.sh` | Query logs by type | VM |
+| `switch-llm-config.sh` | Switch between free/paid configs | VM |
+| `clear_all_data.sh` | Clear all Redis data | VM |
+| `clear_redis_data.py` | Python script to clear Redis | VM |
+| `validate.sh` | Pre-commit validation | Any |
+| `pre-commit.sh` | Git pre-commit hook | Any |
+
+### Key Script: deploy-vm.sh
+```bash
+#!/bin/bash
+# Deploy to VM and restart
+git push
+ssh thom@192.168.86.51 'cd ~/barnabeenet && git pull && bash scripts/restart.sh'
+```
+
+### Key Script: ollama-tunnel.sh
+```bash
+#!/bin/bash
+# Persistent SSH tunnel for Ollama access from VM
+while true; do
+    echo "$(date): Starting SSH tunnel to VM for Ollama..."
+    ssh -N -R 11434:localhost:11434 thom@192.168.86.51
+    echo "$(date): Tunnel closed, reconnecting in 5s..."
+    sleep 5
+done
+```
+
+---
+
+## Additional Reference: Key Documentation
+
+### docs/ (39 files)
+
+**Architecture & Design:**
+- `BarnabeeNet_Technical_Architecture.md` - Full technical spec (4000+ lines)
+- `architecture.md` - As-built architecture
+- `BarnabeeNet_MetaAgent_Specification.md` - Intent classification design
+- `BarnabeeNet_Family_Profile_System.md` - Profile agent design (SkyrimNet-inspired)
+
+**Implementation:**
+- `IMPLEMENTATION_STATUS.md` - Performance improvements status
+- `IMPLEMENTATION_SUMMARY.md` - Feature summary
+- `BarnabeeNet_Implementation_Guide.md` - Build guide
+- `VM_DEPLOYMENT_STATUS.md` - VM setup status
+
+**Integration:**
+- `INTEGRATION.md` - HA integration guide
+- `VIEWASSIST_INTEGRATION.md` - ViewAssist setup
+- `TIMER_SETUP.md` - Timer helper configuration
+
+**Operations:**
+- `BarnabeeNet_Operations_Runbook.md` - Operations guide
+- `QUICK_REFERENCE.md` - Quick command reference
+
+**Research & Theory:**
+- `SkyrimNet_Deep_Research_For_BarnabeeNet.md` - SkyrimNet patterns analysis
+- `BarnabeeNet_Theory_Research.md` - Research notes
+- `BarnabeeNet_Prompt_Engineering.md` - Prompt design
+
+**Future:**
+- `future/MOBILE_STT_CLIENT.md` - Android client design
+- `future/CAPABILITY_ROADMAP.md` - Feature roadmap
+- `future/self improvement agent.md` - Self-improvement spec
+
+---
+
+## Additional Reference: Test Suite
+
+### tests/ (28 test files)
+
+| File | Tests | Coverage |
+|------|-------|----------|
+| `test_meta_agent.py` | Intent classification | MetaAgent |
+| `test_instant_agent.py` | Quick responses | InstantAgent |
+| `test_action_agent.py` | Device control | ActionAgent |
+| `test_interaction_agent.py` | Conversations | InteractionAgent |
+| `test_memory_agent.py` | Memory ops | MemoryAgent |
+| `test_orchestrator.py` | Pipeline | AgentOrchestrator |
+| `test_homeassistant.py` | HA client | HomeAssistantClient |
+| `test_homeassistant_api.py` | HA endpoints | HA API routes |
+| `test_intent_coverage.py` | **87.3% accuracy** | All intents |
+| `test_e2e.py` | End-to-end | Full pipeline |
+| `test_stt_router.py` | STT routing | GPU/CPU/Azure |
+| `test_kokoro_tts.py` | TTS | Kokoro |
+| `test_memory_storage.py` | Memory | Storage |
+| `test_providers.py` | LLM providers | OpenRouter etc |
+| `test_self_improvement.py` | Self-improve | Claude Code |
+
+### Running Tests
+```bash
+# Incremental (fast, uses testmon)
+pytest
+
+# Full suite
+pytest --no-testmon
+
+# Specific test
+pytest tests/test_intent_coverage.py -v
+
+# With coverage
+pytest --cov=barnabeenet --cov-report=html
+```
+
+---
+
+## Additional Reference: NixOS Configuration
+
+### /etc/nixos/configuration.nix (on VM)
+
+```nix
+{ config, pkgs, ... }:
+
+{
+  imports = [ ./hardware-configuration.nix ./barnabeenet.nix ];
+
+  boot.loader.systemd-boot.enable = true;
+  networking.hostName = "barnabeenet";
+  time.timeZone = "America/New_York";
+
+  users.users.thom = {
+    isNormalUser = true;
+    extraGroups = [ "wheel" "networkmanager" ];
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOP6MkvsXW5bgQmDoSE6uWdckVgzhVFxh4xOuiiEpsBG"
+    ];
+  };
+
+  virtualisation.podman = {
+    enable = true;
+    dockerCompat = true;
+    defaultNetwork.settings.dns_enabled = true;
+  };
+
+  environment.systemPackages = with pkgs; [
+    vim git curl wget htop tmux
+    podman-compose
+    python312 python312Packages.pip python312Packages.virtualenv
+    sqlite redis
+    jq yq tree ffmpeg
+  ];
+
+  networking.firewall.allowedTCPPorts = [ 22 8000 6379 9090 3000 ];
+
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  system.stateVersion = "24.11";
+}
+```
+
+### /etc/nixos/barnabeenet.nix (systemd service)
+
+```nix
+{ config, pkgs, ... }:
+
+{
+  systemd.services.barnabeenet = {
+    description = "BarnabeeNet Smart Home Assistant";
+    after = [ "network.target" "redis.service" ];
+    wantedBy = [ "multi-user.target" ];
+
+    serviceConfig = {
+      Type = "simple";
+      User = "thom";
+      WorkingDirectory = "/home/thom/barnabeenet";
+      ExecStart = "/home/thom/barnabeenet/.venv/bin/uvicorn barnabeenet.main:app --host 0.0.0.0 --port 8000";
+      Restart = "always";
+      RestartSec = 5;
+      EnvironmentFile = "/home/thom/barnabeenet/.env";
+    };
+  };
+}
+```
+
+---
+
+## Additional Reference: Redis Data Structures
+
+### Key Prefixes
+
+| Prefix | Purpose | TTL |
+|--------|---------|-----|
+| `signal:` | Pipeline signals | 7 days |
+| `activity:` | Activity log | 7 days |
+| `memory:` | Stored memories | None |
+| `embedding:` | Cached embeddings | 7 days |
+| `profile:` | Family profiles | None |
+| `conversation:` | Conversation context | 30 min |
+| `config:` | Runtime config | None |
+| `cache:llm:` | LLM response cache | 1-24 hours |
+
+### Redis Streams
+
+| Stream | Purpose |
+|--------|---------|
+| `signals` | Pipeline signal events |
+| `activities` | Activity log events |
+| `ha:state_changes` | HA state change events |
+
+---
+
+## Additional Reference: WebSocket Endpoints
+
+| Endpoint | Purpose | Protocol |
+|----------|---------|----------|
+| `/ws/activity` | Real-time activity feed | JSON messages |
+| `/ws/dashboard` | Dashboard updates | JSON messages |
+| `/ws/transcribe` | Streaming STT | Binary audio in, JSON out |
+
+### WebSocket Message Types
+
+```typescript
+// Activity feed
+{ "type": "activity", "data": Activity }
+{ "type": "stats_update", "data": Stats }
+
+// Dashboard
+{ "type": "metrics", "data": Metrics }
+{ "type": "ha_state_change", "data": StateChange }
+
+// Transcribe
+{ "type": "config", "streaming": true, "engine": "parakeet" }
+{ "type": "partial", "text": "...", "confidence": 0.8 }
+{ "type": "final", "text": "...", "confidence": 0.95 }
+```
+
+---
+
 *Document generated: January 24, 2026*
 *BarnabeeNet v1.0 - 8 days of development*
 *~27,000 lines of Python*
