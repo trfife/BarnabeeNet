@@ -1,0 +1,137 @@
+{
+  "summary": {
+    "total": 118,
+    "passed": 103,
+    "failed": 15,
+    "pass_rate": "87.3%"
+  },
+  "by_intent": {
+    "instant": {
+      "total": 67,
+      "passed": 56,
+      "failed": [
+        {
+          "text": "is everyone home",
+          "expected": "instant:whos_home",
+          "actual": "instant:location",
+          "confidence": 0.95,
+          "method": "pattern"
+        },
+        {
+          "text": "is the living room light on",
+          "expected": "instant:device_status",
+          "actual": "action:entity_query",
+          "confidence": 0.9,
+          "method": "pattern"
+        },
+        {
+          "text": "are the doors locked",
+          "expected": "instant:device_status",
+          "actual": "instant:security",
+          "confidence": 0.95,
+          "method": "pattern"
+        },
+        {
+          "text": "time in London",
+          "expected": "instant:world_clock",
+          "actual": "conversation:None",
+          "confidence": 0.5,
+          "method": "heuristic"
+        },
+        {
+          "text": "barnabee what time is it",
+          "expected": "instant:time",
+          "actual": "conversation:None",
+          "confidence": 0.5,
+          "method": "heuristic"
+        },
+        {
+          "text": "hey barnabee tell me a joke",
+          "expected": "instant:joke",
+          "actual": "conversation:None",
+          "confidence": 0.5,
+          "method": "heuristic"
+        },
+        {
+          "text": "can i have a star",
+          "expected": "instant:chore",
+          "actual": "query:None",
+          "confidence": 0.7,
+          "method": "heuristic"
+        },
+        {
+          "text": "joke",
+          "expected": "instant:joke",
+          "actual": "conversation:None",
+          "confidence": 0.5,
+          "method": "heuristic"
+        },
+        {
+          "text": "what can you do",
+          "expected": "instant:status",
+          "actual": "query:None",
+          "confidence": 0.7,
+          "method": "heuristic"
+        },
+        {
+          "text": "is it cold outside",
+          "expected": "instant:weather",
+          "actual": "query:None",
+          "confidence": 0.7,
+          "method": "heuristic"
+        },
+        {
+          "text": "are the lights on",
+          "expected": "instant:device_status",
+          "actual": "query:None",
+          "confidence": 0.7,
+          "method": "heuristic"
+        }
+      ]
+    },
+    "action": {
+      "total": 33,
+      "passed": 29,
+      "failed": [
+        {
+          "text": "next track",
+          "expected": "action:media",
+          "actual": "conversation:None",
+          "confidence": 0.5,
+          "method": "heuristic"
+        },
+        {
+          "text": "can you set a timer for 5 minutes please",
+          "expected": "action:timer",
+          "actual": "query:None",
+          "confidence": 0.7,
+          "method": "heuristic"
+        },
+        {
+          "text": "lights",
+          "expected": "action:switch",
+          "actual": "conversation:None",
+          "confidence": 0.5,
+          "method": "heuristic"
+        },
+        {
+          "text": "set a 5 minute timer for pizza",
+          "expected": "action:timer",
+          "actual": "action:None",
+          "confidence": 0.7,
+          "method": "heuristic"
+        }
+      ]
+    },
+    "memory": {
+      "total": 8,
+      "passed": 8,
+      "failed": []
+    },
+    "emergency": {
+      "total": 10,
+      "passed": 10,
+      "failed": []
+    }
+  }
+}

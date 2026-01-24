@@ -390,7 +390,7 @@ action:
       - "time left for pizza"
 
   timer_control_pause:
-    pattern: "^pause\\s+(?:the\\s+)?.*(?:\s+timer)?$"
+    pattern: "^pause\\s+(?:the\\s+)?.*(?:\\s+timer)?$"
     sub_category: "timer"
     confidence: 0.95
     enabled: true
@@ -400,7 +400,7 @@ action:
       - "pause lasagna"
 
   timer_control_resume:
-    pattern: "^resume\\s+(?:the\\s+)?.*(?:\s+timer)?$"
+    pattern: "^resume\\s+(?:the\\s+)?.*(?:\\s+timer)?$"
     sub_category: "timer"
     confidence: 0.95
     enabled: true
@@ -410,7 +410,7 @@ action:
       - "resume lasagna"
 
   timer_control_cancel:
-    pattern: "^(cancel|stop)\\s+(?:the\\s+)?.*(?:\s+timer)?$"
+    pattern: "^(cancel|stop)\\s+(?:the\\s+)?.*(?:\\s+timer)?$"
     sub_category: "timer"
     confidence: 0.95
     enabled: true
