@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e14">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>BarnabeeNet Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css?v=2">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <!-- Offline Banner -->
+    <div class="offline-banner" id="offline-banner">
+        ⚠️ You appear to be offline. Some features may be unavailable.
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="logo">🐝</span>
+            <span class="brand-name">BarnabeeNet</span>
+        </div>
+        <div class="nav-links">
+            <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
+            <a href="#" class="nav-link" data-page="chat">Chat</a>
+            <a href="#" class="nav-link" data-page="family">Family</a>
+            <a href="#" class="nav-link" data-page="memory">Memory</a>
+            <a href="#" class="nav-link" data-page="entities">Home</a>
+            <a href="#" class="nav-link" data-page="config">Settings</a>
+        </div>
+        <div class="nav-status">
+            <span class="status-indicator" id="ws-status"></span>
+            <span id="current-time"></span>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <!-- Dashboard Page -->
+        <div id="page-dashboard" class="page active">
+            <div class="page-header">
+                <h1>Welcome to BarnabeeNet</h1>
+                <p>Your AI-powered smart home assistant</p>
+            </div>
+
+            <div class="dashboard-grid">
+                <!-- System Status -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>🖥️ System Status</h3>
+                    </div>
+                    <div class="card-body" id="system-status">
+                        <div class="status-row">
+                            <span class="status-label">Status:</span>
+                            <span class="status-value status-loading">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Services Health -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>💚 Services</h3>
+                    </div>
+                    <div class="card-body" id="services-health">
+                        <div class="status-row">
+                            <span class="status-label">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>📊 Today's Activity</h3>
+                    </div>
+                    <div class="card-body" id="quick-stats">
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-value" id="stat-requests">-</span>
+                                <span class="stat-label">Requests</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" id="stat-memories">-</span>
+                                <span class="stat-label">Memories</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" id="stat-actions">-</span>
+                                <span class="stat-label">Actions</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Timers -->
+                <div class="card" id="active-timers-card">
+                    <div class="card-header">
+                        <h3>⏱️ Active Timers</h3>
+                    </div>
+                    <div class="card-body" id="active-timers">
+                        <p class="text-muted">No active timers</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <h3>🚀 Quick Actions</h3>
+                </div>
+                <div class="card-body">
+                    <div class="quick-actions-grid">
+                        <button class="quick-action-btn" onclick="showPage('chat')">
+                            <span class="quick-action-icon">💬</span>
+                            <span class="quick-action-label">Chat with Barnabee</span>
+                        </button>
+                        <button class="quick-action-btn" onclick="showPage('family')">
+                            <span class="quick-action-icon">👨‍👩‍👧‍👦</span>
+                            <span class="quick-action-label">Manage Family</span>
+                        </button>
+                        <button class="quick-action-btn" onclick="showPage('memory')">
+                            <span class="quick-action-icon">🧠</span>
+                            <span class="quick-action-label">View Memories</span>
+                        </button>
+                        <button class="quick-action-btn" onclick="showPage('entities')">
+                            <span class="quick-action-icon">🏠</span>
+                            <span class="quick-action-label">Home Devices</span>
+                        </button>
+                        <button class="quick-action-btn" onclick="openCapabilitiesModal()">
+                            <span class="quick-action-icon">❓</span>
+                            <span class="quick-action-label">What Can Barnabee Do?</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Feed (compact) -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <h3>📡 Recent Activity</h3>
+                    <div class="card-actions">
+                        <button class="btn btn-small" id="clear-activity">Clear</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="activity-feed" id="activity-feed" style="max-height: 250px;">
+                        <div class="activity-item info">
+                            <span class="activity-time">--:--:--</span>
+                            <span class="activity-badge system">System</span>
+                            <span class="activity-message">Connecting to activity stream...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Page - Talk to Barnabee -->
+        <div id="page-chat" class="page">
+            <div class="chat-container">
+                <!-- Chat Header -->
+                <div class="chat-header">
+                    <div class="chat-avatar">🐝</div>
+                    <div class="chat-info">
+                        <h2>Barnabee</h2>
+                        <span class="chat-status" id="chat-status">Ready to chat</span>
+                    </div>
+                    <div class="chat-actions">
+                        <button id="chat-clear-btn" class="btn btn-secondary" title="Clear conversation">
+                            🗑️ Clear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Chat Messages Area -->
+                <div class="chat-messages" id="chat-messages">
+                    <div class="chat-welcome">
+                        <div class="welcome-avatar">🐝</div>
+                        <h3>Hello! I'm Barnabee</h3>
+                        <p>Your friendly home assistant. I can help you with:</p>
+                        <div class="welcome-suggestions">
+                            <button class="suggestion-chip" data-suggestion="What time is it?">🕐 Time</button>
+                            <button class="suggestion-chip" data-suggestion="What's the weather?">🌤️ Weather</button>
+                            <button class="suggestion-chip" data-suggestion="Morning briefing">📋 Briefing</button>
+                            <button class="suggestion-chip" data-suggestion="Tell me a joke">😄 Joke</button>
+                            <button class="suggestion-chip" data-suggestion="Tell me a riddle">🧩 Riddle</button>
+                            <button class="suggestion-chip" data-suggestion="Flip a coin">🪙 Coin flip</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Input -->
+                <div class="chat-input-container">
+                    <div class="chat-input-wrapper">
+                        <button id="chat-mic-btn" class="chat-mic-btn" title="Click to record voice">
+                            <span class="mic-icon">🎤</span>
+                        </button>
+                        <input type="text" id="chat-input" class="chat-input" placeholder="Type or click 🎤 to speak..."
+                            autocomplete="off">
+                        <button id="chat-send-btn" class="chat-send-btn" title="Send message">
+                            <span class="send-icon">➤</span>
+                        </button>
+                    </div>
+                    <div class="chat-voice-indicator" id="chat-voice-indicator">
+                        <div class="voice-wave">
+                            <span></span><span></span><span></span><span></span><span></span>
+                        </div>
+                        <span class="voice-status">Listening...</span>
+                    </div>
+                    <div class="chat-input-hint">
+                        Press <kbd>Enter</kbd> to send • Click <kbd>🎤</kbd> to record
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Memory Page - Barnabee's Memories -->
+        <div id="page-memory" class="page">
+            <div class="page-header">
+                <h1>🧠 Barnabee's Memory</h1>
+                <p>View and manage what Barnabee knows about your household</p>
+            </div>
+
+            <!-- Memory Stats Cards -->
+            <div class="memory-stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon">📚</div>
+                    <div class="stat-value" id="memory-total">0</div>
+                    <div class="stat-label">Total Memories</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🆕</div>
+                    <div class="stat-value" id="memory-24h">0</div>
+                    <div class="stat-label">Last 24 Hours</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-value" id="memory-7d">0</div>
+                    <div class="stat-label">Last 7 Days</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">💾</div>
+                    <div class="stat-value" id="memory-backend">-</div>
+                    <div class="stat-label">Storage Backend</div>
+                </div>
+            </div>
+
+            <!-- Memory Tabs -->
+            <div class="memory-tabs">
+                <button class="memory-tab active" data-tab="all">📋 All Memories</button>
+                <button class="memory-tab" data-tab="semantic">💡 Facts & Knowledge</button>
+                <button class="memory-tab" data-tab="episodic">📝 Conversations</button>
+                <button class="memory-tab" data-tab="search">🔍 Search</button>
+                <button class="memory-tab" data-tab="add">➕ Add Memory</button>
+            </div>
+
+            <!-- Tab Content: All Memories -->
+            <div class="memory-tab-content active" id="tab-all">
+                <div class="memory-filters">
+                    <select id="memory-type-filter" class="form-control">
+                        <option value="">All Types</option>
+                        <option value="semantic">Semantic (Facts)</option>
+                        <option value="episodic">Episodic (Events)</option>
+                        <option value="procedural">Procedural (Routines)</option>
+                    </select>
+                    <select id="memory-participant-filter" class="form-control">
+                        <option value="">All Participants</option>
+                    </select>
+                    <button id="memory-refresh-btn" class="btn btn-secondary">🔄 Refresh</button>
+                </div>
+                <div class="memory-list" id="memory-list">
+                    <div class="loading">Loading memories...</div>
+                </div>
+                <div class="memory-pagination" id="memory-pagination"></div>
+            </div>
+
+            <!-- Tab Content: Facts & Knowledge -->
+            <div class="memory-tab-content" id="tab-semantic">
+                <div class="memory-category-intro">
+                    <h3>💡 Semantic Memories</h3>
+                    <p>Long-term facts about the household: preferences, relationships, and general knowledge.</p>
+                </div>
+                <div class="memory-list" id="semantic-list">
+                    <div class="loading">Loading facts...</div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Conversations -->
+            <div class="memory-tab-content" id="tab-episodic">
+                <div class="memory-category-intro">
+                    <h3>📝 Episodic Memories</h3>
+                    <p>Specific events and conversations from interactions.</p>
+                </div>
+                <div class="memory-list" id="episodic-list">
+                    <div class="loading">Loading events...</div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Search -->
+            <div class="memory-tab-content" id="tab-search">
+                <div class="memory-search-form">
+                    <h3>🔍 Search Memories</h3>
+                    <p>Find specific memories using semantic search.</p>
+                    <div class="search-input-row">
+                        <input type="text" id="memory-search-input" class="form-control"
+                            placeholder="What is Thom's favorite color?" />
+                        <button id="memory-search-btn" class="btn btn-primary">Search</button>
+                    </div>
+                </div>
+                <div class="memory-search-results" id="memory-search-results">
+                    <p class="search-hint">Enter a question or topic to search Barnabee's memories.</p>
+                </div>
+            </div>
+
+            <!-- Tab Content: Add Memory -->
+            <div class="memory-tab-content" id="tab-add">
+                <div class="memory-add-form">
+                    <h3>➕ Add New Memory</h3>
+                    <p>Manually store information for Barnabee to remember.</p>
+                    <div class="form-group">
+                        <label>Memory Content</label>
+                        <textarea id="add-memory-content" class="form-control" rows="3"
+                            placeholder="e.g., Thom's favorite color is blue"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Type</label>
+                            <select id="add-memory-type" class="form-control">
+                                <option value="semantic">Semantic (Fact/Preference)</option>
+                                <option value="episodic">Episodic (Event)</option>
+                                <option value="procedural">Procedural (Routine)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Importance (0-1)</label>
+                            <input type="number" id="add-memory-importance" class="form-control" value="0.5" min="0"
+                                max="1" step="0.1" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Participants (comma-separated)</label>
+                        <input type="text" id="add-memory-participants" class="form-control"
+                            placeholder="e.g., Thom, Heidi" />
+                    </div>
+                    <div class="form-group">
+                        <label>Tags (comma-separated)</label>
+                        <input type="text" id="add-memory-tags" class="form-control"
+                            placeholder="e.g., preference, color" />
+                    </div>
+                    <button id="add-memory-btn" class="btn btn-primary">💾 Store Memory</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Family Page -->
+        <div id="page-family" class="page">
+            <div class="page-header">
+                <h1>👨‍👩‍👧‍👦 Family Profiles</h1>
+                <p>Manage family member profiles and personalized preferences</p>
+            </div>
+
+            <!-- Family Stats -->
+            <div class="family-stats-bar" id="family-stats">
+                <div class="family-stat">
+                    <span class="stat-value" id="family-total">-</span>
+                    <span class="stat-label">Family Members</span>
+                </div>
+                <div class="family-stat">
+                    <span class="stat-value" id="family-pending">-</span>
+                    <span class="stat-label">Pending Updates</span>
+                </div>
+                <div class="family-stat">
+                    <span class="stat-value" id="family-events">-</span>
+                    <span class="stat-label">Unprocessed Events</span>
+                </div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="family-tabs">
+                <button class="family-tab active" data-family-tab="members">👥 Members</button>
+                <button class="family-tab" data-family-tab="pending">⏳ Pending Updates</button>
+                <button class="family-tab" data-family-tab="add">➕ Add Member</button>
+            </div>
+
+            <!-- Members Tab -->
+            <div id="family-tab-members" class="family-tab-content active">
+                <div class="family-grid" id="family-list">
+                    <div class="loading">Loading family profiles...</div>
+                </div>
+            </div>
+
+            <!-- Pending Updates Tab -->
+            <div id="family-tab-pending" class="family-tab-content">
+                <div id="pending-updates-list">
+                    <div class="loading">Loading pending updates...</div>
+                </div>
+            </div>
+
+            <!-- Add Member Tab -->
+            <div id="family-tab-add" class="family-tab-content">
+                <div class="card add-member-card">
+                    <div class="card-header">
+                        <h3>➕ Add New Family Member</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="add-member-form">
+                            <div class="form-group">
+                                <label for="new-member-id">Member ID (lowercase, no spaces)</label>
+                                <input type="text" id="new-member-id" required pattern="[a-z0-9_]+"
+                                    placeholder="e.g., john">
+                            </div>
+                            <div class="form-group">
+                                <label for="new-member-name">Display Name</label>
+                                <input type="text" id="new-member-name" required placeholder="e.g., John">
+                            </div>
+                            <div class="form-group">
+                                <label for="new-member-relationship">Relationship</label>
+                                <select id="new-member-relationship" required>
+                                    <option value="self">Self (Primary User)</option>
+                                    <option value="spouse">Spouse/Partner</option>
+                                    <option value="child">Child</option>
+                                    <option value="parent">Parent</option>
+                                    <option value="sibling">Sibling</option>
+                                    <option value="extended_family">Extended Family</option>
+                                    <option value="guest">Guest</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Create Profile</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Detail Modal -->
+            <div id="profile-modal" class="modal">
+                <div class="modal-content profile-modal-content">
+                    <div class="modal-header">
+                        <h2 id="profile-modal-title">Profile Details</h2>
+                        <span class="close-modal">&times;</span>
+                    </div>
+                    <div class="modal-body" id="profile-modal-body">
+                        <!-- Profile details loaded dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Diff Preview Modal -->
+            <div id="diff-modal" class="modal">
+                <div class="modal-content diff-modal-content">
+                    <div class="modal-header">
+                        <h2 id="diff-modal-title">Profile Update Preview</h2>
+                        <span class="close-modal">&times;</span>
+                    </div>
+                    <div class="modal-body" id="diff-modal-body">
+                        <!-- Diff details loaded dynamically -->
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-success" id="diff-approve-btn">✓ Approve Changes</button>
+                        <button class="btn btn-danger" id="diff-reject-btn">✗ Reject Changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Home Page (Home Assistant Dashboard) -->
+        <div id="page-entities" class="page">
+            <div class="page-header">
+                <h1>🏠 Home Devices</h1>
+                <p>Your Home Assistant devices and entities</p>
+            </div>
+
+            <!-- Discovery Status Banner -->
+            <div class="card ha-status-banner">
+                <div id="ha-connection-status">
+                    <div class="ha-status-disconnected">
+                        <span class="status-indicator disconnected"></span>
+                        <span class="status-text">Checking connection...</span>
+                    </div>
+                </div>
+                <div id="ha-snapshot-summary"></div>
+            </div>
+
+            <!-- HA Tab Navigation -->
+            <div class="ha-tabs">
+                <button class="ha-tab-btn active" data-ha-tab="overview">📊 Overview</button>
+                <button class="ha-tab-btn" data-ha-tab="entities">💡 Entities</button>
+                <button class="ha-tab-btn" data-ha-tab="areas">🗺️ Areas</button>
+                <button class="ha-tab-btn" data-ha-tab="devices">📱 Devices</button>
+                <button class="ha-tab-btn" data-ha-tab="activity">📋 Activity Log</button>
+            </div>
+
+            <!-- Overview Tab (NEW) -->
+            <div id="ha-tab-overview" class="ha-tab-content active">
+                <div class="ha-overview-grid">
+                    <!-- Discovery Status -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>🔄 Discovery Status</h3>
+                        </div>
+                        <div class="card-body" id="ha-discovery-status">
+                            <div class="discovery-stats">
+                                <div class="discovery-stat">
+                                    <span class="stat-label">Last Sync</span>
+                                    <span class="stat-value" id="ha-last-sync">Never</span>
+                                </div>
+                                <div class="discovery-stat">
+                                    <span class="stat-label">Entities Known</span>
+                                    <span class="stat-value" id="ha-entity-count">0</span>
+                                </div>
+                                <div class="discovery-stat">
+                                    <span class="stat-label">Areas Mapped</span>
+                                    <span class="stat-value" id="ha-area-count">0</span>
+                                </div>
+                                <div class="discovery-stat">
+                                    <span class="stat-label">Devices Found</span>
+                                    <span class="stat-value" id="ha-device-count">0</span>
+                                </div>
+                            </div>
+                            <button class="btn" id="ha-sync-now">🔄 Sync Now</button>
+                        </div>
+                    </div>
+
+                    <!-- Domain Breakdown -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📊 What Barnabee Can Control</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="domain-counts" id="ha-domain-counts">
+                                <p class="text-muted">Connect to Home Assistant to see domain statistics</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent HA Activity -->
+                    <div class="card full-width">
+                        <div class="card-header">
+                            <h3>📋 Recent Barnabee Actions</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="ha-recent-activity" id="ha-recent-activity">
+                                <p class="text-muted">No recent Home Assistant activity</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entities Tab -->
+            <div id="ha-tab-entities" class="ha-tab-content">
+                <div class="entities-toolbar">
+                    <input type="text" id="entity-search" class="form-control"
+                        placeholder="🔍 Search entities Barnabee knows about...">
+                    <select id="entity-type-filter" class="filter-select">
+                        <option value="">All Types</option>
+                        <option value="light">Lights</option>
+                        <option value="switch">Switches</option>
+                        <option value="climate">Climate</option>
+                        <option value="sensor">Sensors</option>
+                        <option value="binary_sensor">Binary Sensors</option>
+                        <option value="media_player">Media Players</option>
+                        <option value="cover">Covers</option>
+                        <option value="fan">Fans</option>
+                        <option value="lock">Locks</option>
+                    </select>
+                    <select id="entity-area-filter" class="filter-select">
+                        <option value="">All Areas</option>
+                    </select>
+                </div>
+
+                <div class="entities-grid" id="entities-list">
+                    <div class="empty-state">
+                        <p class="text-muted">Loading entities...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Areas Tab -->
+            <div id="ha-tab-areas" class="ha-tab-content">
+                <div class="areas-grid" id="ha-areas-list">
+                    <div class="empty-state">
+                        <p class="text-muted">Loading areas...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Devices Tab -->
+            <div id="ha-tab-devices" class="ha-tab-content">
+                <div class="devices-grid" id="ha-devices-list">
+                    <div class="empty-state">
+                        <p class="text-muted">Loading devices...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Log Tab -->
+            <div id="ha-tab-activity" class="ha-tab-content">
+                <div class="ha-activity-header">
+                    <h3>Barnabee's Home Assistant Activity</h3>
+                    <p class="text-muted">All actions Barnabee has taken through Home Assistant</p>
+                </div>
+                <div class="ha-activity-log" id="ha-activity-log">
+                    <div class="empty-state">
+                        <p class="text-muted">No activity yet. Talk to Barnabee to control your home!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Page -->
+        <div id="page-config" class="page">
+            <div class="page-header">
+                <h1>⚙️ Settings</h1>
+                <p>Configure your BarnabeeNet system</p>
+            </div>
+
+            <div class="config-layout">
+                <div class="config-sidebar">
+                    <h4>Settings</h4>
+                    <ul class="config-nav">
+                        <li class="active" data-config="providers">🤖 LLM Providers</li>
+                        <li data-config="models">🧠 Model Selection</li>
+                        <li data-config="homeassistant">🏠 Home Assistant</li>
+                        <li data-config="logs">📋 System Logs</li>
+                        <li data-config="self-improve">🔧 Self-Improve</li>
+                        <li data-config="testing">🧪 Testing & Dev</li>
+                    </ul>
+                </div>
+                <div class="config-content">
+                    <!-- LLM Providers Section -->
+                    <div id="config-providers" class="config-section active">
+                        <h3>🤖 LLM Provider Configuration</h3>
+                        <p class="section-desc">Configure API keys for LLM providers. Keys are encrypted and stored
+                            securely.</p>
+
+                        <div class="provider-status-bar">
+                            <span id="providers-configured">0</span> configured &nbsp;|&nbsp;
+                            <span id="providers-enabled">0</span> enabled
+                            <button class="btn btn-small" id="refresh-providers" style="margin-left: 16px;">🔄
+                                Refresh</button>
+                        </div>
+
+                        <div class="providers-grid" id="providers-list">
+                            <!-- Populated dynamically -->
+                            <div class="loading-spinner">Loading providers...</div>
+                        </div>
+                    </div>
+
+                    <!-- Provider Setup Modal -->
+                    <div id="provider-modal" class="modal" style="display: none;">
+                        <div class="modal-content modal-large">
+                            <div class="modal-header">
+                                <h3 id="provider-modal-title">Configure Provider</h3>
+                                <button class="btn btn-small" id="close-provider-modal">✕</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="provider-setup-grid">
+                                    <div class="provider-instructions">
+                                        <h4>📋 Setup Instructions</h4>
+                                        <ol id="provider-setup-steps">
+                                            <!-- Populated dynamically -->
+                                        </ol>
+                                        <div class="provider-links">
+                                            <a id="provider-docs-link" href="#" target="_blank" class="btn btn-small">📖
+                                                Documentation</a>
+                                            <a id="provider-key-link" href="#" target="_blank"
+                                                class="btn btn-small btn-primary">🔑 Get API Key</a>
+                                        </div>
+                                    </div>
+                                    <div class="provider-form">
+                                        <h4>🔐 Credentials</h4>
+                                        <form id="provider-setup-form">
+                                            <input type="hidden" id="provider-type">
+                                            <div id="provider-secret-fields">
+                                                <!-- Secret fields populated dynamically -->
+                                            </div>
+                                            <div id="provider-config-fields">
+                                                <!-- Config fields populated dynamically -->
+                                            </div>
+                                            <div class="form-actions">
+                                                <button type="button" class="btn" id="test-provider-btn">🧪 Test
+                                                    Connection</button>
+                                                <button type="submit" class="btn btn-primary">💾 Save & Enable</button>
+                                            </div>
+                                        </form>
+                                        <div id="provider-test-result" class="test-result" style="display: none;"></div>
+                                    </div>
+                                </div>
+                                <div class="provider-pricing" id="provider-pricing">
+                                    <!-- Pricing notes -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- Model Selection Section -->
+                    <div id="config-models" class="config-section">
+                        <h3>🧠 Model Selection</h3>
+                        <p class="section-desc">Switch between free and paid models. Free models have no cost but may have rate limits.</p>
+
+                        <!-- Mode Toggle -->
+                        <div class="mode-toggle-card" style="background: var(--bg-tertiary); border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid var(--border-color);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: var(--text-primary);">Model Mode</h4>
+                                    <p style="margin: 0; font-size: 14px; color: var(--text-secondary);" id="mode-description">
+                                        Loading current mode...
+                                    </p>
+                                </div>
+                                <div class="mode-toggle-buttons" style="display: flex; gap: 8px;">
+                                    <button id="mode-free-btn" class="btn mode-btn" onclick="setModelMode('testing')">
+                                        🆓 Free Models
+                                    </button>
+                                    <button id="mode-paid-btn" class="btn mode-btn" onclick="setModelMode('production')">
+                                        💰 Paid Models
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="mode-status" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
+                        </div>
+
+                        <div class="agent-models-list" id="agent-models-list">
+                            <div class="loading-spinner">Loading agent models...</div>
+                        </div>
+                    </div>
+
+                    <div id="config-homeassistant" class="config-section">
+                        <h3>🏠 Home Assistant</h3>
+                        <p class="section-desc">Configure connection to your Home Assistant instance.</p>
+
+                        <!-- Connection Status -->
+                        <div class="ha-config-status" id="ha-config-connection-status">
+                            <div class="ha-status-disconnected">
+                                <span class="status-indicator disconnected"></span>
+                                <span class="status-text">Not Configured</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Home Assistant URL</label>
+                            <input type="text" id="ha-url-input" class="form-control"
+                                placeholder="http://192.168.1.100:8123">
+                            <small class="form-text">The URL of your Home Assistant instance (e.g.,
+                                http://192.168.86.50:8123)</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Long-Lived Access Token</label>
+                            <input type="password" id="ha-token-input" class="form-control"
+                                placeholder="Paste your token here...">
+                            <small class="form-text">Generate in Home Assistant: Profile → Long-Lived Access
+                                Tokens</small>
+                        </div>
+                        <div class="form-actions">
+                            <button class="btn" id="test-ha-connection">🔗 Test Connection</button>
+                            <button class="btn btn-primary" id="save-ha-config">💾 Save</button>
+                        </div>
+                        <div id="ha-test-result" class="test-result" style="display: none;"></div>
+
+                        <hr>
+
+                        <h4>📋 Setup Instructions</h4>
+                        <ol class="setup-steps">
+                            <li>Open your Home Assistant instance in a browser</li>
+                            <li>Click your <strong>Profile</strong> (your name in the bottom left)</li>
+                            <li>Scroll down to <strong>Long-Lived Access Tokens</strong></li>
+                            <li>Click <strong>Create Token</strong></li>
+                            <li>Name it "BarnabeeNet" and click <strong>OK</strong></li>
+                            <li>Copy the token and paste it in the field above</li>
+                            <li>Click <strong>Test Connection</strong> to verify</li>
+                            <li>Click <strong>Save</strong> to store the configuration</li>
+                        </ol>
+                    </div>
+
+                    <!-- System Logs Section -->
+                    <div id="config-logs" class="config-section">
+                        <h3>📋 System Logs</h3>
+                        <p class="section-desc">Real-time log stream from BarnabeeNet</p>
+
+                        <!-- Log Stream -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h4>📜 Log Stream</h4>
+                                <div class="card-actions">
+                                    <select id="log-level-filter" class="filter-select">
+                                        <option value="">All Levels</option>
+                                        <option value="debug">Debug</option>
+                                        <option value="info">Info</option>
+                                        <option value="warn">Warning</option>
+                                        <option value="error">Error</option>
+                                    </select>
+                                    <button class="btn btn-small" id="clear-logs">🗑️ Clear</button>
+                                    <label class="toggle-label">
+                                        <input type="checkbox" id="log-auto-scroll" checked> Auto-scroll
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="log-stream" id="log-stream" style="max-height: 400px;">
+                                    <div class="log-entry info">
+                                        <span class="log-time">--:--:--</span>
+                                        <span class="log-level info">INFO</span>
+                                        <span class="log-component">system</span>
+                                        <span class="log-message">Select this section to view logs...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Self-Improvement Section -->
+                    <div id="config-self-improve" class="config-section">
+                        <h3>🔧 Self-Improvement Agent</h3>
+                        <p class="section-desc">AI-powered code improvements with human approval gates</p>
+
+                        <!-- Progress Timeline -->
+                        <div class="si-timeline-container" id="si-timeline-container">
+                            <div class="si-timeline" id="si-timeline">
+                                <div class="timeline-step" data-step="started">
+                                    <div class="step-dot"></div>
+                                    <div class="step-label">Started</div>
+                                </div>
+                                <div class="timeline-connector"></div>
+                                <div class="timeline-step" data-step="diagnosing">
+                                    <div class="step-dot"></div>
+                                    <div class="step-label">Diagnosing</div>
+                                </div>
+                                <div class="timeline-connector"></div>
+                                <div class="timeline-step" data-step="implementing">
+                                    <div class="step-dot"></div>
+                                    <div class="step-label">Implementing</div>
+                                </div>
+                                <div class="timeline-connector"></div>
+                                <div class="timeline-step" data-step="completed">
+                                    <div class="step-dot"></div>
+                                    <div class="step-label">Done</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="si-top-bar" style="margin-top: 20px;">
+                            <div class="si-status" id="si-status-section">
+                                <span class="status-dot" id="si-status-dot"></span>
+                                <span id="si-status-text">Ready</span>
+                            </div>
+                            <div class="si-actions">
+                                <button id="si-stop-btn" class="btn btn-danger btn-sm hidden">⏹ Stop</button>
+                                <button class="btn btn-primary btn-sm" id="new-improvement-btn">+ New Request</button>
+                            </div>
+                        </div>
+
+                        <div id="si-cli-section" class="si-cli-main" style="margin-top: 16px;">
+                            <div class="cli-header">
+                                <div class="cli-title">
+                                    <span>💻 Claude Code CLI</span>
+                                    <span id="si-cli-status" class="si-cli-status"></span>
+                                </div>
+                                <div class="cli-controls">
+                                    <label class="toggle-label">
+                                        <input type="checkbox" id="cli-auto-scroll" checked>
+                                        Auto-scroll
+                                    </label>
+                                    <button class="btn btn-sm" onclick="SelfImprovement.clearCLI()">Clear</button>
+                                </div>
+                            </div>
+                            <div class="cli-terminal" id="cli-terminal">
+                                <pre id="si-cli-output"><span class="cli-empty">No active session. Click "+ New Request" to start.</span></pre>
+                            </div>
+                        </div>
+
+                        <!-- Self-Improve Modals -->
+                        <div id="si-modal" class="modal" style="display: none;">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>Request Improvement</h3>
+                                    <button class="btn btn-small modal-close-btn" id="si-modal-close">✕</button>
+                                </div>
+                                <div class="modal-body">
+                                    <textarea id="si-improvement-request"
+                                        placeholder="Describe the issue or improvement...&#10;&#10;Examples:&#10;- 'The last voice command didn't work, look into it'&#10;- 'Add better error messages to action agent'"
+                                        rows="5"></textarea>
+                                    <div class="model-select">
+                                        <label>
+                                            <input type="radio" name="si-model" value="opusplan" checked>
+                                            🔄 Auto - Opus for planning, Sonnet for implementation
+                                        </label>
+                                        <label>
+                                            <input type="radio" name="si-model" value="sonnet">
+                                            ⚡ Sonnet 4.5 - Fast and capable
+                                        </label>
+                                    </div>
+                                    <div class="modal-actions">
+                                        <button id="si-cancel" class="btn btn-secondary">Cancel</button>
+                                        <button id="si-submit" class="btn btn-primary">Start</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="si-plan-modal" class="modal" style="display: none;">
+                            <div class="modal-content modal-large">
+                                <div class="modal-header">
+                                    <h3>📋 Proposed Plan</h3>
+                                    <div id="si-safety-score" class="si-safety-score"></div>
+                                </div>
+                                <div class="modal-body">
+                                    <div id="si-plan-content" class="si-plan-content"></div>
+                                    <div class="si-plan-actions">
+                                        <div class="si-plan-buttons">
+                                            <button id="si-reject-plan" class="btn btn-secondary">✗ Reject</button>
+                                            <button id="si-approve-plan" class="btn btn-success">✓ Approve</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="si-commit-modal" class="modal" style="display: none;">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>📝 Changes Ready</h3>
+                                    <button class="btn btn-small modal-close-btn" onclick="document.getElementById('si-commit-modal').style.display='none'">✕</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div id="si-changes-summary" class="si-changes-summary"></div>
+                                    <div class="si-commit-actions">
+                                        <button id="si-reject-changes" class="btn btn-danger">✗ Discard</button>
+                                        <button id="si-approve-changes" class="btn btn-success">✓ Commit</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Testing & Development Section -->
+                    <div id="config-testing" class="config-section">
+                        <h3>🧪 Testing & Development</h3>
+                        <p class="section-desc">Tools for testing during development. Use these to populate the system with mock data or reset for production.</p>
+
+                        <!-- Testing Status -->
+                        <div class="testing-status-card" id="testing-status">
+                            <div class="status-grid">
+                                <div class="status-item">
+                                    <span class="status-label">Memory Storage</span>
+                                    <span class="status-value" id="testing-memory-status">--</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Profile Service</span>
+                                    <span class="status-value" id="testing-profile-status">--</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Total Memories</span>
+                                    <span class="status-value" id="testing-memory-count">--</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Family Profiles</span>
+                                    <span class="status-value" id="testing-profile-count">--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Mock Data Generation -->
+                        <div class="testing-section">
+                            <h4>📝 Generate Mock Data</h4>
+                            <p class="text-muted">Create sample family profiles, memories, and conversations for testing.</p>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="mock-include-family" checked>
+                                    <span>Include family profiles (6 members)</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="mock-include-memories" checked>
+                                    <span>Include memories (facts about family)</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="mock-include-conversations" checked>
+                                    <span>Include conversation history</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label>Days of history to generate:</label>
+                                <input type="number" id="mock-days" class="form-control" value="7" min="1" max="30" style="width: 100px;">
+                            </div>
+                            <button class="btn btn-primary" id="generate-mock-data-btn">📝 Generate Mock Data</button>
+                            <div id="mock-data-result" class="test-result" style="display: none;"></div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Clear Data -->
+                        <div class="testing-section">
+                            <h4>🗑️ Clear All Data</h4>
+                            <p class="text-muted warning-text">⚠️ This will permanently delete data. Use when preparing for production.</p>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="clear-memories" checked>
+                                    <span>Clear all memories</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="clear-conversations" checked>
+                                    <span>Clear conversation contexts</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="clear-family-profiles" checked>
+                                    <span>Clear family profiles</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="clear-audit-log">
+                                    <span>Clear audit log (production reset only)</span>
+                                </label>
+                            </div>
+                            <button class="btn btn-danger" id="clear-all-data-btn">🗑️ Clear All Data</button>
+                            <div id="clear-data-result" class="test-result" style="display: none;"></div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Delete Mock Data Only -->
+                        <div class="testing-section">
+                            <h4>🧹 Delete Mock Data Only</h4>
+                            <p class="text-muted">Remove only data tagged as mock data, preserving real user data.</p>
+                            <button class="btn btn-secondary" id="delete-mock-data-btn">🧹 Delete Mock Data Only</button>
+                            <div id="delete-mock-result" class="test-result" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Capabilities Modal -->
+    <div id="capabilities-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 900px; max-height: 85vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2>🐝 What Can Barnabee Do?</h2>
+                <button class="close-btn" onclick="closeCapabilitiesModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 20px; color: var(--text-secondary);">Talk to Barnabee using voice or text! Here's everything I can help with:</p>
+                
+                <div class="capabilities-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                    <!-- Smart Home Control -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-cyan); margin-bottom: 12px;">🏠 Smart Home Control</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">💡 <strong>Lights:</strong> "Turn on/off the living room light"</li>
+                            <li style="margin-bottom: 8px;">🌀 <strong>Fans:</strong> "Turn on the bedroom fan"</li>
+                            <li style="margin-bottom: 8px;">🔌 <strong>Switches:</strong> "Turn off the kitchen switch"</li>
+                            <li style="margin-bottom: 8px;">🌡️ <strong>Thermostat:</strong> "Set temperature to 72"</li>
+                            <li style="margin-bottom: 8px;">🚪 <strong>Locks:</strong> "Lock the front door"</li>
+                            <li style="margin-bottom: 8px;">🪟 <strong>Blinds:</strong> "Open/close the blinds"</li>
+                        </ul>
+                    </div>
+
+                    <!-- Timers & Alarms -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-green); margin-bottom: 12px;">⏱️ Timers & Alarms</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">⏲️ <strong>Set timer:</strong> "Set a timer for 5 minutes"</li>
+                            <li style="margin-bottom: 8px;">🍕 <strong>Named timer:</strong> "Set a pizza timer for 15 minutes"</li>
+                            <li style="margin-bottom: 8px;">❌ <strong>Cancel:</strong> "Cancel the pizza timer"</li>
+                            <li style="margin-bottom: 8px;">📋 <strong>Check:</strong> "How much time is left?"</li>
+                            <li style="margin-bottom: 8px;">⏰ <strong>Alarm:</strong> "Set an alarm for 7am"</li>
+                        </ul>
+                    </div>
+
+                    <!-- Family & Chores -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-yellow); margin-bottom: 12px;">👨‍👩‍👧‍👦 Family & Chores</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">✅ <strong>Chores:</strong> "I did the dishes"</li>
+                            <li style="margin-bottom: 8px;">⭐ <strong>Stars:</strong> "Award Viola a star"</li>
+                            <li style="margin-bottom: 8px;">📊 <strong>Check stars:</strong> "How many stars does Xander have?"</li>
+                            <li style="margin-bottom: 8px;">🐕 <strong>Pet feeding:</strong> "I fed the dog"</li>
+                            <li style="margin-bottom: 8px;">🐱 <strong>Pet check:</strong> "Was the cat fed today?"</li>
+                        </ul>
+                    </div>
+
+                    <!-- Notes & Memory -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-purple); margin-bottom: 12px;">🧠 Notes & Memory</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">📝 <strong>Save note:</strong> "Remember that we need milk"</li>
+                            <li style="margin-bottom: 8px;">💬 <strong>For someone:</strong> "Note for Elizabeth: meeting at 3pm"</li>
+                            <li style="margin-bottom: 8px;">📋 <strong>List notes:</strong> "What are my notes?"</li>
+                            <li style="margin-bottom: 8px;">🔍 <strong>Search:</strong> "Notes about groceries"</li>
+                            <li style="margin-bottom: 8px;">🗂️ <strong>Recall:</strong> "Do you remember what I said about..."</li>
+                        </ul>
+                    </div>
+
+                    <!-- Information & Fun -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-cyan); margin-bottom: 12px;">ℹ️ Information & Fun</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">🕐 <strong>Time:</strong> "What time is it?"</li>
+                            <li style="margin-bottom: 8px;">📅 <strong>Date:</strong> "What day is it?"</li>
+                            <li style="margin-bottom: 8px;">🌤️ <strong>Weather:</strong> "What's the weather?"</li>
+                            <li style="margin-bottom: 8px;">😄 <strong>Jokes:</strong> "Tell me a joke"</li>
+                            <li style="margin-bottom: 8px;">🧩 <strong>Riddles:</strong> "Tell me a riddle"</li>
+                            <li style="margin-bottom: 8px;">🪙 <strong>Games:</strong> "Flip a coin" / "Roll a dice"</li>
+                        </ul>
+                    </div>
+
+                    <!-- Learning & Stories -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-green); margin-bottom: 12px;">📚 Learning & Stories</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">📖 <strong>Definitions:</strong> "Define photosynthesis"</li>
+                            <li style="margin-bottom: 8px;">🔤 <strong>Spelling:</strong> "How do you spell necessary?"</li>
+                            <li style="margin-bottom: 8px;">📐 <strong>Math:</strong> "What's 15 times 7?"</li>
+                            <li style="margin-bottom: 8px;">📕 <strong>Stories:</strong> "Tell me a bedtime story"</li>
+                            <li style="margin-bottom: 8px;">🐉 <strong>Themed:</strong> "Tell me a story about dragons"</li>
+                            <li style="margin-bottom: 8px;">💡 <strong>Fun facts:</strong> "Tell me a fun fact"</li>
+                        </ul>
+                    </div>
+
+                    <!-- Kids Features -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-yellow); margin-bottom: 12px;">🧒 Kids Features</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">🔊 <strong>Animal sounds:</strong> "What does a cow say?"</li>
+                            <li style="margin-bottom: 8px;">🎵 <strong>Songs:</strong> "Sing happy birthday"</li>
+                            <li style="margin-bottom: 8px;">🧮 <strong>Counting:</strong> "Count to 10"</li>
+                            <li style="margin-bottom: 8px;">🌈 <strong>Colors:</strong> "Name the rainbow colors"</li>
+                            <li style="margin-bottom: 8px;">❓ <strong>Trivia:</strong> "Ask me a trivia question"</li>
+                        </ul>
+                    </div>
+
+                    <!-- Conversations -->
+                    <div class="capability-card" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border-color);">
+                        <h3 style="color: var(--accent-purple); margin-bottom: 12px;">💬 Conversations</h3>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 8px;">👋 <strong>Greetings:</strong> "Hello" / "Good morning"</li>
+                            <li style="margin-bottom: 8px;">❓ <strong>Questions:</strong> Ask anything!</li>
+                            <li style="margin-bottom: 8px;">💭 <strong>Advice:</strong> "What should I do if..."</li>
+                            <li style="margin-bottom: 8px;">📋 <strong>Briefing:</strong> "Give me a morning briefing"</li>
+                            <li style="margin-bottom: 8px;">🤔 <strong>Help:</strong> "What can you do?"</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div style="margin-top: 24px; padding: 16px; background: var(--bg-tertiary); border-radius: 8px;">
+                    <p style="margin: 0; font-size: 14px; color: var(--text-secondary);">
+                        <strong>💡 Tip:</strong> Barnabee recognizes family members by voice! Say "Hey Barnabee" followed by your request in any room with a voice assistant.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js?v=3"></script>
+</body>
+
+</html>

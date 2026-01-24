@@ -1,0 +1,246 @@
+"""Distil-Whisper STT service for CPU-based speech recognition."""
+
+from __future__ import annotations
+
+import base64
+import io
+import time
+from typing import TYPE_CHECKING
+
+import numpy as np
+import soundfile as sf
+import structlog
+
+if TYPE_CHECKING:
+    from faster_whisper import WhisperModel
+
+logger = structlog.get_logger()
+
+
+class DistilWhisperSTT:
+    """Speech-to-text using Distil-Whisper via faster-whisper.
+
+    Optimized for CPU inference on resource-constrained devices.
+    Used as fallback when GPU worker is unavailable.
+    """
+
+    def __init__(
+        self,
+        model_size: str = "distil-small.en",
+        device: str = "cpu",
+        compute_type: str = "int8",
+        cpu_threads: int = 4,
+    ) -> None:
+        """Initialize the STT service.
+
+        Args:
+            model_size: Model identifier (distil-small.en recommended)
+            device: Device to run on ("cpu" or "cuda")
+            compute_type: Quantization type ("int8" for CPU, "float16" for GPU)
+            cpu_threads: Number of CPU threads to use
+        """
+        self.model_size = model_size
+        self.device = device
+        self.compute_type = compute_type
+        self.cpu_threads = cpu_threads
+        self._model: WhisperModel | None = None
+        self._initialized = False
+
+    async def initialize(self) -> None:
+        """Load the model. Called once at startup or on first use."""
+        if self._initialized:
+            return
+
+        logger.info(
+            "Loading Distil-Whisper model",
+            model=self.model_size,
+            device=self.device,
+            compute_type=self.compute_type,
+        )
+
+        start = time.perf_counter()
+
+        # Import here to avoid slow startup if not used
+        from faster_whisper import WhisperModel
+
+        self._model = WhisperModel(
+            self.model_size,
+            device=self.device,
+            compute_type=self.compute_type,
+            cpu_threads=self.cpu_threads,
+        )
+
+        load_time = (time.perf_counter() - start) * 1000
+        self._initialized = True
+
+        logger.info(
+            "Distil-Whisper model loaded",
+            load_time_ms=f"{load_time:.0f}",
+        )
+
+    async def transcribe(
+        self,
+        audio_data: bytes,
+        sample_rate: int = 16000,
+        language: str = "en",
+    ) -> dict:
+        """Transcribe audio to text.
+
+        Args:
+            audio_data: Raw audio bytes (PCM 16-bit signed integers)
+            sample_rate: Audio sample rate in Hz (default 16000)
+            language: Language code (default "en")
+
+        Returns:
+            dict with keys: text, confidence, language, latency_ms
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        start = time.perf_counter()
+
+        # Try to decode audio - support both raw PCM and encoded formats (WebM, WAV, etc.)
+        try:
+            # Try soundfile first (handles WAV, FLAC, OGG, etc.)
+            audio_buffer = io.BytesIO(audio_data)
+            audio_array, file_sample_rate = sf.read(audio_buffer, dtype="float32")
+
+            # Convert stereo to mono if needed
+            if len(audio_array.shape) > 1:
+                audio_array = audio_array.mean(axis=1)
+
+            sample_rate = file_sample_rate
+            logger.debug(
+                f"Decoded audio with soundfile: {len(audio_array)} samples at {sample_rate}Hz"
+            )
+
+        except Exception as sf_error:
+            logger.debug(f"soundfile decode failed ({sf_error}), trying ffmpeg")
+            # Try ffmpeg for WebM/Opus and other formats
+            try:
+                import os
+                import subprocess
+                import tempfile
+
+                # Write input to temp file
+                with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as f:
+                    f.write(audio_data)
+                    input_path = f.name
+
+                output_path = input_path.replace(".webm", ".wav")
+
+                # Use ffmpeg to convert to WAV (16kHz mono)
+                result = subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        input_path,
+                        "-ar",
+                        "16000",
+                        "-ac",
+                        "1",
+                        "-f",
+                        "wav",
+                        output_path,
+                    ],
+                    capture_output=True,
+                    timeout=5,
+                )
+
+                if result.returncode != 0:
+                    raise ValueError(f"ffmpeg failed: {result.stderr.decode()[:200]}")
+
+                # Read the converted WAV
+                audio_array, sample_rate = sf.read(output_path, dtype="float32")
+                logger.debug(
+                    f"Decoded audio with ffmpeg: {len(audio_array)} samples at {sample_rate}Hz"
+                )
+
+                # Cleanup temp files
+                os.unlink(input_path)
+                os.unlink(output_path)
+
+            except Exception as ffmpeg_error:
+                logger.debug(f"ffmpeg failed ({ffmpeg_error}), trying raw PCM")
+                # Last resort: raw PCM (16-bit signed integer)
+                try:
+                    audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32)
+                    # Normalize to [-1, 1] range
+                    audio_array = audio_array / 32768.0
+                except Exception as pcm_error:
+                    logger.error(
+                        f"Failed to decode audio: soundfile={sf_error}, ffmpeg={ffmpeg_error}, pcm={pcm_error}"
+                    )
+                    raise ValueError(f"Could not decode audio data: {sf_error}") from pcm_error
+
+        # Ensure float32
+        audio_array = audio_array.astype(np.float32)
+
+        # Resample if needed (faster-whisper expects 16kHz)
+        if sample_rate != 16000:
+            # Simple resampling - for production, use librosa or scipy
+            ratio = 16000 / sample_rate
+            new_length = int(len(audio_array) * ratio)
+            indices = np.linspace(0, len(audio_array) - 1, new_length)
+            audio_array = np.interp(indices, np.arange(len(audio_array)), audio_array).astype(
+                np.float32
+            )
+
+        # Transcribe with optimized settings for speed
+        segments, info = self._model.transcribe(
+            audio_array,
+            beam_size=1,  # Greedy decoding for speed
+            language=language,
+            vad_filter=True,  # Filter silence
+            vad_parameters={
+                "min_silence_duration_ms": 500,
+                "speech_pad_ms": 200,
+            },
+        )
+
+        # Collect all segments
+        text_parts = []
+        for segment in segments:
+            text_parts.append(segment.text.strip())
+
+        full_text = " ".join(text_parts).strip()
+        latency_ms = (time.perf_counter() - start) * 1000
+
+        logger.info(
+            "Transcription complete",
+            text_length=len(full_text),
+            latency_ms=f"{latency_ms:.1f}",
+            language=info.language,
+            language_probability=f"{info.language_probability:.2f}",
+        )
+
+        return {
+            "text": full_text,
+            "confidence": info.language_probability,
+            "language": info.language,
+            "latency_ms": latency_ms,
+        }
+
+    async def transcribe_base64(
+        self,
+        audio_base64: str,
+        sample_rate: int = 16000,
+        language: str = "en",
+    ) -> dict:
+        """Transcribe base64-encoded audio.
+
+        Convenience method for API endpoints.
+        """
+        audio_data = base64.b64decode(audio_base64)
+        return await self.transcribe(audio_data, sample_rate, language)
+
+    def is_available(self) -> bool:
+        """Check if the service is ready."""
+        return self._initialized and self._model is not None
+
+    async def shutdown(self) -> None:
+        """Clean up resources."""
+        self._model = None
+        self._initialized = False
+        logger.info("Distil-Whisper service shut down")

@@ -1,0 +1,4105 @@
+"""Instant Response Agent - Zero-latency pattern-matched responses.
+
+The Instant Agent handles simple, predictable queries that don't require
+LLM processing. This provides sub-millisecond response times for common
+interactions like time, date, greetings, and simple math.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import random
+import re
+import time
+from dataclasses import dataclass, field
+from datetime import datetime, date, timedelta
+from pathlib import Path
+from typing import Any
+from zoneinfo import ZoneInfo
+
+from barnabeenet.agents.base import Agent
+
+logger = logging.getLogger(__name__)
+
+# Load jokes and fun facts from data files
+DATA_DIR = Path(__file__).parent.parent / "data"
+
+def _load_json_data(filename: str) -> dict:
+    """Load JSON data from the data directory."""
+    filepath = DATA_DIR / filename
+    if filepath.exists():
+        try:
+            with open(filepath, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load {filename}: {e}")
+    return {}
+
+JOKES_DATA = _load_json_data("jokes.json")
+FUN_FACTS_DATA = _load_json_data("fun_facts.json")
+ANIMAL_SOUNDS_DATA = _load_json_data("animal_sounds.json")
+TRIVIA_DATA = _load_json_data("trivia.json")
+WOULD_YOU_RATHER_DATA = _load_json_data("would_you_rather.json")
+ENCOURAGEMENT_DATA = _load_json_data("encouragement.json")
+ACTIVITIES_DATA = _load_json_data("activities.json")
+FAMILY_DATA = _load_json_data("family.json")
+
+
+# =============================================================================
+# Unit Conversion Data
+# =============================================================================
+UNIT_CONVERSIONS = {
+    # Volume
+    ("cups", "liters"): (0.236588, "liters"),
+    ("cups", "liter"): (0.236588, "liters"),
+    ("liters", "cups"): (4.22675, "cups"),
+    ("liter", "cups"): (4.22675, "cups"),
+    ("gallons", "liters"): (3.78541, "liters"),
+    ("gallon", "liters"): (3.78541, "liters"),
+    ("liters", "gallons"): (0.264172, "gallons"),
+    ("liter", "gallons"): (0.264172, "gallons"),
+    ("tablespoons", "teaspoons"): (3, "teaspoons"),
+    ("tablespoon", "teaspoons"): (3, "teaspoons"),
+    ("teaspoons", "tablespoons"): (1/3, "tablespoons"),
+    ("teaspoon", "tablespoons"): (1/3, "tablespoons"),
+    ("cups", "tablespoons"): (16, "tablespoons"),
+    ("cup", "tablespoons"): (16, "tablespoons"),
+    ("tablespoons", "cups"): (1/16, "cups"),
+    ("tablespoon", "cups"): (1/16, "cups"),
+    ("ounces", "cups"): (0.125, "cups"),
+    ("ounce", "cups"): (0.125, "cups"),
+    ("cups", "ounces"): (8, "ounces"),
+    ("cup", "ounces"): (8, "ounces"),
+    # Temperature (handled specially)
+    # Weight
+    ("pounds", "kilograms"): (0.453592, "kilograms"),
+    ("pound", "kilograms"): (0.453592, "kilograms"),
+    ("kilograms", "pounds"): (2.20462, "pounds"),
+    ("kilogram", "pounds"): (2.20462, "pounds"),
+    ("ounces", "grams"): (28.3495, "grams"),
+    ("ounce", "grams"): (28.3495, "grams"),
+    ("grams", "ounces"): (0.035274, "ounces"),
+    ("gram", "ounces"): (0.035274, "ounces"),
+    ("ounces", "pounds"): (0.0625, "pounds"),
+    ("ounce", "pounds"): (0.0625, "pounds"),
+    ("pounds", "ounces"): (16, "ounces"),
+    ("pound", "ounces"): (16, "ounces"),
+    # Length
+    ("inches", "centimeters"): (2.54, "centimeters"),
+    ("inch", "centimeters"): (2.54, "centimeters"),
+    ("centimeters", "inches"): (0.393701, "inches"),
+    ("centimeter", "inches"): (0.393701, "inches"),
+    ("feet", "meters"): (0.3048, "meters"),
+    ("foot", "meters"): (0.3048, "meters"),
+    ("meters", "feet"): (3.28084, "feet"),
+    ("meter", "feet"): (3.28084, "feet"),
+    ("miles", "kilometers"): (1.60934, "kilometers"),
+    ("mile", "kilometers"): (1.60934, "kilometers"),
+    ("kilometers", "miles"): (0.621371, "miles"),
+    ("kilometer", "miles"): (0.621371, "miles"),
+    ("feet", "inches"): (12, "inches"),
+    ("foot", "inches"): (12, "inches"),
+    ("inches", "feet"): (1/12, "feet"),
+    ("inch", "feet"): (1/12, "feet"),
+    ("yards", "feet"): (3, "feet"),
+    ("yard", "feet"): (3, "feet"),
+    ("feet", "yards"): (1/3, "yards"),
+    ("foot", "yards"): (1/3, "yards"),
+    ("miles", "feet"): (5280, "feet"),
+    ("mile", "feet"): (5280, "feet"),
+    ("feet", "miles"): (1/5280, "miles"),
+    ("foot", "miles"): (1/5280, "miles"),
+}
+
+# Common unit info queries
+UNIT_INFO = {
+    ("cups", "liter"): "About 4.2 cups in a liter.",
+    ("cups", "liters"): "About 4.2 cups in a liter.",
+    ("ounces", "pound"): "16 ounces in a pound.",
+    ("ounces", "pounds"): "16 ounces in a pound.",
+    ("inches", "foot"): "12 inches in a foot.",
+    ("inches", "feet"): "12 inches in a foot.",
+    ("feet", "mile"): "5,280 feet in a mile.",
+    ("feet", "miles"): "5,280 feet in a mile.",
+    ("teaspoons", "tablespoon"): "3 teaspoons in a tablespoon.",
+    ("teaspoons", "tablespoons"): "3 teaspoons in a tablespoon.",
+    ("tablespoons", "cup"): "16 tablespoons in a cup.",
+    ("tablespoons", "cups"): "16 tablespoons in a cup.",
+    ("centimeters", "inch"): "2.54 centimeters in an inch.",
+    ("centimeters", "inches"): "2.54 centimeters in an inch.",
+    ("grams", "ounce"): "About 28.3 grams in an ounce.",
+    ("grams", "ounces"): "About 28.3 grams in an ounce.",
+}
+
+# World clock timezone mappings
+TIMEZONE_ALIASES = {
+    # Major cities
+    "tokyo": "Asia/Tokyo",
+    "japan": "Asia/Tokyo",
+    "london": "Europe/London",
+    "uk": "Europe/London",
+    "england": "Europe/London",
+    "britain": "Europe/London",
+    "paris": "Europe/Paris",
+    "france": "Europe/Paris",
+    "berlin": "Europe/Berlin",
+    "germany": "Europe/Berlin",
+    "sydney": "Australia/Sydney",
+    "australia": "Australia/Sydney",
+    "new york": "America/New_York",
+    "nyc": "America/New_York",
+    "los angeles": "America/Los_Angeles",
+    "la": "America/Los_Angeles",
+    "chicago": "America/Chicago",
+    "denver": "America/Denver",
+    "phoenix": "America/Phoenix",
+    "seattle": "America/Los_Angeles",
+    "san francisco": "America/Los_Angeles",
+    "sf": "America/Los_Angeles",
+    "miami": "America/New_York",
+    "boston": "America/New_York",
+    "dallas": "America/Chicago",
+    "houston": "America/Chicago",
+    "atlanta": "America/New_York",
+    "toronto": "America/Toronto",
+    "canada": "America/Toronto",
+    "vancouver": "America/Vancouver",
+    "mexico city": "America/Mexico_City",
+    "mexico": "America/Mexico_City",
+    "beijing": "Asia/Shanghai",
+    "china": "Asia/Shanghai",
+    "shanghai": "Asia/Shanghai",
+    "hong kong": "Asia/Hong_Kong",
+    "singapore": "Asia/Singapore",
+    "seoul": "Asia/Seoul",
+    "korea": "Asia/Seoul",
+    "south korea": "Asia/Seoul",
+    "mumbai": "Asia/Kolkata",
+    "india": "Asia/Kolkata",
+    "dubai": "Asia/Dubai",
+    "uae": "Asia/Dubai",
+    "moscow": "Europe/Moscow",
+    "russia": "Europe/Moscow",
+    "amsterdam": "Europe/Amsterdam",
+    "netherlands": "Europe/Amsterdam",
+    "rome": "Europe/Rome",
+    "italy": "Europe/Rome",
+    "madrid": "Europe/Madrid",
+    "spain": "Europe/Madrid",
+    "lisbon": "Europe/Lisbon",
+    "portugal": "Europe/Lisbon",
+    "cairo": "Africa/Cairo",
+    "egypt": "Africa/Cairo",
+    "johannesburg": "Africa/Johannesburg",
+    "south africa": "Africa/Johannesburg",
+    "hawaii": "Pacific/Honolulu",
+    "honolulu": "Pacific/Honolulu",
+    "alaska": "America/Anchorage",
+    # Time zones by abbreviation
+    "est": "America/New_York",
+    "eastern": "America/New_York",
+    "cst": "America/Chicago",
+    "central": "America/Chicago",
+    "mst": "America/Denver",
+    "mountain": "America/Denver",
+    "pst": "America/Los_Angeles",
+    "pacific": "America/Los_Angeles",
+    "gmt": "Europe/London",
+    "utc": "UTC",
+}
+
+# Magic 8-ball responses
+MAGIC_8_BALL_RESPONSES = [
+    # Positive
+    "It is certain.",
+    "It is decidedly so.",
+    "Without a doubt.",
+    "Yes, definitely.",
+    "You may rely on it.",
+    "As I see it, yes.",
+    "Most likely.",
+    "Outlook good.",
+    "Yes.",
+    "Signs point to yes.",
+    # Neutral
+    "Reply hazy, try again.",
+    "Ask again later.",
+    "Better not tell you now.",
+    "Cannot predict now.",
+    "Concentrate and ask again.",
+    # Negative
+    "Don't count on it.",
+    "My reply is no.",
+    "My sources say no.",
+    "Outlook not so good.",
+    "Very doubtful.",
+]
+
+# Holiday dates (month, day) - updated annually or calculated
+HOLIDAYS = {
+    "christmas": (12, 25),
+    "christmas eve": (12, 24),
+    "new year": (1, 1),
+    "new years": (1, 1),
+    "new year's": (1, 1),
+    "new year's day": (1, 1),
+    "new year's eve": (12, 31),
+    "valentine's day": (2, 14),
+    "valentines day": (2, 14),
+    "st patrick's day": (3, 17),
+    "st patricks day": (3, 17),
+    "easter": None,  # Calculated
+    "mother's day": None,  # 2nd Sunday in May
+    "mothers day": None,
+    "father's day": None,  # 3rd Sunday in June
+    "fathers day": None,
+    "independence day": (7, 4),
+    "fourth of july": (7, 4),
+    "4th of july": (7, 4),
+    "halloween": (10, 31),
+    "thanksgiving": None,  # 4th Thursday in November
+    "summer": (6, 21),  # Summer solstice
+    "winter": (12, 21),  # Winter solstice
+    "spring": (3, 20),  # Spring equinox
+    "fall": (9, 22),  # Fall equinox
+    "autumn": (9, 22),
+}
+
+
+@dataclass
+class SpellingSession:
+    """Tracks an active letter-by-letter spelling session."""
+
+    word: str
+    letters: list[str] = field(default_factory=list)
+    current_index: int = 0
+    awaiting_confirmation: bool = True  # Waiting for user to say "yes"
+
+    def __post_init__(self) -> None:
+        self.letters = [letter.upper() for letter in self.word]
+
+    def get_next_letter(self) -> str | None:
+        """Get the next letter, or None if done."""
+        if self.current_index < len(self.letters):
+            letter = self.letters[self.current_index]
+            self.current_index += 1
+            return letter
+        return None
+
+    def is_complete(self) -> bool:
+        """Check if all letters have been given."""
+        return self.current_index >= len(self.letters)
+
+    def remaining_count(self) -> int:
+        """How many letters are left."""
+        return len(self.letters) - self.current_index
+
+
+class InstantAgent(Agent):
+    """Agent for instant, pattern-matched responses with no LLM latency.
+
+    Handles:
+    - Time queries ("what time is it")
+    - Date queries ("what's the date")
+    - Greetings ("hello", "good morning")
+    - Status queries ("how are you")
+    - Simple math ("what's 5 + 3")
+    - Thanks responses
+    - Spelling with optional letter-by-letter mode
+    """
+
+    name = "instant"
+
+    # Patterns that indicate user wants to continue letter-by-letter spelling
+    SPELLING_CONTINUE_PATTERNS = [
+        "yes", "yeah", "yep", "yup", "sure", "ok", "okay", "go ahead",
+        "next", "continue", "go on", "keep going", "next letter",
+        "and", "then", "what's next", "more", "another",
+    ]
+
+    # Patterns that indicate user wants to stop/cancel
+    SPELLING_STOP_PATTERNS = [
+        "no", "nope", "stop", "cancel", "nevermind", "never mind",
+        "that's enough", "i got it", "thanks", "thank you", "done",
+    ]
+
+    # Response templates for variety
+    TIME_RESPONSES = [
+        "It's {time}.",
+        "The time is {time}.",
+        "Right now it's {time}.",
+    ]
+
+    DATE_RESPONSES = [
+        "Today is {date}.",
+        "It's {date}.",
+        "The date is {date}.",
+    ]
+
+    GREETING_RESPONSES = {
+        "morning": [
+            "Good morning{name}! How can I help you today?",
+            "Morning{name}! What can I do for you?",
+            "Good morning{name}! Ready to help.",
+        ],
+        "afternoon": [
+            "Good afternoon{name}! How can I help?",
+            "Good afternoon{name}! What can I do for you?",
+            "Afternoon{name}! How may I assist?",
+        ],
+        "evening": [
+            "Good evening{name}! What can I do for you?",
+            "Evening{name}! How can I help?",
+            "Good evening{name}! How may I assist?",
+        ],
+        "night": [
+            "Good night{name}! Anything I can help with before bed?",
+            "Night{name}! Need anything?",
+        ],
+        "default": [
+            "Hello{name}! How can I help you?",
+            "Hey{name}! What do you need?",
+            "Hi{name}! What can I do for you?",
+        ],
+    }
+
+    STATUS_RESPONSES = [
+        "I'm doing great, thanks for asking!",
+        "All systems are running smoothly.",
+        "I'm here and ready to help!",
+        "Doing well! How about you?",
+        "Everything's working perfectly.",
+    ]
+
+    THANKS_RESPONSES = [
+        "You're welcome!",
+        "Happy to help!",
+        "Anytime!",
+        "My pleasure!",
+        "Glad I could help!",
+    ]
+
+    MIC_CHECK_RESPONSES = [
+        "Yes, I can hear you loud and clear!",
+        "I hear you! What can I help with?",
+        "Yep, I'm here and listening!",
+        "Loud and clear! Go ahead.",
+        "I hear you perfectly!",
+    ]
+
+    # Clear conversation / Start fresh responses
+    CLEAR_CONVERSATION_RESPONSES = [
+        "Sure, starting fresh! How can I help you?",
+        "Okay, I've cleared our conversation. What would you like to talk about?",
+        "Fresh start! What can I do for you?",
+        "Done! I've forgotten what we were discussing. What's on your mind?",
+    ]
+
+    UNDO_RESPONSES = [
+        "Done! I've undone the last action.",
+        "Okay, I've reversed that.",
+        "No problem, I've undone it.",
+    ]
+
+    NOTHING_TO_UNDO_RESPONSES = [
+        "There's nothing to undo.",
+        "I don't have any recent actions to undo.",
+        "Hmm, I haven't done anything I can undo.",
+    ]
+
+    REPEAT_RESPONSES = [
+        "I said: {last_response}",
+        "Sure, I said: {last_response}",
+        "Here's what I said: {last_response}",
+    ]
+
+    NOTHING_TO_REPEAT_RESPONSES = [
+        "I haven't said anything yet.",
+        "There's nothing to repeat.",
+        "This is the start of our conversation.",
+    ]
+
+    # Patterns that indicate user wants to clear/reset conversation
+    CLEAR_CONVERSATION_PATTERNS = [
+        r"start\s*fresh",
+        r"forget\s*this\s*conversation",
+        r"clear\s*(?:the\s*)?conversation",
+        r"new\s*conversation",
+        r"reset\s*(?:our\s*)?(?:conversation|chat)",
+        r"let'?s?\s*start\s*over",
+        r"forget\s*what\s*(?:we(?:'ve)?\s*)?(?:talked|discussed|said)",
+        r"wipe\s*(?:the\s*)?slate\s*clean",
+    ]
+
+    SPELLING_RESPONSES = [
+        "{word} is spelled {spelling}. Would you like that one letter at a time?",
+    ]
+
+    FALLBACK_RESPONSES = [
+        "I'm not sure how to respond to that.",
+        "Let me think about that for a moment...",
+        "Hmm, I'll need to process that.",
+    ]
+
+    # Random choice responses
+    COIN_FLIP_RESPONSES = [
+        "I flipped a coin and got... {result}!",
+        "The coin landed on... {result}!",
+        "{result}!",
+    ]
+
+    DICE_ROLL_RESPONSES = [
+        "You rolled a {result}!",
+        "The dice shows {result}!",
+        "It's a {result}!",
+    ]
+
+    NUMBER_PICK_RESPONSES = [
+        "I pick... {result}!",
+        "How about {result}?",
+        "My choice is {result}!",
+        "I'm going with {result}!",
+    ]
+
+    YES_NO_RESPONSES = [
+        "Yes!",
+        "No!",
+    ]
+
+    # Counting responses
+    COUNTING_RESPONSES = [
+        "{numbers}, blastoff!",
+        "{numbers}!",
+        "Here you go: {numbers}",
+    ]
+
+    def __init__(self) -> None:
+        """Initialize the Instant Agent."""
+        self._math_pattern: re.Pattern[str] | None = None
+        self._spelling_pattern: re.Pattern[str] | None = None
+        self._dice_pattern: re.Pattern[str] | None = None
+        self._number_pick_pattern: re.Pattern[str] | None = None
+        self._unit_convert_pattern: re.Pattern[str] | None = None
+        self._unit_info_pattern: re.Pattern[str] | None = None
+        self._world_clock_pattern: re.Pattern[str] | None = None
+        self._countdown_pattern: re.Pattern[str] | None = None
+        self._counting_pattern: re.Pattern[str] | None = None
+        self._next_number_pattern: re.Pattern[str] | None = None
+        # Track active spelling sessions by speaker (or "default" if no speaker)
+        self._spelling_sessions: dict[str, SpellingSession] = {}
+
+    async def init(self) -> None:
+        """Initialize patterns and resources."""
+        # Compile math pattern - supports both symbols and words
+        # Matches: "5 + 3", "what's 7 times 8", "10 divided by 2", "5 plus 3"
+        self._math_pattern = re.compile(
+            r"(?:what(?:'s| is) )?(\d+(?:\.\d+)?)\s*"
+            r"([\+\-\*\/]|plus|minus|times|multiplied by|divided by|x)\s*"
+            r"(\d+(?:\.\d+)?)",
+            re.IGNORECASE,
+        )
+        # Compile spelling pattern - matches "spell X", "how do you spell X", "what's the spelling of X"
+        self._spelling_pattern = re.compile(
+            r"(?:how (?:do (?:you |i )?)?(?:spell|write)|"
+            r"(?:can you |please )?spell(?: me)?|"
+            r"what(?:'s| is) the spelling of|"
+            r"spell out)\s+(?:the word\s+)?[\"']?(\w+)[\"']?\??$",
+            re.IGNORECASE,
+        )
+        # Dice roll pattern - "roll a dice", "roll a d20", "roll 2d6"
+        self._dice_pattern = re.compile(
+            r"(?:roll|throw)\s+(?:a\s+)?(?:(?:d|dice|die)(?:(\d+))?|(\d+)d(\d+))",
+            re.IGNORECASE,
+        )
+        # Pick number pattern - "pick a number between X and Y"
+        self._number_pick_pattern = re.compile(
+            r"pick\s+(?:a\s+)?(?:random\s+)?number\s+(?:between|from)\s+(\d+)\s+(?:and|to)\s+(\d+)",
+            re.IGNORECASE,
+        )
+        # Unit conversion pattern - "convert X unit to unit" or "how many X in Y"
+        self._unit_convert_pattern = re.compile(
+            r"(?:convert\s+)?(\d+(?:\.\d+)?)\s*"
+            r"(fahrenheit|celsius|cups?|liters?|gallons?|pounds?|kilograms?|ounces?|grams?|"
+            r"inches?|centimeters?|feet|foot|meters?|miles?|kilometers?|yards?|"
+            r"tablespoons?|teaspoons?)\s+"
+            r"(?:to|in(?:to)?)\s+"
+            r"(fahrenheit|celsius|cups?|liters?|gallons?|pounds?|kilograms?|ounces?|grams?|"
+            r"inches?|centimeters?|feet|foot|meters?|miles?|kilometers?|yards?|"
+            r"tablespoons?|teaspoons?)",
+            re.IGNORECASE,
+        )
+        # "How many X in a Y" pattern
+        self._unit_info_pattern = re.compile(
+            r"how many\s+(cups?|liters?|ounces?|inches?|feet|foot|"
+            r"centimeters?|teaspoons?|tablespoons?|grams?)\s+"
+            r"(?:are\s+)?(?:there\s+)?in\s+(?:a\s+)?"
+            r"(cup|liter|pound|foot|feet|mile|tablespoon|inch|ounce)",
+            re.IGNORECASE,
+        )
+        # World clock pattern - "what time is it in Tokyo"
+        self._world_clock_pattern = re.compile(
+            r"(?:what(?:'s| is)?|tell me)\s+(?:the\s+)?time\s+(?:is\s+it\s+)?in\s+(.+?)(?:\?|$)",
+            re.IGNORECASE,
+        )
+        # Countdown pattern - "how many days until Christmas"
+        self._countdown_pattern = re.compile(
+            r"(?:how (?:many|long)|when is|days? (?:until|till|to))\s+"
+            r"(?:days?\s+)?(?:until|till|to|before)?\s*(.+?)(?:\?|$)",
+            re.IGNORECASE,
+        )
+        # Counting pattern - "count to 10", "count by 2s to 20", "count backwards from 10"
+        # Counting pattern - handles multiple formats:
+        # "count to 20", "count from 1 to 20", "count by 2s to 20", "count backwards from 10"
+        self._counting_pattern = re.compile(
+            r"count\s+"
+            r"(?:(backwards?|down)\s+)?(?:from\s+)?(\d+)?\s*"
+            r"(?:by\s+(\d+)(?:s|'s)?\s*)?"  # "by X" can come before "to"
+            r"(?:to\s+(\d+))?\s*"
+            r"(?:by\s+(\d+)(?:s|'s)?)?",  # "by X" can also come after "to"
+            re.IGNORECASE,
+        )
+        # "What comes after X" pattern
+        self._next_number_pattern = re.compile(
+            r"what(?:'s| is)?\s+(?:comes?\s+)?(?:after|next after|before)\s+(\d+)",
+            re.IGNORECASE,
+        )
+        logger.info("InstantAgent initialized with extended patterns")
+
+    async def shutdown(self) -> None:
+        """Clean up resources."""
+        self._math_pattern = None
+        self._spelling_pattern = None
+
+    async def handle_input(self, text: str, context: dict | None = None) -> dict[str, Any]:
+        """Handle an instant response request.
+
+        Args:
+            text: The input text to process
+            context: Optional context with speaker info, sub_category, etc.
+
+        Returns:
+            Response dictionary with text, agent, and latency_ms
+        """
+        start_time = time.perf_counter()
+        context = context or {}
+        text = text.strip()
+        # Strip trailing punctuation that STT often adds (e.g., "tell me a joke." -> "tell me a joke")
+        text = text.rstrip(".!,;:")
+        text_lower = text.lower()
+
+        # Get sub_category hint from MetaAgent if available
+        sub_category = context.get("sub_category")
+        speaker = context.get("speaker") or "default"
+
+        # Determine response based on category or content
+        response: str
+        response_type: str
+
+        # First, check for undo/repeat which need special handling
+        if sub_category == "undo" or self._is_undo(text_lower):
+            response = await self._handle_undo(context)
+            response_type = "undo"
+        elif sub_category == "repeat" or self._is_repeat(text_lower):
+            response = self._handle_repeat(context)
+            response_type = "repeat"
+        # Check for clear conversation commands
+        elif sub_category == "clear_conversation" or self._is_clear_conversation(text_lower):
+            response = await self._handle_clear_conversation(context)
+            response_type = "clear_conversation"
+        # Check if this is a continuation of a letter-by-letter spelling session
+        # This handles "yes", "next", etc. when there's an active spelling session
+        elif (spelling_continuation := self._handle_spelling_continuation(text_lower, speaker)):
+            response = spelling_continuation
+            response_type = "spelling_letter"
+        elif sub_category == "spelling_continue":
+            # MetaAgent routed this as a potential spelling continuation, but no active session
+            # Give a helpful response instead of a confusing one
+            response = "I'm here! What would you like me to help with?"
+            response_type = "acknowledgment"
+        elif sub_category == "time" or self._is_time_query(text_lower):
+            response = self._handle_time()
+            response_type = "time"
+        elif sub_category == "date" or self._is_date_query(text_lower):
+            response = self._handle_date()
+            response_type = "date"
+        elif sub_category == "greeting" or self._is_greeting(text_lower):
+            response = self._handle_greeting(text_lower, speaker)
+            response_type = "greeting"
+        elif sub_category == "status" or self._is_status_query(text_lower):
+            response = self._handle_status()
+            response_type = "status"
+        elif sub_category == "thanks" or self._is_thanks(text_lower):
+            response = self._handle_thanks()
+            response_type = "thanks"
+        elif sub_category == "mic_check" or self._is_mic_check(text_lower):
+            response = self._handle_mic_check()
+            response_type = "mic_check"
+        # Random choices
+        elif sub_category == "coin_flip" or self._is_coin_flip(text_lower):
+            response = self._handle_coin_flip()
+            response_type = "coin_flip"
+        elif sub_category == "dice_roll" or self._is_dice_roll(text_lower):
+            response = self._handle_dice_roll(text)
+            response_type = "dice_roll"
+        elif sub_category == "yes_no" or self._is_yes_no(text_lower):
+            response = self._handle_yes_no()
+            response_type = "yes_no"
+        elif sub_category == "magic_8_ball" or self._is_magic_8_ball(text_lower):
+            response = self._handle_magic_8_ball()
+            response_type = "magic_8_ball"
+        elif sub_category == "number_pick" or "pick a number" in text_lower or "pick a random" in text_lower:
+            response = self._handle_number_pick(text)
+            response_type = "number_pick"
+        # World clock
+        elif sub_category == "world_clock" or self._is_world_clock(text_lower):
+            result = self._handle_world_clock(text)
+            if result:
+                response = result
+                response_type = "world_clock"
+            else:
+                response = random.choice(self.FALLBACK_RESPONSES)
+                response_type = "fallback"
+        # Countdown to events
+        elif sub_category == "countdown" or self._is_countdown(text_lower):
+            result = self._handle_countdown(text)
+            if result:
+                response = result
+                response_type = "countdown"
+            else:
+                response = random.choice(self.FALLBACK_RESPONSES)
+                response_type = "fallback"
+        # Counting
+        elif sub_category == "counting" or self._is_counting(text_lower):
+            result = self._handle_counting(text)
+            if result:
+                response = result
+                response_type = "counting"
+            else:
+                response = random.choice(self.FALLBACK_RESPONSES)
+                response_type = "fallback"
+        # Focus/Pomodoro timer (before chore to catch "done with homework" as ending focus)
+        elif sub_category == "focus_timer" or self._is_focus_timer_query(text_lower)[0]:
+            _, action = self._is_focus_timer_query(text_lower)
+            response = await self._handle_focus_timer(action, speaker)
+            response_type = "focus_timer"
+        # Chore/Star tracking (before unit conversion to avoid "how many stars" matching)
+        elif sub_category == "chore" or self._is_chore_query(text_lower)[0]:
+            result = self._is_chore_query(text_lower)
+            _, action, person, chore = result
+            response = await self._handle_chore_query(action, person, chore, speaker)
+            response_type = "chore"
+        # WiFi password
+        elif sub_category == "wifi" or self._is_wifi_query(text_lower):
+            response = self._handle_wifi_query()
+            response_type = "wifi"
+        # Conversation starters (before chore to avoid "starter" matching "star")
+        elif sub_category == "conversation_starter" or self._is_conversation_starter_query(text_lower):
+            response = self._handle_conversation_starter()
+            response_type = "conversation_starter"
+        # Bored / activity suggestions
+        elif sub_category == "bored" or self._is_bored_query(text_lower)[0]:
+            _, activity_type = self._is_bored_query(text_lower)
+            response = self._handle_bored_query(activity_type)
+            response_type = "bored"
+        # Birthday queries
+        elif sub_category == "birthday" or self._is_birthday_query(text_lower)[0]:
+            _, person = self._is_birthday_query(text_lower)
+            response = self._handle_birthday_query(person, speaker)
+            response_type = "birthday"
+        # Daily briefing
+        elif sub_category == "daily_briefing" or self._is_daily_briefing_query(text_lower):
+            response = await self._handle_daily_briefing(speaker)
+            response_type = "daily_briefing"
+        # Family digest / what happened today
+        elif sub_category == "family_digest" or self._is_family_digest_query(text_lower):
+            response = await self._handle_family_digest(speaker)
+            response_type = "family_digest"
+        # Unit conversions
+        elif sub_category == "unit_conversion" or self._is_unit_conversion(text_lower):
+            result = self._handle_unit_conversion(text)
+            if result:
+                response = result
+                response_type = "unit_conversion"
+            else:
+                response = random.choice(self.FALLBACK_RESPONSES)
+                response_type = "fallback"
+        # Jokes
+        elif sub_category == "joke" or self._is_joke(text_lower):
+            response = self._handle_joke(text)
+            response_type = "joke"
+        elif sub_category == "riddle_answer" or self._is_riddle_answer_request(text_lower):
+            response = self._handle_riddle_answer(context)
+            response_type = "riddle_answer"
+        elif sub_category == "riddle" or self._is_riddle(text_lower):
+            response = self._handle_riddle(context)
+            response_type = "riddle"
+        # Fun facts
+        elif sub_category == "fun_fact" or self._is_fun_fact(text_lower):
+            response = self._handle_fun_fact(text)
+            response_type = "fun_fact"
+        # Simple facts (fast answers for common questions)
+        elif sub_category == "simple_fact":
+            response = self._handle_simple_fact(text)
+            response_type = "simple_fact"
+        # Animal sounds
+        elif sub_category == "animal_sound" or self._is_animal_sound(text_lower):
+            response = self._handle_animal_sound(text)
+            response_type = "animal_sound"
+        # Math practice
+        elif sub_category == "math_practice" or self._is_math_practice(text_lower):
+            response = self._handle_math_practice(context)
+            response_type = "math_practice"
+        # Bedtime countdown
+        elif sub_category == "bedtime" or self._is_bedtime_query(text_lower):
+            response = await self._handle_bedtime_countdown(context)
+            response_type = "bedtime"
+        # Trivia
+        elif sub_category == "trivia" or self._is_trivia(text_lower):
+            response = self._handle_trivia(context)
+            response_type = "trivia"
+        # Would you rather
+        elif sub_category == "would_you_rather" or self._is_would_you_rather(text_lower):
+            response = self._handle_would_you_rather()
+            response_type = "would_you_rather"
+        # Encouragement / compliments
+        elif sub_category == "encouragement" or self._is_encouragement(text_lower):
+            response = self._handle_encouragement(text)
+            response_type = "encouragement"
+        # Location queries
+        elif (location_result := self._is_location_query(text_lower))[0]:
+            _, person_name = location_result
+            response = await self._handle_location_query(person_name)
+            response_type = "location"
+        # Who's home queries
+        elif sub_category == "whos_home" or self._is_whos_home_query(text_lower):
+            response = await self._handle_whos_home_query(text)
+            response_type = "whos_home"
+        # Security status (locks, blinds) - check BEFORE device status
+        elif sub_category == "security" or self._is_security_query(text_lower)[0]:
+            _, query_type = self._is_security_query(text_lower)
+            response = await self._handle_security_query(query_type)
+            response_type = "security"
+        # Device status queries
+        elif (device_result := self._is_device_status_query(text_lower))[0]:
+            _, device_name, _ = device_result
+            response = await self._handle_device_status_query(device_name)
+            response_type = "device_status"
+        # Sun queries (sunrise/sunset)
+        elif sub_category == "sun" or (sun_result := self._is_sun_query(text_lower))[0]:
+            # Determine query type from text
+            if "sunrise" in text_lower or "sun rise" in text_lower:
+                query_type = "sunrise"
+            elif "sunset" in text_lower or "sun set" in text_lower:
+                query_type = "sunset"
+            elif "dawn" in text_lower:
+                query_type = "dawn"
+            elif "dusk" in text_lower:
+                query_type = "dusk"
+            else:
+                # Try to get from _is_sun_query
+                _, query_type = self._is_sun_query(text_lower)
+                if not query_type:
+                    query_type = "sunrise"  # Default
+            response = await self._handle_sun_query(query_type)
+            response_type = "sun"
+        # Moon phase
+        elif sub_category == "moon" or self._is_moon_query(text_lower):
+            response = self._handle_moon_query()
+            response_type = "moon"
+        # Weather
+        elif sub_category == "weather" or self._is_weather_query(text_lower):
+            response = await self._handle_weather_query(text)
+            response_type = "weather"
+        # Shopping list
+        elif (shopping_result := self._is_shopping_list_query(text_lower))[0]:
+            _, action = shopping_result
+            response = await self._handle_shopping_list(text, action)
+            response_type = "shopping_list"
+        # Calendar
+        elif sub_category == "calendar" or self._is_calendar_query(text_lower):
+            response = await self._handle_calendar_query(text)
+            response_type = "calendar"
+        # Energy usage
+        elif sub_category == "energy" or self._is_energy_query(text_lower):
+            response = await self._handle_energy_query(text)
+            response_type = "energy"
+        # Phone battery
+        elif (phone_battery_result := self._is_phone_battery_query(text_lower))[0]:
+            _, person_name = phone_battery_result
+            response = await self._handle_phone_battery_query(person_name, speaker)
+            response_type = "phone_battery"
+        # Pet feeding queries
+        elif (pet_result := self._is_pet_feeding_query(text_lower))[0]:
+            _, action, pet_name = pet_result
+            response = await self._handle_pet_feeding(action, pet_name, speaker)
+            response_type = "pet_feeding"
+        # Quick notes
+        elif (note_result := self._is_quick_note_query(text_lower))[0]:
+            _, action, content = note_result
+            response = await self._handle_quick_note(action, content, speaker)
+            response_type = "quick_note"
+        elif sub_category == "spelling" or (spelling_result := self._try_spelling(text, speaker)):
+            if sub_category == "spelling":
+                spelling_result = self._try_spelling(text, speaker)
+            if spelling_result:
+                response = spelling_result
+                response_type = "spelling"
+            else:
+                response = random.choice(self.FALLBACK_RESPONSES)
+                response_type = "fallback"
+        elif sub_category == "math" or (math_result := self._try_math(text)):
+            if sub_category == "math":
+                math_result = self._try_math(text)
+            if math_result:
+                response = math_result
+                response_type = "math"
+            else:
+                response = random.choice(self.FALLBACK_RESPONSES)
+                response_type = "fallback"
+        else:
+            response = random.choice(self.FALLBACK_RESPONSES)
+            response_type = "fallback"
+
+        latency_ms = (time.perf_counter() - start_time) * 1000
+
+        logger.debug(
+            "InstantAgent handled '%s' as %s in %.2fms",
+            text[:50],
+            response_type,
+            latency_ms,
+        )
+
+        return {
+            "response": response,
+            "agent": self.name,
+            "response_type": response_type,
+            "latency_ms": latency_ms,
+        }
+
+    # =========================================================================
+    # Query Detection Methods
+    # =========================================================================
+
+    def _is_time_query(self, text: str) -> bool:
+        """Check if query is about time."""
+        # Avoid matching "times" (as in multiplication)
+        if "times" in text and any(c.isdigit() for c in text):
+            return False
+        # Exclude sun-related queries
+        sun_words = ["sunrise", "sunset", "dawn", "dusk"]
+        if any(sw in text for sw in sun_words):
+            return False
+        # Exclude world clock queries (time in another location)
+        if " in " in text:
+            return False
+        time_keywords = ["what time", "the time", "clock", "o'clock"]
+        return any(kw in text for kw in time_keywords)
+
+    def _is_date_query(self, text: str) -> bool:
+        """Check if query is about date."""
+        # Exclude calendar queries
+        if "calendar" in text or "schedule" in text or "appointment" in text:
+            return False
+        # Exclude energy queries
+        if "energy" in text or "power" in text or "electricity" in text:
+            return False
+        # Exclude family digest queries
+        if "what happened" in text or "catch me up" in text or "what did i miss" in text:
+            return False
+        # Exclude daily briefing queries
+        if "need to know" in text or "briefing" in text or "brief me" in text:
+            return False
+        # Exclude weather queries
+        if "rain" in text or "snow" in text or "weather" in text or "umbrella" in text or "forecast" in text:
+            return False
+        date_keywords = ["date", "what day", "today", "what's today"]
+        return any(kw in text for kw in date_keywords)
+
+    def _is_greeting(self, text: str) -> bool:
+        """Check if text is a greeting."""
+        greetings = [
+            "hello",
+            "hey",
+            "hi",
+            "good morning",
+            "good afternoon",
+            "good evening",
+            "good night",
+        ]
+        return any(text.startswith(g) or text == g for g in greetings)
+
+    def _is_status_query(self, text: str) -> bool:
+        """Check if asking about status."""
+        status_keywords = ["how are you", "you okay", "are you there", "you alright"]
+        return any(kw in text for kw in status_keywords)
+
+    def _is_thanks(self, text: str) -> bool:
+        """Check if expressing thanks."""
+        thanks_keywords = ["thank", "thanks", "cheers", "appreciate"]
+        return any(kw in text for kw in thanks_keywords)
+
+    def _is_mic_check(self, text: str) -> bool:
+        """Check if this is a mic test or hearing check."""
+        # Don't match if it's a note/reminder
+        if ":" in text:
+            return False
+
+        mic_keywords = [
+            "can you hear me",
+            "do you hear me",
+            "are you there",
+            "testing",
+            "is this working",
+            "am i working",
+        ]
+        # "test" alone should match, but not as part of another word
+        if text.strip() in ["test", "test test", "testing testing"]:
+            return True
+        return any(kw in text for kw in mic_keywords)
+
+    def _is_coin_flip(self, text: str) -> bool:
+        """Check if user wants to flip a coin."""
+        return any(kw in text for kw in ["flip a coin", "flip coin", "heads or tails", "coin flip"])
+
+    def _is_dice_roll(self, text: str) -> bool:
+        """Check if user wants to roll dice."""
+        return any(kw in text for kw in ["roll a dice", "roll dice", "roll a die", "roll a d", "throw dice"])
+
+    def _is_yes_no(self, text: str) -> bool:
+        """Check if user wants a yes/no decision."""
+        return text.strip().lower() in ["yes or no", "yes or no?"]
+
+    def _is_magic_8_ball(self, text: str) -> bool:
+        """Check if user wants magic 8-ball."""
+        return any(kw in text for kw in ["magic 8 ball", "magic 8-ball", "magic eight ball", "8 ball"])
+
+    def _is_world_clock(self, text: str) -> bool:
+        """Check if asking about time in another location."""
+        return self._world_clock_pattern and self._world_clock_pattern.search(text) is not None
+
+    def _is_countdown(self, text: str) -> bool:
+        """Check if asking about countdown to event."""
+        # Exclude sun-related queries
+        sun_words = ["sunrise", "sunset", "dawn", "dusk", "sun rise", "sun set"]
+        if any(sw in text for sw in sun_words):
+            return False
+        # Exclude birthday queries (handled separately)
+        if "birthday" in text:
+            return False
+        # Exclude bedtime queries (handled separately)
+        if "bedtime" in text or "bed time" in text:
+            return False
+        # Exclude simple time unit questions (handled by simple_fact)
+        # e.g., "how many days in a year" is not a countdown
+        time_unit_patterns = ["in a year", "in a month", "in a week", "days in", "weeks in", "months in"]
+        if any(tp in text for tp in time_unit_patterns):
+            return False
+        countdown_keywords = ["days until", "days till", "how long until", "how many days", "when is"]
+        return any(kw in text for kw in countdown_keywords)
+
+    def _is_counting(self, text: str) -> bool:
+        """Check if user wants counting help."""
+        return text.startswith("count ") or "what comes after" in text or "what comes before" in text
+
+    def _is_unit_conversion(self, text: str) -> bool:
+        """Check if asking about unit conversion."""
+        # Exclude simple time facts (handled by simple_fact)
+        # e.g., "how many days in a year" is not a unit conversion
+        time_units = ["days in a year", "weeks in a year", "months in a year", 
+                      "days in a month", "days in a week", "legs"]
+        if any(tu in text for tu in time_units):
+            return False
+        conversion_keywords = ["convert", "how many", "in a ", "to celsius", "to fahrenheit", "to cups", "to liters"]
+        return any(kw in text for kw in conversion_keywords)
+
+    def _is_undo(self, text: str) -> bool:
+        """Check if user wants to undo last action."""
+        undo_keywords = ["undo", "undo that", "reverse that", "take that back", "never mind", "nevermind"]
+        return any(kw in text for kw in undo_keywords) and "conversation" not in text
+
+    def _is_repeat(self, text: str) -> bool:
+        """Check if user wants to hear last response again."""
+        repeat_keywords = [
+            "say that again", "repeat that", "what did you say",
+            "say it again", "come again", "pardon", "repeat",
+            "what was that", "i didn't hear", "one more time"
+        ]
+        return any(kw in text for kw in repeat_keywords)
+
+    def _is_joke(self, text: str) -> bool:
+        """Check if user wants a joke."""
+        joke_keywords = ["tell me a joke", "tell a joke", "joke please", "another joke", "got a joke",
+                        "dad joke", "knock knock", "make me laugh", "animal joke", "school joke"]
+        return any(kw in text for kw in joke_keywords)
+
+    def _is_riddle(self, text: str) -> bool:
+        """Check if user wants a riddle."""
+        riddle_keywords = ["tell me a riddle", "riddle", "give me a riddle"]
+        return any(kw in text for kw in riddle_keywords)
+
+    def _is_riddle_answer_request(self, text: str) -> bool:
+        """Check if user is asking for the riddle answer."""
+        answer_keywords = [
+            "what's the answer", "whats the answer", "what is the answer",
+            "give up", "i give up", "tell me the answer", "answer to the riddle",
+            "what's the riddle answer", "whats the riddle answer",
+            "i don't know", "i dont know", "the answer"
+        ]
+        return any(kw in text for kw in answer_keywords)
+
+    def _is_fun_fact(self, text: str) -> bool:
+        """Check if user wants a fun fact."""
+        fact_keywords = ["tell me a fact", "fun fact", "interesting fact", "tell me something", "did you know"]
+        return any(kw in text for kw in fact_keywords)
+
+    def _is_animal_sound(self, text: str) -> bool:
+        """Check if user wants to know an animal sound."""
+        sound_keywords = [
+            "what does a", "what do", "what sound does",
+            "how does a", "what noise does", "sound does a"
+        ]
+        animal_words = ["say", "sound", "noise", "make", "go"]
+        return any(kw in text for kw in sound_keywords) and any(aw in text for aw in animal_words)
+
+    def _is_math_practice(self, text: str) -> bool:
+        """Check if user wants math practice."""
+        math_keywords = [
+            "math problem", "math question", "quiz me", "test me",
+            "give me a math", "practice math", "math practice"
+        ]
+        return any(kw in text for kw in math_keywords)
+
+    def _is_bedtime_query(self, text: str) -> bool:
+        """Check if user is asking about bedtime."""
+        bedtime_keywords = [
+            "how long until bedtime", "when is bedtime", "bedtime countdown",
+            "time until bed", "when do i go to bed", "how much longer until bed"
+        ]
+        return any(kw in text for kw in bedtime_keywords)
+
+    def _is_trivia(self, text: str) -> bool:
+        """Check if user wants trivia."""
+        trivia_keywords = [
+            "trivia", "quiz question", "ask me a question", "test my knowledge"
+        ]
+        return any(kw in text for kw in trivia_keywords)
+
+    def _is_would_you_rather(self, text: str) -> bool:
+        """Check if user wants a 'would you rather' question."""
+        return "would you rather" in text
+
+    def _is_encouragement(self, text: str) -> bool:
+        """Check if user wants encouragement or a compliment."""
+        keywords = [
+            "give me a compliment", "compliment me", "say something nice",
+            "i'm feeling down", "i feel sad", "cheer me up", "motivate me",
+            "encourage me", "i need encouragement"
+        ]
+        return any(kw in text for kw in keywords)
+
+    def _is_location_query(self, text: str) -> tuple[bool, str | None]:
+        """Check if user is asking about someone's location.
+
+        Returns (is_location_query, person_name or None).
+        """
+        # Family member names
+        family_names = ["thom", "elizabeth", "penelope", "xander", "viola", "zachary"]
+
+        # Patterns to match
+        patterns = [
+            r"where is (\w+)",
+            r"where's (\w+)",
+            r"is (\w+) home",
+            r"is (\w+) at home",
+            r"where are (\w+)",
+            r"(\w+)'s location",
+            r"find (\w+)",
+            r"locate (\w+)",
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                name = match.group(1).lower()
+                # Check if it's a family member
+                if name in family_names:
+                    return True, name
+                # Also check partial matches (e.g., "liz" for "elizabeth")
+                for family_name in family_names:
+                    if name in family_name or family_name.startswith(name):
+                        return True, family_name
+
+        return False, None
+
+    def _is_whos_home_query(self, text: str) -> bool:
+        """Check if user is asking who's home."""
+        keywords = [
+            "who's home", "who is home", "who is at home", "who's at home",
+            "is anyone home", "is anybody home", "anyone home", "anybody home",
+            "is the house empty", "is everyone home", "is everybody home",
+            "who all is home", "who's here", "who is here"
+        ]
+        return any(kw in text for kw in keywords)
+
+    def _is_device_status_query(self, text: str) -> tuple[bool, str | None, str | None]:
+        """Check if user is asking about device status.
+
+        Returns (is_device_query, device_name or None, domain or None).
+        """
+        # Patterns for device status
+        patterns = [
+            (r"is the (\w+(?:\s+\w+)?) (on|off|open|closed|locked|unlocked)", None),
+            (r"is (\w+(?:\s+\w+)?) (on|off|open|closed|locked|unlocked)", None),
+            (r"what('s| is) the (\w+(?:\s+\w+)?) (set to|at|temperature)", "climate"),
+            (r"(status of|check) the (\w+(?:\s+\w+)?)", None),
+        ]
+
+        for pattern, domain in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                groups = match.groups()
+                # Extract device name (usually the first or second group)
+                device_name = groups[0] if len(groups) >= 1 else None
+                if device_name and device_name.lower() in ["the", "a", "my"]:
+                    device_name = groups[1] if len(groups) >= 2 else None
+                if device_name:
+                    return True, device_name.lower(), domain
+
+        return False, None, None
+
+    def _is_sun_query(self, text: str) -> tuple[bool, str]:
+        """Check if user is asking about sunrise/sunset.
+
+        Returns (is_sun_query, query_type).
+        """
+        if any(kw in text for kw in ["sunrise", "sun rise", "when does the sun rise"]):
+            return True, "sunrise"
+        if any(kw in text for kw in ["sunset", "sun set", "when does the sun set"]):
+            return True, "sunset"
+        if "dawn" in text:
+            return True, "dawn"
+        if "dusk" in text:
+            return True, "dusk"
+        return False, ""
+
+    def _is_moon_query(self, text: str) -> bool:
+        """Check if user is asking about moon phase."""
+        keywords = ["moon phase", "phase of the moon", "what phase is the moon", "moon tonight"]
+        return any(kw in text for kw in keywords)
+
+    def _is_weather_query(self, text: str) -> bool:
+        """Check if user is asking about weather."""
+        keywords = [
+            "weather", "temperature outside", "how cold", "how hot", "how warm",
+            "will it rain", "is it raining", "going to rain", "need an umbrella",
+            "going to snow", "is it snowing", "forecast", "humid", "humidity"
+        ]
+        return any(kw in text for kw in keywords)
+
+    def _is_calendar_query(self, text: str) -> bool:
+        """Check if user is asking about calendar/schedule."""
+        keywords = [
+            "calendar", "schedule", "what's on", "appointment", "events",
+            "what do i have", "what do we have", "what's happening",
+            "any plans", "anything scheduled", "next event"
+        ]
+        return any(kw in text for kw in keywords)
+
+    def _is_energy_query(self, text: str) -> bool:
+        """Check if user is asking about energy usage."""
+        # Must have energy-related keyword
+        energy_words = ["energy", "power", "electricity", "solar", "kwh", "kilowatt", "watt"]
+        if not any(kw in text for kw in energy_words):
+            return False
+        # Context words that indicate this is an energy query
+        context_words = ["usage", "consumption", "using", "used", "much", "today", "month", "how"]
+        return any(kw in text for kw in context_words) or "solar" in text
+
+    def _is_security_query(self, text: str) -> tuple[bool, str]:
+        """Check if user is asking about security status.
+
+        Returns (is_query, query_type).
+        Query types: 'locks', 'blinds', 'doors', 'all'
+        """
+        text_lower = text.lower()
+
+        # Lock queries
+        if any(kw in text_lower for kw in ["lock", "locked", "unlock"]):
+            if "door" in text_lower or "front" in text_lower:
+                return True, "locks"
+            return True, "locks"
+
+        # Blind/shade queries
+        if any(kw in text_lower for kw in ["blind", "blinds", "shade", "shades", "curtain"]):
+            return True, "blinds"
+
+        # General security query
+        if "secure" in text_lower or "security" in text_lower:
+            return True, "all"
+
+        return False, ""
+
+    def _is_phone_battery_query(self, text: str) -> tuple[bool, str | None]:
+        """Check if user is asking about phone battery.
+
+        Returns (is_query, person_name).
+        """
+        battery_words = ["battery", "batteries", "charged", "charge"]
+        if not any(kw in text for kw in battery_words):
+            return False, None
+        if "phone" not in text:
+            return False, None
+
+        # Extract person name
+        text_lower = text.lower()
+        family_names = ["thom", "elizabeth", "xander", "viola", "penelope", "zachary"]
+        for name in family_names:
+            if name in text_lower or f"{name}'s" in text_lower:
+                return True, name
+
+        # Check for "my phone"
+        if "my phone" in text_lower:
+            return True, "speaker"
+
+        return True, None  # Generic phone battery query
+
+    def _is_shopping_list_query(self, text: str) -> tuple[bool, str]:
+        """Check if user is asking about shopping list.
+
+        Returns (is_shopping_query, action_type).
+        Action types: 'add', 'read', 'clear', 'remove'
+        """
+        if "shopping list" not in text and "groceries" not in text:
+            return False, ""
+
+        if any(kw in text for kw in ["add", "put", "need"]):
+            return True, "add"
+        if any(kw in text for kw in ["what's on", "read", "show", "list"]):
+            return True, "read"
+        if any(kw in text for kw in ["clear", "empty", "delete all"]):
+            return True, "clear"
+        if any(kw in text for kw in ["remove", "take off", "cross off"]):
+            return True, "remove"
+
+        return True, "read"  # Default to read
+
+    def _is_pet_feeding_query(self, text: str) -> tuple[bool, str, str | None]:
+        """Check if user is asking about pet feeding.
+
+        Returns (is_pet_query, action_type, pet_name).
+        Action types: 'log', 'check', 'when'
+        """
+        text = text.lower()
+
+        # Common pet names to detect
+        pets = ["dog", "cat", "fish", "hamster", "rabbit", "bird", "guinea pig"]
+
+        # Find which pet is mentioned
+        pet_name = None
+        for pet in pets:
+            if pet in text:
+                pet_name = pet
+                break
+
+        # If no pet mentioned, check for general pet/animal terms
+        if not pet_name and ("pet" in text or "animal" in text):
+            pet_name = "pet"
+
+        if not pet_name:
+            return False, "", None
+
+        # Determine action type (order matters - check most specific first)
+        # When last fed: "when was the dog last fed", "last time the cat was fed"
+        if any(kw in text for kw in ["when was", "when did", "last time", "last fed"]):
+            return True, "when", pet_name
+
+        # Log feeding: "I fed the dog", "fed the cat", "dog has been fed"
+        if any(kw in text for kw in ["i fed", "fed the", "just fed", "has been fed", "was fed", "log"]):
+            return True, "log", pet_name
+
+        # Check if fed: "did anyone feed", "has the dog been fed", "was the cat fed"
+        if any(kw in text for kw in ["did anyone feed", "did someone feed", "has the", "was the", "been fed", "feed the", "did the", "get fed"]):
+            return True, "check", pet_name
+
+        return False, "", None
+
+    def _is_quick_note_query(self, text: str) -> tuple[bool, str, str | None]:
+        """Check if user wants to save or retrieve a quick note.
+
+        Returns (is_note_query, action_type, note_content).
+        Action types: 'save', 'list', 'search'
+        """
+        text_lower = text.lower()
+
+        # Exclude shopping list related phrases (but only if they're not after a colon)
+        # e.g. "add milk to shopping list" should be excluded, but "remind me: pick up groceries" should not
+        if "shopping list" in text_lower and ":" not in text_lower:
+            return False, "", None
+
+        # Save note patterns
+        save_patterns = [
+            # Colon-based patterns (explicit)
+            r"^note:\s*(.+)",  # "note: call dentist"
+            r"^remember:\s*(.+)",  # "remember: pick up milk"
+            r"^remind me:\s*(.+)",  # "remind me: call mom"
+            r"^make a note:\s*(.+)",  # "make a note: meeting at 3"
+            r"^save note:\s*(.+)",  # "save note: important stuff"
+            # Natural language patterns
+            r"^remember that\s+(.+)",  # "remember that we need milk"
+            r"^remember i need to\s+(.+)",  # "remember I need to call mom"
+            r"^remember we need to\s+(.+)",  # "remember we need to buy milk"
+            r"^remember to\s+(.+)",  # "remember to take out trash"
+            r"^note for (\w+):\s*(.+)",  # "note for Elizabeth: meeting at 3pm"
+            r"^can you remember that\s+(.+)",  # "can you remember that..."
+            r"^please remember that\s+(.+)",  # "please remember that..."
+        ]
+
+        for pattern in save_patterns:
+            match = re.search(pattern, text_lower)
+            if match:
+                # Handle "note for X: content" pattern which has 2 groups
+                if len(match.groups()) == 2:
+                    recipient = match.group(1).strip()
+                    content = f"Note for {recipient}: {match.group(2).strip()}"
+                else:
+                    content = match.group(1).strip()
+                return True, "save", content
+
+        # List notes
+        if any(phrase in text_lower for phrase in [
+            "what are my notes",
+            "show my notes",
+            "list my notes",
+            "read my notes",
+            "my notes",
+        ]):
+            return True, "list", None
+
+        # Search notes
+        if "note about" in text_lower or "notes about" in text_lower:
+            # Extract search term
+            match = re.search(r"notes? about\s+(.+)", text_lower)
+            if match:
+                return True, "search", match.group(1).strip()
+
+        return False, "", None
+
+    def _is_chore_query(self, text: str) -> tuple[bool, str, str | None, str | None]:
+        """Check if user is asking about chores or stars.
+
+        Returns (is_chore_query, action_type, person_name, chore_name).
+        Action types: 'complete', 'star', 'check_stars', 'check_chores', 'whose_turn'
+        """
+        text = text.lower()
+
+        # Family member names to detect
+        family_names = ["thom", "elizabeth", "penelope", "xander", "viola", "zachary"]
+
+        # Find which person is mentioned
+        person = None
+        for name in family_names:
+            if name in text:
+                person = name
+                break
+
+        # Award star: "give Xander a star", "star for Penelope"
+        # But NOT "conversation starter" - check for that first
+        if "starter" in text or "start" in text:
+            return False, "", None, None
+        if any(kw in text for kw in ["give", "award", "add"]) and "star" in text:
+            return True, "star", person, None
+
+        # Check stars: "how many stars does Xander have", "Penelope's stars"
+        if "star" in text and any(kw in text for kw in ["how many", "check", "'s star", "has", "have", "count"]):
+            return True, "check_stars", person, None
+
+        # Complete chore: "Xander finished homework", "Penelope did the dishes"
+        chore_keywords = ["homework", "dishes", "room", "bed", "trash", "laundry", "chore", "clean"]
+        chore_name = None
+        for chore in chore_keywords:
+            if chore in text:
+                chore_name = chore
+                break
+
+        if chore_name and any(kw in text for kw in ["finished", "did", "completed", "done with", "done"]):
+            return True, "complete", person, chore_name
+
+        # Whose turn: "whose turn to do dishes", "who should do the trash"
+        if any(kw in text for kw in ["whose turn", "who should", "who's turn", "who has to"]):
+            return True, "whose_turn", None, chore_name
+
+        # Check chores: "what chores are left", "chores today"
+        if "chore" in text and any(kw in text for kw in ["left", "today", "what", "list", "remaining"]):
+            return True, "check_chores", person, None
+
+        return False, "", None, None
+
+    def _is_focus_timer_query(self, text: str) -> tuple[bool, str]:
+        """Check if user wants to start a focus/pomodoro timer.
+
+        Returns (is_focus_query, action_type).
+        Action types: 'start', 'status', 'stop'
+        """
+        text = text.lower()
+
+        # Family member names - if any are mentioned, it's probably a chore, not a timer
+        family_names = ["thom", "elizabeth", "penelope", "xander", "viola", "zachary"]
+        has_person = any(name in text for name in family_names)
+
+        # Start focus/pomodoro session
+        if any(kw in text for kw in ["start", "begin"]):
+            if any(kw in text for kw in ["pomodoro", "focus", "homework time", "study time", "work session"]):
+                return True, "start"
+
+        # Check status
+        if any(kw in text for kw in ["how long", "how much time", "time left"]):
+            if any(kw in text for kw in ["studying", "focus", "working", "homework"]):
+                return True, "status"
+
+        # Stop/end session - but NOT if a person is mentioned (that's chore completion)
+        if not has_person:
+            if any(kw in text for kw in ["stop", "end", "done with"]):
+                # Be more specific - only match timer-related words
+                if any(kw in text for kw in ["pomodoro", "focus", "studying", "session"]):
+                    return True, "stop"
+                # "done with homework" without a person name = ending timer
+                if "done with homework" in text or "finish homework" in text:
+                    return True, "stop"
+
+        return False, ""
+
+    def _is_wifi_query(self, text: str) -> bool:
+        """Check if user is asking for WiFi password."""
+        text = text.lower()
+        if "wifi" in text or "wi-fi" in text or "wi fi" in text:
+            if any(kw in text for kw in ["password", "pass", "code", "credentials", "connect"]):
+                return True
+        if "guest network" in text:
+            return True
+        return False
+
+    def _is_family_digest_query(self, text: str) -> bool:
+        """Check if user wants a summary of what happened at home."""
+        text = text.lower()
+        if any(kw in text for kw in ["what happened", "what's happened", "family digest", "home summary"]):
+            if any(kw in text for kw in ["today", "at home", "while i was", "this morning", "this evening"]):
+                return True
+        if "catch me up" in text or "fill me in" in text:
+            return True
+        if text in ["what did i miss", "what did i miss?"]:
+            return True
+        return False
+
+    def _is_bored_query(self, text: str) -> tuple[bool, str]:
+        """Check if user is bored and wants activity suggestions.
+
+        Returns (is_bored, activity_type).
+        Activity types: 'any', 'indoor', 'outdoor', 'family', 'creative'
+        """
+        text = text.lower()
+
+        bored_keywords = ["bored", "nothing to do", "what should i do", "what can i do",
+                         "give me something to do", "suggest something", "i'm bored",
+                         "any ideas", "activity", "activities"]
+
+        if not any(kw in text for kw in bored_keywords):
+            return False, ""
+
+        # Determine activity type
+        if "outside" in text or "outdoor" in text:
+            return True, "outdoor"
+        if "inside" in text or "indoor" in text:
+            return True, "indoor"
+        if "family" in text or "together" in text:
+            return True, "family"
+        if "creative" in text or "art" in text or "craft" in text:
+            return True, "creative"
+        if "rain" in text:
+            return True, "rainy_day"
+
+        return True, "any"
+
+    def _is_conversation_starter_query(self, text: str) -> bool:
+        """Check if user wants a conversation starter or dinner table question."""
+        text = text.lower()
+        keywords = [
+            "conversation starter", "dinner question", "table talk",
+            "something to talk about", "discussion question",
+            "family question", "get to know", "icebreaker"
+        ]
+        return any(kw in text for kw in keywords)
+
+    def _is_birthday_query(self, text: str) -> tuple[bool, str | None]:
+        """Check if user is asking about birthdays.
+
+        Returns (is_birthday_query, person_name).
+        """
+        text = text.lower()
+
+        if "birthday" not in text:
+            return False, ""
+
+        # Family member names
+        family_names = ["thom", "elizabeth", "penelope", "xander", "viola", "zachary",
+                       "mom", "dad", "mommy", "daddy"]
+
+        # Check for specific person
+        for name in family_names:
+            if name in text:
+                # Map mom/dad to actual names
+                if name in ["mom", "mommy"]:
+                    return True, "elizabeth"
+                elif name in ["dad", "daddy"]:
+                    return True, "thom"
+                return True, name
+
+        # Check for "my birthday"
+        if "my birthday" in text:
+            return True, "speaker"
+
+        # Check for "next birthday" or "upcoming birthdays"
+        if any(kw in text for kw in ["next", "upcoming", "soon", "coming up"]):
+            return True, "next"
+
+        return True, None
+
+    def _is_daily_briefing_query(self, text: str) -> bool:
+        """Check if user wants a daily briefing or morning summary."""
+        text = text.lower()
+        keywords = [
+            "daily briefing", "morning briefing", "daily summary",
+            "morning summary", "what do i need to know",
+            "brief me", "give me the rundown", "what's the plan",
+            "what's happening today"
+        ]
+        return any(kw in text for kw in keywords)
+
+    # =========================================================================
+    # Response Handlers
+    # =========================================================================
+
+    def _handle_time(self) -> str:
+        """Generate time response."""
+        now = datetime.now()
+        time_str = now.strftime("%I:%M %p").lstrip("0")  # Remove leading zero
+        template = random.choice(self.TIME_RESPONSES)
+        return template.format(time=time_str)
+
+    def _handle_date(self) -> str:
+        """Generate date response."""
+        now = datetime.now()
+        date_str = now.strftime("%A, %B %d, %Y")
+        template = random.choice(self.DATE_RESPONSES)
+        return template.format(date=date_str)
+
+    def _handle_greeting(self, text: str, speaker: str | None) -> str:
+        """Generate contextual greeting based on time of day."""
+        now = datetime.now()
+        hour = now.hour
+
+        # Check for explicit time-of-day greeting
+        if "morning" in text:
+            time_key = "morning"
+        elif "afternoon" in text:
+            time_key = "afternoon"
+        elif "evening" in text:
+            time_key = "evening"
+        elif "night" in text:
+            time_key = "night"
+        # Otherwise determine from current time
+        elif 5 <= hour < 12:
+            time_key = "morning"
+        elif 12 <= hour < 17:
+            time_key = "afternoon"
+        elif 17 <= hour < 22:
+            time_key = "evening"
+        else:
+            time_key = "default"
+
+        template = random.choice(self.GREETING_RESPONSES[time_key])
+
+        # Personalize if speaker known
+        name_str = ""
+        if speaker and speaker.lower() not in ("guest", "unknown"):
+            name_str = f", {speaker.title()}"
+
+        return template.format(name=name_str)
+
+    def _handle_status(self) -> str:
+        """Generate status response."""
+        return random.choice(self.STATUS_RESPONSES)
+
+    def _handle_thanks(self) -> str:
+        """Generate thanks response."""
+        return random.choice(self.THANKS_RESPONSES)
+
+    def _handle_mic_check(self) -> str:
+        """Generate mic check / hearing confirmation response."""
+        return random.choice(self.MIC_CHECK_RESPONSES)
+
+    async def _handle_undo(self, context: dict[str, Any]) -> str:
+        """Handle undo request by calling orchestrator."""
+        conversation_id = context.get("conversation_id")
+
+        if not conversation_id:
+            return random.choice(self.NOTHING_TO_UNDO_RESPONSES)
+
+        try:
+            from barnabeenet.main import app_state
+            if hasattr(app_state, "orchestrator") and app_state.orchestrator:
+                result = await app_state.orchestrator.undo_last_action(conversation_id)
+                if result.get("success"):
+                    return random.choice(self.UNDO_RESPONSES)
+                else:
+                    return result.get("message", random.choice(self.NOTHING_TO_UNDO_RESPONSES))
+        except Exception as e:
+            logger.warning(f"Failed to undo: {e}")
+
+        return random.choice(self.NOTHING_TO_UNDO_RESPONSES)
+
+    def _handle_repeat(self, context: dict[str, Any]) -> str:
+        """Handle repeat/say that again request."""
+        conversation_id = context.get("conversation_id")
+
+        if not conversation_id:
+            return random.choice(self.NOTHING_TO_REPEAT_RESPONSES)
+
+        try:
+            from barnabeenet.main import app_state
+            if hasattr(app_state, "orchestrator") and app_state.orchestrator:
+                last_response = app_state.orchestrator.get_last_response(conversation_id)
+                if last_response:
+                    template = random.choice(self.REPEAT_RESPONSES)
+                    return template.format(last_response=last_response)
+        except Exception as e:
+            logger.warning(f"Failed to get last response: {e}")
+
+        return random.choice(self.NOTHING_TO_REPEAT_RESPONSES)
+
+    def _handle_joke(self, text: str) -> str:
+        """Tell a joke based on the type requested."""
+        text_lower = text.lower()
+
+        # Determine joke category
+        if "dad" in text_lower:
+            category = "dad_jokes"
+        elif "knock" in text_lower:
+            category = "knock_knock"
+        elif "animal" in text_lower:
+            category = "animal"
+        elif "school" in text_lower:
+            category = "school"
+        else:
+            # Pick from general or dad jokes
+            category = random.choice(["general", "dad_jokes"])
+
+        jokes = JOKES_DATA.get(category, JOKES_DATA.get("general", []))
+        if not jokes:
+            return "I'm sorry, I'm fresh out of jokes right now!"
+
+        joke = random.choice(jokes)
+        setup = joke.get("setup", "")
+        punchline = joke.get("punchline", "")
+
+        return f"{setup} {punchline}"
+
+    # Cache for pending riddles (conversation_id -> riddle)
+    _pending_riddles: dict[str, dict[str, str]] = {}
+
+    def _handle_riddle(self, context: dict[str, Any]) -> str:
+        """Tell a riddle and store for later answer reveal."""
+        riddles = JOKES_DATA.get("riddles", [])
+        if not riddles:
+            return "I don't have any riddles right now!"
+
+        riddle = random.choice(riddles)
+        setup = riddle.get("setup", "")
+        punchline = riddle.get("punchline", "")
+
+        # Store the riddle for "what's the answer" follow-up
+        conversation_id = context.get("conversation_id", "default")
+        self._pending_riddles[conversation_id] = {"setup": setup, "answer": punchline}
+
+        responses = [
+            f"Here's a riddle for you: {setup}",
+            f"Try this riddle: {setup}",
+            f"Riddle time! {setup}",
+        ]
+        return random.choice(responses) + " Say 'what's the answer' when you give up!"
+
+    def _handle_riddle_answer(self, context: dict[str, Any]) -> str:
+        """Reveal the answer to the pending riddle."""
+        conversation_id = context.get("conversation_id", "default")
+        riddle = self._pending_riddles.get(conversation_id)
+
+        if not riddle:
+            return "I haven't told you a riddle yet! Ask me for a riddle first."
+
+        answer = riddle.get("answer", "I forgot the answer!")
+        # Clear the pending riddle
+        del self._pending_riddles[conversation_id]
+
+        responses = [
+            f"The answer is: {answer}",
+            f"It's: {answer}!",
+            f"Ready? The answer is... {answer}!",
+        ]
+        return random.choice(responses)
+
+    def _handle_fun_fact(self, text: str) -> str:
+        """Tell a fun fact based on the topic requested."""
+        text_lower = text.lower()
+
+        # Determine fact category
+        if "space" in text_lower or "planet" in text_lower or "star" in text_lower:
+            category = "space"
+        elif "animal" in text_lower:
+            category = "animals"
+        elif "science" in text_lower:
+            category = "science"
+        elif "history" in text_lower:
+            category = "history"
+        elif "food" in text_lower:
+            category = "food"
+        elif "geography" in text_lower or "country" in text_lower or "world" in text_lower:
+            category = "geography"
+        else:
+            category = "general"
+
+        facts = FUN_FACTS_DATA.get(category, FUN_FACTS_DATA.get("general", []))
+        if not facts:
+            return "I don't have any fun facts right now!"
+
+        fact = random.choice(facts)
+        prefixes = ["Did you know? ", "Here's a fun fact: ", "Fun fact: ", ""]
+        return random.choice(prefixes) + fact
+
+    def _handle_simple_fact(self, text: str) -> str:
+        """Quick answers for common simple factual questions."""
+        text_lower = text.lower()
+        
+        # Color facts
+        if "color" in text_lower or "colour" in text_lower:
+            if "sky" in text_lower:
+                return "The sky is blue because molecules in the air scatter blue light from the sun more than other colors."
+            elif "grass" in text_lower:
+                return "Grass is green because it contains chlorophyll, which absorbs red and blue light and reflects green."
+            elif "sun" in text_lower:
+                return "The sun appears yellow or white. It's actually white, but our atmosphere scatters the blue light, making it look yellow."
+            elif "ocean" in text_lower or "sea" in text_lower:
+                return "The ocean is blue because water absorbs red light and reflects blue light back to our eyes."
+            elif "blood" in text_lower:
+                return "Blood is red because of hemoglobin, a protein that carries oxygen and contains iron."
+            elif "snow" in text_lower:
+                return "Snow is white because ice crystals scatter all wavelengths of light equally."
+        
+        # Days/months in year
+        if "days" in text_lower and "year" in text_lower:
+            return "There are 365 days in a regular year, and 366 days in a leap year."
+        if "months" in text_lower and "year" in text_lower:
+            return "There are 12 months in a year."
+        if "weeks" in text_lower and "year" in text_lower:
+            return "There are 52 weeks in a year."
+        if "days" in text_lower and "week" in text_lower:
+            return "There are 7 days in a week."
+        
+        # Legs/body parts
+        if "legs" in text_lower:
+            if "spider" in text_lower:
+                return "A spider has 8 legs."
+            elif "dog" in text_lower or "cat" in text_lower:
+                return "Dogs and cats have 4 legs."
+            elif "human" in text_lower or "person" in text_lower:
+                return "Humans have 2 legs."
+            elif "octopus" in text_lower:
+                return "An octopus has 8 arms (technically not legs, but tentacles)."
+            elif "insect" in text_lower:
+                return "Insects have 6 legs."
+        
+        # Capital cities (common ones)
+        if "capital" in text_lower:
+            capitals = {
+                "france": "The capital of France is Paris.",
+                "germany": "The capital of Germany is Berlin.",
+                "japan": "The capital of Japan is Tokyo.",
+                "australia": "The capital of Australia is Canberra.",
+                "canada": "The capital of Canada is Ottawa.",
+                "brazil": "The capital of Brazil is Brasília.",
+                "china": "The capital of China is Beijing.",
+                "india": "The capital of India is New Delhi.",
+                "russia": "The capital of Russia is Moscow.",
+                "italy": "The capital of Italy is Rome.",
+                "spain": "The capital of Spain is Madrid.",
+                "uk": "The capital of the UK is London.",
+                "united kingdom": "The capital of the United Kingdom is London.",
+                "england": "The capital of England is London.",
+                "mexico": "The capital of Mexico is Mexico City.",
+                "usa": "The capital of the USA is Washington, D.C.",
+                "united states": "The capital of the United States is Washington, D.C.",
+                "america": "The capital of the United States is Washington, D.C.",
+            }
+            for country, answer in capitals.items():
+                if country in text_lower:
+                    return answer
+        
+        # Default: give a helpful response
+        return "That's a great question! Let me think... I don't have that specific fact memorized, but it's something worth looking up!"
+
+    def _handle_animal_sound(self, text: str) -> str:
+        """Tell what sound an animal makes."""
+        text_lower = text.lower()
+        animals = ANIMAL_SOUNDS_DATA.get("animals", {})
+        templates = ANIMAL_SOUNDS_DATA.get("response_templates", ["{animal}s say {sound}"])
+
+        # Find which animal is being asked about
+        found_animal = None
+        for animal in animals.keys():
+            if animal in text_lower:
+                found_animal = animal
+                break
+
+        if not found_animal:
+            return "I'm not sure which animal you're asking about. Try asking about a dog, cat, cow, or another animal!"
+
+        animal_data = animals[found_animal]
+        sound = animal_data.get("sound", "makes a sound")
+
+        template = random.choice(templates)
+        return template.format(animal=found_animal.capitalize(), sound=sound)
+
+    def _handle_math_practice(self, context: dict[str, Any]) -> str:
+        """Generate a math problem appropriate for the speaker's age."""
+        speaker = context.get("speaker", "").lower()
+
+        # Determine difficulty based on speaker (family member profiles)
+        # Default to medium difficulty
+        difficulty = "medium"
+        if speaker in ["viola", "zachary"]:  # Younger kids
+            difficulty = "easy"
+        elif speaker in ["penelope", "xander"]:  # Older kids
+            difficulty = "medium"
+        elif speaker in ["thom", "elizabeth"]:  # Adults
+            difficulty = "hard"
+
+        if difficulty == "easy":
+            # Simple addition/subtraction with small numbers
+            ops = ["+", "-"]
+            a = random.randint(1, 10)
+            b = random.randint(1, 10)
+            if random.choice(ops) == "-":
+                a, b = max(a, b), min(a, b)  # Ensure positive result
+                op, answer = "-", a - b
+            else:
+                op, answer = "+", a + b
+        elif difficulty == "medium":
+            # Addition, subtraction, multiplication
+            ops = ["+", "-", "×"]
+            op = random.choice(ops)
+            if op == "×":
+                a = random.randint(2, 12)
+                b = random.randint(2, 12)
+                answer = a * b
+            elif op == "-":
+                a = random.randint(10, 50)
+                b = random.randint(1, a)
+                answer = a - b
+            else:
+                a = random.randint(10, 50)
+                b = random.randint(10, 50)
+                answer = a + b
+        else:  # hard
+            # Include division and larger numbers
+            ops = ["+", "-", "×", "÷"]
+            op = random.choice(ops)
+            if op == "÷":
+                answer = random.randint(2, 12)
+                b = random.randint(2, 12)
+                a = answer * b
+            elif op == "×":
+                a = random.randint(5, 20)
+                b = random.randint(5, 20)
+                answer = a * b
+            elif op == "-":
+                a = random.randint(50, 200)
+                b = random.randint(1, a)
+                answer = a - b
+            else:
+                a = random.randint(50, 200)
+                b = random.randint(50, 200)
+                answer = a + b
+
+        # Store the answer in session for checking later (future feature)
+        problem = f"What is {a} {op} {b}?"
+        prompts = [
+            f"Here's a math problem for you: {problem}",
+            f"Try this one: {problem}",
+            f"Math time! {problem}",
+            f"Okay, here we go: {problem}",
+        ]
+        return random.choice(prompts)
+
+    async def _handle_bedtime_countdown(self, context: dict[str, Any]) -> str:
+        """Calculate time until bedtime based on speaker's profile."""
+        speaker = context.get("speaker", "").lower()
+        now = datetime.now()
+
+        # Default bedtimes by person (can be overridden by profile)
+        default_bedtimes = {
+            "viola": "19:30",      # 7:30 PM
+            "zachary": "19:30",   # 7:30 PM
+            "penelope": "20:30",  # 8:30 PM
+            "xander": "21:00",    # 9:00 PM
+            "thom": "22:30",      # 10:30 PM
+            "elizabeth": "22:30", # 10:30 PM
+        }
+
+        # Try to get from profile first (future enhancement)
+        # For now, use defaults based on speaker
+        bedtime_str = None
+
+        # Fall back to default
+        if not bedtime_str:
+            bedtime_str = default_bedtimes.get(speaker, "21:00")
+
+        try:
+            # Parse bedtime
+            hour, minute = map(int, bedtime_str.replace("am", "").replace("pm", "").replace(":", " ").split()[:2])
+            if "pm" in bedtime_str.lower() and hour != 12:
+                hour += 12
+            elif "am" in bedtime_str.lower() and hour == 12:
+                hour = 0
+
+            bedtime = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+            # If bedtime has passed today, it's tomorrow's bedtime
+            if now > bedtime:
+                return "It's past bedtime! Time for sleep!"
+
+            # Calculate time remaining
+            delta = bedtime - now
+            hours = delta.seconds // 3600
+            minutes = (delta.seconds % 3600) // 60
+
+            if hours > 0 and minutes > 0:
+                time_str = f"{hours} hour{'s' if hours != 1 else ''} and {minutes} minute{'s' if minutes != 1 else ''}"
+            elif hours > 0:
+                time_str = f"{hours} hour{'s' if hours != 1 else ''}"
+            else:
+                time_str = f"{minutes} minute{'s' if minutes != 1 else ''}"
+
+            responses = [
+                f"You have {time_str} until bedtime!",
+                f"Bedtime is in {time_str}.",
+                f"{time_str} left until bedtime!",
+            ]
+            return random.choice(responses)
+
+        except Exception as e:
+            logger.warning(f"Failed to calculate bedtime: {e}")
+            return "I'm not sure when bedtime is. Ask mom or dad!"
+
+    def _handle_trivia(self, context: dict[str, Any]) -> str:
+        """Ask a trivia question based on speaker's age."""
+        speaker = context.get("speaker", "").lower()
+
+        # Determine difficulty based on speaker
+        if speaker in ["viola", "zachary"]:
+            difficulty = "easy"
+        elif speaker in ["penelope", "xander"]:
+            difficulty = "medium"
+        else:
+            difficulty = random.choice(["medium", "hard"])
+
+        questions = TRIVIA_DATA.get(difficulty, TRIVIA_DATA.get("medium", []))
+        if not questions:
+            return "I don't have any trivia questions right now!"
+
+        q = random.choice(questions)
+        question = q.get("question", "")
+        answer = q.get("answer", "")
+
+        # Store the answer for later (could be used for follow-up)
+        prompts = [
+            f"Here's a trivia question: {question}",
+            f"Trivia time! {question}",
+            f"Test your knowledge: {question}",
+        ]
+        response = random.choice(prompts)
+        response += f" (The answer is: {answer})"
+        return response
+
+    def _handle_would_you_rather(self) -> str:
+        """Give a 'would you rather' question."""
+        kid_friendly = WOULD_YOU_RATHER_DATA.get("kid_friendly", [])
+        family = WOULD_YOU_RATHER_DATA.get("family", [])
+
+        # Combine and pick randomly
+        all_questions = kid_friendly + family
+        if not all_questions:
+            return "I don't have any would-you-rather questions right now!"
+
+        question = random.choice(all_questions)
+        return question
+
+    def _handle_encouragement(self, text: str) -> str:
+        """Give encouragement, compliments, or support based on what user needs."""
+        text_lower = text.lower()
+
+        if "down" in text_lower or "sad" in text_lower:
+            responses = ENCOURAGEMENT_DATA.get("feeling_down", [])
+        elif "motivate" in text_lower:
+            responses = ENCOURAGEMENT_DATA.get("motivation", [])
+        elif "encourage" in text_lower:
+            responses = ENCOURAGEMENT_DATA.get("encouragement", [])
+        else:
+            # Default to compliments
+            responses = ENCOURAGEMENT_DATA.get("compliments", [])
+
+        if not responses:
+            return "You're doing great! Keep it up!"
+
+        return random.choice(responses)
+
+    async def _handle_location_query(self, person_name: str) -> str:
+        """Get location for a family member from Home Assistant."""
+        # Map family names to HA person entities
+        person_entity_map = {
+            "thom": "person.thom_fife",
+            "elizabeth": "person.elizabeth_fife",
+            "penelope": "person.penelope_fife",
+            "xander": "person.xander_fife",
+            "viola": "person.viola_fife",
+            "zachary": "person.zachary_fife",
+        }
+
+        entity_id = person_entity_map.get(person_name.lower())
+        if not entity_id:
+            return f"I don't know who {person_name} is."
+
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return f"I can't check {person_name.capitalize()}'s location right now."
+
+            state = await ha_client.get_state(entity_id)
+            if not state:
+                return f"I couldn't find location info for {person_name.capitalize()}."
+
+            location = state.state  # "home", "not_home", or zone name
+            friendly_name = state.attributes.get("friendly_name", person_name.capitalize())
+
+            # Format nice response
+            if location == "home":
+                responses = [
+                    f"{friendly_name} is at home.",
+                    f"{friendly_name} is home.",
+                    f"Yes, {friendly_name} is at home right now.",
+                ]
+            elif location == "not_home":
+                responses = [
+                    f"{friendly_name} is not home right now.",
+                    f"{friendly_name} is away.",
+                    f"It looks like {friendly_name} is out.",
+                ]
+            else:
+                # It's a zone name like "work", "school", etc.
+                responses = [
+                    f"{friendly_name} is at {location}.",
+                    f"{friendly_name} is currently at {location}.",
+                ]
+
+            return random.choice(responses)
+
+        except Exception as e:
+            logger.warning(f"Failed to get location for {person_name}: {e}")
+            return f"I had trouble checking {person_name.capitalize()}'s location."
+
+    async def _handle_whos_home_query(self, text: str) -> str:
+        """Get list of who's home from Home Assistant."""
+        person_entities = {
+            "person.thom_fife": "Thom",
+            "person.elizabeth_fife": "Elizabeth",
+            "person.penelope_fife": "Penelope",
+            "person.xander_fife": "Xander",
+            "person.viola_fife": "Viola",
+            "person.zachary_fife": "Zachary",
+        }
+
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't check who's home right now."
+
+            at_home = []
+            away = []
+
+            for entity_id, name in person_entities.items():
+                state = await ha_client.get_state(entity_id)
+                if state:
+                    if state.state == "home":
+                        at_home.append(name)
+                    else:
+                        away.append(name)
+
+            # Check what the user is asking
+            text_lower = text.lower()
+            if "anyone" in text_lower or "anybody" in text_lower or "empty" in text_lower:
+                # "Is anyone home?" / "Is the house empty?"
+                if not at_home:
+                    return "No one is home right now. The house is empty."
+                elif len(at_home) == 1:
+                    return f"Yes, {at_home[0]} is home."
+                else:
+                    return f"Yes, {', '.join(at_home[:-1])} and {at_home[-1]} are home."
+
+            elif "everyone" in text_lower or "everybody" in text_lower:
+                # "Is everyone home?"
+                if not away:
+                    return "Yes, everyone is home!"
+                elif len(away) == 1:
+                    return f"Almost! {away[0]} is not home yet."
+                else:
+                    return f"{', '.join(away[:-1])} and {away[-1]} are not home yet."
+
+            else:
+                # "Who's home?"
+                if not at_home:
+                    return "No one is home right now."
+                elif len(at_home) == 1:
+                    return f"Just {at_home[0]} is home."
+                elif len(at_home) == len(person_entities):
+                    return "Everyone is home!"
+                else:
+                    return f"{', '.join(at_home[:-1])} and {at_home[-1]} are home."
+
+        except Exception as e:
+            logger.warning(f"Failed to check who's home: {e}")
+            return "I had trouble checking who's home."
+
+    async def _handle_device_status_query(self, device_name: str) -> str:
+        """Get status of a device from Home Assistant."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return f"I can't check the {device_name} right now."
+
+            # Try to resolve the device name to an entity
+            entity = await ha_client.resolve_entity_async(device_name)
+            if not entity:
+                return f"I couldn't find a device called {device_name}."
+
+            entity_id = entity.entity_id
+            state = await ha_client.get_state(entity_id)
+            if not state:
+                return f"I couldn't get the status of the {device_name}."
+
+            domain = entity_id.split(".")[0]
+            device_state = state.state
+            attributes = state.attributes
+            friendly_name = attributes.get("friendly_name", device_name)
+
+            # Format response based on domain
+            if domain == "light":
+                if device_state == "on":
+                    brightness = attributes.get("brightness")
+                    if brightness:
+                        pct = round(brightness / 255 * 100)
+                        return f"The {friendly_name} is on at {pct}% brightness."
+                    return f"The {friendly_name} is on."
+                return f"The {friendly_name} is off."
+
+            elif domain == "switch":
+                return f"The {friendly_name} is {'on' if device_state == 'on' else 'off'}."
+
+            elif domain == "lock":
+                return f"The {friendly_name} is {device_state}."
+
+            elif domain == "cover":
+                if device_state == "open":
+                    position = attributes.get("current_position")
+                    if position:
+                        return f"The {friendly_name} is open at {position}%."
+                    return f"The {friendly_name} is open."
+                return f"The {friendly_name} is {device_state}."
+
+            elif domain == "climate":
+                current_temp = attributes.get("current_temperature")
+                target_temp = attributes.get("temperature")
+                hvac_mode = attributes.get("hvac_mode", device_state)
+                if current_temp and target_temp:
+                    return f"The {friendly_name} is set to {hvac_mode} at {target_temp}°. Current temperature is {current_temp}°."
+                elif target_temp:
+                    return f"The {friendly_name} is set to {target_temp}° ({hvac_mode})."
+                return f"The {friendly_name} is {hvac_mode}."
+
+            elif domain == "sensor":
+                unit = attributes.get("unit_of_measurement", "")
+                return f"The {friendly_name} is {device_state}{unit}."
+
+            elif domain == "binary_sensor":
+                return f"The {friendly_name} is {device_state}."
+
+            else:
+                return f"The {friendly_name} is {device_state}."
+
+        except Exception as e:
+            logger.warning(f"Failed to get device status for {device_name}: {e}")
+            return f"I had trouble checking the {device_name}."
+
+    async def _handle_sun_query(self, query_type: str) -> str:
+        """Get sunrise/sunset times from Home Assistant."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't check the sun times right now."
+
+            state = await ha_client.get_state("sun.sun")
+            if not state:
+                return "I couldn't get the sun information."
+
+            attrs = state.attributes
+
+            # Parse times and convert to local
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
+
+            # Assume Eastern timezone for now (could be made configurable)
+            local_tz = ZoneInfo("America/New_York")
+
+            def format_time(iso_str: str) -> str:
+                if not iso_str:
+                    return "unknown"
+                dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+                local_dt = dt.astimezone(local_tz)
+                return local_dt.strftime("%-I:%M %p")
+
+            if query_type == "sunrise":
+                time_str = format_time(attrs.get("next_rising", ""))
+                return f"Sunrise is at {time_str}."
+            elif query_type == "sunset":
+                time_str = format_time(attrs.get("next_setting", ""))
+                return f"Sunset is at {time_str}."
+            elif query_type == "dawn":
+                time_str = format_time(attrs.get("next_dawn", ""))
+                return f"Dawn is at {time_str}."
+            elif query_type == "dusk":
+                time_str = format_time(attrs.get("next_dusk", ""))
+                return f"Dusk is at {time_str}."
+            else:
+                return "I'm not sure what sun time you're asking about."
+
+        except Exception as e:
+            logger.warning(f"Failed to get sun info: {e}")
+            return "I had trouble checking the sun times."
+
+    async def _handle_weather_query(self, text: str) -> str:
+        """Get weather information from Home Assistant."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't check the weather right now."
+
+            # Try forecast_home first, then outside
+            state = await ha_client.get_state("weather.forecast_home")
+            if not state:
+                state = await ha_client.get_state("weather.outside")
+            if not state:
+                return "I couldn't get the weather information."
+
+            condition = state.state  # e.g., "rainy", "cloudy", "sunny"
+            attrs = state.attributes
+            temp = attrs.get("temperature")
+            temp_unit = attrs.get("temperature_unit", "°F")
+            humidity = attrs.get("humidity")
+            wind_speed = attrs.get("wind_speed")
+            wind_unit = attrs.get("wind_speed_unit", "mph")
+
+            text_lower = text.lower()
+
+            # Get forecast for rain/precipitation questions
+            forecast = attrs.get("forecast", [])
+
+            # Condition mapping
+            condition_map = {
+                "sunny": "sunny",
+                "clear-night": "clear",
+                "partlycloudy": "partly cloudy",
+                "cloudy": "cloudy",
+                "rainy": "rainy",
+                "pouring": "pouring rain",
+                "snowy": "snowing",
+                "fog": "foggy",
+                "windy": "windy",
+                "lightning": "stormy with lightning",
+            }
+
+            # Specific questions
+            if "rain" in text_lower or "umbrella" in text_lower or "precipitation" in text_lower:
+                # Check current condition
+                if condition in ["rainy", "pouring", "lightning-rainy"]:
+                    return "Yes, it's raining right now! Definitely bring an umbrella."
+
+                # Check forecast for rain
+                rain_expected = False
+                rain_time = None
+                for f in forecast[:8]:  # Check next 8 hours/periods
+                    fc_condition = f.get("condition", "").lower()
+                    precipitation = f.get("precipitation", 0) or 0
+                    precipitation_prob = f.get("precipitation_probability", 0) or 0
+
+                    if fc_condition in ["rainy", "pouring", "lightning-rainy"] or precipitation > 0 or precipitation_prob > 50:
+                        rain_expected = True
+                        rain_time = f.get("datetime", "")
+                        break
+
+                if rain_expected:
+                    if rain_time:
+                        # Parse time if available
+                        try:
+                            from datetime import datetime
+                            dt = datetime.fromisoformat(rain_time.replace("Z", "+00:00"))
+                            time_str = dt.strftime("%-I %p").lower()
+                            return f"Rain is expected around {time_str}. I'd bring an umbrella just in case!"
+                        except Exception:
+                            pass
+                    return "Rain is in the forecast. You might want to bring an umbrella!"
+                else:
+                    return f"No rain expected today. It's currently {condition_map.get(condition, condition)}."
+
+            if "snow" in text_lower:
+                if condition in ["snowy", "snowy-rainy"]:
+                    return "Yes, it's snowing!"
+                else:
+                    return "No snow right now."
+
+            if "temperature" in text_lower or "cold" in text_lower or "hot" in text_lower or "warm" in text_lower:
+                if temp:
+                    return f"It's currently {temp}{temp_unit} outside."
+                return "I couldn't get the temperature."
+
+            if "humid" in text_lower:
+                if humidity:
+                    return f"The humidity is {humidity}%."
+                return "I couldn't get the humidity."
+
+            # Tomorrow's weather
+            if "tomorrow" in text_lower and forecast:
+                # Find tomorrow's forecast (usually 24h out or next day entry)
+                for f in forecast:
+                    fc_datetime = f.get("datetime", "")
+                    if fc_datetime:
+                        try:
+                            from datetime import datetime, timedelta
+                            dt = datetime.fromisoformat(fc_datetime.replace("Z", "+00:00"))
+                            if dt.date() > datetime.now().date():
+                                fc_temp_high = f.get("temperature")
+                                fc_temp_low = f.get("templow")
+                                fc_condition = f.get("condition", "unknown")
+                                fc_condition_text = condition_map.get(fc_condition, fc_condition)
+
+                                if fc_temp_high and fc_temp_low:
+                                    return f"Tomorrow will be {fc_condition_text} with a high of {fc_temp_high}°F and a low of {fc_temp_low}°F."
+                                elif fc_temp_high:
+                                    return f"Tomorrow will be {fc_condition_text} with a high of {fc_temp_high}°F."
+                                else:
+                                    return f"Tomorrow will be {fc_condition_text}."
+                        except Exception:
+                            continue
+                return "I don't have tomorrow's forecast available."
+
+            # General weather query
+            response_parts = []
+            condition_text = condition_map.get(condition, condition)
+
+            if temp:
+                response_parts.append(f"It's {temp}{temp_unit} and {condition_text}")
+            else:
+                response_parts.append(f"It's {condition_text}")
+
+            if humidity and humidity > 70:
+                response_parts.append(f"with {humidity}% humidity")
+
+            if wind_speed and wind_speed > 10:
+                response_parts.append(f"and wind at {wind_speed} {wind_unit}")
+
+            return ". ".join(response_parts) + "."
+
+        except Exception as e:
+            logger.warning(f"Failed to get weather: {e}")
+            return "I had trouble checking the weather."
+
+    async def _handle_security_query(self, query_type: str) -> str:
+        """Get security status from Home Assistant."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't check security status right now."
+
+            results = []
+
+            if query_type in ["locks", "all"]:
+                # Check lock status
+                lock_state = await ha_client.get_state("lock.home_connect_620_connected_smart_lock")
+                if lock_state:
+                    if lock_state.state == "locked":
+                        results.append("The front door is locked.")
+                    else:
+                        results.append("The front door is UNLOCKED!")
+
+            if query_type in ["blinds", "all"]:
+                # Check blind status
+                blind_entities = [
+                    "cover.blind_boys_room_left", "cover.blind_boys_room_right",
+                    "cover.blind_dining_room_left", "cover.blind_dining_room_right",
+                    "cover.blind_girls_room_left", "cover.blind_girls_room_right",
+                    "cover.blind_living_room_left", "cover.blind_living_room_right",
+                    "cover.blind_office",
+                    "cover.blind_parents_room_left", "cover.blind_parents_room_right",
+                    "cover.blind_playroom_left",
+                ]
+
+                open_blinds = []
+                closed_count = 0
+
+                for entity_id in blind_entities:
+                    state = await ha_client.get_state(entity_id)
+                    if state:
+                        # Extract room name from entity_id
+                        name = entity_id.replace("cover.blind_", "").replace("_", " ").title()
+                        if state.state == "open":
+                            open_blinds.append(name)
+                        else:
+                            closed_count += 1
+
+                if open_blinds:
+                    if len(open_blinds) == 1:
+                        results.append(f"One blind is open: {open_blinds[0]}.")
+                    else:
+                        results.append(f"{len(open_blinds)} blinds are open: {', '.join(open_blinds[:3])}" +
+                                     ("..." if len(open_blinds) > 3 else "."))
+                else:
+                    results.append("All blinds are closed.")
+
+            if not results:
+                return "I couldn't check the security status."
+
+            return " ".join(results)
+
+        except Exception as e:
+            logger.warning(f"Failed to get security status: {e}")
+            return "I had trouble checking security status."
+
+    async def _handle_phone_battery_query(self, person_name: str | None, speaker: str | None) -> str:
+        """Get phone battery information from Home Assistant."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't check phone battery right now."
+
+            # Map person names to device tracker entity IDs
+            name_to_entity = {
+                "thom": "device_tracker.thom_phone",
+                "elizabeth": "device_tracker.elizabeth_phone",
+                "xander": "device_tracker.xander_phone",
+                "viola": "device_tracker.viola_phone",
+                "penelope": "device_tracker.penelope_phone",
+                "zachary": "device_tracker.zachary_phone",
+            }
+
+            # If "my phone", use speaker
+            if person_name == "speaker" and speaker:
+                person_name = speaker.lower()
+
+            if person_name and person_name.lower() in name_to_entity:
+                entity_id = name_to_entity[person_name.lower()]
+                state = await ha_client.get_state(entity_id)
+                if state and state.attributes:
+                    battery = state.attributes.get("battery_level")
+                    if battery is not None:
+                        name_display = person_name.title()
+                        if battery >= 80:
+                            return f"{name_display}'s phone is at {battery}%. Looking good!"
+                        elif battery >= 50:
+                            return f"{name_display}'s phone is at {battery}%."
+                        elif battery >= 20:
+                            return f"{name_display}'s phone is at {battery}%. Might want to charge it soon."
+                        else:
+                            return f"{name_display}'s phone is at {battery}%! It needs to be charged!"
+                    return f"Battery info isn't available for {person_name.title()}'s phone. The companion app might need to be set up."
+                return f"I couldn't find {person_name.title()}'s phone."
+
+            # No specific person - list all phones with battery data
+            results = []
+            for name, entity_id in name_to_entity.items():
+                state = await ha_client.get_state(entity_id)
+                if state and state.attributes:
+                    battery = state.attributes.get("battery_level")
+                    if battery is not None:
+                        results.append(f"{name.title()}: {battery}%")
+
+            if results:
+                return "Phone batteries: " + ", ".join(results) + "."
+            return "No phone battery data is available. The companion app needs to be set up to report battery levels."
+
+        except Exception as e:
+            logger.warning(f"Failed to get phone battery: {e}")
+            return "I had trouble checking phone battery."
+
+    async def _handle_energy_query(self, text: str) -> str:
+        """Get energy usage information from Home Assistant."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't check energy usage right now."
+
+            text_lower = text.lower()
+
+            # Check for specific time periods
+            if "today" in text_lower or "daily" in text_lower:
+                period = "today"
+            elif "month" in text_lower or "monthly" in text_lower:
+                period = "month"
+            elif "solar" in text_lower:
+                period = "current"  # Solar status is real-time
+            else:
+                period = "current"  # Current power draw
+
+            # Get relevant sensors
+            if period == "current":
+                # Get current power balance (negative = generating more than using)
+                state = await ha_client.get_state("sensor.balance_power_minute_average")
+                if state and state.state != "unavailable":
+                    try:
+                        power = float(state.state)
+                        if power < 0:
+                            return f"We're currently generating {abs(power):.0f} watts more than we're using. Solar is doing well!"
+                        else:
+                            return f"We're currently using {power:.0f} watts."
+                    except (ValueError, TypeError):
+                        pass
+
+            elif period == "today":
+                state = await ha_client.get_state("sensor.balance_energy_today")
+                if state and state.state != "unavailable":
+                    try:
+                        energy = float(state.state)
+                        if energy < 0:
+                            return f"Today we've generated {abs(energy):.1f} kWh more than we've used. Nice solar production!"
+                        else:
+                            return f"Today we've used {energy:.1f} kWh of energy."
+                    except (ValueError, TypeError):
+                        pass
+
+                # Try daily_energy as fallback
+                state = await ha_client.get_state("sensor.daily_energy")
+                if state and state.state != "unavailable":
+                    try:
+                        energy = float(state.state)
+                        return f"Today we've used about {energy:.1f} kWh of energy."
+                    except (ValueError, TypeError):
+                        pass
+
+            elif period == "month":
+                state = await ha_client.get_state("sensor.balance_energy_this_month")
+                if state and state.state != "unavailable":
+                    try:
+                        energy = float(state.state)
+                        if energy < 0:
+                            return f"This month we've generated {abs(energy):.0f} kWh more than we've used!"
+                        else:
+                            return f"This month we've used {energy:.0f} kWh of energy."
+                    except (ValueError, TypeError):
+                        pass
+
+            return "I couldn't get the energy information."
+
+        except Exception as e:
+            logger.warning(f"Failed to get energy info: {e}")
+            return "I had trouble checking energy usage."
+
+    async def _handle_calendar_query(self, text: str) -> str:
+        """Get calendar information from Home Assistant."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            from datetime import datetime
+
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't access the calendar right now."
+
+            text_lower = text.lower()
+
+            # Determine time frame
+            if "today" in text_lower or "this morning" in text_lower or "tonight" in text_lower:
+                timeframe = "today"
+            elif "tomorrow" in text_lower:
+                timeframe = "tomorrow"
+            elif "this week" in text_lower or "this weekend" in text_lower:
+                timeframe = "week"
+            else:
+                timeframe = "today"
+
+            # Check relevant calendars
+            calendar_ids = [
+                "calendar.thefifelife217_gmail_com",
+                "calendar.family",
+                "calendar.birthdays",
+            ]
+
+            events = []
+            now = datetime.now()
+            today_str = now.strftime("%Y-%m-%d")
+
+            for cal_id in calendar_ids:
+                state = await ha_client.get_state(cal_id)
+                if state and state.attributes:
+                    attrs = state.attributes
+                    message = attrs.get("message", "")
+                    start_time = attrs.get("start_time", "")
+                    all_day = attrs.get("all_day", False)
+
+                    if message and start_time:
+                        # Parse start date
+                        try:
+                            start_dt = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
+                            event_date = start_dt.strftime("%Y-%m-%d")
+
+                            if timeframe == "today" and event_date == today_str:
+                                if all_day:
+                                    events.append(f"{message} (all day)")
+                                else:
+                                    time_str = start_dt.strftime("%I:%M %p").lstrip("0")
+                                    events.append(f"{message} at {time_str}")
+                            elif timeframe == "tomorrow":
+                                tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+                                if event_date == tomorrow:
+                                    if all_day:
+                                        events.append(f"{message} (all day)")
+                                    else:
+                                        time_str = start_dt.strftime("%I:%M %p").lstrip("0")
+                                        events.append(f"{message} at {time_str}")
+                            elif timeframe == "week":
+                                week_end = (now + timedelta(days=7)).strftime("%Y-%m-%d")
+                                if today_str <= event_date <= week_end:
+                                    day_name = start_dt.strftime("%A")
+                                    events.append(f"{message} on {day_name}")
+                        except ValueError:
+                            pass
+
+            # Also check kids' chore calendars if asking about chores
+            if "chore" in text_lower:
+                chore_calendars = [
+                    ("calendar.kidschores_calendar_penelope", "Penelope"),
+                    ("calendar.kidschores_calendar_viola", "Viola"),
+                    ("calendar.kidschores_calendar_xander", "Xander"),
+                    ("calendar.kidschores_calendar_zachary", "Zachary"),
+                ]
+                for cal_id, name in chore_calendars:
+                    state = await ha_client.get_state(cal_id)
+                    if state and state.attributes:
+                        message = state.attributes.get("message", "")
+                        if message:
+                            events.append(f"{name}: {message}")
+
+            if not events:
+                if timeframe == "today":
+                    return "Nothing scheduled for today."
+                elif timeframe == "tomorrow":
+                    return "Nothing scheduled for tomorrow."
+                else:
+                    return "No upcoming events this week."
+
+            if len(events) == 1:
+                return f"You have: {events[0]}."
+            else:
+                return f"You have {len(events)} things: " + ", ".join(events) + "."
+
+        except Exception as e:
+            logger.warning(f"Failed to get calendar: {e}")
+            return "I had trouble checking the calendar."
+
+    async def _handle_shopping_list(self, text: str, action: str) -> str:
+        """Handle shopping list operations."""
+        try:
+            from barnabeenet.api.routes.homeassistant import get_ha_client
+            ha_client = await get_ha_client()
+            if not ha_client:
+                return "I can't access the shopping list right now."
+
+            if action == "read":
+                # Get shopping list items
+                state = await ha_client.get_state("todo.shopping_list")
+                if not state:
+                    return "I couldn't find the shopping list."
+
+                # Get items via HA API
+                try:
+                    items_response = await ha_client.call_service(
+                        "todo.get_items",
+                        entity_id="todo.shopping_list"
+                    )
+                    # The items are returned in the response
+                    if items_response and "items" in str(items_response):
+                        # Parse items from response
+                        items = items_response.get("todo.shopping_list", {}).get("items", [])
+                        if not items:
+                            return "The shopping list is empty."
+                        item_names = [item.get("summary", item.get("name", "unknown")) for item in items]
+                        if len(item_names) == 1:
+                            return f"There's 1 item on the shopping list: {item_names[0]}."
+                        return f"There are {len(item_names)} items on the shopping list: {', '.join(item_names[:10])}" + ("..." if len(item_names) > 10 else ".")
+                except Exception:
+                    # Fallback to state count
+                    count = int(state.state) if state.state.isdigit() else 0
+                    if count == 0:
+                        return "The shopping list is empty."
+                    return f"There are {count} items on the shopping list."
+
+            elif action == "add":
+                # Extract item to add
+                item = text.lower()
+                for phrase in ["add", "put", "need", "to the shopping list", "to shopping list", "to my shopping list", "to groceries"]:
+                    item = item.replace(phrase, "")
+                item = item.strip()
+
+                if not item:
+                    return "What would you like me to add to the shopping list?"
+
+                await ha_client.call_service(
+                    "todo.add_item",
+                    entity_id="todo.shopping_list",
+                    item=item
+                )
+                return f"Added {item} to the shopping list."
+
+            elif action == "clear":
+                # Would need to remove all items - not easily supported
+                return "To clear the shopping list, please use the Home Assistant app."
+
+            elif action == "remove":
+                # Extract item to remove
+                item = text.lower()
+                for phrase in ["remove", "take off", "cross off", "from the shopping list", "from shopping list"]:
+                    item = item.replace(phrase, "")
+                item = item.strip()
+
+                if not item:
+                    return "What would you like me to remove from the shopping list?"
+
+                await ha_client.call_service(
+                    "todo.remove_item",
+                    entity_id="todo.shopping_list",
+                    item=item
+                )
+                return f"Removed {item} from the shopping list."
+
+            return "I'm not sure what you want me to do with the shopping list."
+
+        except Exception as e:
+            logger.warning(f"Failed to handle shopping list: {e}")
+            return "I had trouble with the shopping list."
+
+    def _handle_moon_query(self) -> str:
+        """Calculate current moon phase."""
+        from datetime import datetime
+        import math
+
+        # Simple moon phase calculation
+        # Based on a known new moon date
+        known_new_moon = datetime(2000, 1, 6, 18, 14)  # Known new moon
+        now = datetime.now()
+
+        # Synodic month (average days between new moons)
+        synodic_month = 29.530588853
+
+        # Days since known new moon
+        days_since = (now - known_new_moon).total_seconds() / 86400
+
+        # Current phase (0-1, where 0 = new moon, 0.5 = full moon)
+        phase = (days_since % synodic_month) / synodic_month
+
+        # Determine phase name
+        if phase < 0.0625:
+            phase_name = "New Moon"
+            emoji = "🌑"
+        elif phase < 0.1875:
+            phase_name = "Waxing Crescent"
+            emoji = "🌒"
+        elif phase < 0.3125:
+            phase_name = "First Quarter"
+            emoji = "🌓"
+        elif phase < 0.4375:
+            phase_name = "Waxing Gibbous"
+            emoji = "🌔"
+        elif phase < 0.5625:
+            phase_name = "Full Moon"
+            emoji = "🌕"
+        elif phase < 0.6875:
+            phase_name = "Waning Gibbous"
+            emoji = "🌖"
+        elif phase < 0.8125:
+            phase_name = "Last Quarter"
+            emoji = "🌗"
+        elif phase < 0.9375:
+            phase_name = "Waning Crescent"
+            emoji = "🌘"
+        else:
+            phase_name = "New Moon"
+            emoji = "🌑"
+
+        responses = [
+            f"The moon is currently a {phase_name}.",
+            f"Tonight's moon phase is {phase_name}.",
+            f"It's a {phase_name} tonight.",
+        ]
+        return random.choice(responses)
+
+    async def _handle_pet_feeding(
+        self, action: str, pet_name: str | None, speaker: str | None
+    ) -> str:
+        """Handle pet feeding queries - log, check, or query when last fed."""
+        from barnabeenet.main import app_state
+
+        memory_storage = getattr(app_state, "memory_storage", None)
+        if not memory_storage:
+            return "Sorry, I can't access the memory system right now."
+
+        pet_display = pet_name.title() if pet_name and pet_name != "pet" else "the pet"
+        speaker_name = speaker.title() if speaker else "Someone"
+
+        if action == "log":
+            # Store a feeding event
+            now = datetime.now()
+            time_str = now.strftime("%I:%M %p").lstrip("0")
+            content = f"{speaker_name} fed {pet_display} at {time_str} on {now.strftime('%A, %B %d')}."
+
+            await memory_storage.store_memory(
+                content=content,
+                memory_type="episodic",
+                importance=0.6,
+                participants=[speaker] if speaker else [],
+                tags=["pet_feeding", pet_name or "pet", "household"],
+            )
+
+            responses = [
+                f"Got it! I've logged that you fed {pet_display} at {time_str}.",
+                f"Noted! {pet_display} was fed at {time_str}.",
+                f"Thanks for letting me know! {pet_display} fed at {time_str}.",
+            ]
+            return random.choice(responses)
+
+        elif action == "check" or action == "when":
+            # Search for recent feeding events
+            search_query = f"fed {pet_name or 'pet'}"
+            results = await memory_storage.search_memories(
+                query=search_query,
+                memory_type="episodic",
+                max_results=5,
+                min_score=0.3,
+            )
+
+            # Filter to pet feeding tags
+            feeding_results = [
+                (mem, score)
+                for mem, score in results
+                if "pet_feeding" in mem.tags
+            ]
+
+            if not feeding_results:
+                responses = [
+                    f"I don't have any record of {pet_display} being fed recently.",
+                    f"I haven't logged any feeding for {pet_display}. Did someone forget?",
+                    f"No feeding logged for {pet_display}. You might want to check!",
+                ]
+                return random.choice(responses)
+
+            # Get the most recent feeding
+            most_recent = feeding_results[0][0]
+
+            if action == "check":
+                responses = [
+                    f"Yes! {most_recent.content}",
+                    f"According to my records: {most_recent.content}",
+                ]
+            else:  # action == "when"
+                responses = [
+                    f"{most_recent.content}",
+                    f"Last feeding: {most_recent.content}",
+                ]
+            return random.choice(responses)
+
+        return "I'm not sure what you want to do with pet feeding."
+
+    async def _handle_quick_note(
+        self, action: str, content: str | None, speaker: str | None
+    ) -> str:
+        """Handle quick note queries - save, list, or search notes."""
+        from barnabeenet.main import app_state
+
+        memory_storage = getattr(app_state, "memory_storage", None)
+        if not memory_storage:
+            return "Sorry, I can't access the memory system right now."
+
+        speaker_name = speaker.title() if speaker else "User"
+
+        if action == "save" and content:
+            # Store the note
+            now = datetime.now()
+            time_str = now.strftime("%I:%M %p").lstrip("0")
+            full_content = f"Note from {speaker_name} at {time_str}: {content}"
+
+            await memory_storage.store_memory(
+                content=full_content,
+                memory_type="semantic",
+                importance=0.7,
+                participants=[speaker] if speaker else [],
+                tags=["quick_note", "user_note", "reminder"],
+            )
+
+            responses = [
+                f"Got it! I've saved your note: {content}",
+                f"Note saved: {content}",
+                f"I'll remember that: {content}",
+            ]
+            return random.choice(responses)
+
+        elif action == "list":
+            # Get recent notes
+            results = await memory_storage.search_memories(
+                query="note reminder",
+                memory_type="semantic",
+                max_results=10,
+                min_score=0.2,
+            )
+
+            # Filter to notes with our tags
+            notes = [
+                mem
+                for mem, score in results
+                if "quick_note" in mem.tags or "user_note" in mem.tags
+            ]
+
+            if not notes:
+                return "You don't have any saved notes right now."
+
+            # Format recent notes
+            note_list = []
+            for note in notes[:5]:
+                # Extract the note content from the stored format
+                content = note.content
+                if ": " in content:
+                    content = content.split(": ", 1)[1]
+                note_list.append(f"- {content[:50]}{'...' if len(content) > 50 else ''}")
+
+            return f"Here are your recent notes:\n" + "\n".join(note_list)
+
+        elif action == "search" and content:
+            # Search for specific notes
+            results = await memory_storage.search_memories(
+                query=f"note {content}",
+                memory_type="semantic",
+                max_results=5,
+                min_score=0.3,
+            )
+
+            notes = [
+                mem
+                for mem, score in results
+                if "quick_note" in mem.tags or "user_note" in mem.tags
+            ]
+
+            if not notes:
+                return f"I couldn't find any notes about '{content}'."
+
+            return f"Found a note: {notes[0].content}"
+
+        return "I'm not sure what you want to do with your notes."
+
+    async def _handle_chore_query(
+        self, action: str, person: str | None, chore: str | None, speaker: str | None
+    ) -> str:
+        """Handle chore and star tracking queries."""
+        from barnabeenet.main import app_state
+
+        memory_storage = getattr(app_state, "memory_storage", None)
+        if not memory_storage:
+            return "Sorry, I can't access the memory system right now."
+
+        now = datetime.now()
+        today = now.strftime("%A, %B %d")
+        week_start = (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
+
+        if action == "star":
+            # Award a star to someone
+            if not person:
+                person = speaker  # Default to speaker if no person specified
+
+            if not person:
+                return "Who should I give a star to?"
+
+            person_title = person.title()
+            content = f"Star awarded to {person_title} on {today}."
+
+            await memory_storage.store_memory(
+                content=content,
+                memory_type="episodic",
+                importance=0.7,
+                participants=[person],
+                tags=["star", "reward", "chore_system", f"week_{week_start}"],
+            )
+
+            # Count their stars this week
+            results = await memory_storage.search_memories(
+                query=f"star awarded to {person}",
+                memory_type="episodic",
+                max_results=50,
+                min_score=0.3,
+            )
+            stars_this_week = sum(
+                1 for mem, _ in results
+                if "star" in mem.tags and f"week_{week_start}" in mem.tags and person.lower() in mem.content.lower()
+            )
+
+            responses = [
+                f"Star awarded to {person_title}! That's {stars_this_week} star{'s' if stars_this_week != 1 else ''} this week!",
+                f"Great job {person_title}! You now have {stars_this_week} star{'s' if stars_this_week != 1 else ''} this week.",
+                f"One star for {person_title}! Total this week: {stars_this_week}.",
+            ]
+            return random.choice(responses)
+
+        elif action == "check_stars":
+            # Check how many stars someone has
+            if not person:
+                person = speaker
+
+            if not person:
+                return "Whose stars should I check?"
+
+            person_title = person.title()
+
+            results = await memory_storage.search_memories(
+                query=f"star awarded to {person}",
+                memory_type="episodic",
+                max_results=50,
+                min_score=0.3,
+            )
+            stars_this_week = sum(
+                1 for mem, _ in results
+                if "star" in mem.tags and f"week_{week_start}" in mem.tags and person.lower() in mem.content.lower()
+            )
+
+            if stars_this_week == 0:
+                return f"{person_title} doesn't have any stars this week yet. Time to earn some!"
+            else:
+                return f"{person_title} has {stars_this_week} star{'s' if stars_this_week != 1 else ''} this week!"
+
+        elif action == "complete":
+            # Log a completed chore
+            if not person:
+                person = speaker
+
+            if not person:
+                return "Who completed the chore?"
+
+            person_title = person.title()
+            chore_name = chore.title() if chore else "a chore"
+            content = f"{person_title} completed {chore_name} on {today}."
+
+            await memory_storage.store_memory(
+                content=content,
+                memory_type="episodic",
+                importance=0.6,
+                participants=[person],
+                tags=["chore_completed", chore or "chore", "chore_system"],
+            )
+
+            responses = [
+                f"Nice job {person_title}! I've logged that you finished {chore_name}.",
+                f"Great work! {person_title} completed {chore_name}.",
+                f"Awesome! {chore_name.title()} done by {person_title}.",
+            ]
+            return random.choice(responses)
+
+        elif action == "whose_turn":
+            # Randomly pick someone for a chore (fair rotation)
+            kids = ["Penelope", "Xander", "Viola", "Zachary"]
+            chosen = random.choice(kids)
+
+            if chore:
+                return f"It's {chosen}'s turn to do the {chore}!"
+            else:
+                return f"Let's have {chosen} do it!"
+
+        elif action == "check_chores":
+            # List common household chores
+            chores = ["homework", "dishes", "clean room", "take out trash", "laundry"]
+            return f"Common chores to track: {', '.join(chores)}. Ask who should do one, or log when someone finishes!"
+
+        return "I'm not sure what you want to do with chores."
+
+    async def _handle_focus_timer(self, action: str, speaker: str | None) -> str:
+        """Handle focus/pomodoro timer requests.
+
+        Standard Pomodoro: 25 min work, 5 min break
+        Kids version: 15 min work, 5 min break
+        """
+        from barnabeenet.api.routes.homeassistant import get_ha_client
+
+        speaker_name = speaker.title() if speaker else "someone"
+
+        # Determine if speaker is a kid (shorter focus time)
+        kids = ["penelope", "xander", "viola", "zachary"]
+        is_kid = speaker and speaker.lower() in kids
+
+        if action == "start":
+            try:
+                ha_client = await get_ha_client()
+
+                # Set up the focus timer
+                work_duration = 15 if is_kid else 25  # minutes
+                timer_name = f"{speaker_name}'s focus timer" if speaker else "Focus timer"
+
+                # Create a timer via Home Assistant
+                await ha_client.call_service(
+                    "timer",
+                    "start",
+                    {"entity_id": "timer.focus_session", "duration": f"00:{work_duration}:00"},
+                )
+
+                responses = [
+                    f"Focus time started! You have {work_duration} minutes. Stay focused, {speaker_name}!",
+                    f"Starting {work_duration} minute focus session. No distractions! You've got this, {speaker_name}!",
+                    f"Pomodoro started! {work_duration} minutes of focus time. Good luck, {speaker_name}!",
+                ]
+                return random.choice(responses)
+            except Exception as e:
+                logger.warning(f"Focus timer start failed: {e}")
+                # Fallback response without actual timer
+                work_duration = 15 if is_kid else 25
+                return f"Time to focus! Set a {work_duration} minute timer and get to work, {speaker_name}! I'll be cheering you on."
+
+        elif action == "status":
+            try:
+                ha_client = await get_ha_client()
+                state = await ha_client.get_state("timer.focus_session")
+
+                if state and state.get("state") == "active":
+                    remaining = state.get("attributes", {}).get("remaining", "unknown")
+                    return f"Focus session in progress! Time remaining: {remaining}. Keep going!"
+                else:
+                    return "No focus session is currently running. Want to start one?"
+            except Exception:
+                return "No focus session is currently running. Want to start one?"
+
+        elif action == "stop":
+            try:
+                ha_client = await get_ha_client()
+                await ha_client.call_service(
+                    "timer",
+                    "cancel",
+                    {"entity_id": "timer.focus_session"},
+                )
+                return f"Focus session ended. Great work, {speaker_name}! Time for a break."
+            except Exception:
+                return f"Okay, focus time is over. Nice work, {speaker_name}!"
+
+        return "I can start, check, or stop a focus timer for you."
+
+    def _handle_wifi_query(self) -> str:
+        """Return the guest WiFi password.
+
+        Note: In production, this should be configurable via environment variable
+        or stored securely. For now, returns a placeholder response.
+        """
+        import os
+        guest_password = os.environ.get("GUEST_WIFI_PASSWORD", None)
+
+        if guest_password:
+            return f"The guest WiFi network is 'FifeGuest' and the password is {guest_password}."
+        else:
+            # Fallback - remind user to ask an adult
+            return "For the WiFi password, please ask Mom or Dad. I don't have it stored yet."
+
+    async def _handle_family_digest(self, speaker: str | None) -> str:
+        """Generate a summary of what happened at home today."""
+        from barnabeenet.main import app_state
+
+        memory_storage = getattr(app_state, "memory_storage", None)
+        if not memory_storage:
+            return "Sorry, I can't access my memories right now."
+
+        # Search for recent episodic memories with different queries
+        all_results = []
+
+        # Search for stars
+        star_results = await memory_storage.search_memories(
+            query="star awarded reward",
+            memory_type="episodic",
+            max_results=20,
+            min_score=0.3,
+        )
+        all_results.extend(star_results)
+
+        # Search for chores
+        chore_results = await memory_storage.search_memories(
+            query="completed chore homework dishes",
+            memory_type="episodic",
+            max_results=20,
+            min_score=0.3,
+        )
+        all_results.extend(chore_results)
+
+        # Search for pet feeding
+        feeding_results = await memory_storage.search_memories(
+            query="fed dog cat pet",
+            memory_type="episodic",
+            max_results=10,
+            min_score=0.3,
+        )
+        all_results.extend(feeding_results)
+
+        if not all_results:
+            return "It's been a quiet day! Nothing major to report."
+
+        # Deduplicate by memory ID and categorize
+        seen_ids = set()
+        activities = {
+            "stars": [],
+            "chores": [],
+            "feeding": [],
+        }
+
+        for mem, score in all_results:
+            if mem.id in seen_ids:
+                continue
+            seen_ids.add(mem.id)
+
+            # Categorize by tags
+            if "star" in mem.tags or "reward" in mem.tags:
+                activities["stars"].append(mem)
+            elif "chore_completed" in mem.tags:
+                activities["chores"].append(mem)
+            elif "pet_feeding" in mem.tags:
+                activities["feeding"].append(mem)
+
+        # Build summary
+        summary_parts = []
+
+        if activities["stars"]:
+            # Count unique people who got stars
+            people = set()
+            for mem in activities["stars"]:
+                for name in ["xander", "penelope", "viola", "zachary"]:
+                    if name in mem.content.lower():
+                        people.add(name.title())
+            if people:
+                summary_parts.append(f"Stars awarded to: {', '.join(sorted(people))}")
+            else:
+                summary_parts.append(f"{len(activities['stars'])} star(s) were awarded")
+
+        if activities["chores"]:
+            chore_types = set()
+            for mem in activities["chores"]:
+                content = mem.content.lower()
+                if "homework" in content:
+                    chore_types.add("homework")
+                elif "dishes" in content:
+                    chore_types.add("dishes")
+                elif "room" in content:
+                    chore_types.add("room cleaning")
+                elif "trash" in content:
+                    chore_types.add("trash")
+            if chore_types:
+                summary_parts.append(f"Chores completed: {', '.join(sorted(chore_types))}")
+            else:
+                summary_parts.append(f"{len(activities['chores'])} chore(s) completed")
+
+        if activities["feeding"]:
+            pets = set()
+            for mem in activities["feeding"]:
+                content = mem.content.lower()
+                if "dog" in content:
+                    pets.add("dog")
+                if "cat" in content:
+                    pets.add("cat")
+                if "fish" in content:
+                    pets.add("fish")
+            if pets:
+                summary_parts.append(f"Fed: {', '.join(sorted(pets))}")
+            else:
+                summary_parts.append("Pets were fed")
+
+        if not summary_parts:
+            return "It's been a quiet day! Nothing major to report."
+
+        summary = "Here's what happened today: " + "; ".join(summary_parts) + "."
+        return summary
+
+    def _handle_bored_query(self, activity_type: str) -> str:
+        """Suggest an activity for a bored user."""
+        if not ACTIVITIES_DATA:
+            return "How about reading a book, playing a game, or going outside?"
+
+        now = datetime.now()
+        hour = now.hour
+
+        # Build a pool of activities based on type and time
+        activity_pool = []
+
+        if activity_type == "any":
+            # Mix of everything, weighted by time of day
+            if 6 <= hour < 20:  # Daytime
+                activity_pool.extend(ACTIVITIES_DATA.get("outdoor", []))
+            activity_pool.extend(ACTIVITIES_DATA.get("indoor", {}).get("creative", []))
+            activity_pool.extend(ACTIVITIES_DATA.get("indoor", {}).get("active", []))
+            activity_pool.extend(ACTIVITIES_DATA.get("indoor", {}).get("learning", []))
+        elif activity_type == "outdoor":
+            activity_pool = ACTIVITIES_DATA.get("outdoor", [])
+        elif activity_type == "indoor":
+            indoor = ACTIVITIES_DATA.get("indoor", {})
+            for category in indoor.values():
+                activity_pool.extend(category)
+        elif activity_type == "family":
+            activity_pool = ACTIVITIES_DATA.get("family", [])
+        elif activity_type == "creative":
+            activity_pool = ACTIVITIES_DATA.get("indoor", {}).get("creative", [])
+        elif activity_type == "rainy_day":
+            activity_pool = ACTIVITIES_DATA.get("rainy_day", [])
+
+        if not activity_pool:
+            return "How about reading a book or playing a game?"
+
+        activity = random.choice(activity_pool)
+
+        responses = [
+            f"How about this: {activity}",
+            f"Here's an idea: {activity}",
+            f"You could try this: {activity}",
+            f"Why not: {activity}",
+        ]
+        return random.choice(responses)
+
+    def _handle_conversation_starter(self) -> str:
+        """Return a random conversation starter for family time."""
+        if not ACTIVITIES_DATA:
+            return "What was the best part of your day?"
+
+        starters = ACTIVITIES_DATA.get("conversation_starters", [])
+        if not starters:
+            return "What was the best part of your day?"
+
+        starter = random.choice(starters)
+
+        responses = [
+            f"Here's one: {starter}",
+            f"Try this question: {starter}",
+            f"How about: {starter}",
+        ]
+        return random.choice(responses)
+
+    def _handle_birthday_query(self, person: str | None, speaker: str | None) -> str:
+        """Handle birthday-related queries."""
+        if not FAMILY_DATA:
+            return "I don't have birthday information stored."
+
+        members = FAMILY_DATA.get("members", {})
+        today = date.today()
+
+        def get_next_birthday(birthday_str: str) -> tuple[date, int]:
+            """Calculate next birthday and days until."""
+            bday = datetime.strptime(birthday_str, "%Y-%m-%d").date()
+            next_bday = bday.replace(year=today.year)
+            if next_bday < today:
+                next_bday = next_bday.replace(year=today.year + 1)
+            days_until = (next_bday - today).days
+            return next_bday, days_until
+
+        # Handle specific person
+        if person and person not in ["next", "speaker", None]:
+            if person not in members:
+                return f"I don't have birthday information for {person.title()}."
+
+            member = members[person]
+            birthday_str = member.get("birthday")
+            if not birthday_str:
+                return f"I don't have {member['name']}'s birthday stored."
+
+            next_bday, days_until = get_next_birthday(birthday_str)
+            bday_month_day = next_bday.strftime("%B %d")
+
+            if days_until == 0:
+                return f"Today is {member['name']}'s birthday! Happy Birthday! 🎂"
+            elif days_until == 1:
+                return f"{member['name']}'s birthday is tomorrow ({bday_month_day})! 🎂"
+            else:
+                return f"{member['name']}'s birthday is {bday_month_day}. That's {days_until} days away!"
+
+        # Handle "my birthday"
+        if person == "speaker" and speaker:
+            return self._handle_birthday_query(speaker.lower(), None)
+
+        # Handle "next birthday" or general query
+        if person in ["next", None]:
+            # Find the next upcoming birthday
+            upcoming = []
+            for member_id, member in members.items():
+                birthday_str = member.get("birthday")
+                if birthday_str:
+                    next_bday, days_until = get_next_birthday(birthday_str)
+                    upcoming.append((member["name"], next_bday, days_until))
+
+            # Sort by days until
+            upcoming.sort(key=lambda x: x[2])
+
+            if not upcoming:
+                return "I don't have any birthday information stored."
+
+            # Get the next birthday
+            next_name, next_date, days = upcoming[0]
+            bday_str = next_date.strftime("%B %d")
+
+            if days == 0:
+                return f"Today is {next_name}'s birthday! 🎂"
+            elif days == 1:
+                return f"The next birthday is {next_name}'s, which is tomorrow! 🎂"
+            else:
+                return f"The next birthday is {next_name}'s on {bday_str} ({days} days away)."
+
+        return "I'm not sure whose birthday you're asking about."
+
+    async def _handle_daily_briefing(self, speaker: str | None) -> str:
+        """Generate a comprehensive daily briefing."""
+        from barnabeenet.api.routes.homeassistant import get_ha_client
+
+        parts = []
+        speaker_name = speaker.title() if speaker else "there"
+        now = datetime.now()
+
+        # Time-appropriate greeting with day of week
+        hour = now.hour
+        day_name = now.strftime("%A")
+        if hour < 12:
+            greeting = f"Good morning, {speaker_name}! It's {day_name}."
+        elif hour < 17:
+            greeting = f"Good afternoon, {speaker_name}! It's {day_name}."
+        else:
+            greeting = f"Good evening, {speaker_name}! It's {day_name}."
+        parts.append(greeting)
+
+        try:
+            ha_client = await get_ha_client()
+
+            # Weather with high/low
+            weather_state = await ha_client.get_state("weather.forecast_home")
+            if not weather_state:
+                weather_state = await ha_client.get_state("weather.outside")
+
+            if weather_state:
+                # weather_state is an EntityState object, not a dict
+                attrs = weather_state.attributes if hasattr(weather_state, "attributes") else {}
+                temp = attrs.get("temperature", "?") if isinstance(attrs, dict) else "?"
+                condition = weather_state.state if hasattr(weather_state, "state") else "unknown"
+
+                # Friendly condition names
+                condition_map = {
+                    "sunny": "sunny",
+                    "clear-night": "clear",
+                    "partlycloudy": "partly cloudy",
+                    "cloudy": "cloudy",
+                    "rainy": "rainy",
+                    "pouring": "rainy",
+                    "snowy": "snowy",
+                    "fog": "foggy",
+                    "windy": "windy",
+                }
+                condition_text = condition_map.get(condition, condition)
+
+                # Try to get high/low from forecast
+                forecast = attrs.get("forecast", [])
+                high_temp = None
+                low_temp = None
+                for f in forecast[:2]:
+                    if f.get("temperature"):
+                        high_temp = f.get("temperature")
+                    if f.get("templow"):
+                        low_temp = f.get("templow")
+                    if high_temp and low_temp:
+                        break
+
+                weather_str = f"It's {temp}°F and {condition_text}"
+                if high_temp and low_temp:
+                    weather_str += f", with a high of {high_temp}°F and low of {low_temp}°F"
+                elif high_temp:
+                    weather_str += f", high of {high_temp}°F"
+                parts.append(weather_str + ".")
+
+                # Rain warning
+                if condition in ["rainy", "pouring", "lightning-rainy"]:
+                    parts.append("Grab an umbrella!")
+                elif forecast:
+                    for f in forecast[:8]:
+                        if f.get("condition") in ["rainy", "pouring"] or (f.get("precipitation_probability", 0) or 0) > 50:
+                            parts.append("Rain is in the forecast - you might want an umbrella.")
+                            break
+
+            # Calendar - today's events
+            calendar_entities = ["calendar.family", "calendar.fife_family", "calendar.thefifelife217_gmail_com"]
+            events_found = []
+            for cal_entity in calendar_entities:
+                try:
+                    start = now.strftime("%Y-%m-%dT00:00:00")
+                    end = now.strftime("%Y-%m-%dT23:59:59")
+
+                    events = await ha_client.call_service(
+                        "calendar",
+                        "get_events",
+                        {
+                            "entity_id": cal_entity,
+                            "start_date_time": start,
+                            "end_date_time": end,
+                        },
+                        return_response=True,
+                    )
+
+                    if events and cal_entity in events:
+                        event_list = events[cal_entity].get("events", [])
+                        for e in event_list:
+                            summary = e.get("summary", "Event")
+                            if summary not in events_found:
+                                events_found.append(summary)
+                except Exception:
+                    continue
+
+            if events_found:
+                if len(events_found) == 1:
+                    parts.append(f"On the calendar today: {events_found[0]}.")
+                else:
+                    parts.append(f"Today's schedule: {', '.join(events_found[:4])}.")
+
+        except Exception as e:
+            logger.warning(f"Daily briefing HA error: {e}")
+
+        # Check for upcoming birthdays
+        if FAMILY_DATA:
+            members = FAMILY_DATA.get("members", {})
+            today = date.today()
+            birthday_mentions = []
+            for member_id, member in members.items():
+                birthday_str = member.get("birthday")
+                if birthday_str:
+                    bday = datetime.strptime(birthday_str, "%Y-%m-%d").date()
+                    next_bday = bday.replace(year=today.year)
+                    if next_bday < today:
+                        next_bday = next_bday.replace(year=today.year + 1)
+                    days_until = (next_bday - today).days
+                    if days_until == 0:
+                        birthday_mentions.append(f"It's {member['name']}'s birthday today! 🎂")
+                    elif days_until <= 7:
+                        birthday_mentions.append(f"{member['name']}'s birthday is in {days_until} days")
+
+            if birthday_mentions:
+                parts.extend(birthday_mentions[:2])  # Limit to 2 birthday mentions
+
+        if len(parts) == 1:
+            parts.append("Have a great day!")
+
+        return " ".join(parts)
+
+    def _is_clear_conversation(self, text: str) -> bool:
+        """Check if user wants to clear/reset the conversation."""
+        for pattern in self.CLEAR_CONVERSATION_PATTERNS:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+        return False
+
+    async def _handle_clear_conversation(self, context: dict[str, Any]) -> str:
+        """Handle clear conversation request.
+
+        Clears the conversation context for the current device/room.
+        """
+        conversation_id = context.get("conversation_id")
+
+        if conversation_id:
+            try:
+                # Try to get the interaction agent and clear the conversation
+                from barnabeenet.main import app_state
+                if hasattr(app_state, "orchestrator") and app_state.orchestrator:
+                    orchestrator = app_state.orchestrator
+                    if hasattr(orchestrator, "_interaction_agent") and orchestrator._interaction_agent:
+                        await orchestrator._interaction_agent.clear_conversation(conversation_id)
+                        logger.info(f"Cleared conversation: {conversation_id}")
+            except Exception as e:
+                logger.warning(f"Failed to clear conversation {conversation_id}: {e}")
+
+        return random.choice(self.CLEAR_CONVERSATION_RESPONSES)
+
+    def _try_math(self, text: str) -> str | None:
+        """Try to evaluate simple math expressions.
+
+        Supports: +, -, *, /
+        Examples: "what's 5 + 3", "5 * 7", "10 / 2"
+        """
+        if self._math_pattern is None:
+            return None
+
+        match = self._math_pattern.search(text)
+        if not match:
+            return None
+
+        try:
+            a = float(match.group(1))
+            op = match.group(2).lower()
+            b = float(match.group(3))
+
+            # Map word operators to symbols
+            op_map = {
+                "plus": "+",
+                "minus": "-",
+                "times": "*",
+                "multiplied by": "*",
+                "x": "*",
+                "divided by": "/",
+            }
+            op = op_map.get(op, op)
+
+            operations = {
+                "+": lambda x, y: x + y,
+                "-": lambda x, y: x - y,
+                "*": lambda x, y: x * y,
+                "/": lambda x, y: x / y if y != 0 else None,
+            }
+
+            result = operations[op](a, b)
+
+            if result is None:
+                return "That's undefined - you can't divide by zero!"
+
+            # Format nicely
+            if result == int(result):
+                result_str = str(int(result))
+            else:
+                result_str = f"{result:.2f}".rstrip("0").rstrip(".")
+
+            return f"That's {result_str}."
+
+        except (ValueError, KeyError, ZeroDivisionError):
+            return None
+
+    # =========================================================================
+    # Random Choice Handlers
+    # =========================================================================
+
+    def _handle_coin_flip(self) -> str:
+        """Flip a coin and return the result."""
+        result = random.choice(["Heads", "Tails"])
+        template = random.choice(self.COIN_FLIP_RESPONSES)
+        return template.format(result=result)
+
+    def _handle_dice_roll(self, text: str) -> str:
+        """Roll dice and return the result.
+
+        Supports: "roll a dice", "roll a d20", "roll 2d6"
+        """
+        if self._dice_pattern is None:
+            return "You rolled a " + str(random.randint(1, 6)) + "!"
+
+        match = self._dice_pattern.search(text)
+        if match:
+            # Check for dX format (e.g., d20)
+            if match.group(1):
+                sides = int(match.group(1))
+                result = random.randint(1, sides)
+            # Check for XdY format (e.g., 2d6)
+            elif match.group(2) and match.group(3):
+                num_dice = int(match.group(2))
+                sides = int(match.group(3))
+                rolls = [random.randint(1, sides) for _ in range(num_dice)]
+                if num_dice > 1:
+                    result = sum(rolls)
+                    roll_str = " + ".join(map(str, rolls))
+                    return f"You rolled {roll_str} = {result}!"
+                result = rolls[0]
+            else:
+                # Standard d6
+                result = random.randint(1, 6)
+        else:
+            # Default to d6
+            result = random.randint(1, 6)
+
+        template = random.choice(self.DICE_ROLL_RESPONSES)
+        return template.format(result=result)
+
+    def _handle_number_pick(self, text: str) -> str:
+        """Pick a random number from a range."""
+        if self._number_pick_pattern is None:
+            result = random.randint(1, 10)
+        else:
+            match = self._number_pick_pattern.search(text)
+            if match:
+                low = int(match.group(1))
+                high = int(match.group(2))
+                if low > high:
+                    low, high = high, low
+                result = random.randint(low, high)
+            else:
+                result = random.randint(1, 10)
+
+        template = random.choice(self.NUMBER_PICK_RESPONSES)
+        return template.format(result=result)
+
+    def _handle_yes_no(self) -> str:
+        """Return a random yes or no."""
+        return random.choice(self.YES_NO_RESPONSES)
+
+    def _handle_magic_8_ball(self) -> str:
+        """Return a magic 8-ball response."""
+        return random.choice(MAGIC_8_BALL_RESPONSES)
+
+    # =========================================================================
+    # Unit Conversion Handlers
+    # =========================================================================
+
+    def _handle_unit_conversion(self, text: str) -> str | None:
+        """Handle unit conversion queries."""
+        text_lower = text.lower()
+
+        # First check for "how many X in a Y" questions
+        if self._unit_info_pattern:
+            match = self._unit_info_pattern.search(text_lower)
+            if match:
+                unit_from = match.group(1).rstrip("s")
+                unit_to = match.group(2).rstrip("s")
+                # Try to find in UNIT_INFO
+                for key, response in UNIT_INFO.items():
+                    if unit_from in key[0] and unit_to in key[1]:
+                        return response
+                    if unit_to in key[0] and unit_from in key[1]:
+                        return response
+
+        # Check for temperature conversion
+        if "fahrenheit" in text_lower and "celsius" in text_lower:
+            # Extract number
+            num_match = re.search(r"(\d+(?:\.\d+)?)", text)
+            if num_match:
+                value = float(num_match.group(1))
+                if "to celsius" in text_lower or ("fahrenheit" in text_lower and text_lower.index("fahrenheit") < text_lower.index("celsius")):
+                    # F to C
+                    result = (value - 32) * 5/9
+                    return f"That's about {result:.1f} degrees Celsius."
+                else:
+                    # C to F
+                    result = value * 9/5 + 32
+                    return f"That's about {result:.1f} degrees Fahrenheit."
+
+        # Check for other unit conversions
+        if self._unit_convert_pattern:
+            match = self._unit_convert_pattern.search(text_lower)
+            if match:
+                value = float(match.group(1))
+                from_unit = match.group(2).lower().rstrip("s")
+                to_unit = match.group(3).lower().rstrip("s")
+
+                # Normalize units
+                if from_unit == "foot":
+                    from_unit = "feet"
+                if to_unit == "foot":
+                    to_unit = "feet"
+
+                # Look up conversion
+                key = (from_unit + "s", to_unit + "s")
+                if key in UNIT_CONVERSIONS:
+                    factor, unit_name = UNIT_CONVERSIONS[key]
+                    result = value * factor
+                    if result == int(result):
+                        result_str = str(int(result))
+                    else:
+                        result_str = f"{result:.2f}".rstrip("0").rstrip(".")
+                    return f"That's {result_str} {unit_name}."
+
+                # Try alternate key forms
+                for conv_key, (factor, unit_name) in UNIT_CONVERSIONS.items():
+                    if from_unit in conv_key[0] and to_unit in conv_key[1]:
+                        result = value * factor
+                        if result == int(result):
+                            result_str = str(int(result))
+                        else:
+                            result_str = f"{result:.2f}".rstrip("0").rstrip(".")
+                        return f"That's {result_str} {unit_name}."
+
+        return None
+
+    # =========================================================================
+    # World Clock Handler
+    # =========================================================================
+
+    def _handle_world_clock(self, text: str) -> str | None:
+        """Handle world clock queries."""
+        if self._world_clock_pattern is None:
+            return None
+
+        match = self._world_clock_pattern.search(text)
+        if not match:
+            return None
+
+        location = match.group(1).strip().lower()
+
+        # Look up timezone
+        tz_name = TIMEZONE_ALIASES.get(location)
+        if not tz_name:
+            # Try partial match
+            for alias, tz in TIMEZONE_ALIASES.items():
+                if alias in location or location in alias:
+                    tz_name = tz
+                    break
+
+        if not tz_name:
+            return f"I don't know the timezone for {location}. Try a major city like Tokyo, London, or New York."
+
+        try:
+            tz = ZoneInfo(tz_name)
+            now = datetime.now(tz)
+            time_str = now.strftime("%I:%M %p").lstrip("0")
+            day_str = now.strftime("%A")
+            return f"It's {time_str} on {day_str} in {location.title()}."
+        except Exception:
+            return f"I couldn't get the time for {location}."
+
+    # =========================================================================
+    # Countdown Handler
+    # =========================================================================
+
+    def _handle_countdown(self, text: str) -> str | None:
+        """Handle countdown to event queries."""
+        if self._countdown_pattern is None:
+            return None
+
+        match = self._countdown_pattern.search(text.lower())
+        if not match:
+            return None
+
+        event = match.group(1).strip().lower()
+
+        # Check for known holidays
+        target_date = None
+        today = date.today()
+
+        if event in HOLIDAYS:
+            holiday_info = HOLIDAYS[event]
+            if holiday_info:
+                month, day = holiday_info
+                target_date = date(today.year, month, day)
+                # If the date has passed this year, use next year
+                if target_date < today:
+                    target_date = date(today.year + 1, month, day)
+            else:
+                # Special calculated holidays
+                if "easter" in event:
+                    target_date = self._calculate_easter(today.year)
+                    if target_date < today:
+                        target_date = self._calculate_easter(today.year + 1)
+                elif "thanksgiving" in event:
+                    target_date = self._calculate_thanksgiving(today.year)
+                    if target_date < today:
+                        target_date = self._calculate_thanksgiving(today.year + 1)
+                elif "mother" in event:
+                    target_date = self._calculate_mothers_day(today.year)
+                    if target_date < today:
+                        target_date = self._calculate_mothers_day(today.year + 1)
+                elif "father" in event:
+                    target_date = self._calculate_fathers_day(today.year)
+                    if target_date < today:
+                        target_date = self._calculate_fathers_day(today.year + 1)
+
+        if target_date:
+            days = (target_date - today).days
+            event_name = event.title()
+            if days == 0:
+                return f"{event_name} is today!"
+            elif days == 1:
+                return f"{event_name} is tomorrow!"
+            else:
+                return f"{days} days until {event_name}!"
+
+        return None
+
+    def _calculate_easter(self, year: int) -> date:
+        """Calculate Easter Sunday using the Anonymous Gregorian algorithm."""
+        a = year % 19
+        b = year // 100
+        c = year % 100
+        d = b // 4
+        e = b % 4
+        f = (b + 8) // 25
+        g = (b - f + 1) // 3
+        h = (19 * a + b - d - g + 15) % 30
+        i = c // 4
+        k = c % 4
+        l = (32 + 2 * e + 2 * i - h - k) % 7
+        m = (a + 11 * h + 22 * l) // 451
+        month = (h + l - 7 * m + 114) // 31
+        day = ((h + l - 7 * m + 114) % 31) + 1
+        return date(year, month, day)
+
+    def _calculate_thanksgiving(self, year: int) -> date:
+        """Calculate Thanksgiving (4th Thursday in November)."""
+        nov1 = date(year, 11, 1)
+        # Find first Thursday
+        days_until_thursday = (3 - nov1.weekday()) % 7
+        first_thursday = nov1.day + days_until_thursday
+        # 4th Thursday
+        thanksgiving_day = first_thursday + 21
+        return date(year, 11, thanksgiving_day)
+
+    def _calculate_mothers_day(self, year: int) -> date:
+        """Calculate Mother's Day (2nd Sunday in May)."""
+        may1 = date(year, 5, 1)
+        days_until_sunday = (6 - may1.weekday()) % 7
+        first_sunday = may1.day + days_until_sunday
+        second_sunday = first_sunday + 7
+        return date(year, 5, second_sunday)
+
+    def _calculate_fathers_day(self, year: int) -> date:
+        """Calculate Father's Day (3rd Sunday in June)."""
+        jun1 = date(year, 6, 1)
+        days_until_sunday = (6 - jun1.weekday()) % 7
+        first_sunday = jun1.day + days_until_sunday
+        third_sunday = first_sunday + 14
+        return date(year, 6, third_sunday)
+
+    # =========================================================================
+    # Counting Handler
+    # =========================================================================
+
+    def _handle_counting(self, text: str) -> str | None:
+        """Handle counting requests."""
+        text_lower = text.lower()
+
+        # Check for "what comes after X"
+        if self._next_number_pattern:
+            match = self._next_number_pattern.search(text_lower)
+            if match:
+                num = int(match.group(1))
+                if "before" in text_lower:
+                    return f"{num - 1}!"
+                return f"{num + 1}!"
+
+        # Check for counting pattern
+        if self._counting_pattern:
+            match = self._counting_pattern.search(text_lower)
+            if match:
+                backwards = match.group(1) is not None
+                # Step can be in group 3 (before "to") or group 5 (after "to")
+                step = int(match.group(3) or match.group(5) or 1)
+                # End number is in group 4
+                end = int(match.group(4)) if match.group(4) else (1 if backwards else 10)
+                # When counting by X (e.g., "count by 2s"), start at the step value
+                default_start = step if step > 1 and not backwards else (10 if backwards else 1)
+                start = int(match.group(2)) if match.group(2) else default_start
+
+                # Generate the count
+                if backwards:
+                    numbers = list(range(start, end - 1, -step))
+                else:
+                    numbers = list(range(start, end + 1, step))
+
+                # Limit to reasonable length
+                if len(numbers) > 50:
+                    return "That's a lot of counting! Let's stick to smaller numbers."
+
+                numbers_str = ", ".join(map(str, numbers))
+                template = random.choice(self.COUNTING_RESPONSES)
+                return template.format(numbers=numbers_str)
+
+        return None
+
+    def _handle_spelling_continuation(self, text_lower: str, speaker: str) -> str | None:
+        """Handle continuation of a letter-by-letter spelling session.
+
+        Returns response if this is a continuation, None otherwise.
+        """
+        session = self._spelling_sessions.get(speaker)
+        if not session:
+            return None
+
+        # Check if user wants to stop
+        if any(pattern in text_lower for pattern in self.SPELLING_STOP_PATTERNS):
+            del self._spelling_sessions[speaker]
+            return "Okay, no problem!"
+
+        # Check if user wants to continue (or is confirming to start)
+        is_continue = any(pattern in text_lower for pattern in self.SPELLING_CONTINUE_PATTERNS)
+
+        if session.awaiting_confirmation:
+            if is_continue:
+                # User said yes - start giving letters
+                session.awaiting_confirmation = False
+                letter = session.get_next_letter()
+                if letter:
+                    if session.is_complete():
+                        # Only one letter word, we're done
+                        del self._spelling_sessions[speaker]
+                        return f"{letter}. That's the whole word!"
+                    return letter
+            else:
+                # User said something else - assume they don't want letter-by-letter
+                del self._spelling_sessions[speaker]
+                return None
+
+        # User is asking for next letter
+        if is_continue:
+            letter = session.get_next_letter()
+            if letter:
+                if session.is_complete():
+                    # Last letter
+                    del self._spelling_sessions[speaker]
+                    return f"{letter}. That's the last letter!"
+                return letter
+            else:
+                # No more letters
+                del self._spelling_sessions[speaker]
+                return "That's all the letters!"
+
+        # User said something that doesn't match - end the session
+        del self._spelling_sessions[speaker]
+        return None
+
+    def _try_spelling(self, text: str, speaker: str = "default") -> str | None:
+        """Try to spell a word from the input.
+
+        Supports: "spell dinosaur", "how do you spell beautiful", etc.
+        Returns the word spelled out letter by letter with offer for slow mode.
+        """
+        if self._spelling_pattern is None:
+            return None
+
+        match = self._spelling_pattern.search(text)
+        if not match:
+            return None
+
+        word = match.group(1).strip()
+        if not word:
+            return None
+
+        # Spell out the word with spaces between letters
+        spelling = " ".join(letter.upper() for letter in word)
+
+        # Create a spelling session for potential letter-by-letter follow-up
+        self._spelling_sessions[speaker] = SpellingSession(word=word)
+
+        template = random.choice(self.SPELLING_RESPONSES)
+        return template.format(word=word.lower(), spelling=spelling)
+
+
+__all__ = ["InstantAgent"]

@@ -1,0 +1,23 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Connect to BarnabeeNet",
+                "description": "Enter the URL of your BarnabeeNet server.",
+                "data": {
+                    "url": "BarnabeeNet URL"
+                },
+                "data_description": {
+                    "url": "The URL where BarnabeeNet is running (e.g., http://192.168.86.51:8000)"
+                }
+            }
+        },
+        "error": {
+            "cannot_connect": "Cannot connect to BarnabeeNet. Please check the URL and ensure the server is running.",
+            "unknown": "An unexpected error occurred."
+        },
+        "abort": {
+            "already_configured": "BarnabeeNet is already configured."
+        }
+    }
+}

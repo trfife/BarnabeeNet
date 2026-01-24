@@ -1,0 +1,72 @@
+{
+  "members": {
+    "thom": {
+      "name": "Thom",
+      "birthday": "1985-08-15",
+      "role": "parent",
+      "bedtime": "22:30",
+      "wake_time": "06:00"
+    },
+    "elizabeth": {
+      "name": "Elizabeth",
+      "birthday": "1986-03-22",
+      "role": "parent",
+      "bedtime": "22:30",
+      "wake_time": "06:30"
+    },
+    "penelope": {
+      "name": "Penelope",
+      "birthday": "2014-05-10",
+      "role": "child",
+      "bedtime": "20:30",
+      "wake_time": "07:00",
+      "grade": "5th"
+    },
+    "xander": {
+      "name": "Xander",
+      "birthday": "2016-11-03",
+      "role": "child",
+      "bedtime": "21:00",
+      "wake_time": "07:00",
+      "grade": "3rd"
+    },
+    "viola": {
+      "name": "Viola",
+      "birthday": "2019-07-28",
+      "role": "child",
+      "bedtime": "19:30",
+      "wake_time": "07:00",
+      "grade": "kindergarten"
+    },
+    "zachary": {
+      "name": "Zachary",
+      "birthday": "2021-02-14",
+      "role": "child",
+      "bedtime": "19:30",
+      "wake_time": "07:00",
+      "grade": "preschool"
+    }
+  },
+  "pets": {
+    "dog": {
+      "name": "Unknown",
+      "type": "dog",
+      "feeding_times": [
+        "07:00",
+        "17:00"
+      ]
+    },
+    "cat": {
+      "name": "Unknown",
+      "type": "cat",
+      "feeding_times": [
+        "07:00",
+        "17:00"
+      ]
+    }
+  },
+  "household": {
+    "address": "Family Home",
+    "timezone": "America/New_York"
+  }
+}

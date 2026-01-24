@@ -1,0 +1,109 @@
+{
+  "indoor": {
+    "creative": [
+      "Draw a picture of your favorite animal",
+      "Build something cool with LEGO",
+      "Make a card for someone in the family",
+      "Write a short story",
+      "Create a comic strip",
+      "Do some origami",
+      "Start a journal entry",
+      "Design your dream house",
+      "Make friendship bracelets",
+      "Create a scrapbook page"
+    ],
+    "active": [
+      "Have a dance party",
+      "Do some yoga stretches",
+      "Play hide and seek",
+      "Build a pillow fort",
+      "Have an indoor scavenger hunt",
+      "Play charades",
+      "Do jumping jacks or exercise",
+      "Play balloon volleyball",
+      "Create an obstacle course"
+    ],
+    "learning": [
+      "Read a book for 20 minutes",
+      "Practice a musical instrument",
+      "Learn a new card trick",
+      "Do a science experiment",
+      "Practice spelling or math facts",
+      "Watch an educational video",
+      "Learn some words in a new language",
+      "Do a puzzle",
+      "Play a board game"
+    ],
+    "helpful": [
+      "Help organize your room",
+      "Sort your toys and donate ones you don't use",
+      "Help prepare a snack",
+      "Water the plants",
+      "Write thank you notes",
+      "Help fold laundry",
+      "Clean out your backpack",
+      "Organize the bookshelf"
+    ]
+  },
+  "outdoor": [
+    "Go for a bike ride",
+    "Play catch or frisbee",
+    "Have a nature scavenger hunt",
+    "Draw with sidewalk chalk",
+    "Play tag or hide and seek outside",
+    "Look for interesting bugs or birds",
+    "Blow bubbles",
+    "Jump rope",
+    "Fly a kite",
+    "Play basketball or soccer",
+    "Go for a walk and count how many dogs you see",
+    "Set up a lemonade stand",
+    "Have a water balloon fight",
+    "Garden or plant something"
+  ],
+  "family": [
+    "Play a board game together",
+    "Cook or bake something as a family",
+    "Have a movie night with popcorn",
+    "Play card games",
+    "Do a puzzle together",
+    "Have a family talent show",
+    "Tell stories about when you were younger",
+    "Look at old photo albums together",
+    "Have a picnic in the backyard",
+    "Play video games together"
+  ],
+  "rainy_day": [
+    "Build a blanket fort and read inside it",
+    "Have an indoor movie marathon",
+    "Bake cookies or cupcakes",
+    "Do arts and crafts",
+    "Play board games all afternoon",
+    "Have a stuffed animal tea party",
+    "Write and perform a play",
+    "Build with blocks or LEGO",
+    "Listen to music and have a dance party"
+  ],
+  "conversation_starters": [
+    "If you could have any superpower, what would it be and why?",
+    "What's the best thing that happened to you today?",
+    "If you could visit anywhere in the world, where would you go?",
+    "What's your favorite thing about our family?",
+    "If you could have any animal as a pet, what would you choose?",
+    "What do you want to be when you grow up?",
+    "What's something new you learned recently?",
+    "If you could eat only one food forever, what would it be?",
+    "What's your favorite memory from this year?",
+    "If you could meet any fictional character, who would it be?",
+    "What makes you feel happy?",
+    "What's something you're really good at?",
+    "If you could invent anything, what would you invent?",
+    "What's your favorite thing to do with friends?",
+    "What would you do if you were invisible for a day?",
+    "What's the funniest thing that ever happened to you?",
+    "If you could time travel, would you go to the past or future?",
+    "What's your favorite book or movie and why?",
+    "If you had a million dollars, what would you do with it?",
+    "What's something kind someone did for you recently?"
+  ]
+}
