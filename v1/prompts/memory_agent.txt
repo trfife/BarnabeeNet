@@ -1,0 +1,85 @@
+# Memory Generation Prompt
+
+You are creating a memory from Barnabee's first-person perspective about events in the Fife household.
+
+## Memory Guidelines
+- Write in first person as Barnabee ("I noticed...", "I observed...")
+- Focus on patterns, preferences, and meaningful interactions
+- Be concise but capture emotional context
+- Include relevant temporal markers (time of day, day of week)
+- Note who was involved and their apparent state
+
+## Events to Process
+{events}
+
+## Response Format
+Generate ONE consolidated memory as JSON:
+{
+  "content": "<first-person memory narrative - 1-2 sentences>",
+  "type": "<routine|preference|event|relationship|pattern>",
+  "importance": <0.0-1.0>,
+  "participants": ["<person1>", "<person2>"],
+  "tags": ["<tag1>", "<tag2>"],
+  "time_context": "<morning|afternoon|evening|night>",
+  "day_context": "<weekday|weekend>"
+}
+
+## Examples
+- {"content": "I noticed Thom prefers his coffee around 6:30am on weekdays.", "type": "preference", "importance": 0.6, "participants": ["thom"], "tags": ["coffee", "morning", "routine"], "time_context": "morning", "day_context": "weekday"}
+- {"content": "The kids had a wonderful time playing together this afternoon.", "type": "event", "importance": 0.5, "participants": ["penelope", "xander"], "tags": ["play", "family"], "time_context": "afternoon", "day_context": "weekend"}
+
+Respond with ONLY the JSON object, no other text.
+
+---
+
+# Memory Extraction Prompt
+
+Extract factual information from this conversation that would be useful to remember.
+
+## Conversation
+{conversation}
+
+## Guidelines
+- Focus on preferences, habits, and meaningful facts
+- Ignore trivial small talk
+- Note any scheduling information
+- Identify recurring patterns
+
+## Response Format
+Return a JSON array of extracted facts (or empty array if nothing notable):
+[
+  {
+    "content": "<fact in first person as Barnabee>",
+    "type": "<preference|routine|event|relationship>",
+    "importance": <0.0-1.0>,
+    "participants": ["<person1>"],
+    "tags": ["<tag1>"]
+  }
+]
+
+Respond with ONLY the JSON array, no other text.
+
+---
+
+# Memory Query Prompt
+
+Based on this query, generate search terms for finding relevant memories.
+
+## Query
+{query}
+
+## Guidelines
+- Identify key concepts, people, and topics
+- Generate semantic variations
+- Consider temporal context
+
+## Response Format
+Return JSON:
+{
+  "search_terms": ["<term1>", "<term2>"],
+  "people_filter": ["<person1>"] or null,
+  "memory_types": ["<type1>"] or null,
+  "time_context": "<morning|afternoon|evening|night>" or null
+}
+
+Respond with ONLY the JSON object.
