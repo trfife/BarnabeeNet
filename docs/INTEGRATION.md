@@ -5,11 +5,13 @@ Connect Home Assistant, ViewAssist, or any system to BarnabeeNet's AI brain.
 ## Quick Start
 
 **Simplest possible request:**
+
 ```bash
 curl "http://192.168.86.51:8000/api/v1/chat?text=what+time+is+it"
 ```
 
 **Response:**
+
 ```json
 {"response": "It's 3:45 PM.", "intent": "instant", "agent": "instant"}
 ```
@@ -31,6 +33,7 @@ curl -X POST "http://192.168.86.51:8000/api/v1/chat" \
 ```
 
 **Response:**
+
 ```json
 {
   "response": "Done! I've turned on the kitchen lights.",
@@ -41,6 +44,7 @@ curl -X POST "http://192.168.86.51:8000/api/v1/chat" \
 ```
 
 **Body Fields:**
+
 | Field | Required | Description |
 |-----------|----------|-------------|
 | text | ✅ | The command or question |
@@ -86,6 +90,7 @@ rest_command:
 ```
 
 Use in automations:
+
 ```yaml
 action:
   - service: rest_command.barnabee
@@ -129,12 +134,14 @@ ViewAssist tablets work with BarnabeeNet through Home Assistant's Assist pipelin
 **Direct API access** (for advanced use):
 
 Text mode:
+
 ```
 POST http://192.168.86.51:8000/api/v1/chat
 {"text": "turn on the lights", "speaker": "thom", "room": "living_room"}
 ```
 
 Audio mode (with transcription):
+
 ```
 POST http://192.168.86.51:8000/api/v1/input/audio
 Content-Type: multipart/form-data
@@ -158,6 +165,7 @@ All endpoints return JSON with at minimum:
 ```
 
 **Intent types:**
+
 - `instant` - Quick responses (time, date, math, greetings)
 - `action` - Device control (lights, switches, covers, etc.)
 - `interaction` - Conversations, questions, advice
@@ -168,18 +176,21 @@ All endpoints return JSON with at minimum:
 ## Examples
 
 ### Device Control
+
 ```
 text: "turn off all the lights downstairs"
 → response: "Done! I've turned off the lights on the first floor."
 ```
 
 ### Questions
+
 ```
 text: "what's the weather like?"
 → response: "It's 72°F and sunny outside. Perfect day for a walk!"
 ```
 
 ### Memory
+
 ```
 text: "remember that my favorite color is blue"
 → response: "Got it! I'll remember that your favorite color is blue."
@@ -189,7 +200,9 @@ text: "what's my favorite color?"
 ```
 
 ### Conversation Context
+
 Pass `conversation_id` to maintain context:
+
 ```
 text: "who wrote Romeo and Juliet?"
 → response: "William Shakespeare wrote Romeo and Juliet."
@@ -216,11 +229,27 @@ curl http://192.168.86.51:8000/api/v1/health
 ## WebSocket (Real-time)
 
 For streaming audio transcription:
+
 ```
 ws://192.168.86.51:8000/api/v1/ws/transcribe
 ```
 
 For dashboard activity feed:
+
 ```
 ws://192.168.86.51:8000/ws/dashboard
 ```
+
+---
+
+## Troubleshooting
+
+### "Success" but the device didn't turn on/off
+
+BarnabeeNet resolves phrases like "office light" and "office fan" using **friendly names** from Home Assistant. The trace shows the resolved entity (e.g. `light.office_switch`, `fan.office_switch_2`).
+
+- **If you see "No entities affected"** – The entity may not exist or be unavailable. Check in HA **Developer Tools → States** that the entity_id exists and is available.
+- **If the trace shows ✓ but the physical device didn't respond** – The resolved entity might be a different device (e.g. a plug named "Office Switch" instead of the ceiling light). In Home Assistant:
+  1. Go to **Settings → Devices & Services** and find the entity.
+  2. Set the **friendly name** to what you say (e.g. "Office Light" for the ceiling light). BarnabeeNet matches on that name.
+  3. Or use the entity_id shown in the trace to confirm in HA which device it controls.

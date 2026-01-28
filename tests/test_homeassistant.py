@@ -413,6 +413,26 @@ class TestHomeAssistantClient:
         assert result.success is False
         assert "invalid service format" in result.message.lower()
 
+    async def test_call_service_zero_affected_returns_failure(self, client: HomeAssistantClient) -> None:
+        """When targeting a specific entity, 0 affected states means entity may not exist - report failure."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = []  # HA returns empty list when entity not found/unavailable
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        client._client = mock_client
+
+        result = await client.call_service(
+            "light.turn_off",
+            entity_id="light.office_switch",
+        )
+
+        assert result.success is False
+        assert "No entities affected" in result.message or "entity may not exist" in result.message
+        assert result.entity_id == "light.office_switch"
+
     async def test_get_state_success(self, client: HomeAssistantClient) -> None:
         """Should return EntityState for valid entity."""
         mock_response = MagicMock()

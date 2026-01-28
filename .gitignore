@@ -48,6 +48,7 @@ secrets.decrypted.yaml
 # OS
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
 
 # Pytest testmon
 .testmondata

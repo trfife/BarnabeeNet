@@ -939,8 +939,9 @@ class HomeAssistantClient:
             )
             response.raise_for_status()
 
-            # HA returns array of affected states
+            # HA returns array of affected states (list of state objects)
             affected_states = response.json()
+            num_affected = len(affected_states) if isinstance(affected_states, list) else 0
 
             # Build description of what was targeted
             target_desc = entity_id or "all"
@@ -950,11 +951,26 @@ class HomeAssistantClient:
                 elif "area_id" in target:
                     target_desc = f"areas: {target['area_id']}"
 
+            # When targeting a specific entity, 0 affected means entity doesn't exist or is unavailable
+            if entity_id and not target and num_affected == 0:
+                logger.warning(
+                    "Service call %s on %s returned 0 affected entities - entity may not exist or be unavailable",
+                    service,
+                    entity_id,
+                )
+                return ServiceCallResult(
+                    success=False,
+                    service=service,
+                    entity_id=entity_id,
+                    message="No entities affected - entity may not exist or be unavailable. Check entity ID in Home Assistant.",
+                    response_data={"affected_states": affected_states or []},
+                )
+
             logger.info(
                 "Service call %s on %s successful, affected %d entities",
                 service,
                 target_desc,
-                len(affected_states) if affected_states else 0,
+                num_affected,
             )
 
             return ServiceCallResult(
