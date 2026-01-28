@@ -23,6 +23,8 @@ from barnabeenet.agents.action import ActionAgent
 
 if TYPE_CHECKING:
     from barnabeenet.services.homeassistant.client import HomeAssistantClient
+import re
+
 from barnabeenet.agents.instant import InstantAgent
 from barnabeenet.agents.interaction import InteractionAgent
 from barnabeenet.agents.memory import MemoryAgent, MemoryOperation
@@ -31,12 +33,17 @@ from barnabeenet.agents.meta import (
     IntentCategory,
     MetaAgent,
 )
-import re
-
 from barnabeenet.services.activity_log import get_activity_logger
+from barnabeenet.services.graceful_fallback import GracefulFallbackService, get_fallback_service
 from barnabeenet.services.llm.openrouter import OpenRouterClient
 from barnabeenet.services.metrics_store import get_metrics_store
 from barnabeenet.services.pipeline_signals import PipelineLogger, SignalType
+
+# Wake word patterns to strip from input before classification
+WAKE_WORD_PATTERN = re.compile(
+    r"^(hey |hi |hello |okay |ok )?(barnabee|barney|barnaby)\s*[,.]?\s*",
+    re.IGNORECASE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +169,7 @@ class SessionState:
         """Add an intent record to history, maintaining max size."""
         self.intent_history.append(record)
         if len(self.intent_history) > self.max_intent_history:
-            self.intent_history = self.intent_history[-self.max_intent_history:]
+            self.intent_history = self.intent_history[-self.max_intent_history :]
 
     def get_recent_intents(self, count: int = 5) -> list[IntentRecord]:
         """Get the most recent N intents."""
@@ -244,6 +251,9 @@ class AgentOrchestrator:
         self._interaction_agent: InteractionAgent | None = None
         self._memory_agent: MemoryAgent | None = None
 
+        # Graceful fallback service (initialized in init())
+        self._fallback_service: GracefulFallbackService | None = None
+
         self._initialized = False
 
     async def init(self) -> None:
@@ -298,6 +308,13 @@ class AgentOrchestrator:
 
         self._memory_agent = MemoryAgent(llm_client=self._llm_client)
         await self._memory_agent.init()
+
+        # Initialize graceful fallback service
+        self._fallback_service = await get_fallback_service(
+            llm_client=self._llm_client,
+            ha_client=self._ha_client,
+        )
+        logger.info("Graceful fallback service initialized")
 
         self._initialized = True
         logger.info("AgentOrchestrator initialized with all agents")
@@ -362,11 +379,7 @@ class AgentOrchestrator:
         self._initialized = False
         logger.info("AgentOrchestrator shutdown")
 
-    def _derive_conversation_id(
-        self,
-        room: str | None,
-        provided_id: str | None
-    ) -> str:
+    def _derive_conversation_id(self, room: str | None, provided_id: str | None) -> str:
         """Derive conversation ID from device/room for context isolation.
 
         Each device/room gets its own conversation context. This means:
@@ -474,7 +487,7 @@ class AgentOrchestrator:
             message = (
                 f"⚠️ BARNABEE ALERT ⚠️\n\n"
                 f"{speaker.title()} said something that may need your attention:\n\n"
-                f"\"{text}\"\n\n"
+                f'"{text}"\n\n'
                 f"Location: {room or 'Unknown'}\n"
                 f"Detected: {matched_pattern}"
             )
@@ -566,6 +579,16 @@ class AgentOrchestrator:
         # Derive conversation_id based on device/room for context isolation
         derived_conversation_id = self._derive_conversation_id(room, conversation_id)
 
+        # Strip wake words before processing (e.g., "barnabee what time is it" -> "what time is it")
+        original_text = text
+        text = WAKE_WORD_PATTERN.sub("", text).strip()
+        if text != original_text:
+            logger.debug("Stripped wake word: '%s' -> '%s'", original_text, text)
+
+        # Track command for fallback context
+        if self._fallback_service:
+            self._fallback_service.add_recent_command(text)
+
         # Create request context
         ctx = RequestContext(
             text=text,
@@ -618,6 +641,28 @@ class AgentOrchestrator:
 
             # Stage 3: Route to appropriate agent
             await self._route_and_handle(ctx)
+
+            # Stage 3.5: Check for failure responses and attempt graceful fallback
+            if self._fallback_service and ctx.response_text:
+                if self._fallback_service.is_failure_response(ctx.response_text):
+                    logger.info(
+                        "Detected failure response, attempting graceful fallback: %s",
+                        ctx.response_text[:100],
+                    )
+                    fallback_result = await self._fallback_service.attempt_fallback(
+                        original_text=ctx.text,
+                        failure_reason=ctx.response_text,
+                        speaker=ctx.speaker,
+                        room=ctx.room,
+                        intent_hint=ctx.classification.intent.value if ctx.classification else None,
+                    )
+                    if fallback_result.success:
+                        ctx.response_text = fallback_result.response
+                        # Mark that we used fallback
+                        if ctx.agent_response:
+                            ctx.agent_response["_fallback_used"] = True
+                            ctx.agent_response["_original_response"] = ctx.response_text
+                        logger.info("Graceful fallback succeeded")
 
             # Stage 4: Store memories (if enabled)
             if self.config.enable_memory_storage:
@@ -1934,7 +1979,9 @@ class AgentOrchestrator:
         AgentOrchestrator._session_states[ctx.conversation_id] = state
 
         if new_actions:
-            logger.info(f"SESSION STATE: Saved {len(new_actions)} action(s) for {ctx.conversation_id}: {new_actions}")
+            logger.info(
+                f"SESSION STATE: Saved {len(new_actions)} action(s) for {ctx.conversation_id}: {new_actions}"
+            )
 
     def get_last_response(self, conversation_id: str) -> str | None:
         """Get the last response for a conversation (for 'say that again')."""
@@ -1945,7 +1992,9 @@ class AgentOrchestrator:
         """Get the last actions for a conversation (for 'undo')."""
         state = AgentOrchestrator._session_states.get(conversation_id)
         actions = state.last_actions if state else []
-        logger.info(f"GET_LAST_ACTIONS: conversation_id={conversation_id}, found {len(actions)} action(s)")
+        logger.info(
+            f"GET_LAST_ACTIONS: conversation_id={conversation_id}, found {len(actions)} action(s)"
+        )
         return actions
 
     def get_intent_history(self, conversation_id: str, count: int = 10) -> list[dict[str, Any]]:
@@ -2016,12 +2065,12 @@ class AgentOrchestrator:
         if undone and not failed:
             return {
                 "success": True,
-                "message": f"Done! I've undone the last action.",
+                "message": "Done! I've undone the last action.",
             }
         elif undone and failed:
             return {
                 "success": True,
-                "message": f"I undid some actions but had trouble with others.",
+                "message": "I undid some actions but had trouble with others.",
             }
         else:
             return {
@@ -2056,7 +2105,9 @@ class AgentOrchestrator:
             action_type = action.get("action_type", "")
             previous_state = action.get("_previous_state")
 
-            logger.info(f"UNDO: Reversing action: entity_id={entity_id}, service={service}, previous_state={previous_state}")
+            logger.info(
+                f"UNDO: Reversing action: entity_id={entity_id}, service={service}, previous_state={previous_state}"
+            )
 
             if not entity_id:
                 logger.warning(f"Undo failed: No entity_id in action: {action}")
@@ -2134,7 +2185,9 @@ class AgentOrchestrator:
         if prev_attrs.get("effect") is not None and prev_attrs["effect"] != "none":
             service_data["effect"] = prev_attrs["effect"]
 
-        result = await self._ha_client.call_service("light.turn_on", entity_id=entity_id, **service_data)
+        result = await self._ha_client.call_service(
+            "light.turn_on", entity_id=entity_id, **service_data
+        )
         logger.info(f"Restored {entity_id} to ON with attrs: {service_data}, result: {result}")
         return {"success": result.success}
 
@@ -2151,18 +2204,20 @@ class AgentOrchestrator:
         # Restore temperature
         if prev_attrs.get("temperature") is not None:
             await self._ha_client.call_service(
-                "climate.set_temperature", entity_id=entity_id,
-                temperature=prev_attrs["temperature"]
+                "climate.set_temperature",
+                entity_id=entity_id,
+                temperature=prev_attrs["temperature"],
             )
 
         # Restore fan mode if set
         if prev_attrs.get("fan_mode") is not None:
             await self._ha_client.call_service(
-                "climate.set_fan_mode", entity_id=entity_id,
-                fan_mode=prev_attrs["fan_mode"]
+                "climate.set_fan_mode", entity_id=entity_id, fan_mode=prev_attrs["fan_mode"]
             )
 
-        logger.info(f"Restored {entity_id} to {prev_state} with temp={prev_attrs.get('temperature')}")
+        logger.info(
+            f"Restored {entity_id} to {prev_state} with temp={prev_attrs.get('temperature')}"
+        )
         return {"success": True}
 
     async def _restore_cover_state(
@@ -2172,8 +2227,9 @@ class AgentOrchestrator:
         # Restore position if available
         if prev_attrs.get("current_position") is not None:
             await self._ha_client.call_service(
-                "cover.set_cover_position", entity_id=entity_id,
-                position=prev_attrs["current_position"]
+                "cover.set_cover_position",
+                entity_id=entity_id,
+                position=prev_attrs["current_position"],
             )
             logger.info(f"Restored {entity_id} to position {prev_attrs['current_position']}")
         elif prev_state == "closed":
@@ -2354,31 +2410,49 @@ class AgentOrchestrator:
                     # Get state changes that happened after the action started
                     # (within last 5 seconds to catch immediate changes)
                     from datetime import timedelta
+
                     cutoff_time = ctx.started_at - timedelta(seconds=5)
 
                     recent_changes = []
-                    for change in self._ha_client.get_recent_state_changes(limit=20, since=cutoff_time):
+                    for change in self._ha_client.get_recent_state_changes(
+                        limit=20, since=cutoff_time
+                    ):
                         # Filter to relevant domains and entities that users care about
-                        domain = change.entity_id.split(".")[0] if "." in change.entity_id else "unknown"
-                        if domain in ("light", "switch", "fan", "cover", "climate", "lock", "media_player", "vacuum"):
+                        domain = (
+                            change.entity_id.split(".")[0] if "." in change.entity_id else "unknown"
+                        )
+                        if domain in (
+                            "light",
+                            "switch",
+                            "fan",
+                            "cover",
+                            "climate",
+                            "lock",
+                            "media_player",
+                            "vacuum",
+                        ):
                             # Get friendly name from entity registry if available
                             friendly_name = change.entity_id
                             entity = self._ha_client._entity_registry.get(change.entity_id)
                             if entity:
                                 friendly_name = entity.friendly_name
 
-                            recent_changes.append({
-                                "entity_id": change.entity_id,
-                                "friendly_name": friendly_name,
-                                "domain": domain,
-                                "old_state": change.old_state,
-                                "new_state": change.new_state,
-                                "timestamp": change.timestamp.isoformat(),
-                            })
+                            recent_changes.append(
+                                {
+                                    "entity_id": change.entity_id,
+                                    "friendly_name": friendly_name,
+                                    "domain": domain,
+                                    "old_state": change.old_state,
+                                    "new_state": change.new_state,
+                                    "timestamp": change.timestamp.isoformat(),
+                                }
+                            )
 
                     if recent_changes:
                         ha_state_changes = recent_changes
-                        logger.debug("Including %d HA state changes in response", len(recent_changes))
+                        logger.debug(
+                            "Including %d HA state changes in response", len(recent_changes)
+                        )
                 except Exception as e:
                     logger.debug("Could not get HA state changes for response: %s", e)
 
