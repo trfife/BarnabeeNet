@@ -1935,9 +1935,9 @@ PRODUCTION_MODE_MODELS: dict[str, str] = {
     "action.generate_error": "openai/gpt-4o-mini",
     # InteractionAgent - fast models with good personality
     # claude-3.5-haiku is fast (~300ms) and great for conversation
-    "interaction.respond": "anthropic/claude-3.5-haiku",
-    "interaction.followup": "anthropic/claude-3.5-haiku",
-    "interaction.empathy": "anthropic/claude-3.5-haiku",
+    "interaction.respond": "anthropic/claude-3-haiku",
+    "interaction.followup": "anthropic/claude-3-haiku",
+    "interaction.empathy": "anthropic/claude-3-haiku",
     "interaction.factual": "openai/gpt-4o-mini",
     # MemoryAgent - fast summarization
     "memory.generate": "openai/gpt-4o-mini",

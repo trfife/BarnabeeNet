@@ -129,7 +129,7 @@ class LLMSettings(BaseSettings):
     action_temperature: float = 0.3
     action_max_tokens: int = 500
 
-    interaction_model: str = "anthropic/claude-3.5-haiku"
+    interaction_model: str = "anthropic/claude-3-haiku"
     interaction_temperature: float = 0.7
     interaction_max_tokens: int = 1500
 

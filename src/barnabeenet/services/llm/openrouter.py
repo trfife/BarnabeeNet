@@ -76,7 +76,7 @@ class AgentModelConfig(BaseModel):
         max_tokens=500,
     )
     interaction: ModelConfig = ModelConfig(
-        model="anthropic/claude-3.5-haiku",
+        model="anthropic/claude-3-haiku",
         temperature=0.7,
         max_tokens=1500,
     )

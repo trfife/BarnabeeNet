@@ -149,7 +149,7 @@ def create_provider_from_config(config: dict[str, Any]) -> LLMProvider:
             "api_key": "YOUR_KEY",  # Or use env: LLM_OPENROUTER_API_KEY
             "models": {
                 "meta": {"model": "deepseek/deepseek-chat", "temperature": 0.3},
-                "interaction": {"model": "anthropic/claude-3.5-haiku"}
+                "interaction": {"model": "anthropic/claude-3-haiku"}
             }
         }
     """
