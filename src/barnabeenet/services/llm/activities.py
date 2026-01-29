@@ -155,21 +155,21 @@ DEFAULT_ACTIVITY_CONFIGS: dict[str, dict[str, Any]] = {
     },
     # InteractionAgent - QUALITY matters (this is the personality)
     "interaction.respond": {
-        "model": "anthropic/claude-3.5-sonnet",
+        "model": "anthropic/claude-3.5-haiku",
         "temperature": 0.7,
         "max_tokens": 1500,
         "priority": "quality",
         "description": "Main conversational responses",
     },
     "interaction.followup": {
-        "model": "anthropic/claude-3.5-sonnet",
+        "model": "anthropic/claude-3.5-haiku",
         "temperature": 0.7,
         "max_tokens": 1000,
         "priority": "quality",
         "description": "Follow-up in conversation",
     },
     "interaction.empathy": {
-        "model": "anthropic/claude-3.5-sonnet",
+        "model": "anthropic/claude-3.5-haiku",
         "temperature": 0.8,
         "max_tokens": 800,
         "priority": "quality",

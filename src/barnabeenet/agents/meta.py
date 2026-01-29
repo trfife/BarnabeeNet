@@ -1137,9 +1137,9 @@ class MetaAgent(Agent):
         # Check if text mentions HA entities (device detection)
         entity_names = ha_context.get("entity_names", [])
         if entity_names:
-            # Check if any entity name is mentioned in the text
+            # Check if any entity name is mentioned in the text (filter empty names)
             mentioned_entities = [
-                name for name in entity_names if name.lower() in text_lower
+                name for name in entity_names if name and name.lower() in text_lower
             ]
             if mentioned_entities:
                 # If entity mentioned + command verb = ACTION

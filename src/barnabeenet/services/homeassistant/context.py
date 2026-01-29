@@ -264,8 +264,8 @@ class HAContextService:
         """
         await self.refresh_metadata()
 
-        # Build entity names list
-        entity_names = [meta.friendly_name for meta in self._entity_metadata.values()]
+        # Build entity names list (filter out empty names)
+        entity_names = [meta.friendly_name for meta in self._entity_metadata.values() if meta.friendly_name]
 
         # Build domain -> entity_ids mapping
         entity_domains: dict[str, list[str]] = {}
@@ -336,7 +336,7 @@ class HAContextService:
                 entity_details = self._entity_metadata.copy()
 
             return HAContext(
-                entity_names=[meta.friendly_name for meta in self._entity_metadata.values()],
+                entity_names=[meta.friendly_name for meta in self._entity_metadata.values() if meta.friendly_name],
                 entity_domains={
                     domain: [
                         eid
@@ -406,7 +406,7 @@ class HAContextService:
                             pass
 
         return HAContext(
-            entity_names=[meta.friendly_name for meta in self._entity_metadata.values()],
+            entity_names=[meta.friendly_name for meta in self._entity_metadata.values() if meta.friendly_name],
             entity_domains={
                 domain: [
                     eid
